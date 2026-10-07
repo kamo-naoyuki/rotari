@@ -26,6 +26,7 @@ var cliConfigPath string
 var cliFileConfig config.Loaded
 var cliLocationExplicit map[string]bool
 var cliLocationDefaults map[string]string
+var cliIgnoreImplicitLocationDefaults map[string]bool
 
 func init() {
 	// Config warnings use the CLI's error style.
@@ -39,6 +40,8 @@ func loadCLIConfig(args []string) error {
 	cliFileConfig = config.Loaded{Values: map[string]any{}}
 	baseDir, projectName := configLocationArgs(args)
 	invocationOptions, positional := configInvocationOptions(args)
+	aggregate := aggregateCommandInvocation(cliConfigCommand, invocationOptions, positional)
+	cliIgnoreImplicitLocationDefaults = ignoredImplicitLocationDefaults(cliConfigCommand, aggregate)
 	if len(positional) > 0 && (cliConfigCommand == "check" || cliConfigCommand == "reset" || cliConfigCommand == "unlock" || cliConfigCommand == "jobs") && projectName == "" {
 		projectName = positional[0]
 	}
@@ -74,10 +77,14 @@ func loadCLIConfig(args []string) error {
 	}
 	cliConfig = config.Merge(nil, cliFileConfig.Values)
 	if baseDir == "" {
-		baseDir = os.Getenv(envBaseDir)
+		if !cliIgnoreImplicitLocationDefaults["basedir"] {
+			baseDir = os.Getenv(envBaseDir)
+		}
 	}
 	if projectName == "" {
-		projectName = os.Getenv(envProjectName)
+		if !cliIgnoreImplicitLocationDefaults["project-name"] {
+			projectName = os.Getenv(envProjectName)
+		}
 	}
 	if runID := configRunIDArg(args); runID != "" {
 		location, found, err := resolveRunLocation(runID)
@@ -94,9 +101,16 @@ func loadCLIConfig(args []string) error {
 		}
 	}
 	if baseDir == "" {
-		baseDir = configString("basedir", "")
+		if !cliIgnoreImplicitLocationDefaults["basedir"] {
+			baseDir = configString("basedir", "")
+		}
 	}
-	resolvedBaseDir, _, err := state.ResolveBaseDir(baseDir)
+	var resolvedBaseDir string
+	if cliIgnoreImplicitLocationDefaults["basedir"] && baseDir == "" {
+		resolvedBaseDir, err = state.ResolveBaseDirDefault()
+	} else {
+		resolvedBaseDir, _, err = state.ResolveBaseDir(baseDir)
+	}
 	if err != nil {
 		return err
 	}
@@ -110,28 +124,45 @@ func loadCLIConfig(args []string) error {
 			}
 		}
 	}
-	layer, err := config.LoadScope("basedir", resolvedBaseDir)
-	if err != nil {
-		return err
-	}
-	cliFileConfig.Add(layer)
-	cliConfig = config.Merge(nil, cliFileConfig.Values)
-	if projectName == "" {
-		projectName = configString("project-name", "")
-	}
-	if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
-		return err
-	}
-	if projectName != "" {
-		projectDir, err := state.SafeJoin(filepath.Join(resolvedBaseDir, "projects"), projectName)
-		if err != nil {
-			return err
-		}
-		layer, err := config.LoadScope("project", projectDir)
+	skipAggregateBaseLayer := aggregate && cliConfigCommand == "show" && len(invocationOptions["basedir"]) == 0
+	if !skipAggregateBaseLayer {
+		layer, err := config.LoadScope("basedir", resolvedBaseDir)
 		if err != nil {
 			return err
 		}
 		cliFileConfig.Add(layer)
+	}
+	cliConfig = config.Merge(nil, cliFileConfig.Values)
+	if projectName == "" && !cliIgnoreImplicitLocationDefaults["project-name"] {
+		projectName = configString("project-name", "")
+	}
+	if cliIgnoreImplicitLocationDefaults["project-name"] && projectName == "" && cliConfigCommand == "lineage" {
+		projects, listErr := resolve.ExistingProjectNames(resolvedBaseDir)
+		if listErr != nil {
+			return listErr
+		}
+		if len(projects) == 1 {
+			projectName = projects[0]
+		}
+	} else if !aggregate {
+		if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
+			return err
+		}
+	}
+	if projectName != "" {
+		if aggregate && cliConfigCommand == "jobs" && len(positional) == 0 && len(invocationOptions["project-name"]) == 0 {
+			projectName = ""
+		} else {
+			projectDir, err := state.SafeJoin(filepath.Join(resolvedBaseDir, "projects"), projectName)
+			if err != nil {
+				return err
+			}
+			layer, err := config.LoadScope("project", projectDir)
+			if err != nil {
+				return err
+			}
+			cliFileConfig.Add(layer)
+		}
 	}
 	cliConfig = config.Merge(nil, cliFileConfig.Values)
 	// Runtime location facts are separate from the file-only snapshot.
@@ -146,6 +177,74 @@ func loadCLIConfig(args []string) error {
 	}
 	rememberConfigLocations()
 	return nil
+}
+
+func aggregateCommandInvocation(command string, options map[string][]string, positional []string) bool {
+	for arg := range options {
+		if arg == "help" || arg == "h" {
+			return false
+		}
+	}
+	switch command {
+	case "show":
+		if optionEnabled(options, "basedirs") {
+			return true
+		}
+		if len(positional) > 0 || len(options["project-name"]) > 0 || len(options["run-id"]) > 0 || len(options["job-id"]) > 0 || len(options["job-name"]) > 0 {
+			return false
+		}
+		return !hasProjectViewOptions(options)
+	case "jobs":
+		return true
+	case "lineage":
+		return len(positional) == 0 && len(options["run-id"]) == 0 && len(options["project-name"]) == 0
+	case "config":
+		return len(options["list"]) > 0
+	default:
+		return false
+	}
+}
+
+func hasProjectViewOptions(options map[string][]string) bool {
+	for _, name := range []string{"queue", "failed", "success", "unfinished", "logs", "failed-logs", "follow", "json", "report", "artifacts"} {
+		if optionEnabled(options, name) {
+			return true
+		}
+	}
+	for name, values := range options {
+		if name == "stage" || name == "matrix" || name == "stream" || strings.HasPrefix(name, "filter-") {
+			return len(values) > 0
+		}
+	}
+	return false
+}
+
+func ignoredImplicitLocationDefaults(command string, aggregate bool) map[string]bool {
+	ignored := map[string]bool{}
+	if !aggregate {
+		return ignored
+	}
+	switch command {
+	case "show", "jobs":
+		ignored["basedir"] = true
+		ignored["project-name"] = true
+	case "lineage", "config":
+		ignored["project-name"] = true
+	}
+	return ignored
+}
+
+func optionEnabled(options map[string][]string, name string) bool {
+	values := options[name]
+	if len(values) == 0 {
+		return false
+	}
+	value := values[len(values)-1]
+	if value == "" {
+		return true
+	}
+	enabled, err := strconv.ParseBool(value)
+	return err != nil || enabled
 }
 
 func rememberConfigLocations() {
@@ -488,21 +587,25 @@ func cmdConfig(args []string) int {
 		}
 		selectedFormat = "toml"
 	}
-	resolvedBaseDir, _, err := state.ResolveBaseDir(*basedir)
-	if err != nil {
-		printErrorf("failed to resolve basedir: %v", err)
-		return 1
-	}
 	if *list {
 		if *format != "" || *output != "" {
 			printError("--list cannot be combined with --format or --output")
 			return 1
 		}
-		if *projectName != "" && !state.IsValidPathElement(*projectName) {
-			printErrorf("invalid project name %q", *projectName)
+		projectFilter := ""
+		if cliOptionSet(fs, "project-name") {
+			projectFilter = *projectName
+		}
+		if projectFilter != "" && !state.IsValidPathElement(projectFilter) {
+			printErrorf("invalid project name %q", projectFilter)
 			return 1
 		}
-		common, projects := config.ListPaths(resolvedBaseDir, *projectName, notification.FileName)
+		resolvedBaseDir, _, err := state.ResolveBaseDir(*basedir)
+		if err != nil {
+			printErrorf("failed to resolve basedir: %v", err)
+			return 1
+		}
+		common, projects := config.ListPaths(resolvedBaseDir, projectFilter, notification.FileName)
 		if len(common) > 0 {
 			fmt.Println("Common:")
 			for _, path := range common {
@@ -524,6 +627,11 @@ func cmdConfig(args []string) int {
 			}
 		}
 		return 0
+	}
+	resolvedBaseDir, _, err := state.ResolveBaseDir(*basedir)
+	if err != nil {
+		printErrorf("failed to resolve basedir: %v", err)
+		return 1
 	}
 	if *output == "" {
 		var selectedOutput string
@@ -573,6 +681,7 @@ func cmdConfig(args []string) int {
 // a defaults file, and do not let stale defaults from another command leak in.
 func loadConfigCommandDefaults(args []string) error {
 	cliConfig = map[string]any{}
+	cliIgnoreImplicitLocationDefaults = nil
 	inventory := false
 	for _, arg := range args {
 		if arg == "--list" || arg == "--list=true" {
@@ -599,6 +708,12 @@ func loadConfigCommandDefaults(args []string) error {
 			return err
 		}
 		cliConfig = config.Merge(cliConfig, layer.Values)
+	}
+	if inventory {
+		cliIgnoreImplicitLocationDefaults = ignoredImplicitLocationDefaults("config", true)
+		// Config inventory is an aggregate view. Its target base/project are
+		// selected explicitly by cmdConfig, not by location defaults.
+		return nil
 	}
 	base, _ := configLocationArgs(args)
 	if base == "" {

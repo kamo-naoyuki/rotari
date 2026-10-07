@@ -458,6 +458,13 @@ func ProjectNames(baseDir, cliProjectName string) ([]string, error) {
 		}
 		return []string{projectName}, nil
 	}
+	return ExistingProjectNames(baseDir)
+}
+
+// ExistingProjectNames lists only project directories present in baseDir. It
+// intentionally does not consult ROTARI_PROJECT_NAME or choose the default
+// project, which aggregate views use when finding project candidates.
+func ExistingProjectNames(baseDir string) ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -467,7 +474,7 @@ func ProjectNames(baseDir, cliProjectName string) ([]string, error) {
 	}
 	projects := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
 			projects = append(projects, entry.Name())
 		}
 	}

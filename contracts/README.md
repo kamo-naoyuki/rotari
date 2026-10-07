@@ -120,7 +120,7 @@ the IDs, this table, and those calls disagree.
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | partial | `TestFilteredRerunCarriesCompletedResults` |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
-| RES-2 | Project resolution order and the single-project default | partial | `TestProjectResolutionOrder` |
+| RES-2 | Project resolution order and the single-project default for project-scoped commands | partial | `TestProjectResolutionOrder` |
 | RES-3 | Missing projects fail except `check` reports empty, `unlock`/`wait` without run ID no-op, and `add`, `import`, `reset` create one | partial | `TestMissingProjectIsAnError`, `TestCheckMissingProjectIsEmptyWithoutCreatingIt`, `TestResetMissingProjectCreatesEmptyQueue`, `TestUnlockMissingProjectIsNoOp`, `TestWaitMissingProjectIsNoOp` |
 | RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
@@ -144,6 +144,7 @@ the IDs, this table, and those calls disagree.
 | RES-23 | Cwd-only workspace discovery, staged location selection, scope merge and location constraints | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
 | RES-24 | Init writes a cwd config template with relative basedir and project defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestWorkspaceInitDefaultTemplate` |
 | RES-25 | Runs save immutable canonical merged file values, separate from runtime overrides and source metadata | partial | `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
+| RES-26 | Aggregate views ignore implicit project defaults; bare show/jobs also ignore implicit basedir defaults | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |

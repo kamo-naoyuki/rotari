@@ -1337,6 +1337,12 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 	}
 }
 
+func TestCmdShowRejectsBasedirWithBasedirsList(t *testing.T) {
+	if code := cmdShow([]string{"--basedir", t.TempDir(), "--basedirs"}); code != 1 {
+		t.Fatalf("cmdShow accepted --basedir with --basedirs: exit code = %d", code)
+	}
+}
+
 func TestShowJobOlderAttemptIgnoresLatestSummary(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

@@ -148,6 +148,7 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	selector := ""
+	explicitProjectSelection := cliOptionSet(fs, "project-name")
 	if len(fs.Args()) == 1 {
 		selector = fs.Args()[0]
 		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList {
@@ -197,6 +198,7 @@ func cmdShow(args []string) int {
 		}
 		if resolve.ProjectExists(baseDir, selector) {
 			*queueNameOption = selector
+			explicitProjectSelection = true
 			selector = ""
 		}
 	}
@@ -295,8 +297,8 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	if *showBaseDirsList {
-		if *runIDOption != "" || *jobIDOption != "" || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
-			printError("--basedirs cannot be combined with project, run, job, log, filter, or JSON options")
+		if cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name") || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || resultFilter || narrowed || *showQueueOption || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput {
+			printError("--basedirs cannot be combined with basedir, project, run, job, queue, log, filter, report, or JSON options")
 			return 1
 		}
 		masterDir, err := state.ResolveMasterDir(*masterdir)
@@ -306,9 +308,14 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
-	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed &&
-		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
-		return showAllProjects(*basedir, *masterdir)
+	aggregateProjects := !explicitProjectSelection && selector == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed &&
+		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput)
+	if aggregateProjects {
+		aggregateBaseDir := ""
+		if cliOptionSet(fs, "basedir") {
+			aggregateBaseDir = *basedir
+		}
+		return showAllProjects(aggregateBaseDir, *masterdir)
 	}
 	baseDir, queueName, err := resolveCLIExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
@@ -1465,7 +1472,7 @@ func showAllProjects(cliBaseDir, cliMasterDir string) int {
 		seen[item.BaseDir] = true
 		baseDirs = append(baseDirs, item.BaseDir)
 	}
-	if current, _, err := state.ResolveBaseDir(""); err == nil && !seen[current] {
+	if current, err := state.ResolveBaseDirDefault(); err == nil && !seen[current] {
 		baseDirs = append(baseDirs, current)
 	}
 	sort.Strings(baseDirs)

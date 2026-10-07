@@ -13,9 +13,11 @@ func workspaceCWD(t *testing.T) string {
 	t.Helper()
 	oldConfig, oldCommand, oldPath := cliConfig, cliConfigCommand, cliConfigPath
 	oldFiles, oldExplicit, oldDefaults := cliFileConfig, cliLocationExplicit, cliLocationDefaults
+	oldIgnored := cliIgnoreImplicitLocationDefaults
 	t.Cleanup(func() {
 		cliConfig, cliConfigCommand, cliConfigPath = oldConfig, oldCommand, oldPath
 		cliFileConfig, cliLocationExplicit, cliLocationDefaults = oldFiles, oldExplicit, oldDefaults
+		cliIgnoreImplicitLocationDefaults = oldIgnored
 	})
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -194,7 +196,7 @@ func TestWorkspacePositionalProjectLoadsSelectedLayer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv(envProjectName, "environment")
-	for _, command := range []string{"check", "reset", "unlock", "jobs", "show", "export", "wait"} {
+	for _, command := range []string{"check", "reset", "unlock", "show", "export", "wait"} {
 		cliConfigCommand = command
 		if err := loadCLIConfig([]string{"selected"}); err != nil {
 			t.Fatalf("%s: %v", command, err)
@@ -202,6 +204,27 @@ func TestWorkspacePositionalProjectLoadsSelectedLayer(t *testing.T) {
 		if !configBool("quiet", false) || cliConfigPath != filepath.Join(selected, "config.toml") {
 			t.Fatalf("%s chose wrong layer: %#v", command, cliFileConfig)
 		}
+	}
+	cliConfigCommand = "jobs"
+	if err := loadCLIConfig([]string{"selected"}); err != nil {
+		t.Fatal(err)
+	}
+	projectLayerLoaded := false
+	for _, source := range cliFileConfig.Sources {
+		projectLayerLoaded = projectLayerLoaded || source.Scope == "project"
+	}
+	if configBool("quiet", false) || projectLayerLoaded {
+		t.Fatalf("aggregate jobs inherited workspace location defaults: %#v", cliFileConfig)
+	}
+	if err := loadCLIConfig([]string{"--basedir", base, "selected"}); err != nil {
+		t.Fatal(err)
+	}
+	projectLayerLoaded = false
+	for _, source := range cliFileConfig.Sources {
+		projectLayerLoaded = projectLayerLoaded || source.Scope == "project" && source.Path == filepath.Join(selected, "config.toml")
+	}
+	if !configBool("quiet", false) || !projectLayerLoaded {
+		t.Fatalf("explicitly scoped jobs did not load the selected project config: %#v", cliFileConfig)
 	}
 }
 

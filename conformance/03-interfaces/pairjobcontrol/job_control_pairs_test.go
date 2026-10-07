@@ -55,7 +55,7 @@ func startControlRun(t *testing.T) controlRun {
 		support.KillStrays(t, e.Root)
 	})
 	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
-		running := strings.Count(e.Rotari("jobs", controlProject, "--format", "%a %s").Stdout, " running")
+		running := strings.Count(e.Rotari("jobs", "--basedir", e.Base, controlProject, "--format", "%a %s").Stdout, " running")
 		return running == len(controlKeys), fmt.Sprintf("running=%d, want %d", running, len(controlKeys))
 	})
 	var shown struct {

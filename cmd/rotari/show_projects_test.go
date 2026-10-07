@@ -89,6 +89,47 @@ func TestShowProjectListHintsWorkForListedBaseDirs(t *testing.T) {
 	})
 }
 
+func TestBareShowIgnoresImplicitLocationDefaults(t *testing.T) {
+	stateHome := t.TempDir()
+	defaultBase := filepath.Join(stateHome, "rotari")
+	workspaceBase := t.TempDir()
+	envBase := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	t.Setenv("ROTARI_BASEDIR", envBase)
+	t.Setenv("ROTARI_PROJECT_NAME", "env-only")
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig, cliConfigCommand = map[string]any{"basedir": workspaceBase, "project-name": "workspace-only"}, "show"
+	t.Cleanup(func() { cliConfig, cliConfigCommand = oldConfig, oldCommand })
+
+	writeProjectRun(t, defaultBase, "20261007-110000-00000001", false)
+	writeProjectRun(t, workspaceBase, "20261007-110001-00000002", false)
+	writeProjectRun(t, envBase, "20261007-110002-00000003", false)
+
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(nil) }); code != 0 {
+		t.Fatalf("bare show exit = %d: %s", code, output.String())
+	}
+	for _, project := range []string{"exp"} {
+		if !strings.Contains(output.String(), project) {
+			t.Errorf("bare show omitted project %q: %s", project, output.String())
+		}
+	}
+	for _, baseDir := range []string{defaultBase, workspaceBase, envBase} {
+		if !strings.Contains(output.String(), baseDir) {
+			t.Errorf("bare show omitted registered basedir %q: %s", baseDir, output.String())
+		}
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow([]string{"--basedir", workspaceBase}) }); code != 0 {
+		t.Fatalf("show --basedir exit = %d: %s", code, output.String())
+	}
+	if strings.Contains(output.String(), defaultBase) || strings.Contains(output.String(), envBase) {
+		t.Fatalf("explicit basedir did not scope show: %s", output.String())
+	}
+}
+
 // testProjectListHints lists baseDir's projects and runs the suggested
 // commands; wantBaseDir says whether they must name the basedir.
 func testProjectListHints(t *testing.T, baseDir string, wantBaseDir bool) {

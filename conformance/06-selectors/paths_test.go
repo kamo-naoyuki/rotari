@@ -51,7 +51,7 @@ func TestCLIRejectsUnsafePathElements(t *testing.T) {
 		{"add --project-name", func(v string) []string { return []string{"add", "-p", v, "--", "true"} }, run.project, "projects"},
 		{"show --project-name", func(v string) []string { return []string{"show", "-p", v} }, run.project, "projects"},
 		{"check PROJECT", func(v string) []string { return []string{"check", v} }, run.project, "projects"},
-		{"jobs PROJECT", func(v string) []string { return []string{"jobs", v} }, run.project, "projects"},
+		{"jobs PROJECT", func(v string) []string { return []string{"jobs", "--basedir", e.base, v} }, run.project, "projects"},
 		{"show --run-id", func(v string) []string { return []string{"show", "-p", run.project, "--run-id", v} }, run.runID, "runs"},
 		{"show --job-id", func(v string) []string {
 			return []string{"show", "-p", run.project, "--run-id", run.runID, "--job-id", v}

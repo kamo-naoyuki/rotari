@@ -11,7 +11,7 @@ func TestJobsTableKeepsVisibleColumnsAligned(t *testing.T) {
 	covers(t, "CLI-2")
 	e := support.NewEnv(t)
 	run := e.CreateFinishedRun()
-	output := e.MustRotari("jobs", run.Project, "--format", "%s %a").Stdout
+	output := e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--format", "%s %a").Stdout
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) < 3 {
 		t.Fatalf("jobs table has too few rows: %q", output)
@@ -36,10 +36,10 @@ func TestJobsWindowAcceptsDays(t *testing.T) {
 	covers(t, "CLI-6")
 	e := support.NewEnv(t)
 	run := e.CreateFinishedRun()
-	if output := e.MustRotari("jobs", run.Project, "--since", "7d").Stdout; !strings.Contains(output, run.BadAttempt) {
+	if output := e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--since", "7d").Stdout; !strings.Contains(output, run.BadAttempt) {
 		t.Fatalf("jobs --since 7d does not list the finished job %s:\n%s", run.BadAttempt, output)
 	}
-	if result := e.Rotari("jobs", run.Project, "--since", "1.5d"); result.Code == 0 {
+	if result := e.Rotari("jobs", "--basedir", e.Base, run.Project, "--since", "1.5d"); result.Code == 0 {
 		t.Fatalf("jobs --since 1.5d was accepted: %s", result)
 	}
 	web := e.StartWeb()

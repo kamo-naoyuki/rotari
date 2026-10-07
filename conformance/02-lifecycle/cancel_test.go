@@ -116,7 +116,7 @@ func runResults(t *testing.T, e *support.Env, run support.ActiveRun) []json.RawM
 
 func jobAttempts(t *testing.T, e *support.Env, run support.ActiveRun) int {
 	t.Helper()
-	return strings.Count(e.MustRotari("jobs", run.Project, "--format", "%a").Stdout, "-"+run.Jobs[0]+"-")
+	return strings.Count(e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--format", "%a").Stdout, "-"+run.Jobs[0]+"-")
 }
 
 func TestCancelledJobsReadAsCancelled(t *testing.T) {

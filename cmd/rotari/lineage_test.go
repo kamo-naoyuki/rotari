@@ -121,6 +121,75 @@ func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 
 }
 
+func TestCmdLineageListsProjectCandidatesInsteadOfUsingImplicitProject(t *testing.T) {
+	stateHome := t.TempDir()
+	implicitBase := t.TempDir()
+	for _, name := range []string{"alpha", "beta", "env-only"} {
+		if err := os.MkdirAll(filepath.Join(implicitBase, "projects", name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	t.Setenv(envBaseDir, implicitBase)
+	t.Setenv(envProjectName, "env-only")
+	oldConfig, oldCommand, oldIgnored := cliConfig, cliConfigCommand, cliIgnoreImplicitLocationDefaults
+	cliConfig, cliConfigCommand = map[string]any{"basedir": implicitBase, "project-name": "env-only"}, "lineage"
+	cliIgnoreImplicitLocationDefaults = map[string]bool{"project-name": true}
+	t.Cleanup(func() {
+		cliConfig, cliConfigCommand, cliIgnoreImplicitLocationDefaults = oldConfig, oldCommand, oldIgnored
+	})
+
+	code, stderr := captureStderr(t, func() int { return cmdLineage(nil) })
+	if code == 0 || !strings.Contains(stderr, "multiple projects found") || !strings.Contains(stderr, "alpha") || !strings.Contains(stderr, "beta") || !strings.Contains(stderr, "--project-name") {
+		t.Fatalf("lineage candidates = %d, %q", code, stderr)
+	}
+
+	if err := os.RemoveAll(filepath.Join(implicitBase, "projects", "beta")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(implicitBase, "projects", "env-only")); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	code = captureShowStdout(t, &output, func() int { return cmdLineage(nil) })
+	if code != 0 || !strings.Contains(output.String(), "Project: alpha") {
+		t.Fatalf("single lineage candidate = %d, %s", code, output.String())
+	}
+
+	if err := os.RemoveAll(filepath.Join(implicitBase, "projects", "alpha")); err != nil {
+		t.Fatal(err)
+	}
+	code, stderr = captureStderr(t, func() int { return cmdLineage(nil) })
+	if code == 0 || !strings.Contains(stderr, "no projects found") || !strings.Contains(stderr, implicitBase) {
+		t.Fatalf("empty lineage candidates = %d, %q", code, stderr)
+	}
+}
+
+func TestCmdLineageUsesImplicitBasedirButNotProject(t *testing.T) {
+	dir := workspaceCWD(t)
+	if err := os.Unsetenv(envBaseDir); err != nil {
+		t.Fatal(err)
+	}
+	baseDir := filepath.Join(dir, "workspace-state")
+	projectDir := filepath.Join(baseDir, "projects", "workspace-project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".rotari.toml"), []byte("basedir = \"workspace-state\"\nproject-name = \"wrong-project\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldConfig, oldCommand, oldIgnored := cliConfig, cliConfigCommand, cliIgnoreImplicitLocationDefaults
+	cliConfig, cliConfigCommand = map[string]any{"basedir": "workspace-state", "project-name": "wrong-project"}, "lineage"
+	cliIgnoreImplicitLocationDefaults = map[string]bool{"project-name": true}
+	t.Cleanup(func() {
+		cliConfig, cliConfigCommand, cliIgnoreImplicitLocationDefaults = oldConfig, oldCommand, oldIgnored
+	})
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return cmdLineage(nil) }); code != 0 || !strings.Contains(output.String(), "Project: workspace-project") {
+		t.Fatalf("lineage target from workspace basedir = %d, %s", code, output.String())
+	}
+}
+
 func TestFirstNonEmpty(t *testing.T) {
 	if firstNonEmpty("", "value") != "value" || firstNonEmpty("", "") != "" {
 		t.Fatal("firstNonEmpty returned unexpected results")

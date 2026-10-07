@@ -49,7 +49,8 @@ The per-command view of these rules, with job selectors, is in
   and global file defaults, then the only project in the resolved base directory.
   With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
-  command lists projects across known basedirs instead of resolving one.
+  command lists projects across known basedirs instead of resolving one; RES-26
+  defines which target defaults aggregate views ignore.
 - **RES-3** Commands that read or edit a missing project fail with
   `project "x" does not exist`, except `check` reports an empty, non-runnable queue without
   creating a project (exit status 1), and `unlock` without `--run-id` succeeds
@@ -61,7 +62,9 @@ The per-command view of these rules, with job selectors, is in
   alternative to `--project-name`; supplying both is a usage error.
 - **RES-5** `jobs` also accepts one optional positional project name to filter the
   selected basedir's projects; it takes precedence over environment and config
-  defaults, and cannot be combined with an explicit `--project-name`.
+  project defaults, and cannot be combined with an explicit `--project-name`.
+  Its implicit basedir is the non-config cwd-local/XDG/home default; use CLI
+  `--basedir` to choose a different basedir.
 - **RES-6** `export` accepts one positional copy target and an optional output file
   (`export TARGET [FILE]`). The target names a project or saved run ID. When
   both a project and a run must be named explicitly, `--project-name` names
@@ -73,6 +76,38 @@ The per-command view of these rules, with job selectors, is in
 - **RES-8** `show --basedirs` lists state directories known to the run and live-server
   registries under the resolved master directory; this discovery is not
   exhaustive.
+**RES-26** Aggregate views do not use an implicit `project-name` from
+`ROTARI_PROJECT_NAME` or any config scope to narrow results; only an explicit
+CLI project selector does so. Basedir defaults are command-specific:
+
+- Bare `show` ignores implicit project and basedir defaults, listing projects
+  across known basedirs plus the cwd-local/XDG/home default state directory.
+  CLI `--basedir` limits it to that basedir. Project/run/job selectors and
+  project views retain normal location defaults.
+- `jobs` ignores implicit project and basedir defaults, using the cwd-local,
+  XDG, or home default basedir. CLI `--basedir` selects a different one;
+  `--all-basedirs` retains its registry-wide scope. A positional project or
+  CLI `--project-name` explicitly filters that scope.
+- Argumentless `lineage` ignores implicit project defaults but retains normal
+  basedir precedence: CLI, environment, workspace/basedir/global file defaults,
+  then local/XDG/home fallback. It selects the sole existing project, errors
+  when none exist, and lists multiple candidates with guidance to pass
+  `--project-name`. `lineage PROJECT` continues to mean run IDs, which resolve
+  through the run registry.
+- `config --list` ignores implicit project defaults but retains normal basedir
+  precedence: CLI, environment, workspace/global file defaults, then
+  local/XDG/home fallback. It inventories every project config in that basedir;
+  CLI `--project-name` narrows the inventory.
+
+`show --basedirs` and `jobs --all-basedirs` reject an explicit `--basedir`
+rather than silently discarding the conflicting scope. Implementation:
+[aggregate target handling](../cmd/rotari/show.go) and
+[jobs target handling](../cmd/rotari/jobs.go). Tests:
+[aggregate CLI regressions](../cmd/rotari/show_projects_test.go),
+[jobs regressions](../cmd/rotari/jobs_test.go), and
+[built-binary conformance](../conformance/01-resolution/aggregate_target_defaults_test.go).
+
+Other non-location option defaults remain applicable to aggregate views.
 - **RES-9** Project names and job IDs are single path elements, never relative or
   absolute paths.
 - **RES-10** Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`

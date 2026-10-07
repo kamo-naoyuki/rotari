@@ -102,8 +102,9 @@ func TestCLIFlagPairs(t *testing.T) {
 			for _, pair := range commandFlagPairs(c) {
 				t.Run(pair.A.Name+"+"+pair.B.Name, func(t *testing.T) {
 					aArgs, bArgs := f.sample(t, pair.A), f.sample(t, pair.B)
-					ab := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), aArgs...), bArgs...)...)
-					ba := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), bArgs...), aArgs...)...)
+					base := pairReadBase(c.Name, f, pair.A.Name == "basedir" || pair.B.Name == "basedir")
+					ab := pairInvoke(t, f.e, append(append(base, aArgs...), bArgs...)...)
+					ba := pairInvoke(t, f.e, append(append(base, bArgs...), aArgs...)...)
 					invocations += 2
 					assertPairOutcome(t, ab)
 					assertPairOutcome(t, ba)
@@ -118,7 +119,13 @@ func TestCLIFlagPairs(t *testing.T) {
 	t.Logf("pairs accepted=%d explicitly rejected=%d invocations=%d elapsed=%s (includes fixture/schema)", outcomes[0], outcomes[1], invocations, time.Since(start))
 }
 
-func pairReadBase(command string, f pairFixture) []string {
+func pairReadBase(command string, f pairFixture, explicitBasedir bool) []string {
+	if command == "jobs" {
+		if explicitBasedir {
+			return []string{command}
+		}
+		return []string{command, "--basedir", f.e.Base}
+	}
 	if command == "lineage" {
 		return []string{command, f.run}
 	}
@@ -229,8 +236,8 @@ func TestCLIFlagPairObservability(t *testing.T) {
 		}
 	}
 	t.Run("jobs/format+since", func(t *testing.T) {
-		all := pairInvoke(t, f.e, "jobs", "--format", "%a %n", "--since", "7d")
-		running := pairInvoke(t, f.e, "jobs", "--format", "%a %n", "--since", "0")
+		all := pairInvoke(t, f.e, "jobs", "--basedir", f.e.Base, "--format", "%a %n", "--since", "7d")
+		running := pairInvoke(t, f.e, "jobs", "--basedir", f.e.Base, "--format", "%a %n", "--since", "0")
 		if all.Code != 0 || running.Code != 0 || !strings.Contains(all.Stdout, "att_") || strings.Contains(running.Stdout, "att_") {
 			t.Fatalf("--since has no effect across formatted output:\n%s\n%s", all, running)
 		}
@@ -322,9 +329,9 @@ func TestCLIFlagPairSamples(t *testing.T) {
 		}
 		for _, flag := range c.Flags {
 			t.Run(c.Name+"/"+flag.Name, func(t *testing.T) {
-				assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f), f.sample(t, flag)...)...))
+				assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f, flag.Name == "basedir"), f.sample(t, flag)...)...))
 				if flag.ValueName == "" {
-					assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f), "--"+flag.Name+"=false")...))
+					assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f, flag.Name == "basedir"), "--"+flag.Name+"=false")...))
 				}
 			})
 		}

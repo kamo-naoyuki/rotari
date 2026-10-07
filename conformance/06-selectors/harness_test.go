@@ -199,7 +199,7 @@ func (e *env) startRun(p string, n int, async bool, extra ...string) activeRun {
 		})
 	}
 	waitUntil(e.t, 15*time.Second, func() (bool, string) {
-		running := strings.Count(e.rotari("jobs", p, "--format", "%a %s").stdout, " running")
+		running := strings.Count(e.rotari("jobs", "--basedir", e.base, p, "--format", "%a %s").stdout, " running")
 		var shown struct {
 			RunID string `json:"run_id"`
 		}

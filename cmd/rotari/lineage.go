@@ -28,7 +28,54 @@ func cmdLineage(args []string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
-	baseDir, project, err := resolveCLIExistingRun(*basedir, *projectName, firstNonEmpty(fs.Args()...))
+	if len(fs.Args()) == 0 {
+		baseDir, _, err := state.ResolveBaseDir(*basedir)
+		if err != nil {
+			printErrorf("failed to resolve basedir: %v", err)
+			return 1
+		}
+		project := ""
+		if cliOptionSet(fs, "project-name") {
+			project = *projectName
+			if err := resolve.RequireProject(baseDir, project); err != nil {
+				printError(err)
+				return 1
+			}
+		} else {
+			projects, err := resolve.ExistingProjectNames(baseDir)
+			if err != nil {
+				printErrorf("failed to list projects in %s: %v", baseDir, err)
+				return 1
+			}
+			switch len(projects) {
+			case 0:
+				printErrorf("no projects found in %s; add a project or choose a basedir with --basedir", baseDir)
+				return 1
+			case 1:
+				project = projects[0]
+			default:
+				fmt.Fprintf(os.Stderr, "multiple projects found in %s; choose one with --project-name:\n", baseDir)
+				for _, candidate := range projects {
+					fmt.Fprintf(os.Stderr, "  %s\n", candidate)
+				}
+				return 1
+			}
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, project)
+		if err != nil {
+			printErrorf("failed to resolve paths: %v", err)
+			return 1
+		}
+		return showLineage(paths, nil, *jsonOutput)
+	}
+	selectorBase, selectorProject := "", ""
+	if cliOptionSet(fs, "basedir") {
+		selectorBase = *basedir
+	}
+	if cliOptionSet(fs, "project-name") {
+		selectorProject = *projectName
+	}
+	baseDir, project, err := resolveCLIExistingRun(selectorBase, selectorProject, firstNonEmpty(fs.Args()...))
 	if err != nil {
 		printError(err)
 		return 1

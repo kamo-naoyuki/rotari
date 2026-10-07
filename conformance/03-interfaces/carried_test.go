@@ -49,7 +49,7 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 			return out, strings.Contains(out, "succeeded 1") && strings.Contains(out, "unfinished 1")
 		},
 		"jobs": func() (string, bool) {
-			out := e.MustRotari("jobs", "p1", "--format", "%n %s").Stdout
+			out := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s").Stdout
 			return out, regexp.MustCompile(`(?m)^carried\s+success$`).MatchString(out) && !regexp.MustCompile(`(?m)^carried\s+running$`).MatchString(out)
 		},
 	} {

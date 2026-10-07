@@ -541,6 +541,9 @@ func TestReadingHistoryDoesNotRewriteIt(t *testing.T) {
 		{"wait", first},
 		{"copy", "-p", "p", "--run-id", first, "--overwrite"},
 	} {
+		if args[0] == "jobs" {
+			args = append([]string{"jobs", "--basedir", e.Base}, args[1:]...)
+		}
 		e.Rotari(args...)
 	}
 	e.HTTPGet(base + "/api/state")
@@ -588,7 +591,11 @@ func TestNewerStateVersionIsRejected(t *testing.T) {
 			written := setStateVersion(t, path, 99)
 			for i, command := range readers(file, runID, jobID) {
 				t.Run(command.args[0]+fmt.Sprint(i), func(t *testing.T) {
-					got := e.Rotari(command.args...)
+					args := command.args
+					if args[0] == "jobs" {
+						args = append([]string{"jobs", "--basedir", e.Base}, args[1:]...)
+					}
+					got := e.Rotari(args...)
 					if got.Code == 0 || !strings.Contains(got.Stderr+got.Stdout, "upgrade rotari") {
 						t.Errorf("read newer %s without upgrade message: %s", file, got)
 					}

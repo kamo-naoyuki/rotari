@@ -381,7 +381,7 @@ func (e *Env) StartRun(project string, count int, async bool, runArgs ...string)
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		running := strings.Count(e.Rotari("jobs", project, "--format", "%a %s").Stdout, " running")
+		running := strings.Count(e.Rotari("jobs", "--basedir", e.Base, project, "--format", "%a %s").Stdout, " running")
 		var shown struct {
 			RunID string `json:"run_id"`
 		}

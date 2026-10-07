@@ -66,48 +66,57 @@ command-line-only.
 
 ### Workspace defaults and initialization
 
-Run `rotari init [BASEDIR [PROJECT]]` from the workspace directory to set
-location defaults without repeating `--basedir` and `--project-name` on each
-command:
+`rotari init` is a shortcut for setting just the workspace's location
+defaults. For a full configuration template, use `rotari config` instead.
+Run `rotari init [BASEDIR [PROJECT]]` from the workspace directory:
 
 ```sh
 rotari init .rotari-state sweep
 ```
 
-This creates `.rotari.toml` in the current directory using the same TOML
-template as `rotari config`. Only these two values are filled in; other
-configurable options are included as commented-out assignments:
+It creates `.rotari.toml` with `basedir` and `project-name` filled in; other
+settings remain commented out, as in the template from `rotari config`:
 
 ```toml
 basedir = ".rotari-state"
 project-name = "sweep"
 ```
 
-Both arguments are optional. Omitted `BASEDIR` defaults to `.rotari-state`,
-and omitted `PROJECT` defaults to `default`. Both values are always written.
-The basedir must be a non-empty relative path, resolved from the
-workspace directory; it may include parent or child directories such as
-`../state` or `state/rotari`, but cannot be absolute. The project must be a
-single safe path element (not empty, `.` or `..`, and containing neither `/`
-nor `\\`); `latest` is reserved. Extra arguments are rejected.
+Both arguments are optional: `BASEDIR` defaults to `.rotari-state` and
+`PROJECT` to `default`. The basedir must be a relative path; the project must
+be a single safe name (not `.` or `..`, and containing no `/` or `\\`).
 
-`init` atomically creates only the workspace file. It does not create the
-basedir, project, queue, or registry entry; those are created later as needed
-by commands such as `rotari add`. It refuses to replace an existing
-`.rotari.toml` (including a symlink), so existing settings are left untouched;
-edit the file explicitly to change them. Workspace discovery checks only the
-current working directory, never parent directories, so commands started in a
-subdirectory do not inherit a parent workspace's defaults.
+### Aggregate command scopes
 
-Basedir selection uses CLI, environment, workspace/global file defaults, then
-the existing cwd `.rotari-state`/XDG/home fallback. A workspace relative basedir
-is relative to the workspace file's directory. After loading that basedir,
-project selection uses CLI, environment, basedir/workspace/global defaults,
-then single-project discovery or `default`. A basedir config may set
-`project-name`, but may not set `basedir`. A project config may set neither
-location key. These restrictions also apply in command sections and produce
-errors, not ignored settings. File defaults are not explicit constraints when
-a run or attempt ID identifies a different location through the registry.
+Aggregate commands do not use an implicit project name from environment or
+config files to narrow their results. Their basedir behavior differs by view:
+
+- Bare `show` ignores both implicit basedir and project defaults. It lists
+	registered basedirs plus the cwd-local/XDG/home default state directory;
+	CLI `--basedir` limits the listing to one basedir. A positional project/run
+	selector is an explicit selection and uses normal basedir defaults.
+- `jobs` ignores implicit basedir and project defaults, using the cwd-local/
+	XDG/home default basedir. CLI `--basedir` selects another basedir;
+	`--all-basedirs` spans the registry and cannot be combined with `--basedir`.
+- `show --basedirs` lists registered state directories and cannot be combined
+	with `--basedir`.
+- Argumentless `lineage` ignores the implicit project name. It honors the
+	normal basedir precedence from CLI, environment, workspace/basedir/global
+	config, then local/XDG/home fallback, and lists project candidates when
+	several exist, selects the sole project, or reports an error when none exist.
+- `config --list` ignores the implicit project name. It honors the normal
+	basedir precedence from CLI, environment, workspace/global config, then
+	local/XDG/home fallback, and lists every project config in that basedir;
+	explicit `--project-name` narrows the inventory.
+
+Thus `rotari init`'s project default remains useful for commands operating on
+one project without unexpectedly hiding other projects from aggregate views.
+
+This exception applies only to target selection. Other options, such as
+`jobs --since` or `show --json`, retain their normal CLI → environment → merged
+config precedence. For `lineage`, run IDs remain positional selectors and
+continue to resolve through the run registry; project names are selected with
+`--project-name`.
 
 ### Inspecting and recording configuration
 

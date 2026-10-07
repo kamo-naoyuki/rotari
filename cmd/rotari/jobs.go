@@ -39,8 +39,12 @@ func cmdJobs(args []string) int {
 		printError("usage: " + cliUsage("jobs"))
 		return 1
 	}
+	projectFilter := ""
+	if cliOptionSet(fs, "project-name") {
+		projectFilter = *projectName
+	}
 	if len(fs.Args()) == 1 {
-		*projectName = fs.Args()[0]
+		projectFilter = fs.Args()[0]
 	}
 	columns, err := parseJobsFormat(*format)
 	if err != nil {
@@ -52,19 +56,27 @@ func cmdJobs(args []string) int {
 		printErrorf("invalid --since duration %q", *since)
 		return 1
 	}
-	baseDirs, err := jobsBaseDirs(*basedir, *masterdir, *allBaseDirs)
+	requestedBaseDir := ""
+	if cliOptionSet(fs, "basedir") {
+		requestedBaseDir = *basedir
+	}
+	if *allBaseDirs && cliOptionSet(fs, "basedir") {
+		printError("--all-basedirs cannot be combined with --basedir")
+		return 1
+	}
+	baseDirs, err := jobsBaseDirs(requestedBaseDir, *masterdir, *allBaseDirs)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if *projectName != "" {
+	if projectFilter != "" {
 		found := false
 		for _, baseDir := range baseDirs {
-			found = found || resolve.ProjectExists(baseDir, *projectName)
+			found = found || resolve.ProjectExists(baseDir, projectFilter)
 		}
 		if !found {
-			message := fmt.Sprintf("project %q does not exist in the listed state directories", *projectName)
-			if elsewhere := resolve.RegisteredProjectBaseDirs(*projectName, ""); len(elsewhere) > 0 && !*allBaseDirs {
+			message := fmt.Sprintf("project %q does not exist in the listed state directories", projectFilter)
+			if elsewhere := resolve.RegisteredProjectBaseDirs(projectFilter, ""); len(elsewhere) > 0 && !*allBaseDirs {
 				verb := "have"
 				if len(elsewhere) == 1 {
 					verb = "has"
@@ -75,7 +87,7 @@ func cmdJobs(args []string) int {
 			return 1
 		}
 	}
-	rows, err := collectJobsAcrossBaseDirs(baseDirs, *projectName, time.Now(), window)
+	rows, err := collectJobsAcrossBaseDirs(baseDirs, projectFilter, time.Now(), window)
 	if err != nil {
 		printError(err)
 		return 1
@@ -87,8 +99,8 @@ func cmdJobs(args []string) int {
 		if len(baseDirs) == 1 {
 			scope = "state directory " + baseDirs[0]
 		}
-		if *projectName != "" {
-			scope = fmt.Sprintf("project %q in %s", *projectName, scope)
+		if projectFilter != "" {
+			scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
 		}
 		fmt.Printf("No running or recently finished jobs found in %s (finished within %s).\n", scope, *since)
 		if !*allBaseDirs {
@@ -242,7 +254,13 @@ func colorJobsValue(code byte, value string) string {
 
 func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
 	if !all {
-		baseDir, _, err := state.ResolveBaseDir(requested)
+		var baseDir string
+		var err error
+		if requested == "" {
+			baseDir, err = state.ResolveBaseDirDefault()
+		} else {
+			baseDir, _, err = state.ResolveBaseDir(requested)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve state directory: %w", err)
 		}

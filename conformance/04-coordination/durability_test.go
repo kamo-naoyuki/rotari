@@ -12,7 +12,7 @@ func TestJobOutlivesKilledSupervisor(t *testing.T) {
 	e := support.NewEnv(t)
 	jobID := e.OrphanRun("p", "sleep 2; exit 7")
 	e.JobExitStatus("p", jobID)
-	if rows := e.MustRotari("jobs", "p", "--format", "%s").Stdout; !strings.Contains(rows, "failed") {
+	if rows := e.MustRotari("jobs", "--basedir", e.Base, "p", "--format", "%s").Stdout; !strings.Contains(rows, "failed") {
 		t.Errorf("jobs does not report failure: %s", rows)
 	}
 	if state := e.CheckState("p"); state != "interrupted" {

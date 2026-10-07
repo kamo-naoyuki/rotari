@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"io"
 	"os"
@@ -324,6 +325,139 @@ func TestConfigListIncludesAllProjectConfigs(t *testing.T) {
 			t.Errorf("config list does not contain %s config %q:\n%s", project, path, stdout)
 		}
 	}
+}
+
+func TestConfigListIgnoresImplicitProjectDefault(t *testing.T) {
+	workspace := workspaceCWD(t)
+	stateHome := t.TempDir()
+	defaultBase := filepath.Join(stateHome, "rotari")
+	envBase := t.TempDir()
+	workspaceBase := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	t.Setenv(envBaseDir, envBase)
+	t.Setenv(envProjectName, "env-only")
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	globalDir := filepath.Join(configHome, "rotari")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "config.toml"), []byte("basedir = \""+envBase+"\"\nproject-name = \"env-only\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, ".rotari.toml"), []byte("basedir = \""+workspaceBase+"\"\nproject-name = \"workspace-only\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		dir := filepath.Join(envBase, "projects", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("retry = 1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defaultOnly := filepath.Join(defaultBase, "projects", "default-only")
+	if err := os.MkdirAll(defaultOnly, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(defaultOnly, "config.toml"), []byte("retry = 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(envBase, "projects", "env-only"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(envBase, "projects", "env-only", "config.toml"), []byte("retry = 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig, cliConfigCommand = nil, ""
+	t.Cleanup(func() { cliConfig, cliConfigCommand = oldConfig, oldCommand })
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return cmdConfig([]string{"--list"}) })
+	if code != 0 || !strings.Contains(output.String(), filepath.Join(envBase, "projects", "alpha", "config.toml")) || !strings.Contains(output.String(), filepath.Join(envBase, "projects", "beta", "config.toml")) {
+		t.Fatalf("config list did not honor implicit basedir while listing all projects: exit %d\n%s", code, output.String())
+	}
+	if strings.Contains(output.String(), filepath.Join(defaultBase, "projects", "default-only", "config.toml")) {
+		t.Fatalf("config list ignored implicit basedir and listed the built-in base instead:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), filepath.Join(envBase, "projects", "env-only", "config.toml")) {
+		t.Fatalf("config list was filtered by implicit project default:\n%s", output.String())
+	}
+	filtered := captureConfigListOutput(t, []string{"--project-name", "alpha"})
+	if !strings.Contains(filtered, filepath.Join(envBase, "projects", "alpha", "config.toml")) || strings.Contains(filtered, filepath.Join(envBase, "projects", "beta", "config.toml")) {
+		t.Fatalf("explicit config project filter = %s", filtered)
+	}
+}
+
+func TestConfigListUsesImplicitBasedirButNotProject(t *testing.T) {
+	workspace := workspaceCWD(t)
+	if err := os.Unsetenv(envBaseDir); err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(workspace, "workspace-state")
+	if err := os.WriteFile(filepath.Join(workspace, ".rotari.toml"), []byte("basedir = \"workspace-state\"\nproject-name = \"alpha\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		dir := filepath.Join(base, "projects", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("retry = 1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output := captureConfigListOutput(t, nil)
+	for _, name := range []string{"alpha", "beta"} {
+		if !strings.Contains(output, filepath.Join(base, "projects", name, "config.toml")) {
+			t.Errorf("workspace project config %q missing from inventory: %s", name, output)
+		}
+	}
+}
+
+func TestAggregateCommandInvocationDistinguishesShowViews(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		options map[string][]string
+		want    bool
+	}{
+		{name: "bare show", want: true},
+		{name: "project list", options: map[string][]string{"basedirs": {""}}, want: true},
+		{name: "disabled queue remains bare", options: map[string][]string{"queue": {"false"}}, want: true},
+		{name: "disabled json remains bare", options: map[string][]string{"json": {"false"}}, want: true},
+		{name: "queue view", options: map[string][]string{"queue": {""}}},
+		{name: "logs view", options: map[string][]string{"logs": {""}}},
+		{name: "result-filtered view", options: map[string][]string{"failed": {""}}},
+		{name: "scoped view", options: map[string][]string{"stage": {"train"}}},
+		{name: "filtered view", options: map[string][]string{"filter-host": {"worker"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := aggregateCommandInvocation("show", test.options, nil); got != test.want {
+				t.Fatalf("aggregateCommandInvocation = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAggregateCommandInvocationRecognizesConfigInventory(t *testing.T) {
+	if !aggregateCommandInvocation("config", map[string][]string{"list": {""}}, nil) {
+		t.Fatal("config --list was not classified as aggregate")
+	}
+	ignored := ignoredImplicitLocationDefaults("config", true)
+	if !ignored["project-name"] || ignored["basedir"] {
+		t.Fatalf("config inventory ignored location defaults = %#v", ignored)
+	}
+}
+
+func captureConfigListOutput(t *testing.T, args []string) string {
+	t.Helper()
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return cmdConfig(append([]string{"--list"}, args...)) })
+	if code != 0 {
+		t.Fatalf("config --list exit = %d: %s", code, output.String())
+	}
+	return output.String()
 }
 
 func TestConfigListLimitsProjectsToProjectName(t *testing.T) {

@@ -1068,7 +1068,7 @@ func TestRerunOfAnInterruptedRun(t *testing.T) {
 	badJob := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "bad", "--", "sh", "-c", "exit 3"))
 	run := e.StartRun("live", 1, false)
 	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
-		listed := e.Rotari("jobs", "live", "--format", "%a %s").Stdout
+		listed := e.Rotari("jobs", "--basedir", e.Base, "live", "--format", "%a %s").Stdout
 		return strings.Count(listed, " success") == 1 && strings.Count(listed, " failed") == 1, "jobs: " + listed
 	})
 	support.KillStrays(t, e.Root)

@@ -338,7 +338,7 @@ func (e *env) startRun(project string, count int, async bool, runArgs ...string)
 	// once the project's metadata records it.
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		running := strings.Count(e.rotari("jobs", project, "--format", "%a %s").stdout, " running")
+		running := strings.Count(e.rotari("jobs", "--basedir", e.base, project, "--format", "%a %s").stdout, " running")
 		var shown struct {
 			RunID string `json:"run_id"`
 		}
@@ -434,7 +434,7 @@ func runResults(t *testing.T, e *env, run activeRun) []json.RawMessage {
 
 func jobAttempts(t *testing.T, e *env, run activeRun, job string) int {
 	t.Helper()
-	return strings.Count(e.mustRotari("jobs", run.project, "--format", "%a").stdout, "-"+job+"-")
+	return strings.Count(e.mustRotari("jobs", "--basedir", e.base, run.project, "--format", "%a").stdout, "-"+job+"-")
 }
 
 func jobProcesses(t *testing.T, root, job string) int {

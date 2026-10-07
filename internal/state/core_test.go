@@ -93,6 +93,39 @@ func TestResolveProjectNamePrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveBaseDirDefaultIgnoresEnvironmentOverride(t *testing.T) {
+	workspace := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Error(err)
+		}
+	})
+	stateHome := t.TempDir()
+	envBase := t.TempDir()
+	t.Setenv(xdgStateHomeEnv, stateHome)
+	t.Setenv(baseDirEnv, envBase)
+
+	got, err := ResolveBaseDirDefault()
+	want := filepath.Join(stateHome, "rotari")
+	if err != nil || got != want {
+		t.Fatalf("ResolveBaseDirDefault() = %q, %v; want %q", got, err, want)
+	}
+	if err := os.Mkdir(filepath.Join(workspace, ".rotari-state"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, err = ResolveBaseDirDefault()
+	if err != nil || got != filepath.Join(workspace, ".rotari-state") {
+		t.Fatalf("ResolveBaseDirDefault() with local state = %q, %v", got, err)
+	}
+}
+
 func TestResolveProjectPathsUsesProjectLayout(t *testing.T) {
 	paths, err := ResolveProjectPaths("/state", "demo")
 	if err != nil {

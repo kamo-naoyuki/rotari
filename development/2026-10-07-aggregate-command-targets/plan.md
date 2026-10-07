@@ -1,19 +1,38 @@
 # Plan: Keep Aggregate Commands Independent of Implicit Targets
 
 Created: 2026-10-07
-Status: Planned
+Status: Complete
+
+## Progress
+
+- Implemented command-specific location-default policy, CLI/conformance
+	regressions, and contract/user-guide updates in the working tree.
+- `scripts/check.sh --short` and the full non-race `go test ./...` phase passed.
+- Registry-wide `show --basedirs` and `jobs --all-basedirs` reject an explicit
+	`--basedir`, avoiding silent option discard.
+- Final validation passed: `scripts/check.sh` (full go vet, all package and
+	race tests), `go test ./cmd/rotari -count=1`, the RES-26 conformance test, and
+	focused race tests for both rejected option combinations.
+- Remaining: None.
 
 ## Purpose
 
-Workspace/global defaults for `basedir` and `project-name` are useful when a command is meant to operate on one project. They should not silently turn aggregate/listing commands into single-project views. Environment variables are implicit defaults too and should behave like config-file defaults for this distinction.
+Workspace/global defaults for `basedir` and `project-name` are useful when a
+command operates on one project. Aggregate/listing commands should not silently
+turn into single-project views because of an implicit project-name default.
 
 ## Goals
 
-- Keep normal project-scoped commands using the existing location precedence: CLI > environment > config > built-in/project discovery.
-- For aggregate commands, only command-line target selectors may narrow the view. Do not use `basedir` or `project-name` from environment variables or config files to narrow those commands.
-- Preserve each command's current non-config fallback and explicit flags; this change concerns implicit target defaults, not all command options.
-- Make `lineage` useful without a project default by discovering candidate projects and giving deterministic guidance.
-- Keep target resolution consistent for positional project/run/job/attempt selectors and the run registry.
+- Keep normal project-scoped commands using the existing location precedence:
+	CLI > environment > config > built-in/project discovery.
+- Never let an implicit project default narrow an aggregate view.
+- Also ignore implicit basedir defaults for bare `show` and `jobs`, but retain
+	normal basedir precedence for argumentless `lineage` and `config --list`.
+- Preserve positional project/run/job/attempt selectors and registry-based run
+	resolution.
+- Make argumentless `lineage` useful through deterministic zero/one/multiple
+	project-candidate behavior, without an interactive prompt.
+
 
 ## Proposed command behavior
 
@@ -21,18 +40,21 @@ Workspace/global defaults for `basedir` and `project-name` are useful when a com
 |---|---|---|
 | `show` | Preserve bare `show`'s aggregate project listing across registered basedirs. Ignore implicit config/environment basedir and project-name. | `--basedir` narrows basedirs; `--project-name` selects a project within the normal resolution rules. Run/job/attempt selectors retain registry-based resolution. |
 | `jobs` | Show all projects in the command's ordinary non-config default basedir; ignore configured/environment basedir and project-name. Preserve existing `--all-basedirs` behavior for the registry-wide view. | `--basedir` and positional/`--project-name` explicitly narrow the target. |
-| `lineage` | Ignore implicit project-name. Resolve the ordinary non-config default basedir, enumerate its project names, run lineage directly if there is exactly one candidate, and otherwise print sorted candidates with an example `-p NAME` invocation. If there are no candidates, report that clearly. Do not prompt interactively. | Explicit `--project-name` selects a project. Explicit run IDs/positional run selectors continue to use registry resolution and must not be mistaken for project defaults. |
-| `config --list` | Ignore implicit project-name and list all projects' config files in the selected non-config default basedir. | Explicit `--basedir` selects the inventory scope; explicit `--project-name` narrows project-specific entries. |
+| `lineage` | Ignore implicit project-name, but honor basedir defaults from CLI > env > workspace/basedir/global config > built-in local/XDG/home resolution. Enumerate projects in that basedir, run lineage directly if there is exactly one candidate, and otherwise print sorted candidates with an example `-p NAME` invocation. If there are no candidates, report that clearly. Do not prompt interactively. | Explicit `--project-name` selects a project. Explicit run IDs/positional run selectors continue to use registry resolution and must not be mistaken for project defaults. |
+| `config --list` | Ignore implicit project-name, but honor basedir defaults from CLI > env > workspace/global config > built-in local/XDG/home resolution; list all projects' config files in the selected basedir. | Explicit `--basedir` selects the inventory scope; explicit `--project-name` narrows project-specific entries. |
 | `show --basedirs`, `jobs --all-basedirs` | Continue listing all registered basedirs as their existing explicit aggregate modes require. | Existing explicit mode/filters remain unchanged. |
 
-For aggregate target selectors, CLI arguments are the only way to scope/narrow the view. `ROTARI_BASEDIR`, `ROTARI_PROJECT_NAME`, global/workspace/basedir/project config defaults, and auto-select-single-project behavior must not narrow the aggregate view. Other options such as `--since`, output format, filters, and JSON remain eligible for their established config/environment behavior unless they themselves specify a location scope.
+`show --basedirs` and `jobs --all-basedirs` reject an explicit `--basedir`
+instead of silently ignoring the conflicting scope option.
 
-The “ordinary non-config default basedir” above means resolve with no requested basedir through the existing state resolver: local `.rotari-state` detection, then XDG/home. It must not apply basedir defaults from environment or config. This keeps `jobs`, `lineage`, and `config --list` deterministic without making them unexpectedly scan every registry entry.
 
-## Non-goals
-
-- Do not alter target defaults for commands that operate on one project, such as `add`, `run`, `retry`, `reset`, `check`, `copy`, or `change`.
-- Do not change registry-based run/attempt ID location resolution.
+Aggregate listings ignore implicit project defaults from environment, config,
+and automatic sole-project selection. Bare `show` and `jobs` also ignore
+implicit basedir defaults, using local `.rotari-state`/XDG/home resolution
+unless scoped by CLI. `lineage` and `config --list` retain normal basedir
+precedence, including environment and workspace/basedir/global config defaults.
+Other options such as filters, JSON, and time windows retain their established
+config/environment behavior.
 - Do not make `jobs` scan all known basedirs by default; retain `--all-basedirs` as its existing explicit switch.
 - Do not add interactive project selection to `lineage`.
 - Do not change non-target option precedence or notifications behavior.
@@ -42,9 +64,16 @@ The “ordinary non-config default basedir” above means resolve with no reques
 1. Inspect shared config location provenance (`cliLocationExplicit`, `cliLocationDefaults`) and command entry points for `show`, `jobs`, `lineage`, and `config --list`.
 2. Add command-aware resolution helpers that distinguish CLI-explicit scope selectors from environment/config defaults. Avoid mutating global config state or duplicating priority checks in each command.
 3. Preserve current bare `show` all-basedirs behavior, while ensuring only explicit CLI selectors narrow it. Verify interaction with `show --basedirs`, positional selectors, run IDs, attempt IDs, and explicit project names.
-4. Update `jobs` to use only CLI scope selectors and the non-config state default when selecting the default basedir. Ensure `--all-basedirs` still wins as its explicit aggregate mode and `--project-name`/positional project behave consistently.
-5. Update `lineage`: explicit project behaves as today; absent explicit project enumerates projects after resolving the non-config basedir. One candidate is selected automatically; multiple candidates are listed with a `rotari lineage -p NAME` hint; zero candidates returns a clear no-project result. Keep explicit run IDs routed through the run registry.
-6. Update `config --list` so project-level config defaults do not narrow the inventory. Keep explicit CLI `--project-name` and `--basedir` useful; location config/env defaults do not narrow this aggregate listing.
+4. Update `jobs` to use only CLI scope selectors and the non-config state
+	default for the basedir. Preserve `--all-basedirs` and explicit project
+	filters.
+5. Update `lineage`: ignore implicit environment/config project defaults,
+	honor normal basedir resolution, and enumerate candidates. A sole candidate is selected
+	automatically; multiple candidates are listed with a `rotari lineage -p
+	NAME` hint; zero candidates returns a clear error. Keep run IDs routed
+	through the registry.
+6. Update `config --list` to ignore implicit environment/config project
+	defaults while honoring normal basedir selection and explicit CLI filters.
 7. Update help/comments if needed, contracts (resolution/config and selector contracts), contract status rows and `covers()` calls, CLI/conformance tests, and user docs/FAQ.
 
 ## Tests and validation
@@ -52,14 +81,15 @@ The “ordinary non-config default basedir” above means resolve with no reques
 - Unit/table tests for each aggregate command under a matrix of CLI, environment, workspace, global, and automatic-single-project defaults.
 - `show`: no scope defaults yields all registered projects; config/env defaults do not narrow; CLI basedir/project does; run/attempt IDs still resolve through registry.
 - `jobs`: config/env project and basedir are ignored; explicit CLI project/basedir narrows; `--all-basedirs` still spans registry; positional project remains explicit.
-- `lineage`: no explicit project with zero/one/multiple candidates; config/env defaults ignored; explicit `-p` selects; positional run IDs still work through registry.
-- `config --list`: config/env project defaults do not hide project files; explicit project/basedir filters work; notifications remain separately listed.
+- `lineage`: no explicit project with zero/one/multiple candidates; implicit project defaults ignored while CLI/env/workspace/global basedir defaults select the candidate scope; explicit `-p` selects; positional run IDs still work through registry.
+- `config --list`: config/env project defaults do not hide project files; CLI/env/workspace/global basedir defaults select the inventory scope; explicit project/basedir filters work; notifications remain separately listed.
 - Conformance through the built binary for visible behavior and contract coverage. Update `contracts/README.md` status and `covers()` calls together.
+- Unit tests verify `lineage` and `config --list` keep normal basedir defaults while ignoring implicit project defaults, and positional `show PROJECT` uses normal basedir resolution.
 - Run focused CLI tests, affected CLI and conformance packages, `go test ./conformance`, formatting/pre-commit, `scripts/check.sh --short`, then `scripts/check.sh`.
 
 ## Completion criteria
 
-- Aggregate commands never narrow their target scope from environment/config location defaults or automatic single-project selection.
+- Aggregate commands never narrow by an implicit project default. Bare `show` and `jobs` also ignore implicit basedir defaults; `lineage` and `config --list` retain normal basedir resolution.
 - Explicit CLI scope selectors still narrow as documented.
 - `lineage` without an explicit project has deterministic zero/one/multiple-project behavior and preserves run-registry selector resolution.
 - Existing project-scoped command defaults and notification configuration behavior are unchanged.

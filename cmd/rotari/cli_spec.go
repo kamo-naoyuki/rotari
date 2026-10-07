@@ -874,10 +874,15 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	}
 	spec := cliCommandFlag(fs.Name(), name)
 	if !spec.CommandLineOnly {
-		defaultValue = configString(name, defaultValue)
-		if envName := cliEnvironmentVariable(name); envName != "" {
-			if value, ok := os.LookupEnv(envName); ok {
-				defaultValue = value
+		ignoreImplicitLocation := cliIgnoreImplicitLocationDefaults[name]
+		if !ignoreImplicitLocation {
+			defaultValue = configString(name, defaultValue)
+		}
+		if !ignoreImplicitLocation {
+			if envName := cliEnvironmentVariable(name); envName != "" {
+				if value, ok := os.LookupEnv(envName); ok {
+					defaultValue = value
+				}
 			}
 		}
 	}

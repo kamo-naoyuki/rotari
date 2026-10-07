@@ -78,6 +78,42 @@ func TestCmdJobsAcceptsPositionalProjectName(t *testing.T) {
 	}
 }
 
+func TestCmdJobsIgnoresImplicitLocationDefaults(t *testing.T) {
+	stateHome := t.TempDir()
+	defaultBase := filepath.Join(stateHome, "rotari")
+	envBase := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	t.Setenv(envBaseDir, envBase)
+	t.Setenv(envProjectName, "env-only")
+	writeTestJobsRun(t, defaultBase, "alpha", "20261007-100000-00000001", "alpha-job", time.Now().Add(-time.Minute), time.Now(), 0)
+	writeTestJobsRun(t, defaultBase, "beta", "20261007-100001-00000002", "beta-job", time.Now().Add(-time.Minute), time.Now(), 0)
+	writeTestJobsRun(t, envBase, "env-only", "20261007-100002-00000003", "env-job", time.Now().Add(-time.Minute), time.Now(), 0)
+
+	output, code := captureJobsStdout(t, nil)
+	if code != 0 {
+		t.Fatalf("cmdJobs exit = %d, output = %q", code, output)
+	}
+	for _, want := range []string{"alpha-job", "beta-job"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("jobs output missing %q: %s", want, output)
+		}
+	}
+	if strings.Contains(output, "env-job") {
+		t.Fatalf("jobs used implicit environment locations: %s", output)
+	}
+
+	output, code = captureJobsStdout(t, []string{"--basedir", envBase, "--project-name", "env-only"})
+	if code != 0 || !strings.Contains(output, "env-job") || strings.Contains(output, "alpha-job") {
+		t.Fatalf("explicit jobs scope = %d, %q", code, output)
+	}
+}
+
+func TestCmdJobsRejectsBasedirWithAllBasedirs(t *testing.T) {
+	if code := cmdJobs([]string{"--basedir", t.TempDir(), "--all-basedirs"}); code != 1 {
+		t.Fatalf("cmdJobs accepted --basedir with --all-basedirs: exit code = %d", code)
+	}
+}
+
 func captureJobsStdout(t *testing.T, args []string) (string, int) {
 	t.Helper()
 	reader, writer, err := os.Pipe()

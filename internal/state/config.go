@@ -22,6 +22,17 @@ func ResolveBaseDir(cliBaseDir string) (string, bool, error) {
 	return baseDir, explicit, err
 }
 
+// ResolveBaseDirDefault resolves the local/XDG/home state directory without
+// consulting ROTARI_BASEDIR. Aggregate views use it when only CLI scope
+// selectors may narrow their target.
+func ResolveBaseDirDefault() (string, error) {
+	baseDir, err := defaultBaseDir()
+	if err != nil {
+		return "", err
+	}
+	return absoluteDir(baseDir)
+}
+
 func resolveBaseDir(cliBaseDir string) (string, bool, error) {
 	if cliBaseDir != "" {
 		return cliBaseDir, true, nil
@@ -29,20 +40,25 @@ func resolveBaseDir(cliBaseDir string) (string, bool, error) {
 	if value := os.Getenv(baseDirEnv); value != "" {
 		return value, true, nil
 	}
+	baseDir, err := defaultBaseDir()
+	return baseDir, false, err
+}
+
+func defaultBaseDir() (string, error) {
 	if cwd, err := os.Getwd(); err == nil {
 		localState := filepath.Join(cwd, ".rotari-state")
 		if info, err := os.Stat(localState); err == nil && info.IsDir() {
-			return localState, false, nil
+			return localState, nil
 		}
 	}
 	if value := os.Getenv(xdgStateHomeEnv); value != "" {
-		return filepath.Join(value, "rotari"), false, nil
+		return filepath.Join(value, "rotari"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", false, err
+		return "", err
 	}
-	return filepath.Join(home, ".local", "state", "rotari"), false, nil
+	return filepath.Join(home, ".local", "state", "rotari"), nil
 }
 
 // ResolveMasterDir resolves the master directory that holds the run and

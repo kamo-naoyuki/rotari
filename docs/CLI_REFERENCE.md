@@ -324,7 +324,7 @@ Usage: `rotari show [SELECTOR]`
 | `--stream` | `STREAM` | `` | show both streams or select stdout/stderr |
 | `--follow` | `` | `` | follow one selected log stream until the run completes |
 | `--no-pager` | `` | `` | print logs directly instead of using a pager |
-| `--basedirs` | `` | `` | list state directories known to the master registry |
+| `--basedirs` | `` | `` | list state directories known to the master registry; cannot be combined with `--basedir` |
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
 | `--artifacts` | `` | `` | list every artifact candidate of one job attempt instead of its logs |
@@ -372,7 +372,7 @@ Usage: `rotari jobs [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
-| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
+| `--all-basedirs` | `` | `` | include all basedirs known to the master registry; cannot be combined with `--basedir` |
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
 

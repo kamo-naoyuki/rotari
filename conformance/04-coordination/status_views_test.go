@@ -31,7 +31,7 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, "--json").Stdout), &shown); err != nil {
 		t.Fatal(err)
 	}
-	jobRows := parseJobsTable(t, e.MustRotari("jobs", run.Project, "--format", "%a %s %f").Stdout)
+	jobRows := parseJobsTable(t, e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--format", "%a %s %f").Stdout)
 	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), run.Project, run.RunID)).Body, run.Project, run.RunID)
 	if len(shown.Summary.Results) != 2 {
 		t.Fatalf("show --json lists %d results, want 2", len(shown.Summary.Results))
@@ -235,7 +235,7 @@ func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
 	if out := e.MustRotari("show", "-p", project, "--run-id", runID).Stdout; !strings.Contains(out, "Job status: success: 0, failed: 4, blocked: 1") {
 		t.Errorf("show summary missing fallback counts:\n%s", out)
 	}
-	jobRows := parseJobsTable(t, e.MustRotari("jobs", project, "--format", "%n %s").Stdout)
+	jobRows := parseJobsTable(t, e.MustRotari("jobs", "--basedir", e.Base, project, "--format", "%n %s").Stdout)
 	base := e.StartWeb()
 	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(base, project, runID)).Body, project, runID)
 	for _, c := range cases {

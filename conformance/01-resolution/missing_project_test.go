@@ -13,7 +13,7 @@ func TestMissingProjectIsAnError(t *testing.T) {
 	covers(t, "RES-3")
 	e := support.NewEnv(t)
 	e.MustRotari("add", "-p", "exists", "--", "true")
-	for _, args := range [][]string{{"show", "-p", "nope"}, {"jobs", "nope"}, {"remove", "-p", "nope", "--all"}} {
+	for _, args := range [][]string{{"show", "-p", "nope"}, {"jobs", "--basedir", e.Base, "nope"}, {"remove", "-p", "nope", "--all"}} {
 		r := e.Rotari(args...)
 		if r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, `project "nope" does not exist`) {
 			t.Errorf("want a missing-project error: %s", r)

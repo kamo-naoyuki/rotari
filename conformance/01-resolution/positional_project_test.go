@@ -21,7 +21,7 @@ func TestPositionalProject(t *testing.T) {
 			t.Errorf("%s with both a positional project and --project-name should be a usage error: %s", command, r)
 		}
 	}
-	listed := e.WithVar("ROTARI_PROJECT_NAME", "a").MustRotari("jobs", "b", "--format", "%p").Stdout
+	listed := e.WithVar("ROTARI_PROJECT_NAME", "a").MustRotari("jobs", "--basedir", e.Base, "b", "--format", "%p").Stdout
 	if !strings.Contains(listed, "b") || strings.Contains(strings.ReplaceAll(listed, "PROJECT", ""), "a") {
 		t.Errorf("jobs b with ROTARI_PROJECT_NAME=a listed:\n%s\nwant only project b", listed)
 	}
