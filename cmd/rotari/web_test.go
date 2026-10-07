@@ -122,7 +122,7 @@ func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{
-		{"--job-name", "train", "--matrix", "LR=a,b", "--matrix", "SEED=1,2", "--env", "SECRET=hidden", "--", "/bin/sh", "-c", `[ "$LR$SEED" != b2 ]`},
+		{"--job-name", "train", "--matrix", "LR=a,b", "--matrix", "SEED=1,2", "--matrix", "MODEL=small", "--env", "SECRET=hidden", "--", "/bin/sh", "-c", `[ "$LR$SEED" != b2 ]`},
 		{"--job-name", "plain", "--", "true"},
 	} {
 		if code := cmdAdd(append([]string{"--basedir", baseDir, "--project-name", "default", "--quiet"}, args...)); code != 0 {
@@ -145,11 +145,16 @@ func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 	if err := os.WriteFile(htmlPath, []byte(webGet(t, baseDir, "/")), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	stylePath := filepath.Join(t.TempDir(), "web_styles.css")
+	if err := os.WriteFile(stylePath, []byte(webGet(t, baseDir, "/web_styles.css")), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	script := `
 const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const html = fs.readFileSync(process.argv[1], 'utf8');
 const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const css = fs.readFileSync(process.argv[3], 'utf8');
 const errors = [];
 const virtualConsole = new VirtualConsole();
 virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
@@ -170,6 +175,9 @@ const dom = new JSDOM(html, {
 });
 setTimeout(() => {
   const document = dom.window.document;
+	const style = document.createElement('style');
+	style.textContent = css;
+	document.head.append(style);
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
   const panels = document.querySelectorAll('.matrix-panel');
   if (panels.length !== 1 || !panels[0].textContent.includes('Matrix: train') || !panels[0].textContent.includes('3/4 success, 1 failed')) { console.error(document.getElementById('app').innerHTML); process.exit(2); }
@@ -180,6 +188,8 @@ setTimeout(() => {
   if (!content.hidden) { console.error('panel is not collapsed by default'); process.exit(4); }
   panel.querySelector('.matrix-toggle').click();
   if (content.hidden) { console.error('toggle did not expand'); process.exit(5); }
+  const sliceLabel = panel.querySelector('.matrix-slice-label');
+  if (!sliceLabel || sliceLabel.textContent !== 'MODEL=small' || dom.window.getComputedStyle(sliceLabel).textAlign !== 'left') { console.error('matrix slice label is missing or not left-aligned', sliceLabel && sliceLabel.textContent); process.exit(15); }
   const classes = () => Array.from(panel.querySelectorAll('td.matrix-cell')).map(cell => cell.className.replace('matrix-cell ', ''));
   const rowHeaders = () => Array.from(panel.querySelectorAll('tbody th, tr > th:first-child')).map(th => th.textContent);
   if (JSON.stringify(classes()) !== JSON.stringify(['matrix-success', 'matrix-success', 'matrix-success', 'matrix-failed'])) { console.error(classes()); process.exit(6); }
@@ -210,7 +220,7 @@ setTimeout(() => {
   process.exit(0);
 }, 100);
 `
-	if output, err := exec.Command("node", "-e", script, htmlPath, statePath).CombinedOutput(); err != nil {
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath, stylePath).CombinedOutput(); err != nil {
 		t.Fatalf("web matrix grid check failed: %v\n%s", err, output)
 	}
 }

@@ -775,6 +775,9 @@ section {
 .matrix-content {
   margin-top: 12px;
 }
+.matrix-slice-label {
+  text-align: left;
+}
 .matrix-axes {
   display: flex;
   gap: 16px;

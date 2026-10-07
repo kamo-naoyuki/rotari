@@ -124,7 +124,7 @@ function renderMatrixGrid(group, rows, columns, fixed, running) {
     })
     .join("");
   const caption = fixed.length
-    ? '<div class="meta">' +
+    ? '<div class="meta matrix-slice-label">' +
       esc(fixed.map((value) => value.name + "=" + value.value).join(", ")) +
       "</div>"
     : "";
