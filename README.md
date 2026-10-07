@@ -20,9 +20,9 @@ feel familiar.
 | --- | --- |
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
-The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for the complete set.
+<!-- Do not edit `README.md` directly. The `BEGIN GETTING STARTED` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.-->
 
-<!-- BEGIN ROTARI VALUE PROPOSITION -->
+<!-- BEGIN GETTING STARTED -->
 
 ## Manage jobs, logs, and outputs in one place
 
@@ -40,14 +40,18 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 - **Follow outputs from command to artifact.** Rotari detects likely artifacts
   from job commands and lets you inspect their contents in the Web UI.
 
-<!-- END ROTARI VALUE PROPOSITION -->
-
 ## How is rotari different?
-Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
-<!-- Do not edit `README.md` directly. The `BEGIN GETTING STARTED` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.-->
-
-<!-- BEGIN GETTING STARTED -->
+Rotari covers a narrow need, and other tools may fit yours better: [GNU
+Parallel](https://www.gnu.org/software/parallel/) for one command over many
+inputs, [pueue](https://github.com/Nukesor/pueue) or
+[task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue
+on one machine, and a workflow engine such as
+[Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/),
+[Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a
+pipeline you share, rerun on new data, or run on a schedule. [Comparison with
+other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari
+differs.
 
 ## Installation
 

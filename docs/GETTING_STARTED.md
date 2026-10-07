@@ -16,6 +16,19 @@
 - **Follow outputs from command to artifact.** Rotari detects likely artifacts
   from job commands and lets you inspect their contents in the Web UI.
 
+## How is rotari different?
+
+Rotari covers a narrow need, and other tools may fit yours better: [GNU
+Parallel](https://www.gnu.org/software/parallel/) for one command over many
+inputs, [pueue](https://github.com/Nukesor/pueue) or
+[task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue
+on one machine, and a workflow engine such as
+[Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/),
+[Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a
+pipeline you share, rerun on new data, or run on a schedule. [Comparison with
+other tools](TOOL_COMPARISON.md) explains what each one does and how rotari
+differs.
+
 ## Installation
 
 Prebuilt binaries for Linux and macOS are on the
