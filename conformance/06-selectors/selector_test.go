@@ -292,7 +292,8 @@ func (f selectorFixture) observeRun() (selectorResult, bool) {
 	}
 	var result selectorResult
 	for _, entry := range entries {
-		if entry.IsDir() {
+		// Run-level config snapshots are metadata, not job directories.
+		if entry.IsDir() && entry.Name() != "configs" {
 			result.jobs = append(result.jobs, f.jobKey(entry.Name()))
 		}
 	}
