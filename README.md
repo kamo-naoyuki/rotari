@@ -112,6 +112,11 @@ To use the same location defaults with any of the three approaches above, run
 `rotari init` from this directory:
 
 ```sh
+# Use the default basedir (.rotari-state); leave project selection to normal resolution.
+rotari init
+# Set a basedir explicitly; leave project selection to normal resolution.
+rotari init .rotari-state
+# Set both the basedir and the default project.
 rotari init .rotari-state sweep
 ```
 
