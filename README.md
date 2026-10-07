@@ -22,21 +22,25 @@ feel familiar.
 
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for the complete set.
 
-## Why use rotari?
+<!-- BEGIN ROTARI VALUE PROPOSITION -->
 
-- **Which jobs failed?** Each run records every job's status and result;
-  `rotari show -p PROJECT --run-id RUN_ID` displays them together.
-- **Where are the logs?** `rotari show --logs` prints each job's output, even
-  for jobs that ran over SSH or through a scheduler
-  ([inspect](docs/INSPECT.md), [executors](docs/EXECUTORS.md)).
-- **What exactly did I run?** Each run saves every job's command and configured
-  settings; inspect them later with `rotari show JOB_ID`. The caller's ambient
-  environment is not saved, so pin the environment and working directory when
-  an exact rerun matters.
-- **Do I have to rerun everything after one failure?**
-  `rotari retry` reruns only failed and unfinished jobs while carrying
-  successful results
-  ([recovering](docs/RECOVERING.md)).
+## Manage jobs, logs, and outputs in one place
+
+- **A powerful web UI for every run.** Follow job status, browse logs, and
+  inspect artifacts in one place.
+- **Logs stay organized and easy to find.** Logs are kept with each workspace,
+  without choosing a log path for every job, and runs can be explored across
+  workspaces.
+- **Retry only what needs work.** Rerun failed or unfinished jobs while
+  keeping successful results.
+- **Switch execution backends, not your workflow.** Run the same jobs locally,
+  over SSH, or on Slurm and other schedulers.
+- **Know when jobs finish.** Get browser notifications or send updates to
+  Slack.
+- **Follow outputs from command to artifact.** Rotari detects likely artifacts
+  from job commands and lets you inspect their contents in the Web UI.
+
+<!-- END ROTARI VALUE PROPOSITION -->
 
 ## How is rotari different?
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.

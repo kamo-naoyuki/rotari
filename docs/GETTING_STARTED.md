@@ -1,5 +1,21 @@
 # Getting started
 
+## Manage jobs, logs, and outputs in one place
+
+- **A powerful web UI for every run.** Follow job status, browse logs, and
+  inspect artifacts in one place.
+- **Logs stay organized and easy to find.** Logs are kept with each workspace,
+  without choosing a log path for every job, and runs can be explored across
+  workspaces.
+- **Retry only what needs work.** Rerun failed or unfinished jobs while
+  keeping successful results.
+- **Switch execution backends, not your workflow.** Run the same jobs locally,
+  over SSH, or on Slurm and other schedulers.
+- **Know when jobs finish.** Get browser notifications or send updates to
+  Slack.
+- **Follow outputs from command to artifact.** Rotari detects likely artifacts
+  from job commands and lets you inspect their contents in the Web UI.
+
 ## Installation
 
 Prebuilt binaries for Linux and macOS are on the
