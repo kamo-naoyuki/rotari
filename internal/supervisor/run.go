@@ -280,8 +280,8 @@ func runObserver(request server.Request, runID string, progress func(server.Resp
 			if name == "" {
 				name = "-"
 			}
-			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show -j %s",
-				job.ID, job.AttemptID, name, job.AttemptID)
+			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Command: %s\n  Show:\n    rotari show -j %s",
+				job.ID, job.AttemptID, name, strings.Join(job.Command, " "), job.AttemptID)
 			progress(server.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
 		},
 	}

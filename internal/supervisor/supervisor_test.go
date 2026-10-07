@@ -57,6 +57,22 @@ func TestFailedJobHintsUsesJobIDWhenAttemptIDIsMissing(t *testing.T) {
 	}
 }
 
+func TestRunObserverStartedIncludesCommand(t *testing.T) {
+	var got server.Response
+	observer := runObserver(server.Request{}, "run-1", func(response server.Response) {
+		got = response
+	})
+	observer.Started(model.JobSpec{
+		ID: "job-1", AttemptID: "attempt-1", Name: "example",
+		Command: []string{"python", "script.py", "--mode", "fast"},
+	})
+
+	want := "Job running:\n  ID: job-1\n  Attempt ID: attempt-1\n  Name: example\n  Command: python script.py --mode fast\n  Show:\n    rotari show -j attempt-1"
+	if got.Message != want {
+		t.Fatalf("message = %q, want %q", got.Message, want)
+	}
+}
+
 func TestPrepareRunResolvesReferenceRunBeforeBegin(t *testing.T) {
 	baseDir := t.TempDir()
 	store := state.NewStore(0o755, 0o644)
