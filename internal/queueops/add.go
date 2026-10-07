@@ -110,7 +110,7 @@ func duplicateAddWarnings(queue model.Queue, commands []model.QueuedCommand) ([]
 	seen := make(map[string]bool)
 	for _, job := range added {
 		if group := groups[job.Fingerprint]; len(group) > 1 && !seen[job.Fingerprint] {
-			warnings = append(warnings, "warning: jobs have the same fingerprint: "+strings.Join(group, "; "))
+			warnings = append(warnings, "warning: the same command is queued more than once. Did you accidentally add it twice? "+strings.Join(group, "; "))
 			seen[job.Fingerprint] = true
 		}
 	}

@@ -70,7 +70,7 @@ func TestAddWarnsOnDuplicateFingerprints(t *testing.T) {
 
 func assertFingerprintWarnings(t *testing.T, result support.Result, want int) {
 	t.Helper()
-	if got := strings.Count(result.Stderr, "warning: jobs have the same fingerprint:"); got != want {
+	if got := strings.Count(result.Stderr, "warning: the same command is queued more than once. Did you accidentally add it twice?"); got != want {
 		t.Fatalf("got %d warnings, want %d: %s", got, want, result)
 	}
 	if want == 0 {

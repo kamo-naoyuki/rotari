@@ -54,12 +54,12 @@ func mustAddWarningFixture(t *testing.T, args []string) {
 func assertDuplicateAddWarning(t *testing.T, mode string, code int, stderr, firstID string) {
 	t.Helper()
 	if mode == "refused" {
-		if code == 0 || strings.Contains(stderr, "same fingerprint") {
+		if code == 0 || strings.Contains(stderr, "Did you accidentally add it twice?") {
 			t.Fatalf("refused add = %d, %q", code, stderr)
 		}
 		return
 	}
-	if code != 0 || strings.Count(stderr, "warning: jobs have the same fingerprint:") != 1 {
+	if code != 0 || strings.Count(stderr, "warning: the same command is queued more than once. Did you accidentally add it twice?") != 1 {
 		t.Fatalf("duplicate add = %d, %q", code, stderr)
 	}
 	for _, label := range []string{"job_id=" + firstID, `job_name="first"`, `job_name="second"`} {

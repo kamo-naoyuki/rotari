@@ -58,9 +58,9 @@ run a single job with
 `rotari add -p demo -- ./build.sh && rotari run -p demo`, or use `run --async`
 to start it in the background.
 
-### Why does `add` warn that jobs have the same fingerprint?
+### Why does `add` ask whether I accidentally added the same command twice?
 
-An added job has the same fingerprint as another job in the resulting queue,
+The same command and inputs appear more than once in the resulting queue,
 which may indicate accidental duplicate submission. The warning lists their
 job IDs and names, but both jobs remain queued. It is shown on stderr even
 with `--quiet`; `--dry-run` also warns about the proposed addition without

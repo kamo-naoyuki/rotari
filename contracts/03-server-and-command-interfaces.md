@@ -266,7 +266,9 @@ follows:
 - **CLI-18** A successful `add` warns on stderr when an added execution unit
   shares its fingerprint with another unit in the resulting queue. It reports
   each affected fingerprint group once, with job IDs and available names,
-  without rejecting or deduplicating jobs. Unrelated existing duplicates do
+  asking whether the same command was accidentally added twice rather than
+  using fingerprint terminology, without rejecting or deduplicating jobs.
+  Unrelated existing duplicates do
   not warn. The warning remains visible with `--quiet` and in `--dry-run`
   previews. Array tasks are separate units and matrix members retain their
   expanded parameters; equality uses the existing fingerprint definition,
