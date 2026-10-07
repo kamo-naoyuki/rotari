@@ -69,20 +69,24 @@ Choose how you want to define the jobs:
 You can switch approaches later: for example, export a run created from shell
 commands as a manifest, or import a manifest with the Python client.
 
+## Optional workspace setup
+
+To use the same location defaults with any of the three approaches above, run
+`rotari init` from this directory:
+
+```sh
+rotari init .rotari-state sweep
+```
+
+This writes `.rotari.toml`, making `.rotari-state` and `sweep` the defaults for
+commands started here. It does not create the state directory or project; those
+are created when you add jobs. This saves you from repeating `--basedir` and
+`--project-name` (or setting environment variables). The defaults do not
+inherit into subdirectories, and explicit CLI options or environment variables
+override them. See [Workspace defaults](CONFIGURATION.md#workspace-defaults-and-initialization)
+for the resolution rules and other `init` options.
+
 ## Shell quick start
-
-Optionally, run `rotari init .rotari-state sweep` from this directory to make
-`.rotari-state` and `sweep` the defaults for commands started here. It writes
-`.rotari.toml` only; the state directory and project are created when you add
-jobs. The defaults save you from repeating `--basedir` and `--project-name`
-(or setting environment variables) on each command. They apply only when the
-current directory is this workspace, and explicit CLI options or environment
-variables override them. See
-[Workspace defaults](CONFIGURATION.md#workspace-defaults-and-initialization)
-for the resolution rules.
-
-After initialization, add and run commands directly. You can also save these
-lines in a shell script to define a repeatable batch:
 
 ```sh
 # Add commands to the workspace's default project queue.
