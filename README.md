@@ -33,8 +33,8 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
   workspaces.
 - **Retry only what needs work.** Rerun failed or unfinished jobs while
   keeping successful results.
-- **Switch execution backends, not your workflow.** Run the same jobs locally,
-  over SSH, or on Slurm and other schedulers.
+- **Easily switch execution backends.** Run jobs locally, over SSH, or on
+  Slurm and other schedulers.
 - **Know when jobs finish.** Get browser notifications or send updates to
   Slack.
 - **Follow outputs from command to artifact.** Rotari detects likely artifacts
