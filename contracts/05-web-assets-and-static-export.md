@@ -448,6 +448,10 @@ handlers are in [internal/webui/artifact_files.go](../internal/webui/artifact_fi
 and the view in [web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js);
 covered by `TestWebPreviewsArtifactsUnderAllowedRoots` in
 [conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+Opening an entry, including a directory child, scrolls to the rendered preview
+below the listing; loading additional pages does not scroll it. This browser
+behavior is checked by `TestWebArtifactPreviewInBrowser` in
+[internal/webui/artifact_preview_test.go](../internal/webui/artifact_preview_test.go).
 
 **WEB-7** `rotari web --static-dir DIR --static-artifact-contents` copies the
 contents of the candidates WEB-6 would serve, with the job's working

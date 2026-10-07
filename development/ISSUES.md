@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **CLI edit-pair invocation timed out during a full short check** ([conformance/03-interfaces/pairedits/flag_pair_mutations_test.go](../conformance/03-interfaces/pairedits/flag_pair_mutations_test.go)): on 2026-10-07, `TestCLIFlagPairEdits/change/all+clear-retry` exceeded its five-second invocation timeout for `change --clear-retry=true --all=true`, with empty stdout/stderr; the suite exited 1. An uncached isolated rerun passed (two invocations, subtest 0.17s). The cause is not established; a recurrence needs full logs and timing evidence, not a longer timeout without diagnosis.
+
 - **`latest` and a run-less `copy` select the active run** (`internal/resolve/resolve.go`, `RunID`; `cmd/rotari/copy.go`): RES-12 says `--run-id latest` is the project's latest settled run, but `RunID` returns `meta.json`'s last run, which is the active or interrupted run while there is one. Since queue edits are allowed beside a run (SAFE-8), `copy -p P`, `copy -p P -r latest`, and `copy -p P --job-name NAME` during a run pick the active run: the first two fail with "is still running; wait for it ... then copy", and the last reports the name as not found even when the previous finished run has it. Expected: these resolve to the latest settled run, as RES-12 states. `show -r latest` has the same gap. Found while implementing `development/2026-10-05-work-during-runs`.
 
 ## Resolved

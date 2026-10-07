@@ -55,6 +55,20 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   if (buttons.some(text => text.includes('secret.txt'))) fail('outside entry is openable');
   if (buttons.length !== 10) fail('buttons', buttons);
 
+  const preview = document.getElementById('artifact-preview');
+  let scrolls = 0;
+  preview.scrollIntoView = options => {
+    if (options.block !== 'start' || options.inline !== 'nearest') fail('preview scroll alignment', options);
+    if (preview.textContent.includes('Loading...')) fail('preview scrolled before rendering');
+    scrolls++;
+  };
+  const openArtifact = window.openArtifact;
+  window.openArtifact = async (...args) => {
+    const before = scrolls;
+    await openArtifact(...args);
+    if (scrolls !== before + 1) fail('preview not scrolled into view', args);
+  };
+
   await window.openArtifact(entries['plot.png'], '', 'file');
   const image = view.querySelector('.artifact-image');
   if (!image) fail('image');
@@ -67,7 +81,9 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   if (!text.endsWith('line 19999\n') || text.startsWith('line 00000')) fail('log tail', text.slice(0, 20));
   const earlier = [...view.querySelectorAll('button')].find(button => button.textContent === 'Load earlier');
   if (!earlier) fail('load earlier');
+  const beforeEarlier = scrolls;
   await window.moreArtifactText();
+  if (scrolls !== beforeEarlier) fail('pagination moved preview');
   const longer = view.querySelector('.artifact-text').textContent;
   if (longer.length <= text.length || !longer.endsWith(text)) fail('earlier page');
 
@@ -80,8 +96,10 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   let children = view.querySelectorAll('.artifact-preview tbody tr');
   if (children.length !== 200) fail('directory page', children.length);
   const more = [...view.querySelectorAll('.artifact-preview button')].find(button => button.textContent === 'More');
+  const beforeMore = scrolls;
   more.click();
   await wait(200);
+  if (scrolls !== beforeMore) fail('directory pagination moved preview');
   children = view.querySelectorAll('.artifact-preview tbody tr');
   if (children.length !== 53) fail('second directory page', children.length);
   const quoted = [...view.querySelectorAll('.artifact-preview .artifact-open')].find(button => button.textContent === "it's.txt");

@@ -213,6 +213,15 @@ function artifactDownloadLink(index, child) {
 // a directory's children, an image, text a page at a time, a table, or
 // otherwise the file's size and time with a download.
 async function openArtifact(index, child, type) {
+  try {
+    await renderArtifactPreview(index, child, type);
+  } finally {
+    // Wait for the contents so the scroll is not limited by a short loading
+    // placeholder. Only opening an entry moves the view, not loading a page.
+    artifactPreview().scrollIntoView({ block: "start", inline: "nearest" });
+  }
+}
+async function renderArtifactPreview(index, child, type) {
   const extension = artifactExtension(index, child);
   const header =
     '<p class="artifact-preview-title"><strong>' +

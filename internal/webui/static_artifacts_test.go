@@ -60,6 +60,19 @@ setTimeout(async () => {
     const buttons = view().querySelectorAll('.artifact-table .artifact-open').length;
     if (buttons !== 9) fail('open buttons', buttons);
 
+    let scrolls = 0;
+    preview().scrollIntoView = options => {
+      if (options.block !== 'start' || options.inline !== 'nearest') fail('preview scroll alignment', options);
+      if (preview().textContent.includes('Loading...')) fail('preview scrolled before rendering');
+      scrolls++;
+    };
+    const openArtifact = window.openArtifact;
+    window.openArtifact = async (...args) => {
+      const before = scrolls;
+      await openArtifact(...args);
+      if (scrolls !== before + 1) fail('preview not scrolled into view', args);
+    };
+
     await window.openArtifact(entries['plot.png'], '', 'file');
     const src = preview().querySelector('img').getAttribute('src');
     if (!/^\/site\/artifact-files\/\d+\.png$/.test(src)) fail('image src', src);

@@ -164,7 +164,9 @@ directory can be opened: images are shown, audio and video play, NumPy
 CSV and TSV files show as tables, logs
 and `.txt` files from the end, other text from the start, each loading more
 on demand, and a directory as its immediate children, 200 at a time. Any
-file can be downloaded. A path outside the working directory, or a symlink
+file can be downloaded. Opening a file or directory automatically scrolls
+to its preview below the listing; loading more content does not move the view.
+A path outside the working directory, or a symlink
 leading out of it, is listed but not opened; add a directory with
 `rotari web --artifact-root DIR` to allow it. A static export contains no
 file contents unless it is made with `--static-artifact-contents`, which
