@@ -1,5 +1,6 @@
 # Go build artifacts and local rotari state
 /rotari
+/.rotari.toml
 /.rotari-state/
 /.example-state*/
 /.rotari-example-work/
