@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 set -eu
 
-export ROTARI_BASEDIR="$PWD/.example-state"
 export ROTARI_PROJECT_NAME=basic-example
 
 # The jobs work in their own directory, so the files they write stay out of
 # the directory you run this script from.
-work="$ROTARI_BASEDIR/basic-work"
+work="$PWD/.rotari-example-work/basic-work"
 mkdir -p "$work"
 
 # A dependent job starts only after prepare succeeds. Each run records the
 # files its jobs name as artifact candidates: prepare's redirections, and
 # train's --config file, the out_dir inside it, and its metrics file.
-rotari unlock
 rotari reset
 rotari add --job-name prepare --working-directory "$work" -- sh -c '
 	mkdir -p data
@@ -29,4 +27,4 @@ rotari show
 # One job's details end with its artifact candidates.
 rotari show --job-name train --no-pager
 
-echo "Example state: $ROTARI_BASEDIR"
+echo "Inspect this project later with: rotari show -p $ROTARI_PROJECT_NAME"

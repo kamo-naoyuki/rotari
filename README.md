@@ -104,8 +104,8 @@ Set the project once for the current shell, then add and run commands. You can
 also save these lines in a shell script to define a repeatable batch:
 
 ```sh
-# Set the project once for the current shell. The default state directory is
-# ~/.local/state/rotari; set ROTARI_BASEDIR to use another location.
+# Set the project once for the current shell; projects share the resolved
+# state directory.
 export ROTARI_PROJECT_NAME=sweep
 # Add commands to the current project queue.
 rotari add -- python train.py --lr 0.1
@@ -209,9 +209,9 @@ Start with the [basic example](docs/examples.md#basic-example) for a dependent j
 
 The [examples guide](docs/examples.md) has independent, no-argument
 scripts for arrays, retrying failed work, async runs, Slurm, workflow
-manifests, and diagnosis. All examples use `.example-state` in the current
-working directory, with a separate project for each. Slurm needs a configured
-cluster. To fix a failed job and accept
+manifests, and diagnosis. All examples use rotari's normally resolved state
+directory and switch projects rather than creating a basedir for each
+example. Slurm needs a configured cluster. To fix a failed job and accept
 another job's result in an exported workflow, run
 `./examples/workflow-reconcile.sh`. See
 [Workflow manifests](docs/WORKFLOW_MANIFESTS.md) for the details.

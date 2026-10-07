@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 set -eu
 
-export ROTARI_BASEDIR="$PWD/.example-state"
 export ROTARI_PROJECT_NAME=lineage-example
 
 # The first generation fails in train while eval succeeds.
-rotari unlock
 rotari reset
 rotari add --job-name train -- false
 rotari add --job-name eval -- true
@@ -20,4 +18,4 @@ rotari run --failed
 # Compare the generations, or use a run ID to inspect one generation.
 rotari lineage
 
-echo "Example state: $ROTARI_BASEDIR"
+echo "Inspect this project later with: rotari show -p $ROTARI_PROJECT_NAME"

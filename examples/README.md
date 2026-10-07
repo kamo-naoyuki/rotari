@@ -4,14 +4,17 @@ Each script shows one use of rotari. Install `rotari` on your `PATH`, or build
 the checkout with `go build -o rotari ./cmd/rotari` and add the repository root
 to `PATH`. Run the scripts from any directory; they accept no arguments.
 
-All examples use the same `.example-state` directory under the current working
-directory, with a separate project for each example. Each unlocks any
-interrupted run and resets its project's next queue before adding jobs, so
-re-running it starts with a clean queue; previous run history remains. From
-the repository root, the state
-directory is ignored by Git. The scripts leave it in place so you can inspect
-results with `rotari show --basedir PATH --project-name NAME` afterward.
-Remove the directory when finished.
+All examples use rotari's normally resolved state directory and select a
+separate project, rather than creating another basedir. Each resets its
+project's next queue before adding jobs, so re-running it starts with a clean
+queue; previous run history remains. Run `rotari show -p PROJECT` to inspect
+an example later. Work files and exported manifests are kept separately in
+`.rotari-example-work` under the current working directory; remove that
+directory when finished. From the repository root, it is ignored by Git.
+
+The scripts do not automatically recover interrupted runs. If a run was
+interrupted, inspect it and confirm its jobs have stopped before following
+the recovery instructions from `rotari show` or the [inspection guide](../docs/INSPECT.md).
 
 | Goal | Run | Requirement |
 | --- | --- | --- |
