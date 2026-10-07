@@ -597,15 +597,29 @@ type RunSummary struct {
 	Results      []JobResult `json:"results"`
 }
 
+// ConfigSource records the provenance of a file-config snapshot.
+type ConfigSource struct {
+	Scope string `json:"scope"`
+	Path  string `json:"path"`
+}
+
+// FileConfigSnapshot is loaded by the client before starting a supervisor.
+// Content contains canonical merged file values, never runtime overrides.
+type FileConfigSnapshot struct {
+	Content string         `json:"content"`
+	Sources []ConfigSource `json:"sources,omitempty"`
+}
+
 type RunContext struct {
-	CWD                 string       `json:"cwd"`
-	ConfigPaths         []string     `json:"config_paths,omitempty"`
-	ConfigSnapshotFiles []string     `json:"config_snapshot_files,omitempty"`
-	ConfigSnapshotPaths []string     `json:"config_snapshot_paths,omitempty"`
-	Hostname            string       `json:"hostname,omitempty"`
-	StartedLoad         *LoadAverage `json:"started_load,omitempty"`
-	FinishedLoad        *LoadAverage `json:"finished_load,omitempty"`
-	LoadSamples         []LoadSample `json:"load_samples,omitempty"`
+	CWD                 string         `json:"cwd"`
+	ConfigSources       []ConfigSource `json:"config_sources,omitempty"`
+	ConfigPaths         []string       `json:"config_paths,omitempty"`
+	ConfigSnapshotFiles []string       `json:"config_snapshot_files,omitempty"`
+	ConfigSnapshotPaths []string       `json:"config_snapshot_paths,omitempty"`
+	Hostname            string         `json:"hostname,omitempty"`
+	StartedLoad         *LoadAverage   `json:"started_load,omitempty"`
+	FinishedLoad        *LoadAverage   `json:"finished_load,omitempty"`
+	LoadSamples         []LoadSample   `json:"load_samples,omitempty"`
 }
 
 type LoadAverage struct {

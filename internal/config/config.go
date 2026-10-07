@@ -154,6 +154,12 @@ func ListPaths(baseDir, projectName string, additionalNames ...string) (common [
 	if configHome, err := HomeDir(); err == nil {
 		common = append(common, listDirectoryPaths(configHome, additionalNames)...)
 	}
+	if cwd, err := os.Getwd(); err == nil {
+		path := filepath.Join(cwd, WorkspaceFile)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			common = append(common, path)
+		}
+	}
 	common = append(common, listDirectoryPaths(baseDir, additionalNames)...)
 	if projectName != "" {
 		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName)
