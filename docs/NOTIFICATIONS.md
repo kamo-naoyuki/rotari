@@ -18,12 +18,6 @@ does not inherit a global webhook destination. `ROTARI_WEBHOOK_URL` remains an
 explicit environment override. Notification snapshots are recorded separately
 from a run's merged command configuration.
 
-On a run page, **Notification config (read only)** displays the notification
-config copied when that run started, rather than the current project settings.
-You can copy its contents, but cannot edit, save, or reload it. The button is
-disabled if the run has no notification config snapshot. This also works in
-static exports. Run pages do not offer **Generate config**.
-
 ## Browser notifications
 
 The Web UI can show a desktop notification when a run finishes or a job reaches
