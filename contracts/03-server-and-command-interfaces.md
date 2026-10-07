@@ -167,9 +167,11 @@ follows:
   list is in [`cmd/rotari/projects.go`](../cmd/rotari/projects.go)
   (`showProjectsForBaseDirs`), with the end-to-end check in
   [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
-- **CLI-6** The job listing window, `jobs --since` and the Web jobs page's
+- **CLI-6** The listing window, `jobs --since`, `runs --since`, and the Web jobs page's
   `since`, takes a Go duration such as `24h` or `90m`, or a whole number of
-  days such as `7d`; anything else is rejected. Both parse it with
+  days such as `7d`; anything else is rejected. The CLI commands default to
+  `1d`; running jobs and active or interrupted runs are included regardless of
+  age. All three interfaces parse it with
   `joblist.ParseSince` in [`internal/joblist/joblist.go`](../internal/joblist/joblist.go),
   with the end-to-end check in
   [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
@@ -193,8 +195,9 @@ follows:
 - **CLI-11** When a command names a project that its state directory does not
   have, the error lists the other registered state directories that have a
   project of that name, each with its last run's ID, status, and failure
-  count, and says to select one with `--basedir`; `jobs`,
-  which lists state directories itself, points to `--all-basedirs`. A
+  count, and says to select one with `--basedir`; cross-basedir `jobs` can list
+  the project without extra flags, and `rotari basedirs` shows the registered
+  state directories. A
   project that no registered state directory has gets the plain error.
   Implemented once in `resolve.RegisteredProjectBaseDirs`, used by
   `resolve.RequireProject` and `rotari jobs`; checked by

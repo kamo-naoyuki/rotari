@@ -90,10 +90,11 @@ func TestListingCompletionScopes(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "runs default", args: []string{"__complete", "project-name", "--command", "runs"}, want: "default-only\n"},
+		{name: "runs default", args: []string{"__complete", "project-name", "--command", "runs"}, want: "default-only\nregistry-only\n"},
 		{name: "runs explicit", args: []string{"__complete", "project-name", "--command", "runs", "-b", defaultBase}, want: "default-only\n"},
 		{name: "runs other explicit", args: []string{"__complete", "project-name", "--command", "runs", "-b", registeredBase}, want: "registry-only\n"},
-		{name: "runs all", args: []string{"__complete", "project-name", "--command", "runs", "--all-basedirs"}, want: "registry-only\n"},
+		{name: "jobs default", args: []string{"__complete", "project-name", "--command", "jobs"}, want: "default-only\nregistry-only\n"},
+		{name: "jobs explicit", args: []string{"__complete", "project-name", "--command", "jobs", "-b", defaultBase}, want: "default-only\n"},
 		{name: "projects registry and default", args: []string{"__complete", "project-name", "--command", "projects"}, want: "default-only\nregistry-only\n"},
 		{name: "projects explicit", args: []string{"__complete", "project-name", "--command", "projects", "-b", defaultBase}, want: "default-only\n"},
 	} {
@@ -123,10 +124,10 @@ func TestListingCompletionScopes(t *testing.T) {
 			if _, err := exec.LookPath(shell.name); err != nil {
 				t.Skipf("%s not installed", shell.name)
 			}
-			lines := [][]string{{"runs", "-p", ""}, {"runs", "--all-basedirs", "-p", ""}, {"runs", "-b", registeredBase, "-p", ""}}
+			lines := [][]string{{"runs", "-p", ""}, {"runs", "-b", registeredBase, "-p", ""}, {"jobs", "-p", ""}, {"jobs", "-b", registeredBase, "-p", ""}}
 			got := shell.complete(t, binDir, lines)
-			for i, want := range []string{"default-only", "registry-only", "registry-only"} {
-				if !slices.Equal(normalizeCandidates(got[i]), []string{want}) {
+			for i, want := range []string{"default-only registry-only", "registry-only", "default-only registry-only", "registry-only"} {
+				if !slices.Equal(normalizeCandidates(got[i]), strings.Fields(want)) {
 					t.Errorf("completion %q = %q, want %s", lines[i], got[i], want)
 				}
 			}

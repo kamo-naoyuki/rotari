@@ -19,7 +19,7 @@ const (
 	// DefaultSince is the listing window when none is given.
 	DefaultSince = 24 * time.Hour
 	// DefaultSinceText is DefaultSince as users write it.
-	DefaultSinceText = "24h"
+	DefaultSinceText = "1d"
 )
 
 // Row is one job attempt in the listing: a running job of an active run or a

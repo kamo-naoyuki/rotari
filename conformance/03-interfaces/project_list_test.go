@@ -74,11 +74,9 @@ func TestProjectListHintsWork(t *testing.T) {
 	}
 }
 
-// TestMissingProjectNamesWhereItIs asks the default state directory for a
-// project that only another registered state directory has, as an agent does
-// before it knows the basedir, and checks that the error names that
-// directory and how to select it; jobs, which lists state directories, points
-// to --all-basedirs.
+// TestMissingProjectNamesWhereItIs checks that jobs sees a project in any
+// registered state directory by default, and retains an explicit --basedir
+// narrowing path.
 func TestMissingProjectNamesWhereItIs(t *testing.T) {
 	covers(t, "CLI-11")
 	e := support.NewEnv(t)
@@ -90,8 +88,11 @@ func TestMissingProjectNamesWhereItIs(t *testing.T) {
 			t.Errorf("%v = %s, want an error naming %s and --basedir", args, result, elsewhere)
 		}
 	}
-	if result := e.Rotari("jobs", "exp"); result.Code == 0 || !strings.Contains(result.Stderr, "1 registered state directory has it") || !strings.Contains(result.Stderr, "--all-basedirs") {
-		t.Errorf("jobs exp = %s, want a pointer to --all-basedirs", result)
+	if result := e.MustRotari("jobs", "exp"); !strings.Contains(result.Stdout, "exp") {
+		t.Errorf("jobs exp did not find the project across basedirs: %s", result)
+	}
+	if result := e.Rotari("jobs", "-b", e.Base, "exp"); result.Code == 0 || !strings.Contains(result.Stderr, "registered state directory") || !strings.Contains(result.Stderr, "--basedir") {
+		t.Errorf("jobs scoped to another basedir should explain where exp is: %s", result)
 	}
 	// A state directory with runs is named with its last run's result, which
 	// tells same-named projects apart.

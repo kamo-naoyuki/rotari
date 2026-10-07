@@ -317,7 +317,7 @@ list projects across known state directories
 
 ### `rotari runs`
 
-list saved and active runs across projects
+list active runs and recently finished runs across known state directories
 
 Usage: `rotari runs [PROJECT]`
 
@@ -326,8 +326,8 @@ Usage: `rotari runs [PROJECT]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all-basedirs |
-| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+| `--since` | `DURATION` | `` | include finished runs in this time window (default 1d), such as 24h or 7d; active or interrupted runs are always included |
 
 ### `rotari show`
 
@@ -391,7 +391,7 @@ Usage: `rotari lineage [RUN_ID ...]`
 
 ### `rotari jobs`
 
-list running and recently finished jobs across projects
+list running and recently finished jobs across known state directories
 
 Usage: `rotari jobs [PROJECT]`
 
@@ -400,10 +400,9 @@ Usage: `rotari jobs [PROJECT]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
-| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
-| `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
+| `--since` | `DURATION` | `` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
 
 ### `rotari wait`
 

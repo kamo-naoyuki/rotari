@@ -84,10 +84,12 @@ Basedir defaults are command-specific:
 - `projects` ignores implicit project and basedir defaults, listing projects
   across known basedirs plus the cwd-local/XDG/home default state directory.
   CLI `--basedir` limits it to that basedir.
-- `runs` and `jobs` ignore implicit project and basedir defaults, using the
-  cwd-local/XDG/home default basedir. CLI `--basedir` selects a different one;
-  `--all-basedirs` retains its registry-wide scope. A positional project or
-  CLI `--project-name` explicitly filters that scope.
+- `runs` and `jobs` ignore implicit project and basedir defaults. By default
+  they scan registered basedirs plus the cwd-local/XDG/home default basedir;
+  CLI `--basedir` limits either view to one directory. `runs --since` and
+  `jobs --since` default to `1d`; active or interrupted runs and running jobs
+  remain visible regardless of age.
+  A positional project or CLI `--project-name` explicitly filters that scope.
 - `show` uses ordinary project resolution. A unique project selected through
   explicit options, defaults, or sole-project discovery is shown in detail; if
   there are multiple projects and no selector, it errors and directs the user
@@ -104,8 +106,8 @@ Basedir defaults are command-specific:
   local/XDG/home fallback. It inventories every project config in that basedir;
   CLI `--project-name` narrows the inventory.
 
-`runs --all-basedirs` and `jobs --all-basedirs` reject an explicit `--basedir`
-rather than silently discarding the conflicting scope. Implementation:
+The listing commands use `--basedir` to narrow their normal cross-basedir
+scope; a separate `--all-basedirs` switch is not needed. Implementation:
 [list commands](../cmd/rotari/lists.go) and [jobs target handling](../cmd/rotari/jobs.go). Tests:
 [list command regressions](../cmd/rotari/show_projects_test.go),
 [jobs regressions](../cmd/rotari/jobs_test.go), and

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -57,26 +58,27 @@ func cmdProjects(args []string) int {
 }
 
 type runListRow struct {
-	BaseDir   string
-	Project   string
-	RunID     string
-	Name      string
-	Status    string
-	ExitCode  string
-	StartedAt string
-	Finished  string
-	Order     int64
+	BaseDir    string
+	Project    string
+	RunID      string
+	Name       string
+	Status     string
+	ExitCode   string
+	StartedAt  string
+	Finished   string
+	FinishedAt time.Time
+	Order      int64
 }
 
-// cmdRuns lists saved and active runs in the default state directory. Use
-// --all-basedirs to include every state directory known to the master registry.
+// cmdRuns lists active and interrupted runs plus recently finished runs across
+// all known state directories. --basedir limits the listing to one directory.
 func cmdRuns(args []string) int {
 	fs := flag.NewFlagSet("runs", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	masterdir := cliString(fs, "masterdir", "")
-	allBaseDirs := cliBool(fs, "all-basedirs", false)
+	since := cliString(fs, "since", joblist.DefaultSinceText)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -84,8 +86,9 @@ func cmdRuns(args []string) int {
 		printError("usage: " + cliUsage("runs"))
 		return 1
 	}
-	if *allBaseDirs && cliOptionSet(fs, "basedir") {
-		printError("--all-basedirs cannot be combined with --basedir")
+	window, err := joblist.ParseSince(*since)
+	if err != nil {
+		printErrorf("invalid --since duration %q", *since)
 		return 1
 	}
 	projectFilter := ""
@@ -99,7 +102,7 @@ func cmdRuns(args []string) int {
 		printErrorf("invalid project name %q", projectFilter)
 		return 1
 	}
-	baseDirs, err := jobsBaseDirs(valueIfSet(fs, "basedir", *basedir), *masterdir, *allBaseDirs)
+	baseDirs, err := jobsBaseDirs(valueIfSet(fs, "basedir", *basedir), *masterdir)
 	if err != nil {
 		printError(err)
 		return 1
@@ -109,15 +112,12 @@ func cmdRuns(args []string) int {
 		printError(err)
 		return 1
 	}
+	rows = filterRunRows(rows, time.Now().Add(-window))
 	if len(rows) == 0 {
-		fmt.Printf("No runs found in %s.\n", describeRunScope(baseDirs, projectFilter))
-		if !*allBaseDirs {
-			fmt.Println("To include every registered state directory:")
-			fmt.Println("  rotari runs --all-basedirs")
-		}
+		fmt.Printf("No active or interrupted runs, or runs finished within %s, found in %s.\n", *since, describeRunScope(baseDirs, projectFilter))
 		return 0
 	}
-	printRunRows(rows)
+	printRunRows(rows, len(baseDirs) > 1)
 	return 0
 }
 
@@ -226,6 +226,7 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 		row.ExitCode = strconv.Itoa(summary.ExitCode)
 		row.StartedAt = model.FormatDisplayTimestamp(summary.StartedAt)
 		row.Finished = model.FormatDisplayTimestamp(summary.FinishedAt)
+		row.FinishedAt, _ = time.Parse(time.RFC3339Nano, summary.FinishedAt)
 		if started, err := time.Parse(time.RFC3339Nano, summary.StartedAt); err == nil {
 			row.Order = started.UnixNano()
 		}
@@ -251,11 +252,17 @@ func describeRunScope(baseDirs []string, projectFilter string) string {
 	return scope
 }
 
-func printRunRows(rows []runListRow) {
-	showBaseDir := false
+func filterRunRows(rows []runListRow, cutoff time.Time) []runListRow {
+	filtered := make([]runListRow, 0, len(rows))
 	for _, row := range rows {
-		showBaseDir = showBaseDir || row.BaseDir != rows[0].BaseDir
+		if row.Status == "running" || row.Status == "interrupted" || row.Status == "incomplete" || row.FinishedAt.IsZero() || !row.FinishedAt.Before(cutoff) {
+			filtered = append(filtered, row)
+		}
 	}
+	return filtered
+}
+
+func printRunRows(rows []runListRow, showBaseDir bool) {
 	header := []string{"PROJECT", "RUN ID", "NAME", "STATUS", "EXIT CODE", "STARTED", "FINISHED"}
 	if showBaseDir {
 		header = append([]string{"BASEDIR"}, header...)

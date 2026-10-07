@@ -113,7 +113,7 @@ rotari add python train.py --lr 0.01
 rotari add python train.py --lr 0.001
 # Execute the queued commands and wait for the run to finish.
 rotari run
-# List job status across projects.
+# List recent job status across all known state directories.
 rotari jobs
 # Inspect the current project's queue or most relevant run.
 rotari show

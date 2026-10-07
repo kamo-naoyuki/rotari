@@ -4,18 +4,19 @@ Checking status and logs, run readiness, and execution history.
 
 ## Inspect
 
-Use `jobs` to inspect the current project activity and recent execution history across the selected basedir.
+Use `jobs` to inspect current activity and recent execution history across all
+known state directories. Active jobs are always included; completed jobs default
+to the last day.
 
 ```sh
-rotari jobs # list running and recently finished jobs across projects; good for a quick status scan
+rotari jobs # list running and recently finished jobs across known basedirs
 rotari jobs --since 7d # include finished jobs from the last seven days
-rotari jobs --all-basedirs # list jobs across basedirs known to the master registry
-rotari jobs --all-basedirs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
+rotari jobs --basedir DIR # limit the listing to one state directory
+rotari jobs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
 ```
 
-When `jobs` finds nothing, it names the state directory it searched and the
-time window, and suggests `--all-basedirs` to search every registered state
-directory.
+When `jobs` finds nothing, it names the state directories it searched and the
+time window; use `--basedir DIR` to inspect one state directory.
 
 Use the plural commands to list objects, and `show` to inspect a selected
 project's current run or pending queue, or a specific run/job.
@@ -24,8 +25,9 @@ project's current run or pending queue, or a specific run/job.
 rotari projects # list projects and their latest run status across known basedirs
 rotari projects --basedir DIR # limit the project list to one state directory
 rotari basedirs # print the resolved master directory and known state directories
-rotari runs # list saved runs in the default state directory
-rotari runs --all-basedirs # list runs across known state directories
+rotari runs # list active/interrupted runs and runs finished within 1d across known basedirs
+rotari runs --since 7d # include runs finished within the last seven days
+rotari runs --basedir DIR # limit the listing to one state directory
 rotari show -p sweep # inspect the selected project's current run or queue
 rotari show # inspect the uniquely selected project; use `rotari projects` if ambiguous
 rotari show -p sweep --failed # list failed jobs in the selected run

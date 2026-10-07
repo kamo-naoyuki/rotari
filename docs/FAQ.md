@@ -92,7 +92,7 @@ Run `rotari projects`. Use `--basedir DIR` to limit the list to a state director
 
 ### I don't know which basedir contains my jobs. How do I find it?
 
-Run `rotari basedirs`, then list projects in one with `rotari projects --basedir DIR`. Use `--masterdir DIR` to select the registry.
+Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry.
 
 ### Where can I put option defaults?
 

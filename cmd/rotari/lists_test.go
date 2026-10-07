@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -202,6 +204,25 @@ func TestListsRunsOrderTiesByRunID(t *testing.T) {
 	}
 }
 
+func TestFilterRunRowsKeepsActiveAndRecentRuns(t *testing.T) {
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	rows := []runListRow{
+		{RunID: "recent", Status: "finished", FinishedAt: now.Add(-23 * time.Hour)},
+		{RunID: "old", Status: "failed", FinishedAt: now.Add(-25 * time.Hour)},
+		{RunID: "running-old", Status: "running", FinishedAt: now.Add(-48 * time.Hour)},
+		{RunID: "interrupted-old", Status: "interrupted", FinishedAt: now.Add(-48 * time.Hour)},
+		{RunID: "incomplete", Status: "incomplete"},
+	}
+	filtered := filterRunRows(rows, now.Add(-24*time.Hour))
+	var got []string
+	for _, row := range filtered {
+		got = append(got, row.RunID)
+	}
+	if !reflect.DeepEqual(got, []string{"recent", "running-old", "interrupted-old", "incomplete"}) {
+		t.Fatalf("filtered run IDs = %v", got)
+	}
+}
+
 func TestListsRunsHintWorksWithRegisteredRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := filepath.Join(t.TempDir(), "state with spaces")
@@ -257,7 +278,7 @@ func TestListsRunsTableAlignmentAndHint(t *testing.T) {
 					rows[1].BaseDir = rows[0].BaseDir
 				}
 				var output bytes.Buffer
-				captureShowStdout(t, &output, func() int { printRunRows(rows); return 0 })
+				captureShowStdout(t, &output, func() int { printRunRows(rows, multipleBases); return 0 })
 				text := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(output.String(), "")
 				lines := strings.Split(text, "\n")
 				headers := []string{"PROJECT", "RUN ID", "NAME", "STATUS", "EXIT CODE", "STARTED", "FINISHED"}

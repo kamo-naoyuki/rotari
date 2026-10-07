@@ -1032,7 +1032,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "name": "projects",
         },
         {
-            "description": "list saved and active runs across projects",
+            "description": "list active runs and recently finished runs across "
+            "known state directories",
             "flags": [
                 {
                     "description": "config file to use",
@@ -1054,14 +1055,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "master registry directory for --all-basedirs",
+                    "description": "master registry directory",
                     "environment": "ROTARI_MASTERDIR",
                     "name": "masterdir",
                     "value_name": "DIR",
                 },
                 {
-                    "description": "include all basedirs known to the master registry",
-                    "name": "all-basedirs",
+                    "description": "include finished runs in this time window "
+                    "(default 1d), such as 24h or 7d; active or "
+                    "interrupted runs are always included",
+                    "name": "since",
+                    "value_name": "DURATION",
                 },
             ],
             "name": "runs",
@@ -1315,7 +1319,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[RUN_ID ...]",
         },
         {
-            "description": "list running and recently finished jobs across projects",
+            "description": "list running and recently finished jobs across known "
+            "state directories",
             "flags": [
                 {
                     "description": "config file to use",
@@ -1337,14 +1342,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "master registry directory for --all",
+                    "description": "master registry directory",
                     "environment": "ROTARI_MASTERDIR",
                     "name": "masterdir",
                     "value_name": "DIR",
-                },
-                {
-                    "description": "include all basedirs known to the master registry",
-                    "name": "all-basedirs",
                 },
                 {
                     "description": "output fields; use %s %b %p %a %n %c %t %f "
@@ -1354,9 +1355,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include jobs finished within this duration, "
-                    "such as 24h or 7d; use 0 for running jobs "
-                    "only",
+                    "description": "include jobs finished within this duration "
+                    "(default 1d), such as 24h or 7d; use 0 for "
+                    "running jobs only",
                     "name": "since",
                     "value_name": "DURATION",
                 },

@@ -1097,7 +1097,7 @@ func TestCmdRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default"})
+	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default", "--since", "1000h"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1140,7 +1140,7 @@ func TestCmdRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "No runs found in project \"default\"") {
+	if code != 0 || !strings.Contains(string(output), "No active or interrupted runs") {
 		t.Fatalf("cmdRuns exit code = %d, stdout = %q", code, output)
 	}
 }

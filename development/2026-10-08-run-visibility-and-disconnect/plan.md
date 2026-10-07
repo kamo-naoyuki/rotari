@@ -27,7 +27,7 @@ Adopt distinct plural commands for listings:
 
 `rotari projects` takes over the project-listing view currently shown by bare `rotari show` when no project is selected. `show` is a detail command, not a general list command. Bare `show` uses normal project resolution; it shows the selected project's current run or queue and, if more than one project is possible without a selector, exits with guidance to use `rotari projects`.
 
-`rotari runs` lists saved and currently active/interrupted runs in the default non-config state directory. `--all-basedirs` includes all registered directories, and a project selector filters the list. It reports saved history as well as active rows; this first version does not expose whether a live supervisor still has a connected client.
+`rotari runs`, `rotari jobs`, and `rotari projects` scan all known basedirs by default. `--basedir DIR` narrows `runs` or `jobs` to one state directory. `runs` and `jobs` default to a one-day completed-history window; active/interrupted runs and running jobs are always included. The obsolete `--all-basedirs` option is removed. `runs` does not expose whether a live supervisor still has a connected client.
 
 There is no compatibility requirement for unreleased CLI forms. Do not add aliases solely to preserve `show --basedirs` or other old listing syntax unless implementation discovers a concrete need.
 
@@ -66,7 +66,7 @@ There is no compatibility requirement for unreleased CLI forms. Do not add alias
 ## Proposed implementation phases
 
 1. **Confirm lifecycle semantics.** Trace EOF, Ctrl-C, Ctrl-D, process timeout/termination, and supervisor death through the pipe protocol. Specify which cases cancel, detach, or interrupt. Do not conflate client and supervisor signals.
-2. **Add collection commands.** Complete: `basedirs`, `projects`, and `runs` use existing registry/project state; `jobs` remains the job-level view. Bare `show` resolves one project to its detail view and directs ambiguous selection to `projects`. CLI schema/help, generated Python schema, user docs, contracts, and CLI/conformance tests were updated.
+2. **Add collection commands.** Complete: `basedirs`, `projects`, `runs`, and `jobs` use existing registry/project state; listing commands scan all known basedirs by default, and `--basedir` narrows `runs`/`jobs`. The obsolete `--all-basedirs` option was removed. `runs`/`jobs` default to a one-day history window while retaining active work. Bare `show` resolves one project to its detail view and directs ambiguous selection to `projects`. CLI schema/help, generated Python schema, user docs, contracts, and CLI/conformance tests were updated.
 3. **Expose client attachment state.** Not implemented: this first `runs` view displays project/run state only. Decide whether attached/detached is reliably derivable from the supervisor's pipe lifecycle or needs persisted metadata.
 4. **Adjust disconnect policy, if approved.** Deferred. Once detached runs are discoverable, choose the default/option. Preserve Ctrl-C cancellation and Ctrl-D detach. Make client exit status and printed wait/show hints unambiguous.
 5. **Document orphan cancellation.** State that job-level cancel can signal eligible orphan jobs but does not finalize an interrupted run. Define and test any stronger stop/escalation mechanism separately.

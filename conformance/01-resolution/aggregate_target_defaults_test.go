@@ -51,33 +51,36 @@ func TestAggregateCommandsIgnoreImplicitLocationDefaults(t *testing.T) {
 		t.Fatalf("projects was narrowed by implicit project defaults:\n%s", show)
 	}
 	runs := e.MustRotari("runs").Stdout
-	if !strings.Contains(runs, "alpha") || !strings.Contains(runs, "beta") || strings.Contains(runs, "environment-only") {
-		t.Fatalf("runs used implicit location defaults:\n%s", runs)
+	for _, project := range []string{"alpha", "beta", "workspace-only", "environment-only"} {
+		if !strings.Contains(runs, project) {
+			t.Errorf("runs omitted project %q from registered basedirs:\n%s", project, runs)
+		}
 	}
-	allRuns := e.MustRotari("runs", "--all-basedirs").Stdout
-	if !strings.Contains(allRuns, "environment-only") || !strings.Contains(allRuns, "alpha") {
-		t.Fatalf("runs --all-basedirs omitted registered state directories:\n%s", allRuns)
+	if !strings.Contains(runs, "BASEDIR") {
+		t.Fatalf("runs did not identify its cross-basedir rows:\n%s", runs)
 	}
-	workspaceShow := e.MustRotari("projects", "--basedir", workspaceBase).Stdout
-	if !strings.Contains(workspaceShow, "workspace-only") || strings.Contains(workspaceShow, "environment-only") || strings.Contains(workspaceShow, "alpha") {
-		t.Fatalf("explicit projects basedir did not narrow the project list:\n%s", workspaceShow)
+	workspaceProjects := e.MustRotari("projects", "--basedir", workspaceBase).Stdout
+	if !strings.Contains(workspaceProjects, "workspace-only") || strings.Contains(workspaceProjects, "environment-only") || strings.Contains(workspaceProjects, "alpha") {
+		t.Fatalf("explicit projects basedir did not narrow the project list:\n%s", workspaceProjects)
+	}
+	workspaceRuns := e.MustRotari("runs", "--basedir", workspaceBase).Stdout
+	if !strings.Contains(workspaceRuns, "workspace-only") || strings.Contains(workspaceRuns, "environment-only") {
+		t.Fatalf("explicit runs basedir did not narrow the run list:\n%s", workspaceRuns)
 	}
 	positionalWorkspaceShow := e.Without("ROTARI_BASEDIR").MustRotari("show", "workspace-only").Stdout
 	if !strings.Contains(positionalWorkspaceShow, "Project: workspace-only") {
 		t.Fatalf("positional project selector ignored workspace basedir default:\n%s", positionalWorkspaceShow)
 	}
 
-	jobs := e.MustRotari("jobs", "--since", "24h").Stdout
-	if !strings.Contains(jobs, "alpha") || !strings.Contains(jobs, "beta") || strings.Contains(jobs, "workspace-only") || strings.Contains(jobs, "environment-only") {
-		t.Fatalf("jobs used implicit location defaults:\n%s", jobs)
+	jobs := e.MustRotari("jobs").Stdout
+	for _, project := range []string{"alpha", "beta", "workspace-only", "environment-only", "BASEDIR"} {
+		if !strings.Contains(jobs, project) {
+			t.Errorf("jobs omitted %q from the default cross-basedir listing:\n%s", project, jobs)
+		}
 	}
-	allJobs := e.MustRotari("jobs", "--all-basedirs", "--since", "24h").Stdout
-	if !strings.Contains(allJobs, "workspace-only") || !strings.Contains(allJobs, "environment-only") {
-		t.Fatalf("jobs --all-basedirs omitted registered projects:\n%s", allJobs)
-	}
-	conflictingJobsScope := e.Rotari("jobs", "--all-basedirs", "--basedir", environmentBase)
-	if conflictingJobsScope.Code == 0 || !strings.Contains(conflictingJobsScope.Stderr, "cannot be combined") {
-		t.Fatalf("jobs --all-basedirs accepted conflicting --basedir: %+v", conflictingJobsScope)
+	explicitJobs := e.MustRotari("jobs", "--basedir", environmentBase).Stdout
+	if !strings.Contains(explicitJobs, "environment-only") || strings.Contains(explicitJobs, "workspace-only") {
+		t.Fatalf("jobs --basedir did not narrow the list:\n%s", explicitJobs)
 	}
 	emptyConfig := filepath.Join(e.Root, "empty.toml")
 	if err := os.WriteFile(emptyConfig, nil, 0o644); err != nil {

@@ -144,7 +144,7 @@ the IDs, this table, and those calls disagree.
 | RES-23 | Cwd-only workspace discovery, staged location selection, scope merge and location constraints | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
 | RES-24 | Init writes a cwd config template with relative basedir and project defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestWorkspaceInitDefaultTemplate` |
 | RES-25 | Runs save immutable canonical merged file values, separate from runtime overrides and source metadata | partial | `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
-| RES-26 | List commands ignore implicit location defaults; show requires a uniquely selected detail target | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
+| RES-26 | List commands ignore implicit location defaults; jobs/runs/projects scan known basedirs by default, and show requires a uniquely selected detail target | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
@@ -202,7 +202,7 @@ the IDs, this table, and those calls disagree.
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
 | CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupRetryHintsWork`, `TestFailureGroupsAgreeAcrossViews` |
 | CLI-5 | `projects` lists each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
-| CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
+| CLI-6 | `jobs --since`, `runs --since`, and the Web jobs page take a Go duration or whole days such as `7d`; CLI listings default to `1d` and keep active work visible | conformance | `TestJobsWindowAcceptsDays`, `TestRunsWindowFiltersSettledHistoryButKeepsActiveRun` |
 | CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestChangePreviewNamesTheFieldsItChanges`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewListsTheTasksOfAWholeArray`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewSaysWhyADependentJobExecutes`, `TestRunRestoringEditsSayTheyReplaceTheQueue` |
 | CLI-8 | `run` and `retry` reject `--async` with `--dry-run`, which does not start a run | conformance | `TestAsyncDryRunRefusalShowsTheWayToPreview`, `TestCLIFlagPairAsyncDryRunIsRejected` |
 | CLI-9 | `run` and `retry` use consistent selector combinations in dry-run plans | partial | `TestCLIFlagPairRunSelectionEffects` |

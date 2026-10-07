@@ -794,7 +794,8 @@
           "value_name": "DIR"
         },
         {
-          "name": "all-basedirs"
+          "name": "since",
+          "value_name": "DURATION"
         }
       ],
       "name": "runs"
@@ -1001,9 +1002,6 @@
         {
           "name": "masterdir",
           "value_name": "DIR"
-        },
-        {
-          "name": "all-basedirs"
         },
         {
           "name": "format",

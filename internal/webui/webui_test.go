@@ -2574,7 +2574,7 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		`class="sidebar-project-link basedir-path"`,
 		`href="/project/demo"`,
 		`class="brand-icon"`,
-		`name="since" value="24h"`,
+		`name="since" value="1d"`,
 		"job-1",
 		`href="/project/demo"`,
 		`href="/project/demo/run/` + runID + `"`,

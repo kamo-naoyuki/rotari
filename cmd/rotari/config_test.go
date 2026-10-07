@@ -457,15 +457,16 @@ func TestListingConfigScopesThroughDispatch(t *testing.T) {
 		project   string
 		malformed string
 	}{
-		{name: "runs positional", args: []string{"runs", "alpha"}, baseScope: "default", project: "alpha", malformed: "env"},
-		{name: "runs flag", args: []string{"runs", "-p", "alpha"}, baseScope: "default", project: "alpha", malformed: "env"},
-		{name: "runs flag ignores implicit project", args: []string{"runs", "-p", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
-		{name: "runs positional before project config", args: []string{"runs", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
+		{name: "runs positional", args: []string{"runs", "alpha"}, malformed: "env"},
+		{name: "runs flag", args: []string{"runs", "-p", "alpha"}, malformed: "env"},
+		{name: "runs flag ignores implicit project", args: []string{"runs", "-p", "alpha"}, malformed: "beta"},
+		{name: "runs positional skips project config", args: []string{"runs", "alpha"}, malformed: "beta"},
 		{name: "runs explicit basedir", args: []string{"runs", "-b", "EXPLICIT", "alpha"}, baseScope: "explicit", project: "alpha", malformed: "env"},
 		{name: "runs explicit basedir ignores implicit project", args: []string{"runs", "-b", "EXPLICIT", "alpha"}, baseScope: "explicit", project: "alpha", malformed: "explicit-project"},
-		{name: "runs all basedirs false", args: []string{"runs", "--all-basedirs=false", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
-		{name: "runs no implicit sole project", args: []string{"runs"}, baseScope: "default", malformed: "alpha"},
-		{name: "runs all basedirs", args: []string{"runs", "--all-basedirs", "-p", "alpha"}, malformed: "default"},
+		{name: "runs cross basedirs ignores implicit locations", args: []string{"runs"}, malformed: "env"},
+		{name: "runs cross basedirs does not resolve sole project", args: []string{"runs"}, malformed: "alpha"},
+		{name: "jobs cross basedirs ignores implicit locations", args: []string{"jobs"}, malformed: "env"},
+		{name: "jobs cross basedirs does not resolve sole project", args: []string{"jobs"}, malformed: "alpha"},
 		{name: "basedirs registry only", args: []string{"basedirs"}, malformed: "env"},
 		{name: "basedirs skips implicit project", args: []string{"basedirs"}, malformed: "env-project"},
 		{name: "basedirs skips default basedir", args: []string{"basedirs"}, malformed: "default"},

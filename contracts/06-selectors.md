@@ -145,8 +145,8 @@ hold:
 
 - `--job-id` and `--job-name` exclude each other in every command.
 - `--all` means "every job" (`change`, `remove`) or "every run" (`delete`)
-  and nothing else; the option that widens a listing is named for what it adds:
-  `jobs --all-basedirs`. Every `--all` is
+  and nothing else; collection listings search registered basedirs by default.
+  Every `--all` is
   command-line only.
 - `--stage`, `--matrix`, and `--all` exclude each other and the job
   selectors in `change` and `remove`; `--stage` and `--matrix` exclude job

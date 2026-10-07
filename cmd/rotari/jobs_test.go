@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -78,39 +79,64 @@ func TestCmdJobsAcceptsPositionalProjectName(t *testing.T) {
 	}
 }
 
-func TestCmdJobsIgnoresImplicitLocationDefaults(t *testing.T) {
+func TestCmdJobsListsAcrossBasedirsByDefault(t *testing.T) {
 	stateHome := t.TempDir()
 	defaultBase := filepath.Join(stateHome, "rotari")
 	envBase := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", stateHome)
 	t.Setenv(envBaseDir, envBase)
 	t.Setenv(envProjectName, "env-only")
+	masterDir := t.TempDir()
+	t.Setenv(envMasterDir, masterDir)
 	writeTestJobsRun(t, defaultBase, "alpha", "20261007-100000-00000001", "alpha-job", time.Now().Add(-time.Minute), time.Now(), 0)
 	writeTestJobsRun(t, defaultBase, "beta", "20261007-100001-00000002", "beta-job", time.Now().Add(-time.Minute), time.Now(), 0)
+	writeTestJobsRun(t, defaultBase, "old", "20261006-100001-00000004", "old-job", time.Now().Add(-49*time.Hour), time.Now().Add(-48*time.Hour), 0)
 	writeTestJobsRun(t, envBase, "env-only", "20261007-100002-00000003", "env-job", time.Now().Add(-time.Minute), time.Now(), 0)
+	registry := basedirregistry.Open(masterDir)
+	if err := registry.Register(envBase); err != nil {
+		t.Fatal(err)
+	}
 
 	output, code := captureJobsStdout(t, nil)
 	if code != 0 {
 		t.Fatalf("cmdJobs exit = %d, output = %q", code, output)
 	}
-	for _, want := range []string{"alpha-job", "beta-job"} {
+	for _, want := range []string{"alpha-job", "beta-job", "env-job", "BASEDIR"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("jobs output missing %q: %s", want, output)
 		}
 	}
-	if strings.Contains(output, "env-job") {
-		t.Fatalf("jobs used implicit environment locations: %s", output)
+	if strings.Contains(output, "old-job") {
+		t.Fatalf("default jobs listing included work older than 1d: %s", output)
 	}
-
 	output, code = captureJobsStdout(t, []string{"--basedir", envBase, "--project-name", "env-only"})
 	if code != 0 || !strings.Contains(output, "env-job") || strings.Contains(output, "alpha-job") {
 		t.Fatalf("explicit jobs scope = %d, %q", code, output)
 	}
 }
 
-func TestCmdJobsRejectsBasedirWithAllBasedirs(t *testing.T) {
-	if code := cmdJobs([]string{"--basedir", t.TempDir(), "--all-basedirs"}); code != 1 {
-		t.Fatalf("cmdJobs accepted --basedir with --all-basedirs: exit code = %d", code)
+func TestCmdJobsRejectsRemovedAllBasedirsOption(t *testing.T) {
+	if code := cmdJobs([]string{"--all-basedirs"}); code != 1 {
+		t.Fatalf("cmdJobs accepted removed --all-basedirs option: exit code = %d", code)
+	}
+}
+
+func TestCrossBasedirJobsPreservesConfiguredFormat(t *testing.T) {
+	master := t.TempDir()
+	t.Setenv(envMasterDir, master)
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig, cliConfigCommand = map[string]any{"format": "%a"}, "jobs"
+	t.Cleanup(func() { cliConfig, cliConfigCommand = oldConfig, oldCommand })
+	for _, name := range []string{"left", "right"} {
+		base := filepath.Join(t.TempDir(), name)
+		writeTestJobsRun(t, base, name, "20261008-100000-00000001", name+"-job", time.Now().Add(-time.Minute), time.Now(), 0)
+		if err := basedirregistry.Open(master).Register(base); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output, code := captureJobsStdout(t, nil)
+	if code != 0 || !strings.HasPrefix(output, "ATTEMPT_ID\n") || strings.Contains(output, "BASEDIR") || !strings.Contains(output, "left-job") || !strings.Contains(output, "right-job") {
+		t.Fatalf("configured cross-basedir format was lost: code=%d output=%q", code, output)
 	}
 }
 
@@ -210,8 +236,9 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 		want []string
 		not  []string
 	}{
-		{"one basedir", []string{"--basedir", baseDir}, []string{"in state directory " + baseDir + " (finished within 24h)", "rotari jobs --all-basedirs"}, nil},
-		{"all basedirs without any", []string{"--all-basedirs", "--since", "168h"}, []string{"in 0 state directories (finished within 168h)"}, []string{"rotari jobs --all-basedirs"}},
+		{"one basedir", []string{"--basedir", baseDir}, []string{"in state directory " + baseDir + " (finished within 1d)"}, []string{"--all-basedirs"}},
+		{"all default directories without activity", nil, []string{"No running or recently finished jobs found"}, []string{"--all-basedirs"}},
+		{"specified window", []string{"--since", "7d"}, []string{"finished within 7d"}, []string{"--all-basedirs"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

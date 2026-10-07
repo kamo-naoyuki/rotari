@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 )
 
 const defaultJobsFormat = "%s %p %a %n %c %f %e"
+const basedirJobsFormat = "%s %b %p %a %n %c %f %e"
 
 type jobsColumn struct {
 	header string
@@ -29,7 +31,6 @@ func cmdJobs(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	masterdir := cliString(fs, "masterdir", "")
-	allBaseDirs := cliBool(fs, "all-basedirs", false)
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", joblist.DefaultSinceText)
 	if err := cliParse(fs, args); err != nil {
@@ -56,15 +57,8 @@ func cmdJobs(args []string) int {
 		printErrorf("invalid --since duration %q", *since)
 		return 1
 	}
-	requestedBaseDir := ""
-	if cliOptionSet(fs, "basedir") {
-		requestedBaseDir = *basedir
-	}
-	if *allBaseDirs && cliOptionSet(fs, "basedir") {
-		printError("--all-basedirs cannot be combined with --basedir")
-		return 1
-	}
-	baseDirs, err := jobsBaseDirs(requestedBaseDir, *masterdir, *allBaseDirs)
+	requestedBaseDir := valueIfSet(fs, "basedir", *basedir)
+	baseDirs, err := jobsBaseDirs(requestedBaseDir, *masterdir)
 	if err != nil {
 		printError(err)
 		return 1
@@ -76,12 +70,12 @@ func cmdJobs(args []string) int {
 		}
 		if !found {
 			message := fmt.Sprintf("project %q does not exist in the listed state directories", projectFilter)
-			if elsewhere := resolve.RegisteredProjectBaseDirs(projectFilter, ""); len(elsewhere) > 0 && !*allBaseDirs {
+			if elsewhere := resolve.RegisteredProjectBaseDirs(projectFilter, ""); len(elsewhere) > 0 {
 				verb := "have"
 				if len(elsewhere) == 1 {
 					verb = "has"
 				}
-				message += fmt.Sprintf("; %d registered state director%s %s it (list them with --all-basedirs, or select one with --basedir)", len(elsewhere), pluralSuffix(len(elsewhere)), verb)
+				message += fmt.Sprintf("; %d registered state director%s %s it (select one with --basedir, or inspect the registry with rotari basedirs)", len(elsewhere), pluralSuffix(len(elsewhere)), verb)
 			}
 			printError(message)
 			return 1
@@ -103,14 +97,12 @@ func cmdJobs(args []string) int {
 			scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
 		}
 		fmt.Printf("No running or recently finished jobs found in %s (finished within %s).\n", scope, *since)
-		if !*allBaseDirs {
-			fmt.Println(cyan("To include every registered state directory:"))
-			fmt.Println("  rotari jobs --all-basedirs")
-		}
 		return 0
 	}
 	joblist.Sort(rows)
-
+	if !cliOptionSet(fs, "format") && configString("format", "") == "" && len(baseDirs) > 1 {
+		columns, _ = parseJobsFormat(basedirJobsFormat)
+	}
 	printJobsTableFormat(rows, columns)
 	return 0
 }
@@ -252,15 +244,9 @@ func colorJobsValue(code byte, value string) string {
 	}
 }
 
-func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
-	if !all {
-		var baseDir string
-		var err error
-		if requested == "" {
-			baseDir, err = state.ResolveBaseDirDefault()
-		} else {
-			baseDir, _, err = state.ResolveBaseDir(requested)
-		}
+func jobsBaseDirs(requested, masterdir string) ([]string, error) {
+	if requested != "" {
+		baseDir, _, err := state.ResolveBaseDir(requested)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve state directory: %w", err)
 		}
@@ -282,13 +268,22 @@ func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list known state directories: %w", err)
 	}
-	baseDirs := make([]string, 0, len(known))
+	baseDirs := make([]string, 0, len(known)+1)
+	seen := make(map[string]bool, len(known)+1)
 	for _, item := range known {
 		baseDir, err := filepath.Abs(item.BaseDir)
 		if err == nil {
-			baseDirs = append(baseDirs, baseDir)
+			seen[filepath.Clean(baseDir)] = true
+			baseDirs = append(baseDirs, filepath.Clean(baseDir))
 		}
 	}
+	if current, err := state.ResolveBaseDirDefault(); err == nil {
+		current, absErr := filepath.Abs(current)
+		if absErr == nil && !seen[filepath.Clean(current)] {
+			baseDirs = append(baseDirs, filepath.Clean(current))
+		}
+	}
+	sort.Strings(baseDirs)
 	return baseDirs, nil
 }
 

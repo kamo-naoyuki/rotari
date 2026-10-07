@@ -27,3 +27,15 @@ See [plan.md](plan.md) for current scope and open lifecycle decisions.
 **Validation:** `go test ./cmd/rotari -count=1` passed; `go test ./conformance/03-interfaces -run '^TestProjectListHintsWork$' -count=1` passed; focused run-hint tests and `git diff --check` passed.
 
 **Remaining:** None.
+
+## Make jobs and runs cross-basedir by default
+
+**Change:** Aligned `jobs` and `runs` with the already-cross-basedir `projects` listing. All three now search registered basedirs plus the normal local default without an extra switch; `jobs` and `runs` accept `--basedir DIR` to narrow. Removed `--all-basedirs`. Set the shared job-list history window (including the Web jobs page) to `1d`; `runs --since` now filters only settled history and always retains running/interrupted/incomplete runs. The default multi-basedir `jobs` view includes a `BASEDIR` column.
+
+**Reason:** Make all collection commands discover work consistently while preventing completed history from growing without bound.
+
+**Plan impact:** Resolves the open listing-scope decision. `basedirs` remains the way to inspect the registry. Disconnect policy and client attachment visibility remain deferred.
+
+**Validation:** Focused `cmd/rotari` tests, settings/completion tests, runs-window conformance, CLI flag-pair inventory, schema/golden generation, and documentation checks passed. Final `scripts/check.sh --short` and `scripts/check.sh` both passed (go vet, all Go tests, and race tests; combined validation command exited 0). Python tests against the freshly built CLI passed (64 tests), as did `TestContractStatus` and `TestGoldenOutputs` with `-count=1`. Final successful logs are retained as `rotari-cross-short-final.log` and `rotari-cross-full-final.log` in the session's temporary directory. Documentation and final diff checks were reviewed before commit; no full tests were rerun during commit cleanup.
+
+**Remaining:** None for this listing change. Client attachment visibility and disconnect policy remain separate work items.

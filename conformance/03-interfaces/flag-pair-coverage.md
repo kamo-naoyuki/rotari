@@ -26,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,763 unordered flag-name pairs
+- `TestCLIFlagPairInventory` enumerates all 6,757 unordered flag-name pairs
   from the command schema.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value

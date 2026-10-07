@@ -72,7 +72,7 @@ func completionConfigInvocation(args []string) (string, []string, error) {
 	if command == "" {
 		return "", args, nil
 	}
-	if command == "runs" || command == "projects" {
+	if command == "runs" || command == "projects" || command == "jobs" {
 		// The completion kind is not a positional project selector.
 		if len(filtered) == 0 {
 			return "", nil, fmt.Errorf("missing completion kind")
@@ -88,7 +88,6 @@ func cmdComplete(args []string) int {
 		return 1
 	}
 	basedir, projectName, runID, command := "", "", "", ""
-	options := make(map[string][]string)
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
 		case "--command":
@@ -97,8 +96,6 @@ func cmdComplete(args []string) int {
 			}
 			command = args[i+1]
 			i++
-		case "--all-basedirs":
-			options["all-basedirs"] = []string{""}
 		case "--basedir", "-b":
 			if i+1 >= len(args) {
 				return 1
@@ -122,8 +119,8 @@ func cmdComplete(args []string) int {
 	if args[0] != "job-id" {
 		runID = ""
 	}
-	if command == "runs" || command == "projects" {
-		return completeListing(args[0], command, basedir, projectName, options)
+	if command == "runs" || command == "projects" || command == "jobs" {
+		return completeListing(args[0], command, basedir, projectName)
 	}
 	if basedir == "" {
 		basedir = configString("basedir", "")
@@ -210,16 +207,10 @@ func cmdComplete(args []string) int {
 	return 0
 }
 
-func completeListing(kind, command, basedir, projectName string, options map[string][]string) int {
-	all := basedir == "" && command == "projects" || command == "runs" && listingAllBaseDirs(options)
-	baseDirs, err := jobsBaseDirs(basedir, configString("masterdir", ""), all)
+func completeListing(kind, command, basedir, projectName string) int {
+	baseDirs, err := jobsBaseDirs(basedir, configString("masterdir", ""))
 	if err != nil {
 		return 1
-	}
-	if command == "projects" && basedir == "" {
-		if current, err := state.ResolveBaseDirDefault(); err == nil {
-			baseDirs = append(baseDirs, current)
-		}
 	}
 	if projectName != "" && !state.IsValidPathElement(projectName) {
 		return 1
@@ -241,6 +232,9 @@ func completeListing(kind, command, basedir, projectName string, options map[str
 			if projectName != "" && project.Name() != projectName {
 				continue
 			}
+			if command == "jobs" && kind == "job-id" {
+				addQueueJobIDs(values, filepath.Join(baseDir, "projects", project.Name(), "queue.json"))
+			}
 			addListingRunIDs(values, kind, filepath.Join(baseDir, "projects", project.Name(), "runs"))
 		}
 	}
@@ -256,17 +250,36 @@ func completeListing(kind, command, basedir, projectName string, options map[str
 }
 
 func addListingRunIDs(values map[string]struct{}, kind, runsDir string) {
-	if kind != "run-id" {
+	if kind != "run-id" && kind != "job-id" {
 		return
 	}
 	runs, err := os.ReadDir(runsDir)
 	if err != nil {
 		return
 	}
-	values["latest"] = struct{}{}
+	if kind == "run-id" {
+		values["latest"] = struct{}{}
+	}
 	for _, run := range runs {
 		if run.IsDir() {
-			values[run.Name()] = struct{}{}
+			runDir := filepath.Join(runsDir, run.Name())
+			if kind == "run-id" {
+				values[run.Name()] = struct{}{}
+			} else {
+				addRunJobIDs(values, runDir)
+			}
+		}
+	}
+}
+
+func addQueueJobIDs(values map[string]struct{}, queuePath string) {
+	queue, err := state.LoadQueue(queuePath)
+	if err != nil {
+		return
+	}
+	for _, command := range queue.Commands {
+		if command.ID != "" {
+			values[command.ID] = struct{}{}
 		}
 	}
 }
@@ -476,7 +489,6 @@ func generateBashCompletion() string {
 	builder.WriteString("    esac\n}\ncomplete -F _rotari_completion rotari\n")
 	completion := builder.String()
 	completion = strings.ReplaceAll(completion, "__rotari_completion_args=()", "__rotari_completion_args=(--command \"$command\")")
-	completion = strings.ReplaceAll(completion, "case \"${COMP_WORDS[__i]}\" in\n", "case \"${COMP_WORDS[__i]}\" in\n                    --all-basedirs) __rotari_completion_args+=(--all-basedirs) ;;\n")
 	if jobCase := strings.Index(completion, "        --job-id|-j)"); jobCase >= 0 {
 		before, after := completion[:jobCase], completion[jobCase:]
 		after = strings.Replace(after, "--basedir|-b|--project-name|-p)", "--basedir|-b|--project-name|-p|--run-id|-r)", 1)
@@ -560,8 +572,6 @@ function __rotari_complete
     while test $i -lt (count $tokens)
         set -l next (math $i + 1)
         switch $tokens[$i]
-			case --all-basedirs
-				set -a args --all-basedirs
             case --basedir -b --project-name -p
                 set -a args $tokens[$i] $tokens[$next]
                 set i $next
@@ -604,9 +614,6 @@ _rotari_complete_values() {
     local i
     for (( i = 1; i + 1 < CURRENT; i++ )); do
         case $words[i] in
-			--all-basedirs)
-				args+=(--all-basedirs)
-				;;
             --basedir|-b|--project-name|-p)
                 args+=("$words[i]" "$words[i+1]")
                 (( i++ ))

@@ -97,7 +97,7 @@ func loadCLIConfig(args []string) error {
 	cliConfig = config.Merge(nil, cliFileConfig.Values)
 	// Registry-wide listings have no single basedir or project config scope.
 	// Global/workspace defaults (e.g. masterdir) still apply.
-	if cliConfigCommand == "basedirs" || cliConfigCommand == "projects" && baseDir == "" || cliConfigCommand == "runs" && listingAllBaseDirs(invocationOptions) {
+	if cliConfigCommand == "basedirs" || cliConfigCommand == "projects" && baseDir == "" || cliConfigCommand == "runs" && baseDir == "" {
 		for _, source := range cliFileConfig.Sources {
 			cliConfigPath = source.Path
 		}
@@ -152,7 +152,7 @@ func loadCLIConfig(args []string) error {
 			}
 		}
 	}
-	skipAggregateBaseLayer := aggregate && cliConfigCommand == "show" && len(invocationOptions["basedir"]) == 0
+	skipAggregateBaseLayer := aggregate && cliConfigCommand == "show" && len(invocationOptions["basedir"]) == 0 || cliConfigCommand == "jobs" && !cliLocationExplicit["basedir"]
 	if !skipAggregateBaseLayer {
 		layer, err := config.LoadScope("basedir", resolvedBaseDir)
 		if err != nil {
@@ -177,7 +177,8 @@ func loadCLIConfig(args []string) error {
 			return err
 		}
 	}
-	if projectName != "" && cliConfigCommand != "projects" {
+	skipProjectConfig := cliConfigCommand == "projects" || (cliConfigCommand == "runs" || cliConfigCommand == "jobs") && !cliLocationExplicit["basedir"]
+	if projectName != "" && !skipProjectConfig {
 		if aggregate && cliConfigCommand == "jobs" && len(positional) == 0 && len(invocationOptions["project-name"]) == 0 {
 			projectName = ""
 		} else {
@@ -215,7 +216,7 @@ func aggregateCommandInvocation(command string, options map[string][]string, pos
 	}
 	switch command {
 	case "basedirs", "projects", "runs":
-		return len(positional) == 0 && len(options["project-name"]) == 0
+		return true
 	case "jobs":
 		return true
 	case "lineage":
@@ -247,26 +248,6 @@ func ignoredImplicitLocationDefaults(command string, aggregate bool) map[string]
 		ignored["project-name"] = true
 	}
 	return ignored
-}
-
-func listingAllBaseDirs(options map[string][]string) bool {
-	if _, specified := options["all-basedirs"]; specified {
-		return optionEnabled(options, "all-basedirs")
-	}
-	return configBool("all-basedirs", false)
-}
-
-func optionEnabled(options map[string][]string, name string) bool {
-	values := options[name]
-	if len(values) == 0 {
-		return false
-	}
-	value := values[len(values)-1]
-	if value == "" {
-		return true
-	}
-	enabled, err := strconv.ParseBool(value)
-	return err != nil || enabled
 }
 
 func rememberConfigLocations() {

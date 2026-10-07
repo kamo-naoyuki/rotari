@@ -97,13 +97,16 @@ config files to narrow their results. Their basedir behavior differs by view:
 - `show` uses ordinary project resolution and displays the selected project's
 	details. If multiple projects are possible and none is selected, it points
 	to `rotari projects` rather than listing them implicitly.
-- `jobs` ignores implicit basedir and project defaults, using the cwd-local/
-	XDG/home default basedir. CLI `--basedir` selects another basedir;
-	`--all-basedirs` spans the registry and cannot be combined with `--basedir`.
-- `basedirs` lists registered state directories. `projects` lists projects
-	across known state directories; `projects --basedir DIR` limits the view.
-- `runs` lists runs in the default state directory; `runs --all-basedirs`
-	includes every known state directory.
+- `runs` and `jobs` ignore implicit basedir and project defaults and search
+	registered basedirs plus the cwd-local/XDG/home default basedir. CLI
+	`--basedir` limits either command to one basedir. Their `--since` window
+	defaults to `1d`. Running jobs and active/interrupted runs are included
+	regardless of age; `--since 7d` widens the completed-history window.
+	`--all-basedirs` is removed because cross-basedir is the default. Cross-basedir
+	invocations load global/workspace option defaults, not an arbitrary basedir's
+	config. Explicit `--basedir` adds that scope, and an explicit project filter
+	within it adds project config.
+- `basedirs` lists registered state directories.
 - Argumentless `lineage` ignores the implicit project name. It honors the
 	normal basedir precedence from CLI, environment, workspace/basedir/global
 	config, then local/XDG/home fallback, and lists project candidates when
