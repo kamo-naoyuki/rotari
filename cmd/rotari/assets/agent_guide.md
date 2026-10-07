@@ -47,8 +47,11 @@ values. Notifications select one project/basedir/global file without merging.
   run's snapshot and leave the next queue untouched.
 - Pass `--project-name/-p` (or set `ROTARI_PROJECT_NAME`) so each command
   targets the intended project. A project in another state directory is
-  named in the error, with how to select it; `rotari show` with no project
-  lists the projects of every registered state directory. A command given a
+  named in the error, with how to select it. Use `rotari projects` to list
+  projects, `rotari basedirs` to find state directories, and `rotari runs`
+  to list run history; `rotari show` inspects the selected project, run, job,
+  or attempt. With no selector it requires one uniquely resolved project and
+  directs ambiguous cases to `rotari projects`. A command given a
   run ID or an attempt ID, such as the `show -j ATTEMPT_ID` lines that
   `lineage` prints, finds its state directory and project itself, so those
   hints work as printed without `--basedir`.

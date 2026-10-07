@@ -126,7 +126,7 @@ the IDs, this table, and those calls disagree.
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | conformance | `TestUnlockDerivesInterruptedRun` |
-| RES-8 | `show --basedirs` lists registered state directories | conformance | `TestShowBasedirsListsKnownStateDirectories`, `TestCommandsThatCreateAProjectRegisterItsBasedir` |
+| RES-8 | `basedirs` lists registered state directories | conformance | `TestBasedirsListsKnownStateDirectories`, `TestCommandsThatCreateAProjectRegisterItsBasedir` |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |
@@ -144,7 +144,7 @@ the IDs, this table, and those calls disagree.
 | RES-23 | Cwd-only workspace discovery, staged location selection, scope merge and location constraints | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
 | RES-24 | Init writes a cwd config template with relative basedir and project defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestWorkspaceInitDefaultTemplate` |
 | RES-25 | Runs save immutable canonical merged file values, separate from runtime overrides and source metadata | partial | `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
-| RES-26 | Aggregate views ignore implicit project defaults; bare show/jobs also ignore implicit basedir defaults | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
+| RES-26 | List commands ignore implicit location defaults; show requires a uniquely selected detail target | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
@@ -201,7 +201,7 @@ the IDs, this table, and those calls disagree.
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
 | CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupRetryHintsWork`, `TestFailureGroupsAgreeAcrossViews` |
-| CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
+| CLI-5 | `projects` lists each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
 | CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestChangePreviewNamesTheFieldsItChanges`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewListsTheTasksOfAWholeArray`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewSaysWhyADependentJobExecutes`, `TestRunRestoringEditsSayTheyReplaceTheQueue` |
 | CLI-8 | `run` and `retry` reject `--async` with `--dry-run`, which does not start a run | conformance | `TestAsyncDryRunRefusalShowsTheWayToPreview`, `TestCLIFlagPairAsyncDryRunIsRejected` |

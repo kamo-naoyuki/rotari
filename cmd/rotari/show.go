@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -100,8 +99,6 @@ func cmdShow(args []string) int {
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
 	filterOptions := cliJobFilterOptions(fs, queueRunJobFilters)
-	showBaseDirsList := cliBool(fs, "basedirs", false)
-	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
 	showFailedLogs := cliBool(fs, "failed-logs", false)
 	followLogs := cliBool(fs, "follow", false)
@@ -127,7 +124,6 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	filter := filterOptions.filter()
-	narrowed := scope.Kinds() > 0 || !filter.Empty()
 	// resultSelection filters the job table by result, like copy and run;
 	// logs and reports only know --failed.
 	failedOnly, unfinishedOnly, successOnly := filterOptions.resultFilters()
@@ -148,10 +144,9 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	selector := ""
-	explicitProjectSelection := cliOptionSet(fs, "project-name")
 	if len(fs.Args()) == 1 {
 		selector = fs.Args()[0]
-		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList {
+		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption {
 			printError("a positional selector cannot be combined with run, job, queue, or list options")
 			return 1
 		}
@@ -198,7 +193,6 @@ func cmdShow(args []string) int {
 		}
 		if resolve.ProjectExists(baseDir, selector) {
 			*queueNameOption = selector
-			explicitProjectSelection = true
 			selector = ""
 		}
 	}
@@ -271,7 +265,7 @@ func cmdShow(args []string) int {
 			printError("--artifacts requires --job-id, a job selector, or an attempt ID")
 			return 1
 		}
-		if *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput || *showQueueOption || *showBaseDirsList || resultFilter || cliOptionSet(fs, "stream") {
+		if *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput || *showQueueOption || resultFilter || cliOptionSet(fs, "stream") {
 			printError("--artifacts cannot be combined with log, follow, stream, JSON, report, queue, list, or result filter options")
 			return 1
 		}
@@ -280,45 +274,28 @@ func cmdShow(args []string) int {
 		printError("--stream requires a job log, --logs, or --failed-logs view")
 		return 1
 	}
-	if scope.Kinds() > 0 && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
-		printError("--stage and --matrix cannot be combined with job, list, log, follow, JSON, or report options")
+	if scope.Kinds() > 0 && (*jobIDOption != "" || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("--stage and --matrix cannot be combined with job, log, follow, JSON, or report options")
 		return 1
 	}
-	if !filter.Empty() && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
-		printError("--filter-* options cannot be combined with job, list, log, follow, JSON, or report options")
+	if !filter.Empty() && (*jobIDOption != "" || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("--filter-* options cannot be combined with job, log, follow, JSON, or report options")
 		return 1
 	}
-	if *reportOutput && (*showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
-		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
+	if *reportOutput && (*showQueueOption || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
+		printError("--report cannot be combined with queue, log, follow, or JSON options")
 		return 1
 	}
 	if *showQueueOption && (*runIDOption != "" || resultFilter || *showLogs || *showFailedLogs || *followLogs) {
 		printError("--queue cannot be combined with run, log, or filter options")
 		return 1
 	}
-	if *showBaseDirsList {
-		if cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name") || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || resultFilter || narrowed || *showQueueOption || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput {
-			printError("--basedirs cannot be combined with basedir, project, run, job, queue, log, filter, report, or JSON options")
-			return 1
-		}
-		masterDir, err := state.ResolveMasterDir(*masterdir)
-		if err != nil {
-			printErrorf("failed to resolve master directory: %v", err)
-			return 1
-		}
-		return showBaseDirs(masterDir)
-	}
-	aggregateProjects := !explicitProjectSelection && selector == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed &&
-		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput)
-	if aggregateProjects {
-		aggregateBaseDir := ""
-		if cliOptionSet(fs, "basedir") {
-			aggregateBaseDir = *basedir
-		}
-		return showAllProjects(aggregateBaseDir, *masterdir)
-	}
 	baseDir, queueName, err := resolveCLIExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
+		if strings.Contains(err.Error(), "multiple projects exist") {
+			printErrorf("%v\nList projects with: rotari projects", err)
+			return 1
+		}
 		printError(err)
 		return 1
 	}
@@ -326,10 +303,6 @@ func cmdShow(args []string) int {
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
-	}
-	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !resultFilter
-	if projectOverview {
-		return showProjectOverview(paths)
 	}
 	if *showQueueOption {
 		if cliOptionSet(fs, "stream") {
@@ -1304,281 +1277,6 @@ func sameJobSpec(left, right model.JobSpec) bool {
 		return false
 	}
 	return len(runlineage.SpecChanges(left, right)) == 0
-}
-
-func showRuns(paths state.ProjectPaths) int {
-	return showRunsWithHint(paths, true)
-}
-
-func showRunsOverview(paths state.ProjectPaths) int {
-	return showRunsWithMode(paths, true, "project")
-}
-
-func showRunsWithHint(paths state.ProjectPaths, showHint bool) int {
-	return showRunsWithMode(paths, showHint, "runs")
-}
-
-func showRunsWithMode(paths state.ProjectPaths, showHint bool, mode string) int {
-	entries, err := os.ReadDir(paths.RunsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			writeShowTargetHeaderWithMode(os.Stdout, paths, mode)
-			fmt.Println("No runs found.")
-			return 0
-		}
-		printErrorf("failed to read runs directory: %v", err)
-		return 1
-	}
-
-	type runInfo struct {
-		id         string
-		name       string
-		startedAt  string
-		finishedAt string
-		exitCode   int
-		status     string
-		hasSummary bool
-		modTime    int64
-	}
-
-	var runs []runInfo
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		runID := entry.Name()
-		runDir := filepath.Join(paths.RunsDir, runID)
-		info, err := entry.Info()
-		modTime := int64(0)
-		if err == nil {
-			modTime = info.ModTime().UnixNano()
-		}
-
-		r := runInfo{id: runID, modTime: modTime}
-		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-			r.name = summary.RunName
-			r.startedAt = summary.StartedAt
-			r.finishedAt = summary.FinishedAt
-			r.exitCode = summary.ExitCode
-			r.status = summary.Status
-			if r.status == "" {
-				r.status = model.RunStatus(summary.ExitCode)
-			}
-			r.hasSummary = true
-		}
-		if !r.hasSummary {
-			r.status = "running"
-		}
-		runs = append(runs, r)
-	}
-
-	sort.Slice(runs, func(i, j int) bool {
-		return runs[i].modTime > runs[j].modTime
-	})
-
-	writeShowTargetHeaderWithMode(os.Stdout, paths, mode)
-	fmt.Printf("%s %s\n", cyan("Runs directory:"), paths.RunsDir)
-	fmt.Println("\n" + cyan("Runs:"))
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-36s %-24s %-12s %-12s %-24s %-24s", "RUN ID", "NAME", "STATUS", "EXIT CODE", "STARTED", "FINISHED")))
-	for _, r := range runs {
-		started := r.startedAt
-		if started == "" {
-			started = "-"
-		}
-		started = model.FormatDisplayTimestamp(started)
-		finished := r.finishedAt
-		if finished == "" {
-			finished = "-"
-		}
-		finished = model.FormatDisplayTimestamp(finished)
-		statusText := r.status
-		if statusText == "finished" {
-			statusText = green(statusText)
-		} else if statusText == "failed" {
-			statusText = red(statusText)
-		} else {
-			statusText = yellow(statusText)
-		}
-		exitCode := "-"
-		if r.hasSummary {
-			exitCode = strconv.Itoa(r.exitCode)
-		}
-		name := r.name
-		if name == "" {
-			name = "-"
-		}
-		fmt.Printf("%-36s %-24s %-12s %-12s %-24s %-24s\n", r.id, name, statusText, exitCode, started, finished)
-	}
-	if showHint && mode == "project" && len(runs) > 0 {
-		fmt.Println("\n" + cyan("To show a run:"))
-		fmt.Println("  rotari show -r RUN_ID")
-	} else if showHint && mode != "project" {
-		fmt.Println("\n" + cyan("To show jobs in a run:"))
-		fmt.Println("  rotari show -p PROJECT -r RUN_ID")
-	}
-	return 0
-}
-
-func showProjectOverview(paths state.ProjectPaths) int {
-	if code := showRunsOverview(paths); code != 0 {
-		return code
-	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0
-		}
-		printErrorf("failed to load queue: %v", err)
-		return 1
-	}
-	if len(queue.Commands) == 0 {
-		return 0
-	}
-	fmt.Println("\n" + cyan("Queue:"))
-	return showQueueContent(paths, queue, model.QueueToJobs(queue.Commands))
-}
-
-func showProjects(baseDir string) int {
-	return showProjectsForBaseDirs([]string{baseDir})
-}
-
-func showAllProjects(cliBaseDir, cliMasterDir string) int {
-	if cliBaseDir != "" {
-		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-		if err != nil {
-			printErrorf("failed to resolve state directory: %v", err)
-			return 1
-		}
-		return showProjectsForBaseDirs([]string{baseDir})
-	}
-	masterDir, err := state.ResolveMasterDir(cliMasterDir)
-	if err != nil {
-		printErrorf("failed to resolve master directory: %v", err)
-		return 1
-	}
-	servers, err := listServers(masterDir)
-	if err != nil {
-		printErrorf("failed to list servers: %v", err)
-		return 1
-	}
-	known, err := listKnownBaseDirs(masterDir, servers)
-	if err != nil {
-		printErrorf("failed to list known state directories: %v", err)
-		return 1
-	}
-	baseDirs := make([]string, 0, len(known)+1)
-	seen := make(map[string]bool, len(known)+1)
-	for _, item := range known {
-		seen[item.BaseDir] = true
-		baseDirs = append(baseDirs, item.BaseDir)
-	}
-	if current, err := state.ResolveBaseDirDefault(); err == nil && !seen[current] {
-		baseDirs = append(baseDirs, current)
-	}
-	sort.Strings(baseDirs)
-	return showProjectsForBaseDirs(baseDirs)
-}
-
-func showProjectsForBaseDirs(baseDirs []string) int {
-	fmt.Printf("%s\n", cyan("=== SHOW MODE: "+showViewLabel("projects")+" ==="))
-
-	type projectInfo struct {
-		baseDir    string
-		name       string
-		queued     int
-		runs       int
-		state      string
-		lastRun    string
-		lastResult string
-	}
-	projects := make([]projectInfo, 0)
-	for _, baseDir := range baseDirs {
-		overviews, err := project.Overviews(baseDir, true)
-		if err != nil {
-			printError(err)
-			return 1
-		}
-		for _, overview := range overviews {
-			lastRun := firstNonEmpty(overview.LastRun.ID, "-")
-			projects = append(projects, projectInfo{baseDir: baseDir, name: overview.Name, queued: overview.Queued, runs: overview.Runs,
-				state: projectStateName(overview.State), lastRun: lastRun, lastResult: lastRunResult(overview)})
-		}
-	}
-
-	if len(projects) == 0 {
-		fmt.Println("No projects found.")
-		return 0
-	}
-	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %-24s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT")))
-	// Without -b, `show -p` resolves the default state directory, so the
-	// hint names the basedir when a listed project lives elsewhere.
-	defaultBaseDir, _, defaultErr := state.ResolveBaseDir("")
-	otherBaseDir, hasRun := false, false
-	for _, project := range projects {
-		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %-24s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun, project.lastResult)
-		otherBaseDir = otherBaseDir || defaultErr != nil || filepath.Clean(project.baseDir) != filepath.Clean(defaultBaseDir)
-		hasRun = hasRun || project.lastRun != "-"
-	}
-	fmt.Println("\n" + cyan("To show runs in a project:"))
-	if otherBaseDir {
-		fmt.Println("  rotari show -b BASEDIR -p PROJECT")
-	} else {
-		fmt.Println("  rotari show -p PROJECT")
-	}
-	if hasRun {
-		fmt.Println(cyan("To summarize a run's failures by cause:"))
-		if otherBaseDir {
-			fmt.Println("  rotari lineage -b BASEDIR RUN_ID")
-		} else {
-			fmt.Println("  rotari lineage RUN_ID")
-		}
-	}
-	return 0
-}
-
-// lastRunResult describes a project's last run for the project list:
-// "running" while it runs, its status, with failed and total job counts once
-// any job failed, or "-" without a readable summary.
-func lastRunResult(overview project.Overview) string {
-	last := overview.LastRun
-	switch {
-	case overview.State == project.Running:
-		return "running"
-	case last.Status == "":
-		return "-"
-	case last.Failed == 0:
-		return last.Status
-	}
-	return fmt.Sprintf("%s %d/%d", last.Status, last.Failed, last.Jobs)
-}
-
-func showBaseDirs(masterDir string) int {
-	servers, err := listServers(masterDir)
-	if err != nil {
-		printErrorf("failed to list servers: %v", err)
-		return 1
-	}
-	baseDirs, err := listKnownBaseDirs(masterDir, servers)
-	if err != nil {
-		printErrorf("failed to list known state directories: %v", err)
-		return 1
-	}
-	fmt.Printf("%s\n%s %s\n", cyan("=== SHOW MODE: "+showViewLabel("basedirs")+" ==="), cyan("Master directory:"), masterDir)
-	if len(baseDirs) == 0 {
-		fmt.Println("No known state directories.")
-		return 0
-	}
-	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Known state directories: %d", len(baseDirs))))
-	fmt.Println(cyan(fmt.Sprintf("%-8s %-24s %s", "PID", "SOURCE", "BASE DIRECTORY")))
-	for _, baseDir := range baseDirs {
-		pid := "-"
-		if baseDir.PID != 0 {
-			pid = strconv.Itoa(baseDir.PID)
-		}
-		fmt.Printf("%-8s %-24s %s\n", pid, strings.Join(baseDir.Sources, ", "), baseDir.BaseDir)
-	}
-	return 0
 }
 
 func projectStateName(state project.RunState) string {

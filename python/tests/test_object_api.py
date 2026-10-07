@@ -252,6 +252,8 @@ def test_signatures_expose_target_and_cli_flags():
     for method in (Rotari.cancel, Rotari.suspend, Rotari.resume, Rotari.show):
         assert "target" in inspect.signature(method).parameters
     assert "run" in inspect.signature(Rotari.show).parameters
+    assert "basedirs" not in inspect.signature(Rotari.show).parameters
+    assert "masterdir" not in inspect.signature(Rotari.show).parameters
     assert "deep" in inspect.signature(Rotari.check).parameters
 
 
@@ -270,6 +272,69 @@ def test_json_output_options_are_managed_by_python_api():
 
     for method in (Rotari.check, Rotari.wait, Rotari.show):
         assert "json" not in inspect.signature(method).parameters
+
+
+def test_real_cli_scoped_listing_commands_when_binary_is_available(tmp_path):
+    binary = os.environ.get("ROTARI_TEST_BINARY")
+    if binary is None:
+        pytest.skip("ROTARI_TEST_BINARY is not set")
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path),
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "XDG_STATE_HOME": str(tmp_path / "xdg-state"),
+        "ROTARI_MASTERDIR": str(tmp_path / "registry"),
+        "ROTARI_QUIET": "true",
+    }
+    clients = [
+        Rotari(
+            binary, basedir=tmp_path / "state", project="demo", cwd=tmp_path, env=env
+        ),
+        Rotari(
+            binary, basedir=tmp_path / "state", project="sibling", cwd=tmp_path, env=env
+        ),
+        Rotari(
+            binary,
+            basedir=tmp_path / "elsewhere",
+            project="external",
+            cwd=tmp_path,
+            env=env,
+        ),
+    ]
+    runs = []
+    for client in clients:
+        client.add(["true"])
+        runs.append(client.run())
+    client, sibling, external = clients
+
+    basedirs = client.command("basedirs").stdout
+    assert client.basedir in basedirs
+    assert external.basedir in basedirs
+    projects = client.command("projects").stdout
+    assert "demo" in projects
+    assert "sibling" in projects
+    assert "external" not in projects
+    listed_runs = client.command("runs").stdout
+    assert runs[0].id in listed_runs
+    assert runs[1].id not in listed_runs
+    assert runs[2].id not in listed_runs
+    assert client.command("show", "--json").json()["run_id"] == runs[0].id
+
+    projects = client.command("projects", "--basedir", external.basedir).stdout
+    assert "external" in projects
+    assert "demo" not in projects
+    for command in ("runs", "show"):
+        result = client.command(
+            command,
+            "--basedir",
+            external.basedir,
+            "--project-name",
+            external.project,
+            *(["--json"] if command == "show" else []),
+        )
+        assert runs[2].id in result.stdout
+        assert runs[0].id not in result.stdout
+    assert sibling.command("runs").stdout != listed_runs
 
 
 def test_real_cli_job_lifecycle_when_binary_is_available():

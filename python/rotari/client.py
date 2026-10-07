@@ -283,14 +283,14 @@ class Rotari:
         check: bool = True,
         input_data: str | None = None,
     ) -> CommandResult:
-        """Run an arbitrary rotari subcommand with this client's location."""
+        """Run a subcommand with the client location options it supports."""
 
         if not arguments:
             raise ValueError("a rotari subcommand is required")
         argv = [
             self.executable,
             arguments[0],
-            *self._location_options(),
+            *self._location_options(arguments),
             *arguments[1:],
         ]
         result = self._invoke(argv, input_data=input_data)
@@ -694,11 +694,45 @@ class Rotari:
                 raise TypeError("job control targets must be Job objects or IDs")
         return ids
 
-    def _location_options(self) -> list[str]:
+    def _location_options(self, command_arguments: Sequence[str]) -> list[str]:
+        command_spec = next(
+            (
+                item
+                for item in CLI_SCHEMA["commands"]
+                if item["name"] == command_arguments[0]
+            ),
+            None,
+        )
+        flags = (
+            {item["name"] for item in command_spec.get("flags", ())}
+            if command_spec is not None
+            else set()
+        )
+        option_specs = {}
+        if command_spec is not None:
+            for item in command_spec.get("flags", ()):
+                option_specs[item["name"]] = item
+                if "short" in item:
+                    option_specs[item["short"]] = item
+        explicit_flags = set()
+        arguments_iter = iter(command_arguments[1:])
+        for argument in arguments_iter:
+            if argument == "--":
+                break
+            if argument.startswith("-"):
+                name = argument.split("=", 1)[0].lstrip("-")
+                option_spec = option_specs.get(name)
+                if option_spec is not None:
+                    explicit_flags.add(option_spec["name"])
+                    if option_spec.get("value_name") and "=" not in argument:
+                        next(arguments_iter, None)
+            elif command_arguments[0] in {"add", "change"}:
+                break
+        flags -= explicit_flags
         arguments: list[str] = []
-        if self.basedir is not None:
+        if self.basedir is not None and "basedir" in flags:
             arguments += ["--basedir", self.basedir]
-        if self.project is not None:
+        if self.project is not None and "project-name" in flags:
             arguments += ["--project-name", self.project]
         return arguments
 

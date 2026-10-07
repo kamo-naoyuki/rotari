@@ -18,6 +18,89 @@ def completed(stdout="", stderr="", returncode=0):
     )()
 
 
+@pytest.mark.parametrize("basedir", [None, "state"])
+@pytest.mark.parametrize("project", [None, "demo"])
+@pytest.mark.parametrize(
+    ("command", "supports_basedir", "supports_project"),
+    [
+        ("basedirs", False, False),
+        ("projects", True, False),
+        ("runs", True, True),
+        ("show", True, True),
+    ],
+)
+def test_command_injects_only_supported_location_options(
+    command, supports_basedir, supports_project, basedir, project
+):
+    client = Rotari("rotari", basedir=basedir, project=project)
+    expected = ["rotari", command]
+    if supports_basedir and basedir is not None:
+        expected += ["--basedir", basedir]
+    if supports_project and project is not None:
+        expected += ["--project-name", project]
+    with patch("subprocess.run", return_value=completed("output")) as run:
+        result = client.command(command)
+
+    assert run.call_args.args[0] == expected
+    assert result.args == tuple(expected)
+    assert result.stdout == "output"
+
+
+@pytest.mark.parametrize("command", ["projects", "runs", "show"])
+@pytest.mark.parametrize("equals", [False, True])
+def test_command_preserves_explicit_location_overrides(command, equals):
+    overrides = ["--basedir=other-state"] if equals else ["--basedir", "other-state"]
+    if command != "projects":
+        overrides += ["--project-name=other"] if equals else ["--project-name", "other"]
+    with patch("subprocess.run", return_value=completed()) as run:
+        Rotari("rotari", basedir="state", project="demo").command(command, *overrides)
+
+    assert run.call_args.args[0] == ["rotari", command, *overrides]
+
+
+@pytest.mark.parametrize(
+    ("explicit", "defaults"),
+    [
+        (["--basedir", "other"], ["--project-name", "demo"]),
+        (["--project-name=other"], ["--basedir", "state"]),
+        (["-basedir=other"], ["--project-name", "demo"]),
+        (["-b", "other"], ["--project-name", "demo"]),
+        (["-p", "other"], ["--basedir", "state"]),
+        (["basedir"], ["--basedir", "state", "--project-name", "demo"]),
+        (["--", "--basedir=other"], ["--basedir", "state", "--project-name", "demo"]),
+    ],
+)
+def test_command_preserves_location_defaults_not_overridden(explicit, defaults):
+    with patch("subprocess.run", return_value=completed()) as run:
+        Rotari(basedir="state", project="demo").command("show", *explicit)
+
+    assert run.call_args.args[0] == ["rotari", "show", *defaults, *explicit]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["add", "--job-name", "--basedir", "true"],
+        ["add", "--job-name", "-p", "true"],
+        ["add", "echo", "--basedir", "other"],
+        ["change", "--job-name", "--project-name", "echo", "-b", "other"],
+        ["show", "--stream", "--basedir"],
+    ],
+)
+def test_command_does_not_treat_option_values_or_job_arguments_as_locations(arguments):
+    with patch("subprocess.run", return_value=completed()) as run:
+        Rotari(basedir="state", project="demo").command(*arguments)
+    assert run.call_args.args[0] == [
+        "rotari",
+        arguments[0],
+        "--basedir",
+        "state",
+        "--project-name",
+        "demo",
+        *arguments[1:],
+    ]
+
+
 def test_add_builds_safe_argv_with_location_options():
     client = Rotari("rotari", basedir="state", project="demo")
     output = (

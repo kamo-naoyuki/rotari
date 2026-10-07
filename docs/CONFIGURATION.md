@@ -91,15 +91,19 @@ be a single safe name (not `.` or `..`, and containing no `/` or `\\`).
 Aggregate commands do not use an implicit project name from environment or
 config files to narrow their results. Their basedir behavior differs by view:
 
-- Bare `show` ignores both implicit basedir and project defaults. It lists
+- `projects` ignores implicit basedir and project defaults. It lists
 	registered basedirs plus the cwd-local/XDG/home default state directory;
-	CLI `--basedir` limits the listing to one basedir. A positional project/run
-	selector is an explicit selection and uses normal basedir defaults.
+	CLI `--basedir` limits the listing to one basedir.
+- `show` uses ordinary project resolution and displays the selected project's
+	details. If multiple projects are possible and none is selected, it points
+	to `rotari projects` rather than listing them implicitly.
 - `jobs` ignores implicit basedir and project defaults, using the cwd-local/
 	XDG/home default basedir. CLI `--basedir` selects another basedir;
 	`--all-basedirs` spans the registry and cannot be combined with `--basedir`.
-- `show --basedirs` lists registered state directories and cannot be combined
-	with `--basedir`.
+- `basedirs` lists registered state directories. `projects` lists projects
+	across known state directories; `projects --basedir DIR` limits the view.
+- `runs` lists runs in the default state directory; `runs --all-basedirs`
+	includes every known state directory.
 - Argumentless `lineage` ignores the implicit project name. It honors the
 	normal basedir precedence from CLI, environment, workspace/basedir/global
 	config, then local/XDG/home fallback, and lists project candidates when

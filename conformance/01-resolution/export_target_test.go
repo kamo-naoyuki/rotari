@@ -67,16 +67,16 @@ func TestUnlockDerivesInterruptedRun(t *testing.T) {
 	}
 }
 
-func TestShowBasedirsListsKnownStateDirectories(t *testing.T) {
+func TestBasedirsListsKnownStateDirectories(t *testing.T) {
 	covers(t, "RES-8")
 	e := support.NewEnv(t)
 	e.FinishedJobRun("basedirs")
-	out := e.MustRotari("show", "--basedirs").Stdout
+	out := e.MustRotari("basedirs").Stdout
 	if !strings.Contains(out, "Known state directories: 1") {
-		t.Fatalf("show --basedirs did not report one known directory: %s", out)
+		t.Fatalf("basedirs did not report one known directory: %s", out)
 	}
 	if !strings.Contains(out, e.Base) {
-		t.Fatalf("show --basedirs omitted %q: %s", e.Base, out)
+		t.Fatalf("basedirs omitted %q: %s", e.Base, out)
 	}
 }
 
@@ -200,7 +200,7 @@ func checkWaitFinishedProjectSelections(t *testing.T, e *support.Env, project, r
 
 // TestCommandsThatCreateAProjectRegisterItsBasedir creates a project in a
 // basedir of its own with each command that can create one, and checks that
-// `show --basedirs` lists the basedir after the write but not after its dry
+// `basedirs` lists the basedir after the write but not after its dry
 // run, which writes nothing. (copy cannot create a project: it copies from
 // one of the project's own runs.)
 func TestCommandsThatCreateAProjectRegisterItsBasedir(t *testing.T) {
@@ -225,11 +225,11 @@ func TestCommandsThatCreateAProjectRegisterItsBasedir(t *testing.T) {
 			baseDir := filepath.Join(e.Root, "other-basedir")
 			args := test.args(e, baseDir)
 			e.MustRotari(append([]string{args[0], "--dry-run"}, args[1:]...)...)
-			if out := e.MustRotari("show", "--basedirs").Stdout; strings.Contains(out, baseDir) {
+			if out := e.MustRotari("basedirs").Stdout; strings.Contains(out, baseDir) {
 				t.Fatalf("%s --dry-run registered %s:\n%s", test.name, baseDir, out)
 			}
 			e.MustRotari(args...)
-			if out := e.MustRotari("show", "--basedirs").Stdout; !strings.Contains(out, baseDir) {
+			if out := e.MustRotari("basedirs").Stdout; !strings.Contains(out, baseDir) {
 				t.Fatalf("%s did not register %s:\n%s", test.name, baseDir, out)
 			}
 		})
@@ -256,7 +256,7 @@ func TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory(t *testing.T)
 	if out := inWork.WithVar("ROTARI_BASEDIR", "../lab").MustRotari("show", "-p", "rel", "-r", runID).Stdout; !strings.Contains(out, "Status: finished") {
 		t.Fatalf("a relative ROTARI_BASEDIR did not show the run:\n%s", out)
 	}
-	if out := e.MustRotari("show", "--basedirs").Stdout; !strings.Contains(out, filepath.Join(e.Root, "lab")) {
+	if out := e.MustRotari("basedirs").Stdout; !strings.Contains(out, filepath.Join(e.Root, "lab")) {
 		t.Fatalf("the relative basedir was not registered by its absolute path:\n%s", out)
 	}
 	if out := inWork.MustRotari("gc", "--dry-run", "--masterdir", "../master").Stdout; !strings.Contains(out, "dry run") {

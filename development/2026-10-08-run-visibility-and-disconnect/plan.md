@@ -1,7 +1,7 @@
 # Plan: Run Visibility and Client Disconnect Behavior
 
 Created: 2026-10-08
-Status: Proposed; behavior decisions remain open
+Status: Listing commands and detail-only `show` implemented; client disconnect behavior remains open
 
 ## Purpose
 
@@ -23,7 +23,9 @@ Adopt distinct plural commands for listings:
 | `rotari jobs` | List jobs and their execution status. |
 | `rotari show TARGET` | Show details for a project, run, job, or attempt. |
 
-`rotari projects` takes over the project-listing view currently shown by bare `rotari show` when no project is selected. `show` is a detail command, not a general list command. If normal location resolution selects one project, bare `rotari show` may continue to show that project's details; if no unique project is selected, it should explain how to use `rotari projects`. The exact no-argument default must be specified and tested.
+`rotari projects` takes over the project-listing view currently shown by bare `rotari show` when no project is selected. `show` is a detail command, not a general list command. Bare `show` uses normal project resolution; it shows the selected project's current run or queue and, if more than one project is possible without a selector, exits with guidance to use `rotari projects`.
+
+`rotari runs` lists saved and currently active/interrupted runs in the default non-config state directory. `--all-basedirs` includes all registered directories, and a project selector filters the list. It reports saved history as well as active rows; this first version does not expose whether a live supervisor still has a connected client.
 
 There is no compatibility requirement for unreleased CLI forms. Do not add aliases solely to preserve `show --basedirs` or other old listing syntax unless implementation discovers a concrete need.
 
@@ -56,23 +58,21 @@ There is no compatibility requirement for unreleased CLI forms. Do not add alias
 
 1. **Unexpected disconnect default:** Should a synchronous run whose client receives EOF or is terminated detach automatically, or keep the current cancellation default? Can users select the policy per invocation/configuration?
 2. **Client attachment visibility:** What precisely does `rotari runs` report: `attached`, `detached`, `interrupted`, or only run/project state? Is attachment state reliably observable from the supervisor's pipe lifecycle, or must it be persisted?
-3. **Listing scope:** Should `runs` list only active/background runs by default, or include recent completed history with a time window? Which selectors and output formats are needed initially?
-4. **Project default:** Should bare `show` use an explicitly configured project only, or any unambiguous project resolved through existing defaults/discovery?
-5. **Orphan stopping:** Is existing `cancel -p PROJECT --job-id JOB_ID` sufficient after supervisor death, or is a dedicated interrupted-run stop operation needed? What should happen for scheduler/SSH jobs, remote-host mismatch, stale/reused local PIDs, and TERM-resistant descendants?
-6. **`server list`:** Keep it as supervisor diagnostics, separate from user-facing run listing, unless implementation shows the views can be unified without losing meaning.
+3. **Orphan stopping:** Is existing `cancel -p PROJECT --job-id JOB_ID` sufficient after supervisor death, or is a dedicated interrupted-run stop operation needed? What should happen for scheduler/SSH jobs, remote-host mismatch, stale/reused local PIDs, and TERM-resistant descendants?
+4. **`server list`:** Keep it as supervisor diagnostics, separate from user-facing run listing, unless implementation shows the views can be unified without losing meaning.
 
 ## Proposed implementation phases
 
 1. **Confirm lifecycle semantics.** Trace EOF, Ctrl-C, Ctrl-D, process timeout/termination, and supervisor death through the pipe protocol. Specify which cases cancel, detach, or interrupt. Do not conflate client and supervisor signals.
-2. **Add collection commands.** Implement `basedirs`, `projects`, and `runs` using existing shared resolution and listing logic; keep `jobs` as the job-level view. Refactor bare `show` into selected-target detail and update generated CLI schema/help, docs, and examples.
-3. **Expose background run state.** Have `runs` report enough information to find a run and decide whether it is still active, detached, interrupted, or complete. Prefer deriving attachment from authoritative live coordination state; persist it only if it cannot be reliably derived. Define behavior for stale locks and remote hosts.
-4. **Adjust disconnect policy, if approved.** Once detached runs are discoverable, implement the chosen default/option. Preserve Ctrl-C cancellation and Ctrl-D detach. Make client exit status and printed wait/show hints unambiguous.
+2. **Add collection commands.** Complete: `basedirs`, `projects`, and `runs` use existing registry/project state; `jobs` remains the job-level view. Bare `show` resolves one project to its detail view and directs ambiguous selection to `projects`. CLI schema/help, generated Python schema, user docs, contracts, and CLI/conformance tests were updated.
+3. **Expose client attachment state.** Not implemented: this first `runs` view displays project/run state only. Decide whether attached/detached is reliably derivable from the supervisor's pipe lifecycle or needs persisted metadata.
+4. **Adjust disconnect policy, if approved.** Deferred. Once detached runs are discoverable, choose the default/option. Preserve Ctrl-C cancellation and Ctrl-D detach. Make client exit status and printed wait/show hints unambiguous.
 5. **Document orphan cancellation.** State that job-level cancel can signal eligible orphan jobs but does not finalize an interrupted run. Define and test any stronger stop/escalation mechanism separately.
 
 ## Tests and validation
 
 - Table-test bare `show` with no project, explicit project defaults, a sole project, multiple projects, and run/job selectors.
-- Exercise each list command in isolated state: empty state, multiple basedirs/projects, active async run, detached sync run, interrupted run, and settled history.
+- Exercise each list command in isolated state: empty state, multiple basedirs/projects, active, interrupted, and settled runs. Connection attachment state is deferred.
 - Test attached/detached/interrupted classification across local and remote-host cases, including stale and malformed locks.
 - Use subprocess tests to distinguish Ctrl-C, Ctrl-D, EOF, SIGTERM, and SIGKILL of the CLI client; assert job effects and run finalization separately.
 - Verify a killed supervisor leaves the run interrupted, that local orphan job cancellation stops the process group and records cancellation where the wrapper survives, and that the run is not falsely finalized.
@@ -84,4 +84,4 @@ There is no compatibility requirement for unreleased CLI forms. Do not add alias
 - `TestJobOutlivesKilledSupervisor` passes and confirms local work can outlive a SIGKILLed supervisor and the project becomes interrupted.
 - An isolated manual trial confirmed `rotari cancel -p PROJECT --job-id JOB_ID` can terminate an orphan local job's process group after the supervisor is killed; the run remains interrupted.
 - Existing docs specify Ctrl-C cancellation, Ctrl-D detach, and Ctrl-Z suspend for synchronous runs. Unexpected client disconnect currently requests cancellation.
-- No code changes for this plan have been made.
+- The list-command/show phase is complete. Focused CLI tests, affected conformance suites, read-only flag pairs, contract/golden checks, pre-commit, and `scripts/check.sh --short` passed. The final `scripts/check.sh` passed with go vet, all Go tests, and race tests (exit 0). Python tests passed against the freshly built CLI (64 passed); generated references and README synchronization checks passed, as did the strict MkDocs build.

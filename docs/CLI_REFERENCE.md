@@ -298,9 +298,40 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
 | `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
+### `rotari basedirs`
+
+list state directories known to the master registry
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+
+### `rotari projects`
+
+list projects across known state directories
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | limit the listing to this state directory |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+
+### `rotari runs`
+
+list saved and active runs across projects
+
+Usage: `rotari runs [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all-basedirs |
+| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
+
 ### `rotari show`
 
-show queue or run status
+show details for a project, run, job, or attempt
 
 Usage: `rotari show [SELECTOR]`
 
@@ -309,7 +340,6 @@ Usage: `rotari show [SELECTOR]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID or latest |
 | `--queue` | `` | `` | show the current queue even when a run is selected |
 | `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | job ID |
@@ -324,7 +354,6 @@ Usage: `rotari show [SELECTOR]`
 | `--stream` | `STREAM` | `` | show both streams or select stdout/stderr |
 | `--follow` | `` | `` | follow one selected log stream until the run completes |
 | `--no-pager` | `` | `` | print logs directly instead of using a pager |
-| `--basedirs` | `` | `` | list state directories known to the master registry; cannot be combined with `--basedir` |
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
 | `--artifacts` | `` | `` | list every artifact candidate of one job attempt instead of its logs |
@@ -372,7 +401,7 @@ Usage: `rotari jobs [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
-| `--all-basedirs` | `` | `` | include all basedirs known to the master registry; cannot be combined with `--basedir` |
+| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
 

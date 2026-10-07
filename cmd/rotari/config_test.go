@@ -416,24 +416,23 @@ func TestConfigListUsesImplicitBasedirButNotProject(t *testing.T) {
 	}
 }
 
-func TestAggregateCommandInvocationDistinguishesShowViews(t *testing.T) {
+func TestAggregateCommandInvocationDistinguishesListCommands(t *testing.T) {
 	for _, test := range []struct {
+		command string
 		name    string
 		options map[string][]string
 		want    bool
 	}{
-		{name: "bare show", want: true},
-		{name: "project list", options: map[string][]string{"basedirs": {""}}, want: true},
-		{name: "disabled queue remains bare", options: map[string][]string{"queue": {"false"}}, want: true},
-		{name: "disabled json remains bare", options: map[string][]string{"json": {"false"}}, want: true},
-		{name: "queue view", options: map[string][]string{"queue": {""}}},
-		{name: "logs view", options: map[string][]string{"logs": {""}}},
-		{name: "result-filtered view", options: map[string][]string{"failed": {""}}},
-		{name: "scoped view", options: map[string][]string{"stage": {"train"}}},
-		{name: "filtered view", options: map[string][]string{"filter-host": {"worker"}}},
+		{command: "show", name: "bare show detail", want: false},
+		{command: "show", name: "project detail", options: map[string][]string{"project-name": {"demo"}}, want: false},
+		{command: "projects", name: "project listing", want: true},
+		{command: "projects", name: "positional rejected as aggregate", options: map[string][]string{}, want: true},
+		{command: "runs", name: "run listing", want: true},
+		{command: "basedirs", name: "basedir listing", want: true},
+		{command: "jobs", name: "job listing", want: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := aggregateCommandInvocation("show", test.options, nil); got != test.want {
+			if got := aggregateCommandInvocation(test.command, test.options, nil); got != test.want {
 				t.Fatalf("aggregateCommandInvocation = %v, want %v", got, test.want)
 			}
 		})
@@ -447,6 +446,136 @@ func TestAggregateCommandInvocationRecognizesConfigInventory(t *testing.T) {
 	ignored := ignoredImplicitLocationDefaults("config", true)
 	if !ignored["project-name"] || ignored["basedir"] {
 		t.Fatalf("config inventory ignored location defaults = %#v", ignored)
+	}
+}
+
+func TestListingConfigScopesThroughDispatch(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		args      []string
+		baseScope string
+		project   string
+		malformed string
+	}{
+		{name: "runs positional", args: []string{"runs", "alpha"}, baseScope: "default", project: "alpha", malformed: "env"},
+		{name: "runs flag", args: []string{"runs", "-p", "alpha"}, baseScope: "default", project: "alpha", malformed: "env"},
+		{name: "runs flag ignores implicit project", args: []string{"runs", "-p", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
+		{name: "runs positional before project config", args: []string{"runs", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
+		{name: "runs explicit basedir", args: []string{"runs", "-b", "EXPLICIT", "alpha"}, baseScope: "explicit", project: "alpha", malformed: "env"},
+		{name: "runs explicit basedir ignores implicit project", args: []string{"runs", "-b", "EXPLICIT", "alpha"}, baseScope: "explicit", project: "alpha", malformed: "explicit-project"},
+		{name: "runs all basedirs false", args: []string{"runs", "--all-basedirs=false", "alpha"}, baseScope: "default", project: "alpha", malformed: "beta"},
+		{name: "runs no implicit sole project", args: []string{"runs"}, baseScope: "default", malformed: "alpha"},
+		{name: "runs all basedirs", args: []string{"runs", "--all-basedirs", "-p", "alpha"}, malformed: "default"},
+		{name: "basedirs registry only", args: []string{"basedirs"}, malformed: "env"},
+		{name: "basedirs skips implicit project", args: []string{"basedirs"}, malformed: "env-project"},
+		{name: "basedirs skips default basedir", args: []string{"basedirs"}, malformed: "default"},
+		{name: "projects registry scope", args: []string{"projects"}, malformed: "default"},
+		{name: "projects explicit basedir no project scope", args: []string{"projects", "-b", "EXPLICIT"}, baseScope: "explicit", malformed: "explicit-project"},
+		{name: "projects explicit basedir no sole project scope", args: []string{"projects", "-b", "EXPLICIT"}, baseScope: "explicit", malformed: "sole-project"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			workspace := workspaceCWD(t)
+			stateHome := t.TempDir()
+			t.Setenv("XDG_STATE_HOME", stateHome)
+			t.Setenv(envMasterDir, t.TempDir())
+			bases := map[string]string{"default": filepath.Join(stateHome, "rotari"), "env": t.TempDir(), "explicit": t.TempDir()}
+			t.Setenv(envBaseDir, bases["env"])
+			t.Setenv(envProjectName, "beta")
+			if err := os.WriteFile(filepath.Join(workspace, ".rotari.toml"), []byte("project-name = 'beta'\nbasedir = 'ignored-state'\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			for _, base := range bases {
+				for _, name := range []string{"alpha", "beta"} {
+					dir := filepath.Join(base, "projects", name)
+					if err := os.MkdirAll(dir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("retry = 2\n"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.WriteFile(filepath.Join(base, "config.toml"), []byte("project-name = 'beta'\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			badPath := ""
+			switch test.malformed {
+			case "env", "default":
+				badPath = filepath.Join(bases[test.malformed], "config.toml")
+			case "explicit-project":
+				badPath = filepath.Join(bases["explicit"], "projects", "beta", "config.toml")
+			case "env-project":
+				badPath = filepath.Join(bases["env"], "projects", "beta", "config.toml")
+			case "sole-project":
+				t.Setenv(envProjectName, "")
+				if err := os.WriteFile(filepath.Join(workspace, ".rotari.toml"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.RemoveAll(filepath.Join(bases["explicit"], "projects", "beta")); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(bases["explicit"], "config.toml"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				badPath = filepath.Join(bases["explicit"], "projects", "alpha", "config.toml")
+			default:
+				badPath = filepath.Join(bases["default"], "projects", test.malformed, "config.toml")
+			}
+			if err := os.WriteFile(badPath, []byte("retry = [\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			args := append([]string(nil), test.args...)
+			for i, arg := range args {
+				if arg == "EXPLICIT" {
+					args[i] = bases["explicit"]
+				}
+			}
+			var output bytes.Buffer
+			if code := captureShowStdout(t, &output, func() int { return run(args) }); code != 0 {
+				t.Fatalf("dispatch %q exit = %d, output = %s", args, code, output.String())
+			}
+			var scopes []string
+			for _, source := range cliFileConfig.Sources {
+				if source.Scope == "basedir" || source.Scope == "project" {
+					scopes = append(scopes, source.Path)
+				}
+			}
+			var want []string
+			if test.baseScope != "" {
+				want = append(want, filepath.Join(bases[test.baseScope], "config.toml"))
+			}
+			if test.project != "" {
+				want = append(want, filepath.Join(bases[test.baseScope], "projects", test.project, "config.toml"))
+			}
+			if strings.Join(scopes, "\n") != strings.Join(want, "\n") {
+				t.Fatalf("loaded listing scopes = %q, want %q", scopes, want)
+			}
+		})
+	}
+}
+
+func TestRunsHelpPreservesConfigProvenance(t *testing.T) {
+	workspace := workspaceCWD(t)
+	selected := filepath.Join(workspace, "selected.toml")
+	if err := os.WriteFile(selected, []byte("basedir = 'from-config'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ env, want string }{{"", "from-config"}, {"from-env", "from-env"}} {
+		t.Run(test.want, func(t *testing.T) {
+			t.Setenv(envBaseDir, test.env)
+			if test.env == "" {
+				if err := os.Unsetenv(envBaseDir); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var output bytes.Buffer
+			code := captureShowStdout(t, &output, func() int {
+				return run([]string{"runs", "--config", selected, "--help"})
+			})
+			if code != 0 || !strings.Contains(output.String(), "(default \""+test.want+"\")") {
+				t.Fatalf("runs help exit = %d, output = %s", code, output.String())
+			}
+		})
 	}
 }
 

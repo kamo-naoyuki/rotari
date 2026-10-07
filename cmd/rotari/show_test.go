@@ -253,7 +253,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	}
 }
 
-func TestCmdShowProjectOverviewSuggestsShowingRun(t *testing.T) {
+func TestCmdShowProjectSelectsItsLatestRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -263,6 +263,9 @@ func TestCmdShowProjectOverviewSuggestsShowingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -282,8 +285,8 @@ func TestCmdShowProjectOverviewSuggestsShowingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(output)
-	if code != 0 || !strings.Contains(text, "To show a run:") || !strings.Contains(text, "rotari show -r RUN_ID") {
-		t.Fatalf("project overview code=%d output=%q", code, output)
+	if code != 0 || !strings.Contains(text, "Run: run-1") || !strings.Contains(text, "Status: finished") {
+		t.Fatalf("project detail code=%d output=%q", code, output)
 	}
 }
 
@@ -361,11 +364,11 @@ func TestCmdShowWarnsAndSucceedsWhenProjectHasNoRunsOrQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
 	}
-	if len(stderr) != 0 {
-		t.Fatalf("cmdShow emitted unexpected stderr: %q", stderr)
+	if !strings.Contains(string(stderr), "has no runs or queued jobs") {
+		t.Fatalf("cmdShow did not explain the empty project: %q", stderr)
 	}
-	if !strings.Contains(string(stdout), "No runs found.") {
-		t.Fatalf("cmdShow did not show empty run list: %q", stdout)
+	if !strings.Contains(string(stdout), "No runs or queued jobs found.") {
+		t.Fatalf("cmdShow did not show empty project detail: %q", stdout)
 	}
 }
 
@@ -466,14 +469,14 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"Runs: 1", runID, "Queue:\nJOB ID", "queued-job", "echo queued"} {
+	for _, want := range []string{"Run: " + runID, "active-job", "Queue:", "queued-job", "echo queued"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, text)
 		}
 	}
-	for _, unwanted := range []string{"active-job", "echo active"} {
-		if strings.Contains(text, unwanted) {
-			t.Fatalf("cmdShow output unexpectedly contains %q:\n%s", unwanted, text)
+	for _, wanted := range []string{"active-job", "echo active"} {
+		if !strings.Contains(text, wanted) {
+			t.Fatalf("cmdShow omitted active run detail %q:\n%s", wanted, text)
 		}
 	}
 
@@ -539,14 +542,9 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"Runs: 1", runID, "Queue:\nJOB ID", "queued-job", "echo queued"} {
+	for _, want := range []string{"Run: " + runID, "Run " + runID + " appears to have been interrupted.", "run-job", "Queue:", "queued-job", "echo queued"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, text)
-		}
-	}
-	for _, unwanted := range []string{"run-job", "echo from-run"} {
-		if strings.Contains(text, unwanted) {
-			t.Fatalf("cmdShow output unexpectedly contains %q:\n%s", unwanted, text)
 		}
 	}
 }
@@ -1066,7 +1064,7 @@ func TestShowQueueJobReportsMissingJob(t *testing.T) {
 	}
 }
 
-func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
+func TestCmdRunsListsRunsSortedByRecency(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1099,7 +1097,7 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showRuns(paths)
+	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1109,30 +1107,23 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code != 0 {
-		t.Fatalf("showRuns exit code = %d, want 0", code)
+		t.Fatalf("cmdRuns exit code = %d, want 0", code)
 	}
 	text := string(output)
-	if !strings.Contains(text, "Runs: 2") {
-		t.Fatalf("showRuns did not display the run count:\n%s", text)
-	}
-	for _, want := range []string{"To show jobs in a run:", "rotari show -p PROJECT -r RUN_ID"} {
+	for _, want := range []string{"PROJECT", "RUN ID", "rotari show RUN_ID"} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("showRuns did not display %q:\n%s", want, text)
+			t.Fatalf("cmdRuns did not display %q:\n%s", want, text)
 		}
 	}
 	newIndex := strings.Index(text, "run-new")
 	oldIndex := strings.Index(text, "run-old")
 	if newIndex == -1 || oldIndex == -1 || newIndex > oldIndex {
-		t.Fatalf("showRuns did not list run-new before run-old:\n%s", text)
+		t.Fatalf("cmdRuns did not list run-new before run-old:\n%s", text)
 	}
 }
 
-func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
+func TestCmdRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -1140,7 +1131,7 @@ func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showRuns(paths)
+	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1149,12 +1140,60 @@ func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "No runs found.") {
-		t.Fatalf("showRuns exit code = %d, stdout = %q", code, output)
+	if code != 0 || !strings.Contains(string(output), "No runs found in project \"default\"") {
+		t.Fatalf("cmdRuns exit code = %d, stdout = %q", code, output)
 	}
 }
 
-func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
+func TestCmdRunsShowsActiveAndInterruptedRuns(t *testing.T) {
+	baseDir := t.TempDir()
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := state.ResolveProjectPaths(baseDir, "active")
+	if err != nil {
+		t.Fatal(err)
+	}
+	interrupted, err := state.ResolveProjectPaths(baseDir, "interrupted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		paths state.ProjectPaths
+		runID string
+		pid   int
+	}{
+		{paths: active, runID: "active-run", pid: os.Getpid()},
+		{paths: interrupted, runID: "interrupted-run", pid: -1},
+	} {
+		if err := writeJSON(test.paths.MetaFile, model.Meta{Phase: "running", LastRunID: test.runID}); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(filepath.Join(test.paths.RunsDir, test.runID, "commands.json"), model.Queue{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(test.paths.LockFile, model.LockInfo{PID: test.pid, RunID: test.runID, Host: host}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defer os.Remove(active.LockFile)
+	defer os.Remove(interrupted.LockFile)
+
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int {
+		return cmdRuns([]string{"--basedir", baseDir})
+	}); code != 0 {
+		t.Fatalf("runs exit = %d: %s", code, output.String())
+	}
+	for _, want := range []string{"active-run", "running", "interrupted-run", "interrupted"} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("runs omitted %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestCmdProjectsListsProjectSummaries(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("ROTARI_BASEDIR", "")
 	baseDir := t.TempDir()
@@ -1186,7 +1225,7 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdShow([]string{"--basedir", baseDir})
+	code := cmdProjects([]string{"--basedir", baseDir})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1196,21 +1235,21 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code != 0 {
-		t.Fatalf("cmdShow exit code = %d, want 0", code)
+		t.Fatalf("cmdProjects exit code = %d, want 0", code)
 	}
-	for _, want := range []string{baseDir, "Projects: 2", "PROJECT", "QUEUED", "RUNS", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -b BASEDIR -p PROJECT"} {
+	for _, want := range []string{baseDir, "Projects: 2", "PROJECT", "QUEUED", "RUNS", "demo", "demo-run", "example", "running", "To inspect a project:", "rotari show -b BASEDIR -p PROJECT"} {
 		if !strings.Contains(string(output), want) {
-			t.Fatalf("cmdShow project listing output does not contain %q:\n%s", want, output)
+			t.Fatalf("cmdProjects output does not contain %q:\n%s", want, output)
 		}
 	}
 	for _, unwanted := range []string{"To show jobs in a run:", "rotari show -p PROJECT -r latest"} {
 		if strings.Contains(string(output), unwanted) {
-			t.Fatalf("cmdShow project listing output unexpectedly contains %q:\n%s", unwanted, output)
+			t.Fatalf("cmdProjects output unexpectedly contains %q:\n%s", unwanted, output)
 		}
 	}
 }
 
-func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.T) {
+func TestCmdShowRequiresProjectSelectionWhenAmbiguous(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, projectName := range []string{"demo", "example"} {
 		paths, err := state.ResolveProjectPaths(baseDir, projectName)
@@ -1244,20 +1283,18 @@ func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 {
-		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
+	if code != 1 {
+		t.Fatalf("cmdShow exit code = %d, want 1; stderr=%q", code, stderr)
 	}
-	if len(stderr) != 0 {
-		t.Fatalf("cmdShow emitted unexpected warning: %q", stderr)
+	if !strings.Contains(string(stderr), "rotari projects") {
+		t.Fatalf("cmdShow did not direct ambiguous selection to projects: %q", stderr)
 	}
-	for _, want := range []string{"Projects: 2", "demo", "example"} {
-		if !strings.Contains(string(stdout), want) {
-			t.Fatalf("cmdShow fallback output does not contain %q:\n%s", want, stdout)
-		}
+	if len(stdout) != 0 {
+		t.Fatalf("cmdShow unexpectedly listed projects: %q", stdout)
 	}
 }
 
-func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
+func TestCmdProjectsListsAcrossKnownBaseDirs(t *testing.T) {
 	masterDir := t.TempDir()
 	t.Setenv(envMasterDir, masterDir)
 	baseDirs := []string{t.TempDir(), t.TempDir()}
@@ -1284,7 +1321,7 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdShow(nil)
+	code := cmdProjects(nil)
 	_ = writer.Close()
 	os.Stdout = oldStdout
 	output, err := io.ReadAll(reader)
@@ -1292,7 +1329,7 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code != 0 {
-		t.Fatalf("cmdShow exit code = %d, output=%q", code, output)
+		t.Fatalf("cmdProjects exit code = %d, output=%q", code, output)
 	}
 	text := string(output)
 	for index, baseDir := range baseDirs {
@@ -1304,7 +1341,7 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 	}
 }
 
-func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
+func TestCmdBasedirsListsMasterRegistryEntries(t *testing.T) {
 	masterDir := t.TempDir()
 	knownBaseDir := t.TempDir()
 	t.Setenv(envMasterDir, masterDir)
@@ -1318,7 +1355,7 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdShow([]string{"--basedirs"})
+	code := cmdBasedirs(nil)
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1328,18 +1365,18 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code != 0 {
-		t.Fatalf("cmdShow exit code = %d, want 0", code)
+		t.Fatalf("cmdBasedirs exit code = %d, want 0", code)
 	}
 	for _, want := range []string{"Master directory: " + masterDir, "Known state directories: 1", "run registry", knownBaseDir} {
 		if !strings.Contains(string(output), want) {
-			t.Fatalf("cmdShow --basedirs output does not contain %q:\n%s", want, output)
+			t.Fatalf("cmdBasedirs output does not contain %q:\n%s", want, output)
 		}
 	}
 }
 
-func TestCmdShowRejectsBasedirWithBasedirsList(t *testing.T) {
-	if code := cmdShow([]string{"--basedir", t.TempDir(), "--basedirs"}); code != 1 {
-		t.Fatalf("cmdShow accepted --basedir with --basedirs: exit code = %d", code)
+func TestCmdShowDoesNotAcceptFormerListFlag(t *testing.T) {
+	if code := cmdShow([]string{"--basedirs"}); code != 1 {
+		t.Fatalf("cmdShow accepted removed --basedirs flag: exit code = %d", code)
 	}
 }
 

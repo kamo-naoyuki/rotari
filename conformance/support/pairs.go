@@ -33,7 +33,7 @@ type FlagPair struct{ A, B PairFlag }
 // adapters are deferred explicitly rather than counted as passing tests.
 func PairAdapter(command string) string {
 	switch command {
-	case "show", "jobs", "check", "lineage":
+	case "show", "basedirs", "projects", "runs", "jobs", "check", "lineage":
 		return "read"
 	case "config", "export":
 		return "file"

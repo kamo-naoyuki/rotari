@@ -230,12 +230,11 @@ Wait for an asynchronous run by project, run name, or run id.
 Rotari.show(target: Run | Job | Sequence[Run] | Sequence[Job] | None = None, *, run: Run | str | None = None, **options: object) -> dict[str, object] | list[dict[str, object]]
 ```
 
-Show queue or run status.
+Show details for a project, run, job, or attempt.
 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `masterdir` | `str` | master registry directory |
 | `run_id` | `str` | run ID or latest |
 | `queue` | `bool` | show the current queue even when a run is selected |
 | `job_ids` | `str` | job ID |
@@ -250,7 +249,6 @@ Show queue or run status.
 | `stream` | `str` | show both streams or select stdout/stderr |
 | `follow` | `bool` | follow one selected log stream until the run completes |
 | `no_pager` | `bool` | print logs directly instead of using a pager |
-| `basedirs` | `bool` | list state directories known to the master registry |
 | `report` | `bool` | print an AI-ready Markdown report |
 | `artifacts` | `bool` | list every artifact candidate of one job attempt instead of its logs |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |

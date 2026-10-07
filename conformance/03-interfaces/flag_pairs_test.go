@@ -28,13 +28,16 @@ var pairInventory = map[string]struct {
 	"suspend":    {19, "4b2e628041f2b2eb"},
 	"resume":     {19, "4b2e628041f2b2eb"},
 	"delete":     {7, "cf61505b0fa4c0e7"},
+	"basedirs":   {1, "9c7ab83027410026"},
+	"projects":   {2, "264d74c73d80792f"},
+	"runs":       {5, "b8893a16ee714fa3"},
 	"gc":         {3, "4f8007fd85e880d5"},
 	"unlock":     {4, "2d6ab0e22e6da38c"},
 	"change":     {40, "39d6e21a49c89e7d"},
 	"export":     {7, "36180bb4d09c2f4f"},
 	"import":     {7, "32eb87a68c1692c7"},
 	"remove":     {17, "83215b4518cebafa"},
-	"show":       {40, "6df335cdee2bc41a"},
+	"show":       {38, "e443b4918c6ed8ce"},
 	"lineage":    {4, "03f8539f8880af76"},
 	"jobs":       {7, "1e1d7aac6605a457"},
 	"wait":       {7, "9b5b3531f64908b2"},
@@ -120,7 +123,7 @@ func TestCLIFlagPairs(t *testing.T) {
 }
 
 func pairReadBase(command string, f pairFixture, explicitBasedir bool) []string {
-	if command == "jobs" {
+	if command == "jobs" || command == "runs" {
 		if explicitBasedir {
 			return []string{command}
 		}

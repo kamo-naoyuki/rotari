@@ -26,14 +26,15 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,955 unordered flag-name pairs.
+- `TestCLIFlagPairInventory` enumerates all 6,763 unordered flag-name pairs
+  from the command schema.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
   coverage; changes to descriptions/types without a name change are not
   detected by the fingerprint.
-- `TestCLIFlagPairs` executes both orders of all 780 `show`, 21 `jobs`, 15
-  `check`, and 6 `lineage` pairs, from the same read-only fixture, for 1,644
-  command invocations. `check` has a runnable restored queue, and `lineage`
+- `TestCLIFlagPairs` executes both orders of all `show`, `basedirs`,
+  `projects`, `runs`, `jobs`, `check`, and `lineage` pairs, from the same
+  read-only fixture. `check` has a runnable restored queue, and `lineage`
   has a fixed run positional (no duplicate location flags are injected). It
   compares exit code, stdout, and stderr exactly. Completed jobs, a fixed
   fixture, and non-terminal output avoid dynamic elapsed-time and pager output.

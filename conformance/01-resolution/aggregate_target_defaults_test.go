@@ -41,18 +41,26 @@ func TestAggregateCommandsIgnoreImplicitLocationDefaults(t *testing.T) {
 		}
 	}
 
-	show := e.MustRotari("show").Stdout
+	show := e.MustRotari("projects").Stdout
 	for _, baseDir := range []string{defaultBase, workspaceBase, environmentBase} {
 		if !strings.Contains(show, baseDir) {
-			t.Errorf("bare show omitted registered basedir %q:\n%s", baseDir, show)
+			t.Errorf("projects omitted registered basedir %q:\n%s", baseDir, show)
 		}
 	}
 	if !strings.Contains(show, "workspace-only") || !strings.Contains(show, "environment-only") {
-		t.Fatalf("bare show was narrowed by implicit project defaults:\n%s", show)
+		t.Fatalf("projects was narrowed by implicit project defaults:\n%s", show)
 	}
-	workspaceShow := e.MustRotari("show", "--basedir", workspaceBase).Stdout
+	runs := e.MustRotari("runs").Stdout
+	if !strings.Contains(runs, "alpha") || !strings.Contains(runs, "beta") || strings.Contains(runs, "environment-only") {
+		t.Fatalf("runs used implicit location defaults:\n%s", runs)
+	}
+	allRuns := e.MustRotari("runs", "--all-basedirs").Stdout
+	if !strings.Contains(allRuns, "environment-only") || !strings.Contains(allRuns, "alpha") {
+		t.Fatalf("runs --all-basedirs omitted registered state directories:\n%s", allRuns)
+	}
+	workspaceShow := e.MustRotari("projects", "--basedir", workspaceBase).Stdout
 	if !strings.Contains(workspaceShow, "workspace-only") || strings.Contains(workspaceShow, "environment-only") || strings.Contains(workspaceShow, "alpha") {
-		t.Fatalf("explicit show basedir did not narrow the project list:\n%s", workspaceShow)
+		t.Fatalf("explicit projects basedir did not narrow the project list:\n%s", workspaceShow)
 	}
 	positionalWorkspaceShow := e.Without("ROTARI_BASEDIR").MustRotari("show", "workspace-only").Stdout
 	if !strings.Contains(positionalWorkspaceShow, "Project: workspace-only") {
@@ -71,9 +79,13 @@ func TestAggregateCommandsIgnoreImplicitLocationDefaults(t *testing.T) {
 	if conflictingJobsScope.Code == 0 || !strings.Contains(conflictingJobsScope.Stderr, "cannot be combined") {
 		t.Fatalf("jobs --all-basedirs accepted conflicting --basedir: %+v", conflictingJobsScope)
 	}
-	conflictingShowScope := e.Rotari("show", "--basedirs", "--basedir", environmentBase)
-	if conflictingShowScope.Code == 0 || !strings.Contains(conflictingShowScope.Stderr, "cannot be combined") {
-		t.Fatalf("show --basedirs accepted conflicting --basedir: %+v", conflictingShowScope)
+	emptyConfig := filepath.Join(e.Root, "empty.toml")
+	if err := os.WriteFile(emptyConfig, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ambiguousShow := e.Without("ROTARI_PROJECT_NAME").Rotari("show", "--basedir", environmentBase, "--config", emptyConfig)
+	if ambiguousShow.Code == 0 || !strings.Contains(ambiguousShow.Stderr, "rotari projects") {
+		t.Fatalf("show without a unique project did not direct the user to projects: %+v", ambiguousShow)
 	}
 
 	lineage := e.Rotari("lineage")

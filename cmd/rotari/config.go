@@ -34,6 +34,16 @@ func init() {
 }
 
 func loadCLIConfig(args []string) error {
+	if cliConfigCommand == "__complete" {
+		command, locationArgs, err := completionConfigInvocation(args)
+		if err != nil {
+			return err
+		}
+		if command != "" {
+			cliConfigCommand = command
+			args = locationArgs
+		}
+	}
 	cliConfig = nil
 	cliConfigPath = ""
 	cliLocationDefaults = nil
@@ -42,10 +52,19 @@ func loadCLIConfig(args []string) error {
 	invocationOptions, positional := configInvocationOptions(args)
 	aggregate := aggregateCommandInvocation(cliConfigCommand, invocationOptions, positional)
 	cliIgnoreImplicitLocationDefaults = ignoredImplicitLocationDefaults(cliConfigCommand, aggregate)
-	if len(positional) > 0 && (cliConfigCommand == "check" || cliConfigCommand == "reset" || cliConfigCommand == "unlock" || cliConfigCommand == "jobs") && projectName == "" {
+	// Help reports ordinary option provenance; it does not execute a listing.
+	if _, help := invocationOptions["help"]; help {
+		cliIgnoreImplicitLocationDefaults = nil
+	} else if _, help := invocationOptions["h"]; help {
+		cliIgnoreImplicitLocationDefaults = nil
+	}
+	if len(positional) > 0 && (cliConfigCommand == "check" || cliConfigCommand == "reset" || cliConfigCommand == "unlock" || cliConfigCommand == "jobs" || cliConfigCommand == "runs") && projectName == "" {
 		projectName = positional[0]
 	}
-	cliLocationExplicit = map[string]bool{"basedir": baseDir != "" || os.Getenv(envBaseDir) != "", "project-name": projectName != "" || os.Getenv(envProjectName) != ""}
+	cliLocationExplicit = map[string]bool{
+		"basedir":      baseDir != "" || !cliIgnoreImplicitLocationDefaults["basedir"] && os.Getenv(envBaseDir) != "",
+		"project-name": projectName != "" || !cliIgnoreImplicitLocationDefaults["project-name"] && os.Getenv(envProjectName) != "",
+	}
 	if path, specified := configFileArg(args); specified {
 		values, err := config.LoadPath(path)
 		if err != nil {
@@ -76,6 +95,15 @@ func loadCLIConfig(args []string) error {
 		cliFileConfig.Add(layer)
 	}
 	cliConfig = config.Merge(nil, cliFileConfig.Values)
+	// Registry-wide listings have no single basedir or project config scope.
+	// Global/workspace defaults (e.g. masterdir) still apply.
+	if cliConfigCommand == "basedirs" || cliConfigCommand == "projects" && baseDir == "" || cliConfigCommand == "runs" && listingAllBaseDirs(invocationOptions) {
+		for _, source := range cliFileConfig.Sources {
+			cliConfigPath = source.Path
+		}
+		rememberConfigLocations()
+		return nil
+	}
 	if baseDir == "" {
 		if !cliIgnoreImplicitLocationDefaults["basedir"] {
 			baseDir = os.Getenv(envBaseDir)
@@ -144,12 +172,12 @@ func loadCLIConfig(args []string) error {
 		if len(projects) == 1 {
 			projectName = projects[0]
 		}
-	} else if !aggregate {
+	} else if !aggregate && !cliIgnoreImplicitLocationDefaults["project-name"] {
 		if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
 			return err
 		}
 	}
-	if projectName != "" {
+	if projectName != "" && cliConfigCommand != "projects" {
 		if aggregate && cliConfigCommand == "jobs" && len(positional) == 0 && len(invocationOptions["project-name"]) == 0 {
 			projectName = ""
 		} else {
@@ -186,14 +214,8 @@ func aggregateCommandInvocation(command string, options map[string][]string, pos
 		}
 	}
 	switch command {
-	case "show":
-		if optionEnabled(options, "basedirs") {
-			return true
-		}
-		if len(positional) > 0 || len(options["project-name"]) > 0 || len(options["run-id"]) > 0 || len(options["job-id"]) > 0 || len(options["job-name"]) > 0 {
-			return false
-		}
-		return !hasProjectViewOptions(options)
+	case "basedirs", "projects", "runs":
+		return len(positional) == 0 && len(options["project-name"]) == 0
 	case "jobs":
 		return true
 	case "lineage":
@@ -205,33 +227,33 @@ func aggregateCommandInvocation(command string, options map[string][]string, pos
 	}
 }
 
-func hasProjectViewOptions(options map[string][]string) bool {
-	for _, name := range []string{"queue", "failed", "success", "unfinished", "logs", "failed-logs", "follow", "json", "report", "artifacts"} {
-		if optionEnabled(options, name) {
-			return true
-		}
-	}
-	for name, values := range options {
-		if name == "stage" || name == "matrix" || name == "stream" || strings.HasPrefix(name, "filter-") {
-			return len(values) > 0
-		}
-	}
-	return false
-}
-
 func ignoredImplicitLocationDefaults(command string, aggregate bool) map[string]bool {
 	ignored := map[string]bool{}
+	// These list scopes never use implicit locations, even when a project
+	// filter makes aggregateCommandInvocation return false.
+	if command == "basedirs" || command == "projects" || command == "runs" {
+		ignored["basedir"] = true
+		ignored["project-name"] = true
+		return ignored
+	}
 	if !aggregate {
 		return ignored
 	}
 	switch command {
-	case "show", "jobs":
+	case "jobs":
 		ignored["basedir"] = true
 		ignored["project-name"] = true
 	case "lineage", "config":
 		ignored["project-name"] = true
 	}
 	return ignored
+}
+
+func listingAllBaseDirs(options map[string][]string) bool {
+	if _, specified := options["all-basedirs"]; specified {
+		return optionEnabled(options, "all-basedirs")
+	}
+	return configBool("all-basedirs", false)
 }
 
 func optionEnabled(options map[string][]string, name string) bool {
@@ -302,7 +324,7 @@ func configProjectName(baseDir, requested string) (string, error) {
 }
 
 func configRunIDArg(args []string) string {
-	if cliConfigCommand == "add" || cliConfigCommand == "config" || cliConfigCommand == "init" {
+	if cliConfigCommand == "add" || cliConfigCommand == "config" || cliConfigCommand == "init" || cliConfigCommand == "basedirs" || cliConfigCommand == "projects" || cliConfigCommand == "runs" {
 		return ""
 	}
 	options, positional := configInvocationOptions(args)

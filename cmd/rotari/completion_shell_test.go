@@ -63,6 +63,77 @@ type completionCase struct {
 	want  []string
 }
 
+func TestListingCompletionScopes(t *testing.T) {
+	binDir := buildCompletionBinary(t)
+	stateHome := filepath.Join(binDir, "state")
+	defaultBase := filepath.Join(stateHome, "rotari")
+	envBase := filepath.Join(binDir, "env-state")
+	registeredBase := filepath.Join(binDir, "registered-state")
+	masterDir := filepath.Join(binDir, "master")
+	register := exec.Command(filepath.Join(binDir, "rotari"), "add", "-b", registeredBase, "-p", "registry-only", "--", "true")
+	register.Dir = binDir
+	register.Env = append(completionShellEnv(binDir), "ROTARI_MASTERDIR="+masterDir)
+	if out, err := register.CombinedOutput(); err != nil {
+		t.Fatalf("register completion fixture: %v\n%s", err, out)
+	}
+	for _, item := range []struct{ base, project string }{{defaultBase, "default-only"}, {envBase, "env-only"}} {
+		if err := os.MkdirAll(filepath.Join(item.base, "projects", item.project), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An ignored location must not break completion before candidates load.
+	if err := os.WriteFile(filepath.Join(envBase, "config.toml"), []byte("retry = [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "runs default", args: []string{"__complete", "project-name", "--command", "runs"}, want: "default-only\n"},
+		{name: "runs explicit", args: []string{"__complete", "project-name", "--command", "runs", "-b", defaultBase}, want: "default-only\n"},
+		{name: "runs other explicit", args: []string{"__complete", "project-name", "--command", "runs", "-b", registeredBase}, want: "registry-only\n"},
+		{name: "runs all", args: []string{"__complete", "project-name", "--command", "runs", "--all-basedirs"}, want: "registry-only\n"},
+		{name: "projects registry and default", args: []string{"__complete", "project-name", "--command", "projects"}, want: "default-only\nregistry-only\n"},
+		{name: "projects explicit", args: []string{"__complete", "project-name", "--command", "projects", "-b", defaultBase}, want: "default-only\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := exec.Command(filepath.Join(binDir, "rotari"), test.args...)
+			cmd.Dir = binDir
+			cmd.Env = append(completionShellEnv(binDir), "XDG_STATE_HOME="+stateHome, "ROTARI_BASEDIR="+envBase, "ROTARI_PROJECT_NAME=env-only", "ROTARI_MASTERDIR="+masterDir)
+			out, err := cmd.CombinedOutput()
+			if err != nil || string(out) != test.want {
+				t.Fatalf("completion = %q, %v; want %q", out, err, test.want)
+			}
+		})
+	}
+	// Exercise the source-command plumbing in all generated scripts as well.
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	t.Setenv("ROTARI_BASEDIR", envBase)
+	// completionShellEnv deliberately strips ROTARI_*; put the ignored
+	// basedir in global config so each shell receives the same default.
+	if err := os.WriteFile(filepath.Join(binDir, "config", "rotari", "config.toml"), []byte("basedir = '"+envBase+"'\nmasterdir = '"+masterDir+"'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, shell := range []struct {
+		name     string
+		complete func(*testing.T, string, [][]string) [][]string
+	}{{"bash", completeWithBash}, {"zsh", completeWithZsh}, {"fish", completeWithFish}} {
+		t.Run(shell.name, func(t *testing.T) {
+			if _, err := exec.LookPath(shell.name); err != nil {
+				t.Skipf("%s not installed", shell.name)
+			}
+			lines := [][]string{{"runs", "-p", ""}, {"runs", "--all-basedirs", "-p", ""}, {"runs", "-b", registeredBase, "-p", ""}}
+			got := shell.complete(t, binDir, lines)
+			for i, want := range []string{"default-only", "registry-only", "registry-only"} {
+				if !slices.Equal(normalizeCandidates(got[i]), []string{want}) {
+					t.Errorf("completion %q = %q, want %s", lines[i], got[i], want)
+				}
+			}
+		})
+	}
+}
+
 type completionFixture struct {
 	baseDir string
 	// project alpha has one run (runID) of jobs runJobs, then queuedJobs.

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -89,7 +90,7 @@ func TestShowProjectListHintsWorkForListedBaseDirs(t *testing.T) {
 	})
 }
 
-func TestBareShowIgnoresImplicitLocationDefaults(t *testing.T) {
+func TestProjectsIgnoresImplicitLocationDefaults(t *testing.T) {
 	stateHome := t.TempDir()
 	defaultBase := filepath.Join(stateHome, "rotari")
 	workspaceBase := t.TempDir()
@@ -105,10 +106,19 @@ func TestBareShowIgnoresImplicitLocationDefaults(t *testing.T) {
 	writeProjectRun(t, defaultBase, "20261007-110000-00000001", false)
 	writeProjectRun(t, workspaceBase, "20261007-110001-00000002", false)
 	writeProjectRun(t, envBase, "20261007-110002-00000003", false)
+	registry, err := basedirregistry.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, baseDir := range []string{defaultBase, workspaceBase, envBase} {
+		if err := registry.Register(baseDir); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	var output bytes.Buffer
-	if code := captureShowStdout(t, &output, func() int { return cmdShow(nil) }); code != 0 {
-		t.Fatalf("bare show exit = %d: %s", code, output.String())
+	if code := captureShowStdout(t, &output, func() int { return cmdProjects(nil) }); code != 0 {
+		t.Fatalf("projects exit = %d: %s", code, output.String())
 	}
 	for _, project := range []string{"exp"} {
 		if !strings.Contains(output.String(), project) {
@@ -122,8 +132,8 @@ func TestBareShowIgnoresImplicitLocationDefaults(t *testing.T) {
 	}
 
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdShow([]string{"--basedir", workspaceBase}) }); code != 0 {
-		t.Fatalf("show --basedir exit = %d: %s", code, output.String())
+	if code := captureShowStdout(t, &output, func() int { return cmdProjects([]string{"--basedir", workspaceBase}) }); code != 0 {
+		t.Fatalf("projects --basedir exit = %d: %s", code, output.String())
 	}
 	if strings.Contains(output.String(), defaultBase) || strings.Contains(output.String(), envBase) {
 		t.Fatalf("explicit basedir did not scope show: %s", output.String())
@@ -138,15 +148,15 @@ func testProjectListHints(t *testing.T, baseDir string, wantBaseDir bool) {
 	writeProjectRun(t, baseDir, failedRun, true)
 
 	var output bytes.Buffer
-	if code := captureShowStdout(t, &output, func() int { return cmdShow([]string{"--basedir", baseDir}) }); code != 0 {
-		t.Fatalf("show --basedir exit = %d:\n%s", code, output.String())
+	if code := captureShowStdout(t, &output, func() int { return cmdProjects([]string{"--basedir", baseDir}) }); code != 0 {
+		t.Fatalf("projects --basedir exit = %d:\n%s", code, output.String())
 	}
 	text := output.String()
 	fill := strings.NewReplacer("BASEDIR", baseDir, "PROJECT", "exp", "RUN_ID", failedRun)
-	commands := hintCommands(text, "To show runs in a project:")
+	commands := hintCommands(text, "To inspect a project:")
 	commands = append(commands, hintCommands(text, "To summarize a run's failures by cause:")...)
 	if len(commands) != 2 {
-		t.Fatalf("hints = %q, want a show and a lineage command:\n%s", commands, text)
+		t.Fatalf("hints = %q, want a project detail and a lineage command:\n%s", commands, text)
 	}
 	for _, command := range commands {
 		if strings.Contains(command, "-b BASEDIR") != wantBaseDir {

@@ -47,10 +47,9 @@ The per-command view of these rules, with job selectors, is in
 - **RES-2** Projects resolve from `--project-name` (or the command's positional
   project), then `ROTARI_PROJECT_NAME`, then selected basedir, cwd workspace,
   and global file defaults, then the only project in the resolved base directory.
-  With no projects the name is
-  `default`; multiple projects require an explicit choice. The bare `show`
-  command lists projects across known basedirs instead of resolving one; RES-26
-  defines which target defaults aggregate views ignore.
+  With no projects the name is `default`; multiple projects require an explicit
+  choice. `show` displays a selected project's details; use `projects` to list
+  projects and `basedirs` to list known state directories.
 - **RES-3** Commands that read or edit a missing project fail with
   `project "x" does not exist`, except `check` reports an empty, non-runnable queue without
   creating a project (exit status 1), and `unlock` without `--run-id` succeeds
@@ -73,21 +72,27 @@ The per-command view of these rules, with job selectors, is in
 - **RES-7** `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata
   when the lock is already absent; `--run-id` optionally verifies the result.
-- **RES-8** `show --basedirs` lists state directories known to the run and live-server
+- **RES-8** `basedirs` lists state directories known to the run and live-server
   registries under the resolved master directory; this discovery is not
   exhaustive.
 **RES-26** Aggregate views do not use an implicit `project-name` from
 `ROTARI_PROJECT_NAME` or any config scope to narrow results; only an explicit
-CLI project selector does so. Basedir defaults are command-specific:
+CLI project selector does so. Listing commands are `basedirs`, `projects`,
+`runs`, and `jobs`; `show` is a detail command and does not fall back to a list.
+Basedir defaults are command-specific:
 
-- Bare `show` ignores implicit project and basedir defaults, listing projects
+- `projects` ignores implicit project and basedir defaults, listing projects
   across known basedirs plus the cwd-local/XDG/home default state directory.
-  CLI `--basedir` limits it to that basedir. Project/run/job selectors and
-  project views retain normal location defaults.
-- `jobs` ignores implicit project and basedir defaults, using the cwd-local,
-  XDG, or home default basedir. CLI `--basedir` selects a different one;
+  CLI `--basedir` limits it to that basedir.
+- `runs` and `jobs` ignore implicit project and basedir defaults, using the
+  cwd-local/XDG/home default basedir. CLI `--basedir` selects a different one;
   `--all-basedirs` retains its registry-wide scope. A positional project or
   CLI `--project-name` explicitly filters that scope.
+- `show` uses ordinary project resolution. A unique project selected through
+  explicit options, defaults, or sole-project discovery is shown in detail; if
+  there are multiple projects and no selector, it errors and directs the user
+  to `rotari projects`. A positional project name selects that project's
+  detail view.
 - Argumentless `lineage` ignores implicit project defaults but retains normal
   basedir precedence: CLI, environment, workspace/basedir/global file defaults,
   then local/XDG/home fallback. It selects the sole existing project, errors
@@ -99,11 +104,10 @@ CLI project selector does so. Basedir defaults are command-specific:
   local/XDG/home fallback. It inventories every project config in that basedir;
   CLI `--project-name` narrows the inventory.
 
-`show --basedirs` and `jobs --all-basedirs` reject an explicit `--basedir`
+`runs --all-basedirs` and `jobs --all-basedirs` reject an explicit `--basedir`
 rather than silently discarding the conflicting scope. Implementation:
-[aggregate target handling](../cmd/rotari/show.go) and
-[jobs target handling](../cmd/rotari/jobs.go). Tests:
-[aggregate CLI regressions](../cmd/rotari/show_projects_test.go),
+[list commands](../cmd/rotari/lists.go) and [jobs target handling](../cmd/rotari/jobs.go). Tests:
+[list command regressions](../cmd/rotari/show_projects_test.go),
 [jobs regressions](../cmd/rotari/jobs_test.go), and
 [built-binary conformance](../conformance/01-resolution/aggregate_target_defaults_test.go).
 
@@ -433,7 +437,7 @@ not register from read-only commands such as `show` or `jobs`, or from a
 `queueops.Editor.RegisterBaseDir`, import through `workflowstate.Import`;
 `TestCommandsThatCreateAProjectRegisterItsBasedir` checks the commands that
 create a project. The basedir
-registry is used for discovery by bare `show` and `show --basedirs`, so those
+registry is used for discovery by `projects` and `basedirs`, so those
 commands do not need to scan every historical run record. Existing
 installations are backfilled from the run registry when the basedir index is
 empty; a deliberate repair or fallback path must remain available for older

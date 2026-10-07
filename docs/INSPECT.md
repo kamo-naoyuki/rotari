@@ -17,12 +17,17 @@ When `jobs` finds nothing, it names the state directory it searched and the
 time window, and suggests `--all-basedirs` to search every registered state
 directory.
 
-Use `show` to inspect a project's runs and pending queue, or a specific run/job.
+Use the plural commands to list objects, and `show` to inspect a selected
+project's current run or pending queue, or a specific run/job.
 
 ```sh
-rotari show # inspect the configured project, or list projects when none is selected
-rotari show --basedirs # print the resolved master directory and state directories
-rotari show -p sweep # list the project's runs and current queue, if non-empty
+rotari projects # list projects and their latest run status across known basedirs
+rotari projects --basedir DIR # limit the project list to one state directory
+rotari basedirs # print the resolved master directory and known state directories
+rotari runs # list saved runs in the default state directory
+rotari runs --all-basedirs # list runs across known state directories
+rotari show -p sweep # inspect the selected project's current run or queue
+rotari show # inspect the uniquely selected project; use `rotari projects` if ambiguous
 rotari show -p sweep --failed # list failed jobs in the selected run
 rotari show -p sweep --stage train # list only the jobs in stage train of the selected run or queue
 rotari show -p sweep --matrix train # list only the jobs of matrix train, named by its base job name
@@ -37,6 +42,11 @@ rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one atte
 rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
+
+With no selector, `show` resolves one project from explicit options,
+configuration/environment defaults, or sole-project discovery, then displays
+its current run or queue. If more than one project remains, it exits with a
+hint to use `rotari projects`; it does not silently switch to a list view.
 
 Workspace defaults from cwd `.rotari.toml` also select the project and basedir.
 They are not inherited from parent directories. Run/attempt IDs still resolve

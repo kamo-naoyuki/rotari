@@ -315,7 +315,10 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Starting a run (client side; the supervisor side is `internal/supervisor`) | `run_command.go`, `job_executor.go` |
 | Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
 | Wiring the run lifecycle (`projectRunner`) and its failure diagnosis | `project_run.go`, `diagnosis.go` |
-| Supervisor process wiring, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
+| Supervisor process wiring and its server registry | `server.go`, `registry.go` |
+| `basedirs`, `projects`, and `runs` command flags and dispatch | [lists.go](../cmd/rotari/lists.go) |
+| Project discovery and list rendering (`showProjectsForBaseDirs`) | [projects.go](../cmd/rotari/projects.go) |
+| Registered basedir list rendering | [basedirs.go](../cmd/rotari/basedirs.go) |
 | Job control | `job_control.go`, `wait.go` |
 | Reading results | `show.go`, `show_artifacts.go`, `jobs.go`, `diff.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |

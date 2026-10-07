@@ -11,9 +11,8 @@ import (
 
 // TestProjectListHintsWork runs the commands the project list suggests, with
 // its placeholders filled in, for a project outside the default state
-// directory. With ROTARI_BASEDIR set, `show` lists only that directory, so
-// the other one is listed with -b; without it, `show` lists every registered
-// basedir.
+// directory. The dedicated `projects` command lists known basedirs unless
+// explicitly scoped with --basedir.
 func TestProjectListHintsWork(t *testing.T) {
 	covers(t, "CLI-5")
 	for _, test := range []struct {
@@ -21,8 +20,8 @@ func TestProjectListHintsWork(t *testing.T) {
 		withEnv  bool
 		listArgs func(other string) []string
 	}{
-		{"ROTARI_BASEDIR", true, func(other string) []string { return []string{"show", "-b", other} }},
-		{"XDG_STATE_HOME", false, func(string) []string { return []string{"show"} }},
+		{"ROTARI_BASEDIR", true, func(other string) []string { return []string{"projects", "-b", other} }},
+		{"XDG_STATE_HOME", false, func(string) []string { return []string{"projects"} }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			e := support.NewEnv(t)
@@ -53,7 +52,7 @@ func TestProjectListHintsWork(t *testing.T) {
 			}
 			fill := strings.NewReplacer("BASEDIR", other, "PROJECT", "exp", "RUN_ID", shown.RunID)
 			hints := 0
-			for _, heading := range []string{"To show runs in a project:", "To summarize a run's failures by cause:"} {
+			for _, heading := range []string{"To inspect a project:", "To summarize a run's failures by cause:"} {
 				_, after, found := strings.Cut(listing, heading)
 				if !found {
 					t.Fatalf("project list has no %q hint:\n%s", heading, listing)
@@ -97,8 +96,8 @@ func TestMissingProjectNamesWhereItIs(t *testing.T) {
 	// A state directory with runs is named with its last run's result, which
 	// tells same-named projects apart.
 	e.MustRotari("run", "-b", elsewhere, "-p", "exp", "--quiet")
-	if result := e.Rotari("show", "-p", "exp"); !strings.Contains(result.Stderr, "last run ") || !strings.Contains(result.Stderr, "finished, 0 of 1 failed") {
-		t.Errorf("show -p exp = %s, want the last run's result beside %s", result, elsewhere)
+	if result := e.Rotari("projects", "-b", elsewhere); !strings.Contains(result.Stdout, "finished") {
+		t.Errorf("projects -b elsewhere = %s, want the last run's result beside %s", result, elsewhere)
 	}
 	if result := e.Rotari("show", "-p", "nowhere"); strings.Contains(result.Stderr, elsewhere) {
 		t.Errorf("a project no state directory has points to %s: %s", elsewhere, result)

@@ -1001,7 +1001,38 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[JOB_ID ...]",
         },
         {
-            "description": "show queue or run status",
+            "description": "list state directories known to the master registry",
+            "flags": [
+                {
+                    "description": "master registry directory",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                }
+            ],
+            "name": "basedirs",
+        },
+        {
+            "description": "list projects across known state directories",
+            "flags": [
+                {
+                    "description": "limit the listing to this state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "master registry directory",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                },
+            ],
+            "name": "projects",
+        },
+        {
+            "description": "list saved and active runs across projects",
             "flags": [
                 {
                     "description": "config file to use",
@@ -1023,10 +1054,40 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "master registry directory",
+                    "description": "master registry directory for --all-basedirs",
                     "environment": "ROTARI_MASTERDIR",
                     "name": "masterdir",
                     "value_name": "DIR",
+                },
+                {
+                    "description": "include all basedirs known to the master registry",
+                    "name": "all-basedirs",
+                },
+            ],
+            "name": "runs",
+            "positional": "[PROJECT]",
+        },
+        {
+            "description": "show details for a project, run, job, or attempt",
+            "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
                 },
                 {
                     "description": "run ID or latest",
@@ -1096,11 +1157,6 @@ CLI_SCHEMA: dict[str, Any] = {
                 {
                     "description": "print logs directly instead of using a pager",
                     "name": "no-pager",
-                },
-                {
-                    "description": "list state directories known to the master "
-                    "registry",
-                    "name": "basedirs",
                 },
                 {
                     "description": "print machine-readable JSON for a run",

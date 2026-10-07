@@ -84,15 +84,15 @@ starts.
 
 ### I didn't pass `--project-name` — which project does rotari use?
 
-Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, basedir/workspace/global config defaults, the only project in the resolved state directory, and then `default`. Multiple candidates require a selection. Without a project default, a bare `rotari show` lists projects in registered basedirs.
+Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, basedir/workspace/global config defaults, the only project in the resolved state directory, and then `default`. Multiple candidates require a selection. Use `rotari projects` to list projects; `rotari show` inspects the selected project's details.
 
 ### How do I list projects in a state directory?
 
-Run `rotari show`. Use `--basedir` to select a state directory, `--masterdir DIR` to select the registry, and `rotari show -p PROJECT` to inspect a project.
+Run `rotari projects`. Use `--basedir DIR` to limit the list to a state directory, `--masterdir DIR` to select the registry, and `rotari show -p PROJECT` to inspect a project.
 
 ### I don't know which basedir contains my jobs. How do I find it?
 
-Run `rotari show --basedirs`, then inspect one with `rotari show --basedir DIR`. Use `--masterdir DIR` to select the registry.
+Run `rotari basedirs`, then list projects in one with `rotari projects --basedir DIR`. Use `--masterdir DIR` to select the registry.
 
 ### Where can I put option defaults?
 
@@ -136,7 +136,7 @@ jobs until the requested resources become available.
 
 ### `rotari show` displayed my queue, not the run I expected — why?
 
-Without a project selector, `show` lists projects. Use `--project-name/-p` for a project, `--run-id` for a run, and `--run-id latest` for the latest run.
+Use `rotari projects` to list projects. `show` inspects the selected project, run, job, or attempt; use `--project-name/-p` for a project, `--run-id` for a run, and `--run-id latest` for the latest run.
 
 ### Why does `show` prefer a run over the queue when a project is running or interrupted?
 

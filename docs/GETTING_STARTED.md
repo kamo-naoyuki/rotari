@@ -119,6 +119,11 @@ rotari jobs
 rotari show
 ```
 
+Use `rotari projects` to list projects, `rotari runs` to list runs, and
+`rotari basedirs` to list registered state directories. `rotari show` inspects
+the selected project, run, job, or attempt; when project selection is
+ambiguous, it points to `rotari projects`.
+
 Use `rotari run --async` when the run should continue in the background. To
 inspect failed logs and retry only failed or unfinished work:
 
