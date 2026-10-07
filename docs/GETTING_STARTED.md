@@ -88,12 +88,14 @@ To use the same location defaults with any of the three approaches above, run
 `rotari init` from this directory:
 
 ```sh
-# Use the default basedir (.rotari-state); leave project selection to normal resolution.
+# Use the default basedir (.rotari-state) and the default project ("default")
 rotari init
-# Set a basedir explicitly; leave project selection to normal resolution.
-rotari init .rotari-state
+
+# Set a basedir explicitly and the default project ("default")
+# rotari init .rotari-state
+
 # Set both the basedir and the default project.
-rotari init .rotari-state sweep
+# rotari init .rotari-state sweep
 ```
 
 This writes `.rotari.toml`; the state directory and project are created when
