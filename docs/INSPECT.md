@@ -107,6 +107,8 @@ by default; `--open-mode truncate` truncates them before execution.
 The run's saved hosts and diagnoses belong to the latest attempt, so they are
 not shown for an older one.
 
+### Artifacts
+
 Each attempt also records the files and directories its job definition
 refers to, in `artifacts.json` in the attempt directory: paths found in the
 command's arguments (such as `train.py` or `--config conf/run.yaml`), in

@@ -14,6 +14,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Resolved
 
+- **Artifact guide link pointed to a missing heading** ([docs/examples.md](../docs/examples.md), [docs/INSPECT.md](../docs/INSPECT.md)): added the `Artifacts` heading targeted by the example guide's link; `TestRelativeLinks` now resolves `INSPECT.md#artifacts`.
+
 - **`retry` after `unlock` failed for an interrupted run** ([internal/projectrun/origins.go](../internal/projectrun/origins.go), `originResults.RunResults`): a filtered rerun read the source run's results only from `summary.json`, which an interrupted run never writes, so `retry` and `retry --run-id RUN` failed with "failed to load run summary for origin run". Results of a run without a summary now resolve through the jobstatus chain from its attempts and carried results; jobs that never finished are unfinished. Covered by `TestPlanRunReadsResultsOfARunWithoutSummary` and RUN-12 (`TestRerunOfAnInterruptedRun`).
 - **`suspend`/`resume` could partially act before rejecting a target** ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go), `Controller.Control`): every selected target's running state, host, and executor capability is now checked before any signal. If the scheduler call itself fails mid-operation, the error names jobs already suspended/resumed. Unit tests cover unsupported executors and runtime failures for both operations; CLI and Web conformance verifies no scheduler-status side effect or stopped local process when a later target is unsupported (COORD-6).
 
