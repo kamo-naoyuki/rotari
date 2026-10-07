@@ -104,7 +104,7 @@ jobs:
 
           docker exec --user root "$container" chown -R slurm:slurm /state
           if output=$(docker exec --user slurm --workdir /state --env HOME=/home/slurm \
-            --env ROTARI_MASTERDIR=/state/master "$container" \
+            --env ROTARI_BASEDIR=/state --env ROTARI_MASTERDIR=/state/master "$container" \
             bash /workspace/examples/slurm.sh 2>&1); then
             printf '%s\n' "$output"
           else
