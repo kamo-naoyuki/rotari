@@ -60,7 +60,10 @@ func activeClientStatus(paths state.ProjectPaths, runID string, status model.Run
 
 func settledClientStatus(status model.RunClientStatus, statusErr error) model.RunClientStatus {
 	if errors.Is(statusErr, os.ErrNotExist) || status.State != model.RunClientCompleted {
-		status.State = "unknown"
+		// A settled run cannot still have an attached run client. Older runs
+		// may not record how they were launched, but their current connection
+		// state is known: no client is attached.
+		status.State = model.RunClientCompleted
 	}
 	return status
 }
@@ -95,6 +98,9 @@ func detachedClientLabel(status model.RunClientStatus) string {
 }
 
 func completedClientLabel(status model.RunClientStatus) string {
+	if status.Mode == "" {
+		return "not attached (completed)"
+	}
 	if status.Mode == model.RunClientModeAsync {
 		return "async (completed)"
 	}

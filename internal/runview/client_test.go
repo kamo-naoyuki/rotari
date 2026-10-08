@@ -64,3 +64,26 @@ func TestClientStatusLabelsAsyncSeparatelyFromCtrlD(t *testing.T) {
 		t.Fatalf("Ctrl-D label = %q", got)
 	}
 }
+
+func TestSettledRunWithoutClientHistoryIsNotAttached(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20261009-120000-12345678"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", ExitCode: 0}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := ClientStatus(paths, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ClientStatusLabel(status); got != "not attached (completed)" {
+		t.Fatalf("client label = %q, want completed run without a live client", got)
+	}
+}

@@ -46,8 +46,9 @@ Client state describes only the initiating run/retry progress client, not
 connection is `unknown`; where available, the label retains the last recorded
 detach reason. A finalized client record shows `async (completed)` or
 `sync (completed)` and retains recorded detach/cancel history; this describes
-history, not a live connection. A finished run without a finalized client
-record still shows `unknown`. These classifications are best-effort and do not
+history, not a live connection. A finished run without client history shows
+`not attached (completed)`: the launch mode is unknown, but no client remains
+attached to a completed run. These classifications are best-effort and do not
 contact an executor or scheduler.
 
 ### Scope and time window
