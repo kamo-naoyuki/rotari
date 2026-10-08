@@ -1,11 +1,64 @@
 package webui
 
 import (
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+func TestWebRunDetachedClientLabels(t *testing.T) {
+	for _, test := range []struct {
+		name, mode, reason, label string
+	}{
+		{"async", model.RunClientModeAsync, model.RunClientReasonAsync, "detached (async)"},
+		{"ctrl-d", model.RunClientModeSync, model.RunClientReasonCtrlD, "detached (Ctrl-D)"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			const runID = "20261009-120000-12345678"
+			paths := writeWebDetachedRun(t, runID, test.mode, test.reason)
+			handler := Handler(testOptions(paths.BaseDir, false))
+			for _, endpoint := range []string{"/api/state", "/api/project?project_name=demo", "/api/run?project_name=demo&run_id=" + runID} {
+				response := serveWebGet(t, handler, endpoint)
+				if response.Code != http.StatusOK {
+					t.Fatalf("GET %s = %d: %s", endpoint, response.Code, response.Body.String())
+				}
+				if body := response.Body.String(); !strings.Contains(body, `"client_label":"`+test.label+`"`) {
+					t.Fatalf("GET %s = %s; want client_label %q", endpoint, body, test.label)
+				}
+			}
+		})
+	}
+}
+
+func writeWebDetachedRun(t *testing.T, runID, mode, reason string) state.ProjectPaths {
+	t.Helper()
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, value := range map[string]any{
+		paths.QueueFile: model.Queue{},
+		paths.MetaFile:  model.Meta{Phase: "running", LastRunID: runID},
+		paths.LockFile:  model.LockInfo{PID: os.Getpid(), RunID: runID, Host: host},
+		filepath.Join(paths.RunsDir, runID, "commands.json"):               model.Queue{},
+		filepath.Join(paths.RunsDir, runID, state.RunClientStatusFileName): model.RunClientStatus{Mode: mode, State: model.RunClientDetached, Reason: reason},
+	} {
+		if err := state.WriteJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return paths
+}
 
 func TestWebRunStatusRuntime(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -48,11 +101,14 @@ setTimeout(async () => {
         {run_id: 'active', status: 'running', lifecycle: 'running', running: true, client_status: {state: 'attached'}},
         {run_id: 'finished', status: 'failed', lifecycle: 'finished', finished_at: 'done', exit_code: 7, client_label: 'server <label>', client_status: {state: 'completed', mode: 'sync'}},
         {run_id: 'legacy', status: 'failed', finished_at: 'done', exit_code: 3},
+        {run_id: 'async', lifecycle: 'running', client_status: {state: 'detached', mode: 'async', reason: 'async'}},
+        {run_id: 'ctrl-d', lifecycle: 'running', client_status: {state: 'detached', mode: 'sync', reason: 'ctrl-d'}},
+        {run_id: 'server-async', lifecycle: 'running', client_label: 'detached (async)', client_status: {state: 'attached'}},
       ];
       window.renderQueue({project_name: 'default', queue: {commands: []}, runs});
       const rows = [...window.document.querySelectorAll('#app tbody tr')];
       assert.equal(rows.length, runs.length);
-      const states = ['interrupted', 'incomplete', 'running', 'finished', 'failed'];
+      const states = ['interrupted', 'incomplete', 'running', 'finished', 'failed', 'running', 'running', 'running'];
       rows.forEach((row, index) => {
         const pill = row.children[2].querySelector('span');
         assert.equal(pill.textContent, states[index] + (runs[index].running ? ' ...' : ''));
@@ -65,12 +121,19 @@ setTimeout(async () => {
       assert.equal(rows[3].children[3].textContent, 'server <label>');
       assert.equal(rows[3].children[4].textContent, '7');
       assert.equal(rows[4].children[4].textContent, '3');
+      assert.equal(rows[5].children[3].textContent, 'detached (async)');
+      assert.equal(rows[6].children[3].textContent, 'detached (Ctrl-D)');
+      assert.equal(rows[7].children[3].textContent, 'detached (async)');
       assert(window.document.getElementById('summary').textContent.includes('1 running'));
       window.renderRun({project_name: 'default', queue: {commands: []}, runs: [{...runs[3], jobs: []}]}, 'finished');
       const summary = window.document.getElementById('summary').textContent;
       assert(summary.includes('Status: failed'), 'summary outcome was lost');
       assert(summary.includes('Lifecycle: finished'));
       assert(summary.includes('Client: server <label>'));
+      for (const [index, label] of [[5, 'detached (async)'], [6, 'detached (Ctrl-D)'], [7, 'detached (async)']]) {
+        window.renderRun({project_name: 'default', queue: {commands: []}, runs: [{...runs[index], jobs: []}]}, runs[index].run_id);
+        assert(window.document.getElementById('summary').textContent.includes('Client: ' + label));
+      }
     } else {
       const index = {projects: [{project_name: 'default', runs: []}]};
       const active = new Set();

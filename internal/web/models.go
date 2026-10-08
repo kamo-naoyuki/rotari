@@ -21,6 +21,7 @@ type Run struct {
 	Jobs           []Job                 `json:"jobs"`
 	Lifecycle      string                `json:"lifecycle,omitempty"`
 	ClientStatus   model.RunClientStatus `json:"client_status"`
+	ClientLabel    string                `json:"client_label,omitempty"`
 	CWD            string                `json:"cwd,omitempty"`
 	Context        model.RunContext      `json:"context,omitempty"`
 	Timeline       []TimelinePoint       `json:"timeline,omitempty"`

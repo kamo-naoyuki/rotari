@@ -51,6 +51,53 @@ func TestListsRunsShowClientModeAndDetachReason(t *testing.T) {
 	}
 }
 
+func TestListsAndShowDetachedClientLabels(t *testing.T) {
+	for _, test := range []struct {
+		name, mode, reason, label string
+	}{
+		{"async", model.RunClientModeAsync, model.RunClientReasonAsync, "detached (async)"},
+		{"ctrl-d", model.RunClientModeSync, model.RunClientReasonCtrlD, "detached (Ctrl-D)"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			const runID = "20261009-120000-12345678"
+			paths := writeListsDetachedRun(t, runID, test.mode, test.reason)
+			rows, err := collectRunRows([]string{paths.BaseDir}, "demo")
+			if err != nil || len(rows) != 1 || rows[0].Client != test.label {
+				t.Fatalf("run rows = %#v, %v; want %q", rows, err, test.label)
+			}
+			var output bytes.Buffer
+			code := captureShowStdout(t, &output, func() int {
+				return cmdShow([]string{"--basedir", paths.BaseDir, "--project-name", "demo", "--run-id", runID})
+			})
+			if code != 0 || !strings.Contains(output.String(), test.label) {
+				t.Fatalf("show exit = %d, output = %q; want %q", code, output.String(), test.label)
+			}
+		})
+	}
+}
+
+func writeListsDetachedRun(t *testing.T, runID, mode, reason string) state.ProjectPaths {
+	t.Helper()
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, value := range map[string]any{
+		paths.MetaFile: model.Meta{Phase: "running", LastRunID: runID},
+		paths.LockFile: model.LockInfo{PID: os.Getpid(), RunID: runID, Host: host},
+		filepath.Join(paths.RunsDir, runID, state.RunClientStatusFileName): model.RunClientStatus{Mode: mode, State: model.RunClientDetached, Reason: reason},
+	} {
+		if err := writeJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return paths
+}
+
 func TestListsRunsRejectsExplicitInvalidProject(t *testing.T) {
 	for _, name := range []string{"", ".", "..", "../outside", "a/b", `a\b`, "/absolute"} {
 		for _, positional := range []bool{false, true} {

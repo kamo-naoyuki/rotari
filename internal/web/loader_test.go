@@ -385,7 +385,7 @@ func TestLoadQueueStateProjectsLifecycleAndClientStatus(t *testing.T) {
 	if err != nil || len(loaded.Runs) != 1 {
 		t.Fatalf("LoadQueueState() = %#v, %v", loaded, err)
 	}
-	if run := loaded.Runs[0]; run.Lifecycle != "finished" || run.ClientStatus.Mode != model.RunClientModeAsync || run.ClientStatus.Reason != model.RunClientReasonAsync {
+	if run := loaded.Runs[0]; run.Lifecycle != "finished" || run.ClientStatus.Mode != model.RunClientModeAsync || run.ClientStatus.Reason != model.RunClientReasonAsync || run.ClientLabel != "async (completed)" {
 		t.Fatalf("run projection = %#v; want finished async history", run)
 	}
 }

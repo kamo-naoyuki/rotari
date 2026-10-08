@@ -84,7 +84,7 @@ func ClientStatusLabel(status model.RunClientStatus) string {
 func detachedClientLabel(status model.RunClientStatus) string {
 	switch status.Reason {
 	case model.RunClientReasonAsync:
-		return "async (detached)"
+		return "detached (async)"
 	case model.RunClientReasonCtrlD:
 		return "detached (Ctrl-D)"
 	case model.RunClientReasonEOF:

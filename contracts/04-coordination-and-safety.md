@@ -60,13 +60,17 @@ Representative implementation and tests:
   client's connection history are separate display dimensions. Job readers
   distinguish recorded nonterminal phases from terminal results and unknown
   state; a recorded `running` phase does not prove the executor is still alive.
-  The client record distinguishes `async` from Ctrl-D detach and is reported as
-  unknown when the supervisor cannot be verified. `runs`, `show`, and the Web
+  The client record distinguishes `detached (async)` from `detached (Ctrl-D)`
+  with detached-first labels and is reported as unknown when the supervisor
+  cannot be verified. The Web UI prefers the server's `client_label`, falling
+  back to the same labels when absent. `runs`, `show`, and the Web
   API use the shared projections in
   [internal/runview](../internal/runview/client.go) and
   [internal/jobstatus](../internal/jobstatus/job.go); checked by
   `TestCLIAndWebAgreeOnJobResults` and `TestJobOutlivesKilledSupervisor` in
-  [conformance/04-coordination](../conformance/04-coordination/).
+  [conformance/04-coordination](../conformance/04-coordination/), and detached
+  labels in `TestAsyncStartHintsWork` in
+  [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
 
 Implementation and tests: the wrapper is built in
 [`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with

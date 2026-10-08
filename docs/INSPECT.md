@@ -26,8 +26,8 @@ The four list commands differ in what each row represents:
 Use these lists to find a project, run, or job, then use `show` for its details.
 The `runs` list shows both run `STATUS` and the initiating client's separate
 `CLIENT` state; a client that started a run with `--async` is labeled
-`async (detached)`, while a synchronous client that pressed Ctrl-D is labeled
-`detached (Ctrl-D)`.
+`detached (async)`, while a synchronous client that pressed Ctrl-D is labeled
+`detached (Ctrl-D)`. Both use detached-first wording while retaining the reason.
 
 ### Reading run and job states
 

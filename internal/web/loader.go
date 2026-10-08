@@ -86,7 +86,8 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 		state.Runs = append(state.Runs, Run{
 			RunSummary: summary, LineageSummary: buildLineageSummary(summary, jobs), Jobs: jobs,
 			Lifecycle: lifecycle, ClientStatus: clientStatus,
-			CWD: context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
+			ClientLabel: runview.ClientStatusLabel(clientStatus),
+			CWD:         context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
 		})
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })

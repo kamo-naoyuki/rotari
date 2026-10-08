@@ -1666,7 +1666,7 @@ function clientStatusLabel(status) {
     case "detached":
       return (
         {
-          async: "async (detached)",
+          async: "detached (async)",
           "ctrl-d": "detached (Ctrl-D)",
           disconnect: "detached (disconnect)",
         }[status.reason] || "detached"

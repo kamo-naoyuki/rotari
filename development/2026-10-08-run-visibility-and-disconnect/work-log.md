@@ -158,3 +158,25 @@ separately in `development/ISSUES.md`; its behavior was not changed here.
 
 **Remaining:** None for this status-visibility work. The pre-existing
 `examples/basic.sh` edit is excluded from the commit.
+
+## Detached-first client labels
+
+**Change:** Active async clients now display `detached (async)` alongside
+`detached (Ctrl-D)`. Both labels start with the connection state while keeping
+the initiating client's detach reason distinguishable. Completed and unknown
+history labels, persisted client fields, and detach/cancel behavior are unchanged.
+The Web API now supplies `client_label` from the shared CLI formatter in both
+lightweight summaries and full run details. Web rendering already prefers this
+field; its fallback now uses the same detached-first labels.
+
+**Plan impact:** Clarifies the existing client-status dimension; updates the
+inspection guide and DUR-8 without changing run lifecycle semantics.
+
+**Validation:** Before the implementation change, the shared formatter and Web
+runtime tests failed on the old `async (detached)` wording. Focused uncached tests
+passed for runview, CLI lists/show, Web projections, Web API and runtime rendering,
+async-start conformance, and CLI/Web status agreement. Final formatting and full
+validation results are recorded below after completion.
+
+**Scope:** The pre-existing `examples/basic.sh` edit remains untouched and will
+not be staged.

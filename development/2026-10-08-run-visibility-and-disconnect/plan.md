@@ -48,7 +48,7 @@ Do not collapse run lifecycle, per-job execution, and client attachment into one
 | --- | --- | --- |
 | Run lifecycle | `running`, `interrupted`, `finished`, `failed`, `incomplete` | Whether the coordinator is active and whether the run has a valid summary. `finished` and `failed` are settled run outcomes; `incomplete` means no valid summary is available. |
 | Job execution | `waiting (recorded)`, `running (recorded)`, `suspended (recorded)`, `success`, `failed`, `cancelled`, `blocked`, `unknown` | Best-effort interpretation of the latest attempt and recorded result. Recorded phases are last-observed states, not proof of current executor state. No positive evidence of execution yields `unknown`; the implementation does not emit `not started`. A carried result is identified as carried rather than as work executed in this run. |
-| Client connection | `attached`, `async (detached)`, `detached (Ctrl-D)`, `detached (disconnect)`, `disconnecting/cancelling`, `completed`, `unknown` | Connection history of the initiating run/retry client. Async and Ctrl-D both mean no attached progress client but retain their reason. Unexpected disconnect detaches by default or records cancellation when configured. Finalized client records show completed history; interrupted or unverifiable records show unknown, never a live attachment. |
+| Client connection | `attached`, `detached (async)`, `detached (Ctrl-D)`, `detached (disconnect)`, `disconnecting/cancelling`, `completed`, `unknown` | Connection history of the initiating run/retry client. Async and Ctrl-D both mean no attached progress client but retain their reason. Unexpected disconnect detaches by default or records cancellation when configured. Finalized client records show completed history; interrupted or unverifiable records show unknown, never a live attachment. |
 
 `wait`, Web, and MCP consumers are not attached run-progress clients: `wait` and Web poll/read persisted state, while MCP starts runs asynchronously. Do not count them as attached clients in this first implementation. A completed run can show its recorded launch/detach mode as history, but must not imply a live client remains attached. If the supervisor is unavailable or the recorded connection state cannot be validated, report `unknown`; do not treat a stale `attached` record as current.
 
@@ -58,7 +58,7 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 
 - Let a user or coding agent find all relevant active/background runs without remembering a project name or run ID.
 - Show run lifecycle, best-effort per-job status, and initiating-client attachment as separate dimensions in `runs` and `show`.
-- Distinguish `async (detached)` from `detached (Ctrl-D)` while making clear that both have no attached progress client.
+- Distinguish `detached (async)` from `detached (Ctrl-D)` with detached-first wording while making clear that both have no attached progress client. Web displays prefer the server-provided `client_label`, with the same labels as a fallback.
 - Make it straightforward to inspect a run and cancel unwanted jobs after the initiating client is gone.
 - Keep explicit Ctrl-C cancellation predictable and keep intentional detach non-cancelling.
 - Make the command taxonomy clear: plural nouns list; `show` inspects one selected target.
@@ -89,7 +89,7 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 
 - Table-test bare `show` with no project, explicit project defaults, a sole project, multiple projects, and run/job selectors.
 - Exercise each list command in isolated state: empty state, multiple basedirs/projects, active, interrupted, incomplete, and settled runs.
-- Table-test client states: synchronous attached, async (detached), Ctrl-D detached, unexpected EOF/cancellation, completed, interrupted supervisor, stale/malformed state, and unverifiable remote-host supervisor.
+- Table-test client states: synchronous attached, detached (async), detached (Ctrl-D), unexpected EOF/cancellation, completed, interrupted supervisor, stale/malformed state, and unverifiable remote-host supervisor.
 - Test per-job display for recorded waiting/running/suspended followed by a wrapper terminal update after supervisor exit, success/failure/cancelled/blocked results, missing or unusable status, and carried results. Assert that absent execution evidence is unknown and recorded phases are best-effort, not confirmed live.
 - Verify that `wait`, Web, and MCP do not falsely appear as attached run-progress clients.
 - Verify `runs` and `show` share the same status interpretation; add Web/API coverage for the same projection.

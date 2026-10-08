@@ -57,7 +57,7 @@ func TestClientStatusSeparatesModeReasonAndLiveness(t *testing.T) {
 func TestClientStatusLabelsAsyncSeparatelyFromCtrlD(t *testing.T) {
 	async := model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientDetached, Reason: model.RunClientReasonAsync}
 	ctrlD := model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientDetached, Reason: model.RunClientReasonCtrlD}
-	if got := ClientStatusLabel(async); got != "async (detached)" {
+	if got := ClientStatusLabel(async); got != "detached (async)" {
 		t.Fatalf("async label = %q", got)
 	}
 	if got := ClientStatusLabel(ctrlD); got != "detached (Ctrl-D)" {

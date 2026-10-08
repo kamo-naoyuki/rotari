@@ -242,9 +242,7 @@ func TestAsyncStartHintsWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := shown.RunID
-	if out := e.MustRotari("runs", "--project-name", "hints").Stdout; !strings.Contains(out, "async (detached)") {
-		t.Errorf("runs does not distinguish an async detached run:\n%s", out)
-	}
+	assertAsyncDetachedClientLabels(t, e, runID)
 	var runStatus struct {
 		Lifecycle string `json:"lifecycle"`
 		Client    struct {
@@ -267,5 +265,24 @@ func TestAsyncStartHintsWork(t *testing.T) {
 	}
 	if check := e.Rotari("check", "hints").Stdout; !projectFinished(check) {
 		t.Fatalf("the run did not finish after the hinted cancel and wait: %s", check)
+	}
+}
+
+func assertAsyncDetachedClientLabels(t *testing.T, e *support.Env, runID string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"runs", "--project-name", "hints"},
+		{"show", "-p", "hints", "--run-id", runID},
+	} {
+		if out := e.MustRotari(args...).Stdout; !strings.Contains(out, "detached (async)") {
+			t.Errorf("%v does not distinguish an async detached run:\n%s", args, out)
+		}
+	}
+	web := e.StartWeb()
+	for _, endpoint := range []string{"/api/run?project_name=hints&run_id=" + runID, "/api/project?project_name=hints"} {
+		body := e.HTTPGet(web + endpoint).Body
+		if !strings.Contains(body, `"client_label":"detached (async)"`) {
+			t.Errorf("%s omitted the shared async detached label:\n%s", endpoint, body)
+		}
 	}
 }
