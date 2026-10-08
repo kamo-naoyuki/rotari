@@ -73,13 +73,10 @@ them. See [Job timeouts](RUNNING.md#job-timeouts).
 
 ### SSH executor
 
-For `ssh`, the first `--executor-option` is the destination and subsequent
-options go to `ssh`; `--working-directory` is a remote directory and can be
-changed later with `rotari change`. Rotari records output, exit status, and
-host locally. The remote host needs Linux `/proc`, `setsid`, and standard
-command-line tools. Each remote job runs in its own process group;
-cancellation reconnects over SSH and sends `SIGTERM` only when the recorded PID
-still has the same process start time, so a reused PID is never signalled.
+For `ssh`, the first `--executor-option` value is the destination (for example,
+`user@gpu-01`); subsequent values are passed to `ssh`. `--working-directory`
+specifies a directory on the remote host and can be changed later with
+`rotari change`.
 
 ```sh
 rotari add -p sweep \
