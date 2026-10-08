@@ -23,13 +23,14 @@ type cliSchemaCommand struct {
 }
 
 type cliSchemaFlag struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	ValueName   string   `json:"value_name,omitempty"`
-	Values      []string `json:"values,omitempty"`
-	Short       string   `json:"short,omitempty"`
-	Environment string   `json:"environment,omitempty"`
-	Repeated    bool     `json:"repeated,omitempty"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description,omitempty"`
+	ValueName       string   `json:"value_name,omitempty"`
+	Values          []string `json:"values,omitempty"`
+	Short           string   `json:"short,omitempty"`
+	Environment     string   `json:"environment,omitempty"`
+	CommandLineOnly bool     `json:"command_line_only,omitempty"`
+	Repeated        bool     `json:"repeated,omitempty"`
 }
 
 // cmdSchema prints the machine-readable CLI configuration schema.
@@ -50,15 +51,16 @@ func cmdSchema(args []string) int {
 			Subcommands: command.Subcommands, Positional: command.Positional,
 		}
 		for _, flag := range command.Flags {
-			environment := cliEnvironmentVariables[flag.Name]
+			environment := cliCommandEnvironmentVariable(command.Name, flag.Name)
 			if flag.CommandLineOnly {
 				environment = ""
 			}
 			value.Flags = append(value.Flags, cliSchemaFlag{
 				Name: flag.Name, Description: flag.Description, ValueName: flag.ValueName,
 				Values: flag.Values, Short: cliShortFlagNames[flag.Name],
-				Environment: environment,
-				Repeated:    cliFlagRepeated(flag),
+				Environment:     environment,
+				CommandLineOnly: flag.CommandLineOnly,
+				Repeated:        cliFlagRepeated(flag),
 			})
 		}
 		schema.Commands = append(schema.Commands, value)

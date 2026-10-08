@@ -528,7 +528,7 @@ func configTemplateWithDefaults(format string, defaults map[string]any, scopes .
 // an empty command for top-level options shared by several commands.
 func configOptionDescription(command, name string) string {
 	spec := cliCommandFlag(command, name)
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(command, spec)
 	if len(spec.Values) > 0 {
 		description += " (values: " + strings.Join(spec.Values, ", ") + ")"
 	}

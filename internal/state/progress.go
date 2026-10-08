@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -71,6 +72,49 @@ func (journal *ProgressJournal) Append(event model.ProgressEvent) error {
 // consumer; it is not safe for concurrent reads.
 type ProgressCursor struct {
 	offset int64
+}
+
+// SkipExisting advances the cursor past complete events already in the
+// journal and returns their latest progress-count snapshot, if one exists. If
+// the final line is still being appended, the cursor stays at its start so
+// Read can consume it once the line is complete.
+func (cursor *ProgressCursor) SkipExisting(runDir string) (model.ProgressEvent, bool, error) {
+	path, err := progressPath(runDir)
+	if err != nil {
+		return model.ProgressEvent{}, false, err
+	}
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		cursor.offset = 0
+		return model.ProgressEvent{}, false, nil
+	}
+	if err != nil {
+		return model.ProgressEvent{}, false, err
+	}
+	defer file.Close()
+
+	var snapshot model.ProgressEvent
+	hasSnapshot := false
+	reader := bufio.NewReader(file)
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return model.ProgressEvent{}, false, readErr
+		}
+		cursor.offset += int64(len(line))
+		var event model.ProgressEvent
+		if err := json.Unmarshal(line, &event); err != nil || !event.Progress {
+			continue
+		}
+		if strings.HasPrefix(event.Message, "=== Run started ===") || event.Total > 0 {
+			snapshot = event
+			hasSnapshot = true
+		}
+	}
+	return snapshot, hasSnapshot, nil
 }
 
 // Read returns newly completed lines. An absent journal (including old runs)

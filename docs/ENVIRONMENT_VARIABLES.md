@@ -12,6 +12,12 @@ Column meanings:
 `rotari env` prints the same definitions together with whether each variable
 is currently set.
 
+Every CLI option has a corresponding environment variable unless its CLI
+reference entry says **CLI only**. The option's exact variable is shown in the
+CLI reference; by default, names use `ROTARI_<COMMAND>_<OPTION>` with uppercase
+letters and hyphens converted to underscores. Shared options may keep a
+documented variable name used across commands.
+
 For options available from the CLI, environment, and configuration, values are
 resolved in this order: explicit CLI value, environment variable, configuration
 values, then built-in default. Ordinary files merge global → cwd workspace →
@@ -82,5 +88,85 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_WEB_NOTIFICATIONS` | yes | no | no | --notifications default for web. |
 | `ROTARI_WEBHOOK_URL` | no | no | no | Webhook URL; overrides webhook.url in notifications.toml. |
 | `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |
+| `ROTARI_CONFIG_LIST` | yes | no | no | Default for rotari config --list. |
+| `ROTARI_CONFIG_FORMAT` | yes | no | no | Default for rotari config --format. |
+| `ROTARI_CONFIG_OUTPUT` | yes | no | no | Default for rotari config --output. |
+| `ROTARI_CHECK_JSON` | yes | no | no | Default for rotari check --json. |
+| `ROTARI_CHECK_DEEP` | yes | no | no | Default for rotari check --deep. |
+| `ROTARI_CANCEL_STAGE` | yes | no | no | Default for rotari cancel --stage. |
+| `ROTARI_CANCEL_MATRIX` | yes | no | no | Default for rotari cancel --matrix. |
+| `ROTARI_CANCEL_WAIT` | yes | no | no | Default for rotari cancel --wait. |
+| `ROTARI_SUSPEND_STAGE` | yes | no | no | Default for rotari suspend --stage. |
+| `ROTARI_SUSPEND_MATRIX` | yes | no | no | Default for rotari suspend --matrix. |
+| `ROTARI_RESUME_STAGE` | yes | no | no | Default for rotari resume --stage. |
+| `ROTARI_RESUME_MATRIX` | yes | no | no | Default for rotari resume --matrix. |
+| `ROTARI_CHANGE_STAGE` | yes | no | no | Default for rotari change --stage. |
+| `ROTARI_CHANGE_MATRIX` | yes | no | no | Default for rotari change --matrix. |
+| `ROTARI_CHANGE_CLEAR_EXECUTOR_OPTIONS` | yes | no | no | Default for rotari change --clear-executor-options. |
+| `ROTARI_CHANGE_WORKING_DIRECTORY` | yes | no | no | Default for rotari change --working-directory. |
+| `ROTARI_CHANGE_CLEAR_WORKING_DIRECTORY` | yes | no | no | Default for rotari change --clear-working-directory. |
+| `ROTARI_CHANGE_ENV` | yes | no | no | Default for rotari change --env. |
+| `ROTARI_CHANGE_CLEAR_ENV` | yes | no | no | Default for rotari change --clear-env. |
+| `ROTARI_CHANGE_SET_JOB_NAME` | yes | no | no | Default for rotari change --set-job-name. |
+| `ROTARI_CHANGE_DEPENDS_ON` | yes | no | no | Default for rotari change --depends-on. |
+| `ROTARI_CHANGE_CLEAR_DEPENDS_ON` | yes | no | no | Default for rotari change --clear-depends-on. |
+| `ROTARI_CHANGE_DEPENDS_ON_FINISHED` | yes | no | no | Default for rotari change --depends-on-finished. |
+| `ROTARI_CHANGE_CLEAR_DEPENDS_ON_FINISHED` | yes | no | no | Default for rotari change --clear-depends-on-finished. |
+| `ROTARI_CHANGE_CLEAR_ARTIFACTS` | yes | no | no | Default for rotari change --clear-artifacts. |
+| `ROTARI_CHANGE_CLEAR_TIMEOUT` | yes | no | no | Default for rotari change --clear-timeout. |
+| `ROTARI_CHANGE_CLEAR_RETRY` | yes | no | no | Default for rotari change --clear-retry. |
+| `ROTARI_CHANGE_RETRY_DELAY` | yes | no | no | Default for rotari change --retry-delay. |
+| `ROTARI_CHANGE_RETRY_BACKOFF` | yes | no | no | Default for rotari change --retry-backoff. |
+| `ROTARI_CHANGE_RETRY_MAX_DELAY` | yes | no | no | Default for rotari change --retry-max-delay. |
+| `ROTARI_CHANGE_CLEAR_STATUS` | yes | no | no | Default for rotari change --clear-status. |
+| `ROTARI_EXPORT_FORMAT` | yes | no | no | Default for rotari export --format. |
+| `ROTARI_EXPORT_TEMPLATE` | yes | no | no | Default for rotari export --template. |
+| `ROTARI_IMPORT_OVERWRITE` | yes | no | no | Default for rotari import --overwrite. |
+| `ROTARI_IMPORT_JSON` | yes | no | no | Default for rotari import --json. |
+| `ROTARI_REMOVE_STAGE` | yes | no | no | Default for rotari remove --stage. |
+| `ROTARI_REMOVE_MATRIX` | yes | no | no | Default for rotari remove --matrix. |
+| `ROTARI_RUNS_SINCE` | yes | no | no | Default for rotari runs --since. |
+| `ROTARI_SHOW_QUEUE` | yes | no | no | Default for rotari show --queue. |
+| `ROTARI_SHOW_FAILED` | yes | no | no | Default for rotari show --failed. |
+| `ROTARI_SHOW_UNFINISHED` | yes | no | no | Default for rotari show --unfinished. |
+| `ROTARI_SHOW_SUCCESS` | yes | no | no | Default for rotari show --success. |
+| `ROTARI_SHOW_STAGE` | yes | no | no | Default for rotari show --stage. |
+| `ROTARI_SHOW_MATRIX` | yes | no | no | Default for rotari show --matrix. |
+| `ROTARI_SHOW_LOGS` | yes | no | no | Default for rotari show --logs. |
+| `ROTARI_SHOW_FAILED_LOGS` | yes | no | no | Default for rotari show --failed-logs. |
+| `ROTARI_SHOW_STREAM` | yes | no | no | Default for rotari show --stream. |
+| `ROTARI_SHOW_FOLLOW` | yes | no | no | Default for rotari show --follow. |
+| `ROTARI_SHOW_NO_PAGER` | yes | no | no | Default for rotari show --no-pager. |
+| `ROTARI_SHOW_JSON` | yes | no | no | Default for rotari show --json. |
+| `ROTARI_SHOW_REPORT` | yes | no | no | Default for rotari show --report. |
+| `ROTARI_SHOW_ARTIFACTS` | yes | no | no | Default for rotari show --artifacts. |
+| `ROTARI_LINEAGE_JSON` | yes | no | no | Default for rotari lineage --json. |
+| `ROTARI_JOBS_FORMAT` | yes | no | no | Default for rotari jobs --format. |
+| `ROTARI_JOBS_SINCE` | yes | no | no | Default for rotari jobs --since. |
+| `ROTARI_WAIT_UNTIL_FAILURE` | yes | no | no | Default for rotari wait --until-failure. |
+| `ROTARI_WAIT_JSON` | yes | no | no | Default for rotari wait --json. |
+| `ROTARI_WAIT_QUIET` | yes | no | no | Default for rotari wait --quiet. |
+| `ROTARI_ADD_WORKING_DIRECTORY` | yes | no | no | Default for rotari add --working-directory. |
+| `ROTARI_ADD_ENV` | yes | no | no | Default for rotari add --env. |
+| `ROTARI_ADD_STAGE` | yes | no | no | Default for rotari add --stage. |
+| `ROTARI_ADD_DEPENDS_ON` | yes | no | no | Default for rotari add --depends-on. |
+| `ROTARI_ADD_DEPENDS_ON_FINISHED` | yes | no | no | Default for rotari add --depends-on-finished. |
+| `ROTARI_ADD_RETRY_DELAY` | yes | no | no | Default for rotari add --retry-delay. |
+| `ROTARI_ADD_RETRY_BACKOFF` | yes | no | no | Default for rotari add --retry-backoff. |
+| `ROTARI_ADD_RETRY_MAX_DELAY` | yes | no | no | Default for rotari add --retry-max-delay. |
+| `ROTARI_ADD_MATRIX` | yes | no | no | Default for rotari add --matrix. |
+| `ROTARI_COPY_FAILED` | yes | no | no | Default for rotari copy --failed. |
+| `ROTARI_COPY_UNFINISHED` | yes | no | no | Default for rotari copy --unfinished. |
+| `ROTARI_COPY_SUCCESS` | yes | no | no | Default for rotari copy --success. |
+| `ROTARI_COPY_STAGE` | yes | no | no | Default for rotari copy --stage. |
+| `ROTARI_COPY_MATRIX` | yes | no | no | Default for rotari copy --matrix. |
+| `ROTARI_COPY_APPEND` | yes | no | no | Default for rotari copy --append. |
+| `ROTARI_COPY_OVERWRITE` | yes | no | no | Default for rotari copy --overwrite. |
+| `ROTARI_RUN_FAILED` | yes | no | no | Default for rotari run --failed. |
+| `ROTARI_RUN_UNFINISHED` | yes | no | no | Default for rotari run --unfinished. |
+| `ROTARI_RUN_SUCCESS` | yes | no | no | Default for rotari run --success. |
+| `ROTARI_RUN_STAGE` | yes | no | no | Default for rotari run --stage. |
+| `ROTARI_RUN_MATRIX` | yes | no | no | Default for rotari run --matrix. |
+| `ROTARI_RUN_PARTIAL_ARRAY` | yes | no | no | Default for rotari run --partial-array. |
 
 <!-- END GENERATED ENVIRONMENT REFERENCE -->

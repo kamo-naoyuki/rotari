@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -85,17 +87,22 @@ func TestWaitProgressModes(t *testing.T) {
 			}
 			switch mode {
 			case "text":
-				for _, want := range []string{"=== Run started ===", "Job running:", "progress: 1/2 succeeded=1 failed=0", "Retrying job", "Job failed:"} {
-					if !strings.Contains(string(stdout), want) {
-						t.Errorf("missing %q: %s", want, stdout)
+				output := string(stdout)
+				if !strings.Contains(output, "=== Run attached ===") || !strings.Contains(output, "progress: 1/2 succeeded=1 failed=0") {
+					t.Fatalf("wait did not show its current snapshot: %s", output)
+				}
+				for _, old := range []string{"=== Run started ===", "Job running:", "Retrying", "Job failed:"} {
+					if strings.Contains(output, old) {
+						t.Fatalf("wait replayed prior event %q: %s", old, output)
 					}
 				}
-				if strings.Contains(string(stdout), "Ctrl-C to cancel") || strings.Contains(string(stdout), "Ctrl-D") {
-					t.Fatalf("wait printed synchronous controls: %s", stdout)
-				}
 			case "quiet":
-				if !strings.Contains(string(stdout), "Job failed:") || strings.Contains(string(stdout), "progress:") || strings.Contains(string(stdout), "Run started") || strings.Contains(string(stdout), "Retrying") || strings.Contains(string(stdout), "Job running") {
-					t.Fatalf("quiet progress = %s", stdout)
+				if len(stdout) != 0 {
+					t.Fatalf("quiet wait printed attachment progress: %s", stdout)
+				}
+			case "absent":
+				if string(stdout) != "=== Run attached ===\nPress Ctrl-D to stop waiting; Ctrl-C to cancel the run.\n" {
+					t.Fatalf("wait without a journal should only mark the attachment: %s", stdout)
 				}
 			default:
 				if len(stdout) != 0 {
@@ -135,6 +142,42 @@ func TestWaitQuietCompletedResult(t *testing.T) {
 	}
 }
 
+func TestWaitDetachStopsWaitingButKeepsRunActive(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	useInProcessSupervisor(t)
+	baseDir := t.TempDir()
+	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--", "sh", "-c", "sleep 30"}); code != 0 {
+		t.Fatalf("cmdAdd exit = %d", code)
+	}
+	if code := cmdRun([]string{"--basedir", baseDir, "--project-name", "demo", "--async", "--quiet"}); code != 0 {
+		t.Fatalf("cmdRun exit = %d", code)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := resolve.Run{BaseDir: baseDir, ProjectName: "demo", RunID: lock.RunID}
+	defer cancelWaitTarget(target, &waitOutput{})
+	for _, quiet := range []bool{false, true} {
+		detach := make(chan struct{}, 1)
+		detach <- struct{}{}
+		code, output := captureWorkflowStdout(t, func() int {
+			return waitTargetsWithControl([]resolve.Run{target}, time.Time{}, false, false, quiet, nil, detach)
+		})
+		if code != 0 || !quiet && !strings.Contains(string(output), "Stopped waiting; runs continue in the background.") || quiet && len(output) != 0 {
+			t.Fatalf("detach quiet=%t result = %d, %s", quiet, code, output)
+		}
+	}
+	phase, err := project.RunPhaseOf(paths, lock.RunID)
+	if err != nil || phase != project.RunPhaseRunning {
+		t.Fatalf("Ctrl-D stopped run: phase=%s, err=%v", phase, err)
+	}
+}
+
 func TestWaitProgressCursorRecovery(t *testing.T) {
 	runDir := t.TempDir()
 	path := filepath.Join(runDir, state.ProgressFileName)
@@ -148,7 +191,7 @@ func TestWaitProgressCursorRecovery(t *testing.T) {
 	var stdout []byte
 	code, stderr := captureStderr(t, func() int {
 		result, output := captureWorkflowStdout(t, func() int {
-			if err := readWaitProgress(&cursor, runDir, &printer); err != nil {
+			if err := readWaitProgress(&cursor, runDir, &printer, &waitOutput{}); err != nil {
 				t.Error(err)
 				return 1
 			}
@@ -171,7 +214,7 @@ func TestWaitProgressCursorRecovery(t *testing.T) {
 	}
 	_, output := captureWorkflowStdout(t, func() int {
 		for range 2 {
-			if err := readWaitProgress(&cursor, runDir, &printer); err != nil {
+			if err := readWaitProgress(&cursor, runDir, &printer, &waitOutput{}); err != nil {
 				t.Error(err)
 			}
 		}
@@ -262,11 +305,11 @@ func TestWaitProgressReadFailureFallback(t *testing.T) {
 				t.Fatalf("expected one journal warning: %s", stderr.String())
 			}
 			if completed {
-				if result.exitCode != 7 || result.timedOut || string(stdout) != formatRunCompletion(paths, "run-1", summary) {
+				if result.exitCode != 7 || result.timedOut || string(stdout) != "=== Run attached ===\nPress Ctrl-D to stop waiting; Ctrl-C to cancel the run.\n"+formatRunCompletion(paths, "run-1", summary) {
 					t.Fatalf("summary fallback = %+v; %s; %s", result, stdout, stderr.String())
 				}
 			} else {
-				if result.exitCode != 1 || !result.timedOut || !strings.Contains(stderr.String(), "timed out waiting") || len(stdout) != 0 {
+				if result.exitCode != 1 || !result.timedOut || !strings.Contains(stderr.String(), "timed out waiting") || string(stdout) != "=== Run attached ===\nPress Ctrl-D to stop waiting; Ctrl-C to cancel the run.\n" {
 					t.Fatalf("timeout fallback = %+v; %s; %s", result, stdout, stderr.String())
 				}
 				if _, err := os.Stat(paths.LockFile); err != nil {

@@ -75,7 +75,9 @@ func executeProgressTestRun(t *testing.T, ops Operations, request server.Request
 	if request.Async {
 		done := make(chan struct{})
 		id, message, err := ops.StartRun(request, func() { close(done) })
-		if err != nil || id != "run-1" || !strings.Contains(message, "Wait for it:") {
+		if err != nil || id != "run-1" || !strings.Contains(message, "Wait for it:\n  rotari wait -r run-1") ||
+			!strings.Contains(message, "Check status:\n  rotari show -r run-1") ||
+			!strings.Contains(message, "Cancel run:\n  rotari cancel -p demo run-1") || strings.Contains(message, "--basedir") || strings.Contains(message, "--project-name") {
 			t.Fatalf("StartRun = %q, %q, %v", id, message, err)
 		}
 		select {
@@ -125,7 +127,7 @@ func assertProgressTestEvents(t *testing.T, events []server.Response) {
 	if len(events) != 8 {
 		t.Fatalf("events = %d: %+v", len(events), events)
 	}
-	wantStart := server.Response{Progress: true, Message: "=== Run started ===\n  Project: demo\n  Run ID: run-1\n  Submitted: 2\n  Excluded: 0\n  Total: 2"}
+	wantStart := server.Response{Progress: true, Total: 2, Message: "=== Run started ===\n  Project: demo\n  Run ID: run-1\n  Submitted: 2\n  Excluded: 0\n  Total: 2"}
 	if events[0] != wantStart {
 		t.Fatalf("start = %+v, want %+v", events[0], wantStart)
 	}

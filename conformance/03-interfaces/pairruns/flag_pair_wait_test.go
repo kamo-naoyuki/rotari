@@ -166,7 +166,7 @@ func TestCLIFlagPairWaitJSONAndEarlyFailure(t *testing.T) {
 	started := time.Now()
 	timedOut := pairInvoke(t, waitEnv, "wait", "--config", f.Config, "--run-id", f.Run, "--timeout", "1s")
 	elapsed := time.Since(started)
-	if timedOut.Code != 1 || !strings.Contains(timedOut.Stderr, "timed out waiting for run "+f.Run) || !strings.Contains(timedOut.Stdout, "=== Run started ===") || strings.Contains(timedOut.Stdout, "=== Run failed ===") || elapsed < time.Second || elapsed >= 5*time.Second {
+	if timedOut.Code != 1 || !strings.Contains(timedOut.Stderr, "timed out waiting for run "+f.Run) || !strings.Contains(timedOut.Stdout, "=== Run attached ===") || strings.Contains(timedOut.Stdout, "=== Run started ===") || strings.Contains(timedOut.Stdout, "=== Run failed ===") || elapsed < time.Second || elapsed >= 5*time.Second {
 		t.Fatalf("--timeout did not bound the wait as requested (elapsed %s): %s", elapsed, timedOut)
 	}
 	assertPairWaitStateUnchanged(t, f, before)

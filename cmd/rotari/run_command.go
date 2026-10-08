@@ -373,10 +373,12 @@ func watchDetach(input io.Reader, detach chan<- struct{}) {
 type runProgressPrinter struct {
 	quiet                                    bool
 	controlHint                              string
+	output                                   io.Writer
 	lastCompleted, lastSucceeded, lastFailed int
 }
 
 func (printer *runProgressPrinter) print(response serverinternal.Response) {
+	var message strings.Builder
 	if printer.quiet && !strings.HasPrefix(response.Message, "Job failed") {
 		return
 	}
@@ -384,27 +386,32 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 		if response.Completed == printer.lastCompleted && response.Succeeded == printer.lastSucceeded && response.Failed == printer.lastFailed {
 			return
 		}
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("progress: %d/%d succeeded=%d failed=%d", response.Completed, response.Total, response.Succeeded, response.Failed), cyan))
+		fmt.Fprintf(&message, "%s\n", colorKeyValueMessage(fmt.Sprintf("progress: %d/%d succeeded=%d failed=%d", response.Completed, response.Total, response.Succeeded, response.Failed), cyan))
 		printer.lastCompleted, printer.lastSucceeded, printer.lastFailed = response.Completed, response.Succeeded, response.Failed
-		return
-	}
-	switch {
-	case strings.HasPrefix(response.Message, "Job failed"):
-		title, details, _ := strings.Cut(response.Message, "\n")
-		fmt.Printf("%s\n%s\n", red(title), colorLabeledDetails(details, true))
-	case strings.HasPrefix(response.Message, "Retrying job"):
-		fmt.Printf("%s\n", colorKeyValueMessage(response.Message, yellow))
-	case strings.HasPrefix(response.Message, "=== Run started ==="):
-		fmt.Printf("%s\n", colorMessage(response.Message))
-		if printer.controlHint != "" {
-			fmt.Println(cyan(printer.controlHint))
+	} else {
+		switch {
+		case strings.HasPrefix(response.Message, "Job failed"):
+			title, details, _ := strings.Cut(response.Message, "\n")
+			fmt.Fprintf(&message, "%s\n%s\n", red(title), colorLabeledDetails(details, true))
+		case strings.HasPrefix(response.Message, "Retrying job"):
+			fmt.Fprintf(&message, "%s\n", colorKeyValueMessage(response.Message, yellow))
+		case strings.HasPrefix(response.Message, "=== Run started ==="):
+			fmt.Fprintf(&message, "%s\n", colorMessage(response.Message))
+			if printer.controlHint != "" {
+				fmt.Fprintf(&message, "%s\n", cyan(printer.controlHint))
+			}
+		case strings.HasPrefix(response.Message, "Job running:"):
+			title, details, _ := strings.Cut(response.Message, "\n")
+			fmt.Fprintf(&message, "%s\n%s\n", cyan(title), colorLabeledDetails(details, false))
+		default:
+			fmt.Fprintf(&message, "%s\n", yellow(response.Message))
 		}
-	case strings.HasPrefix(response.Message, "Job running:"):
-		title, details, _ := strings.Cut(response.Message, "\n")
-		fmt.Printf("%s\n%s\n", cyan(title), colorLabeledDetails(details, false))
-	default:
-		fmt.Printf("%s\n", yellow(response.Message))
 	}
+	output := printer.output
+	if output == nil {
+		output = os.Stdout
+	}
+	_, _ = output.Write([]byte(message.String()))
 }
 
 // previewRun prints what a run of the project would execute, planned with

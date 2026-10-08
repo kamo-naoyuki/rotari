@@ -37,9 +37,8 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
-	target := fmt.Sprintf("--basedir %s --project-name %s", executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(request.QueueName))
-	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait %s --run-id %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel %s %s\n",
-		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, target, started.runID, started.runID, target, started.runID)
+	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait -r %s\n\nCheck status:\n  rotari show -r %s\n\nCancel run:\n  rotari cancel -p %s %s\n",
+		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, started.runID, request.QueueName, started.runID)
 	return started.runID, message + sourceNotice(started), nil
 }
 
@@ -295,7 +294,7 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 			progress(response)
 		}
 	}
-	emit(server.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
+	emit(server.Response{Progress: true, Total: started.submitted, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
 	return runObserver(request, started.runID, emit)
 }
 

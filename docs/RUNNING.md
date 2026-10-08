@@ -138,22 +138,31 @@ environment variables for that run. The default `--env=ALL` propagates them;
 job `--env` values and rotari metadata still apply in either mode.
 
 The async start message prints commands for checking status and cancelling the
-run. When started while the run is active, `wait` shows the same persisted
-run-start, job-start, retry, failure, and progress-count messages as a
-synchronous `run`, including events recorded before `wait` attached. It drains
-the final events before printing the same completion message as `run` and
-returns the overall run exit code. A run already finished when `wait` starts
-prints only its completion message, without replaying progress. Older runs
-without a progress journal remain waitable, but have no live progress.
+run. While the run is active, `wait` shows new job-start, retry, failure, and
+progress-count messages emitted after it attaches, using the same renderer as
+synchronous `run`. On attach it prints `=== Run attached ===` and a single
+progress-count line with the current snapshot; it does not replay earlier
+events. Before returning, it drains any remaining new events, prints the same
+completion message as `run`, and returns the overall run exit code. A run
+already finished when `wait` starts prints only its completion message. Older
+runs without a progress journal remain waitable, but have no progress snapshot.
+
+Multiple selected runs are monitored concurrently. Their text events use a
+`[PROJECT/…ID]` label; only the label receives a run-specific blue/purple color,
+with distinct colors while the eight-color palette permits. Single-run waits
+have no label. Multiline events remain together, and JSON results remain
+unlabelled and in selector order.
 
 `wait --quiet` suppresses normal progress and completion output, but retains
 job-failure diagnostics, early-failure reports, errors, and timeouts. It uses
 the usual quiet default from `ROTARI_QUIET` and configuration (`quiet` or
 `wait.quiet`); an explicit CLI value overrides those defaults. `wait --json`
 prints only the JSON result on stdout, never text progress; `--quiet` does not
-suppress that result. Ending or interrupting `wait`, reaching its timeout, or
-returning on `--until-failure` does not cancel the run. Use `rotari cancel`
-to stop it; the synchronous run's Ctrl-D/Ctrl-C controls do not apply to `wait`.
+suppress that result. While attached, Ctrl-D stops waiting and leaves the run
+running; Ctrl-C requests cancellation of the run and exits with status 130.
+With multiple selectors, Ctrl-C requests cancellation of each selected run
+still active. Reaching `--timeout` or returning on `--until-failure` does not
+cancel a run; use `rotari cancel` to stop it explicitly.
 
 Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a

@@ -28,10 +28,13 @@ def render_flag(flag: dict[str, object]) -> str:
     if flag.get("short"):
         option = f"`-{flag['short']}` / {option}"
     description = str(flag.get("description", ""))
+    environment = str(flag.get("environment", ""))
+    if flag.get("command_line_only"):
+        environment = "CLI only"
     if flag.get("values"):
         description += f" (choices: {', '.join(flag['values'])})"
     description = description.replace("|", "\\|")
-    return f"| {option} | `{value}` | `{flag.get('environment', '')}` | {description} |"
+    return f"| {option} | `{value}` | `{environment}` | {description} |"
 
 
 def render_command(command: dict[str, object]) -> list[str]:

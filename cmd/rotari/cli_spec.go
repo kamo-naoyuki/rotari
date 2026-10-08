@@ -148,7 +148,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "stage", Description: "cancel the unfinished jobs of this stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "cancel the unfinished jobs of this matrix", ValueName: "NAME"},
 			cliFlagSpec{Name: "wait", Description: "wait until cancellation is complete"},
-			cliFlagSpec{Name: "yes", Description: "cancel the jobs that filters select without asking"},
+			cliFlagSpec{Name: "yes", Description: "cancel the jobs that filters select without asking", CommandLineOnly: true},
 		), jobControlFilterSpecs(cancelStates)...),
 		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
@@ -160,7 +160,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "suspend the running jobs with this name; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "suspend the running jobs of this stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "suspend the running jobs of this matrix", ValueName: "NAME"},
-			cliFlagSpec{Name: "yes", Description: "suspend the jobs that filters select without asking"},
+			cliFlagSpec{Name: "yes", Description: "suspend the jobs that filters select without asking", CommandLineOnly: true},
 		), jobControlFilterSpecs(signalStates)...),
 		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
@@ -172,7 +172,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "resume the suspended jobs with this name; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "resume the suspended jobs of this stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "resume the suspended jobs of this matrix", ValueName: "NAME"},
-			cliFlagSpec{Name: "yes", Description: "resume the jobs that filters select without asking"},
+			cliFlagSpec{Name: "yes", Description: "resume the jobs that filters select without asking", CommandLineOnly: true},
 		), jobControlFilterSpecs(signalStates)...),
 		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
@@ -453,7 +453,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "schema",
 		Description: "print the CLI schema as JSON",
-		Flags:       []cliFlagSpec{{Name: "json", Description: "print the schema as JSON"}},
+		Flags:       []cliFlagSpec{{Name: "json", Description: "print the schema as JSON", CommandLineOnly: true}},
 	},
 	{
 		Name:        "guide",
@@ -708,7 +708,7 @@ func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
 		if short := cliShortFlagNames[flagSpec.Name]; short != "" {
 			option += ", -" + short
 		}
-		description := cliFlagDescription(flagSpec)
+		description := cliFlagDescriptionFor(name, flagSpec)
 		// Some descriptions state their default, which the generated
 		// references show; do not repeat it.
 		if defaultValue := helpDefault(fs, flagSpec.Name); defaultValue != "" && !strings.Contains(description, "(default ") {
@@ -722,7 +722,7 @@ func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
 	if len(executorKinds) > 0 {
 		builder.WriteString("\nExecutor options, each for the executor it names:\n")
 		for _, kind := range executorKinds {
-			writeExecutorOptions(&builder, kind, executorOptions[kind])
+			writeExecutorOptions(&builder, name, kind, executorOptions[kind])
 		}
 	}
 	if filters.Len() > 0 {
@@ -799,12 +799,12 @@ func executorOptionKind(name string) (kind, executorName string) {
 // name on one line, then the shared description. An environment variable or
 // default shared by the options is shown once, with <EXECUTOR> standing for
 // the executor in the variable's name.
-func writeExecutorOptions(builder *strings.Builder, kind string, options []executorOption) {
+func writeExecutorOptions(builder *strings.Builder, command, kind string, options []executorOption) {
 	names := make([]string, 0, len(options))
 	var environment, defaults, assignments []string
 	for _, option := range options {
 		names = append(names, "--"+option.spec.Name)
-		if envName := cliEnvironmentVariable(option.spec.Name); envName != "" && !option.spec.CommandLineOnly {
+		if envName := cliCommandEnvironmentVariable(command, option.spec.Name); envName != "" && !option.spec.CommandLineOnly {
 			environment = append(environment, strings.Replace(envName, "_"+strings.ToUpper(option.executor)+"_", "_<EXECUTOR>_", 1))
 		}
 		defaults = append(defaults, option.defaultValue)
@@ -896,7 +896,7 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 			defaultValue = configString(name, defaultValue)
 		}
 		if !ignoreImplicitLocation {
-			if envName := cliEnvironmentVariable(name); envName != "" {
+			if envName := cliCommandEnvironmentVariable(fs.Name(), name); envName != "" {
 				if value, ok := os.LookupEnv(envName); ok {
 					defaultValue = value
 				}
@@ -905,7 +905,7 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	}
 	target := new(string)
 	*target = defaultValue
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	if len(spec.Values) > 0 {
 		value := &cliChoiceValue{target: target, choices: spec.Values}
 		fs.Var(value, spec.Name, description)
@@ -1078,26 +1078,47 @@ func (value *cliChoiceValue) Set(candidate string) error {
 }
 
 func cliFlagDescription(spec cliFlagSpec) string {
+	return cliFlagDescriptionFor(cliConfigCommand, spec)
+}
+
+func cliFlagDescriptionFor(command string, spec cliFlagSpec) string {
 	description := spec.Description
 	if len(spec.Values) > 0 {
 		description += " (choices: " + strings.Join(spec.Values, ", ") + ")"
 	}
-	if envName := cliEnvironmentVariable(spec.Name); envName != "" && !spec.CommandLineOnly {
+	if envName := cliCommandEnvironmentVariable(command, spec.Name); envName != "" && !spec.CommandLineOnly {
 		description += " (env: " + envName + ")"
 		if spec.Name == "quiet" {
-			description += " (command env: ROTARI_<COMMAND>_QUIET)"
+			description += " (also ROTARI_QUIET)"
 		}
 	}
 	return description
 }
 
-func cliEnvironmentVariable(name string) string {
-	return cliEnvironmentVariables[name]
+// cliCommandEnvironmentVariable preserves explicit shared/legacy names and
+// derives ROTARI_<COMMAND>_<OPTION> for every other CLI-default option.
+func cliCommandEnvironmentVariable(command, name string) string {
+	if name == "quiet" && command != "" {
+		if command == "retry" {
+			command = "run" // retry parses the shared run flag set.
+		}
+		return commandQuietEnvironmentVariable(command)
+	}
+	if environment, ok := cliEnvironmentVariables[name]; ok {
+		return environment
+	}
+	if command == "" {
+		return ""
+	}
+	if command == "retry" {
+		command = "run" // retry parses the shared run flag set.
+	}
+	return "ROTARI_" + strings.ToUpper(strings.ReplaceAll(command, "-", "_")) + "_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
 }
 
 func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 	spec := cliCommandFlag(fs.Name(), name)
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	fs.StringVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.StringVar(target, short, defaultValue, description+" (shorthand)")
@@ -1106,9 +1127,9 @@ func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 
 func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 	spec := cliCommandFlag(fs.Name(), name)
-	environmentNames := []string{cliEnvironmentVariable(name)}
+	environmentNames := []string{cliCommandEnvironmentVariable(fs.Name(), name)}
 	if name == "quiet" {
-		environmentNames = []string{envQuiet, commandQuietEnvironmentVariable(fs.Name())}
+		environmentNames = []string{envQuiet, cliCommandEnvironmentVariable(fs.Name(), name)}
 	}
 	if spec.CommandLineOnly {
 		environmentNames = nil
@@ -1123,7 +1144,7 @@ func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 		}
 	}
 	target := new(bool)
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	fs.BoolVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.BoolVar(target, short, defaultValue, description+" (shorthand)")
@@ -1139,14 +1160,14 @@ func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 	spec := cliCommandFlag(fs.Name(), name)
 	if !spec.CommandLineOnly {
 		defaultValue = configInt(name, defaultValue)
-		if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
+		if value, ok := os.LookupEnv(cliCommandEnvironmentVariable(fs.Name(), name)); ok {
 			if parsed, err := strconv.Atoi(value); err == nil {
 				defaultValue = parsed
 			}
 		}
 	}
 	target := new(int)
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	fs.IntVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.IntVar(target, short, defaultValue, description+" (shorthand)")
@@ -1158,7 +1179,7 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 	spec := cliCommandFlag(fs.Name(), name)
 	if spec.CommandLineOnly {
 		target := new(time.Duration)
-		fs.DurationVar(target, spec.Name, defaultValue, cliFlagDescription(spec))
+		fs.DurationVar(target, spec.Name, defaultValue, cliFlagDescriptionFor(fs.Name(), spec))
 		return target
 	}
 	if value, ok := configValue(name); ok {
@@ -1166,7 +1187,7 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 			defaultValue = parsed
 		}
 	}
-	if envName := cliEnvironmentVariable(name); envName != "" {
+	if envName := cliCommandEnvironmentVariable(fs.Name(), name); envName != "" {
 		if value, ok := os.LookupEnv(envName); ok {
 			if parsed, err := time.ParseDuration(value); err == nil {
 				defaultValue = parsed
@@ -1174,7 +1195,7 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 		}
 	}
 	target := new(time.Duration)
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	fs.DurationVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.DurationVar(target, short, defaultValue, description+" (shorthand)")
@@ -1189,7 +1210,7 @@ func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
 			_ = target.Set(value)
 		}
 	}
-	if envName := cliEnvironmentVariable(name); envName != "" && !spec.CommandLineOnly {
+	if envName := cliCommandEnvironmentVariable(fs.Name(), name); envName != "" && !spec.CommandLineOnly {
 		value, exists := os.LookupEnv(envName)
 		if exists && value != "" {
 			if resettable, ok := target.(interface{ Reset() }); ok {
@@ -1198,7 +1219,7 @@ func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
 			_ = target.Set(value)
 		}
 	}
-	description := cliFlagDescription(spec)
+	description := cliFlagDescriptionFor(fs.Name(), spec)
 	fs.Var(target, spec.Name, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.Var(target, short, description+" (shorthand)")

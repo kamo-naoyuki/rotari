@@ -57,6 +57,71 @@ func TestProgressJournalIncrementalRead(t *testing.T) {
 	assertProgressRead(t, &replay, runDir, []model.ProgressEvent{first, second})
 }
 
+func TestProgressCursorSkipsExistingEvents(t *testing.T) {
+	runDir := t.TempDir()
+	journal, err := NewProgressJournal(runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldEvent := model.ProgressEvent{Progress: true, Completed: 1, Total: 3, Succeeded: 1}
+	if err := journal.Append(oldEvent); err != nil {
+		t.Fatal(err)
+	}
+	var cursor ProgressCursor
+	if snapshot, ok, err := cursor.SkipExisting(runDir); err != nil || !ok || snapshot.Completed != 1 || snapshot.Total != 3 || snapshot.Succeeded != 1 || snapshot.Failed != 0 {
+		t.Fatalf("SkipExisting snapshot = %+v, %t, %v", snapshot, ok, err)
+	}
+	assertProgressRead(t, &cursor, runDir, nil)
+	newEvent := model.ProgressEvent{Progress: true, Message: "happened after attach"}
+	if err := journal.Append(newEvent); err != nil {
+		t.Fatal(err)
+	}
+	assertProgressRead(t, &cursor, runDir, []model.ProgressEvent{newEvent})
+}
+
+func TestProgressCursorSkipsCompleteLinesButKeepsPartialTail(t *testing.T) {
+	runDir := t.TempDir()
+	journal, err := NewProgressJournal(runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldEvent := model.ProgressEvent{Progress: true, Message: "old"}
+	if err := journal.Append(oldEvent); err != nil {
+		t.Fatal(err)
+	}
+	partialEvent := model.ProgressEvent{Progress: true, Message: "in flight at attach"}
+	partial, err := json.Marshal(partialEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.OpenFile(filepath.Join(runDir, ProgressFileName), os.O_APPEND|os.O_WRONLY, FileMode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write(partial); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var cursor ProgressCursor
+	if snapshot, ok, err := cursor.SkipExisting(runDir); err != nil || ok {
+		t.Fatalf("partial event became a snapshot: %+v, %t, %v", snapshot, ok, err)
+	}
+	assertProgressRead(t, &cursor, runDir, nil)
+	file, err = os.OpenFile(filepath.Join(runDir, ProgressFileName), os.O_APPEND|os.O_WRONLY, FileMode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write([]byte("\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assertProgressRead(t, &cursor, runDir, []model.ProgressEvent{partialEvent})
+}
+
 func assertProgressRead(t *testing.T, cursor *ProgressCursor, runDir string, want []model.ProgressEvent) {
 	t.Helper()
 	if got, err := cursor.Read(runDir); err != nil || !reflect.DeepEqual(got, want) {

@@ -215,6 +215,7 @@ the IDs, this table, and those calls disagree.
 | CLI-17 | Command help survives configuration errors with a warning, without bypassing configuration errors for execution | conformance | `TestCommandHelpSurvivesConfigurationErrors`, `TestConfigurationErrorsStillPreventExecution` |
 | CLI-18 | `add` warns on duplicate fingerprints involving added units, including quiet and dry-run, without rejecting the jobs | conformance | `TestAddWarnsOnDuplicateFingerprints` |
 | CLI-19 | Active text `wait` shares run progress rendering and drains final events; finished/old runs stay compatible, quiet keeps diagnostics, JSON stays pure, and ending wait never cancels | partial | `TestWaitLiveProgress`, `TestWaitQuietAndJSON`, `TestWaitInterruptDoesNotCancelRun` |
+| CLI-20 | Every command option maps to a CLI-default environment variable unless explicitly command-line-only | conformance | `TestCLIFlagEnvironmentCoverage` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |

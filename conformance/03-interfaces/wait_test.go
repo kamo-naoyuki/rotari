@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -57,16 +58,22 @@ func TestWaitLiveProgress(t *testing.T) {
 	covers(t, "CLI-19")
 	e := support.NewEnv(t)
 	project := "live-progress"
-	gate := filepath.Join(e.Root, "release")
+	gateFirst := filepath.Join(e.Root, "release-first")
+	gateSecond := filepath.Join(e.Root, "release-second")
 	t.Cleanup(func() {
-		_ = os.WriteFile(gate, nil, 0o600)
+		_ = os.WriteFile(gateFirst, nil, 0o600)
+		_ = os.WriteFile(gateSecond, nil, 0o600)
 		_ = e.Rotari("cancel", "-p", project, "--wait")
 	})
-	// The second attempt cannot finish until wait has visibly reported a
-	// job start. This proves live output, not just a replay after completion.
+	// The first attempt is already running when wait attaches and must not be
+	// replayed. The retry starts afterward, so its progress must be visible live.
 	e.MustRotari("add", "-p", project, "--", "sh", "-c",
-		"if [ ! -f attempted ]; then touch attempted; exit 7; fi; while [ ! -f release ]; do sleep 0.05; done")
+		"if [ ! -f attempted ]; then touch attempted; while [ ! -f release-first ]; do sleep 0.05; done; exit 7; fi; while [ ! -f release-second ]; do sleep 0.05; done")
 	e.MustRotari("run", "-p", project, "--async", "--quiet", "--retry", "1")
+	support.WaitUntil(t, 10*time.Second, func() (bool, string) {
+		jobs := e.MustRotari("jobs", "--basedir", e.Base, project, "--since", "0").Stdout
+		return strings.Contains(jobs, "running"), jobs
+	})
 	cmd := e.Command("wait", "-p", project, "--timeout", "10s")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -78,6 +85,7 @@ func TestWaitLiveProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	live := make(chan struct{}, 1)
+	snapshot := make(chan struct{}, 1)
 	done := make(chan string, 1)
 	scanErrors := make(chan error, 1)
 	go func() {
@@ -93,10 +101,28 @@ func TestWaitLiveProgress(t *testing.T) {
 				default:
 				}
 			}
+			if strings.Contains(line, "progress: 0/1 succeeded=0 failed=0") {
+				select {
+				case snapshot <- struct{}{}:
+				default:
+				}
+			}
 		}
 		scanErrors <- scanner.Err()
 		done <- output.String()
 	}()
+	select {
+	case <-snapshot:
+	case <-time.After(5 * time.Second):
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal("wait did not show the current progress snapshot on attach")
+	}
+	if err := os.WriteFile(gateFirst, nil, 0o600); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
 	select {
 	case <-live:
 	case <-time.After(12 * time.Second):
@@ -104,7 +130,7 @@ func TestWaitLiveProgress(t *testing.T) {
 		_ = cmd.Wait()
 		t.Fatal("wait did not print live progress before the gated job finished")
 	}
-	if err := os.WriteFile(gate, nil, 0o600); err != nil {
+	if err := os.WriteFile(gateSecond, nil, 0o600); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		t.Fatal(err)
@@ -118,20 +144,23 @@ func TestWaitLiveProgress(t *testing.T) {
 	if err := cmd.Wait(); err != nil || stderr.Len() != 0 {
 		t.Fatalf("wait: %v; stderr: %s; stdout: %s", err, stderr.String(), output)
 	}
-	for _, want := range []string{"=== Run started ===", "Submitted: 1", "Job running:", "Command:", "Retrying job", "progress: 1/1 succeeded=1 failed=0", "=== Run finished ==="} {
+	for _, want := range []string{"=== Run attached ===", "progress: 0/1 succeeded=0 failed=0", "Job running:", "Command:", "Retrying job", "progress: 1/1 succeeded=1 failed=0", "=== Run finished ==="} {
 		if !strings.Contains(output, want) {
 			t.Errorf("wait missing %q: %s", want, output)
 		}
 	}
-	if strings.Contains(output, "Ctrl-C to cancel") || strings.Contains(output, "Ctrl-D") {
-		t.Fatalf("wait offers synchronous controls: %s", output)
+	if strings.Contains(output, "=== Run started ===") || strings.Contains(output, "Submitted: 1") || strings.Contains(output, "Job running:") && strings.Index(output, "=== Run attached ===") > strings.Index(output, "Job running:") {
+		t.Fatalf("wait replayed events from before attach: %s", output)
+	}
+	if !strings.Contains(output, "Press Ctrl-D to stop waiting; Ctrl-C to cancel the run.") {
+		t.Fatalf("wait omitted its control hint: %s", output)
 	}
 	if strings.Count(output, "=== Run finished ===") != 1 || strings.LastIndex(output, "progress: 1/1") > strings.Index(output, "=== Run finished ===") {
 		t.Fatalf("final progress must precede exactly one completion: %s", output)
 	}
 }
 
-func TestWaitInterruptDoesNotCancelRun(t *testing.T) {
+func TestWaitInterruptCancelsRun(t *testing.T) {
 	covers(t, "CLI-19")
 	e := support.NewEnv(t)
 	project := "interrupt-wait"
@@ -154,7 +183,7 @@ func TestWaitInterruptDoesNotCancelRun(t *testing.T) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			if strings.Contains(scanner.Text(), "Job running:") {
+			if strings.Contains(scanner.Text(), "Run attached") {
 				ready <- nil
 				return
 			}
@@ -183,19 +212,99 @@ func TestWaitInterruptDoesNotCancelRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := cmd.Wait(); err == nil {
-		t.Fatal("interrupted wait unexpectedly succeeded")
+		t.Fatal("Ctrl-C unexpectedly returned success")
+	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 130 {
+		t.Fatalf("Ctrl-C exit = %v, want 130", err)
 	}
-	// A new quiet JSON waiter can still observe successful completion. If
-	// interrupting the first waiter had cancelled the run, this would fail.
-	if err := os.WriteFile(gate, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	result := e.MustRotari("wait", "-p", project, "--quiet", "--json", "--timeout", "10s")
+	result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "2s")
 	var summary struct {
 		Status string `json:"status"`
 	}
-	if err := json.Unmarshal([]byte(result.Stdout), &summary); err != nil || summary.Status != "finished" || result.Stderr != "" {
-		t.Fatalf("wait interruption cancelled or polluted run: %v; %s", err, result)
+	if result.Code == 0 || strings.Contains(result.Stderr, "timed out waiting") {
+		t.Fatalf("cancelled run did not finish after Ctrl-C: %s", result)
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &summary); err != nil || summary.Status == "running" {
+		t.Fatalf("Ctrl-C did not cancel run or polluted JSON: %v; %s", err, result)
+	}
+}
+
+func TestWaitInterruptCancelsAllSelectedRuns(t *testing.T) {
+	covers(t, "CLI-19")
+	e := support.NewEnv(t)
+	projects := []string{"wait-alpha", "wait-beta"}
+	runIDs := make([]string, 0, len(projects))
+	for _, project := range projects {
+		e.MustRotari("add", "--basedir", e.Base, "--project-name", project, "--", "sh", "-c", "sleep 30")
+		started := e.MustRotari("run", "--basedir", e.Base, "--project-name", project, "--async").Stdout
+		runID := ""
+		for _, line := range strings.Split(started, "\n") {
+			if strings.HasPrefix(line, "  Run: ") {
+				runID = strings.TrimPrefix(line, "  Run: ")
+				break
+			}
+		}
+		if runID == "" {
+			t.Fatalf("async output has no run ID for %s: %s", project, started)
+		}
+		runIDs = append(runIDs, runID)
+		t.Cleanup(func() { _ = e.Rotari("cancel", "--basedir", e.Base, "--project-name", project, "--wait") })
+	}
+	args := []string{"wait", "--basedir", e.Base, "--run-id", runIDs[0], "--run-id", runIDs[1], "--timeout", "10s"}
+	quietArgs := []string{"wait", "--basedir", e.Base, "--run-id", runIDs[0], "--run-id", runIDs[1], "--quiet", "--timeout", "1ns"}
+	quiet := e.Rotari(quietArgs...)
+	if quiet.Code != 1 || quiet.Stdout != "" || !strings.Contains(quiet.Stderr, "timed out waiting") {
+		t.Fatalf("multi-run quiet wait printed normal output: %s", quiet)
+	}
+	cmd := e.Command(args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	attached := make(chan struct{}, 2)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "Run attached") {
+				attached <- struct{}{}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			t.Errorf("scan multi-run wait output: %v", err)
+		}
+	}()
+	for range 2 {
+		select {
+		case <-attached:
+		case <-time.After(12 * time.Second):
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			t.Fatal("multi-run wait did not attach to both active runs")
+		}
+	}
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err == nil {
+		t.Fatal("Ctrl-C unexpectedly returned success")
+	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 130 {
+		t.Fatalf("Ctrl-C exit = %v, want 130", err)
+	}
+	for _, runID := range runIDs {
+		result := e.Rotari("wait", "--basedir", e.Base, "--run-id", runID, "--quiet", "--json", "--timeout", "10s")
+		if strings.Contains(result.Stderr, "timed out waiting") {
+			t.Fatalf("Ctrl-C left run %s active: %s", runID, result)
+		}
+		var summary struct {
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal([]byte(result.Stdout), &summary); err != nil || summary.Status == "running" {
+			t.Fatalf("run %s was not cancelled or JSON was polluted: %v; %s", runID, err, result)
+		}
 	}
 }
 
@@ -268,7 +377,7 @@ func TestWaitQuietAndJSON(t *testing.T) {
 			if err := json.Unmarshal([]byte(result.Stdout), &failure); err != nil || failure.RunID != run.RunID || failure.Status != "running" {
 				t.Fatalf("early-failure JSON: %v; %s", err, result)
 			}
-		} else if !strings.Contains(result.Stdout, "Job failed:") || !strings.Contains(result.Stdout, "jobs have failed") || strings.Contains(result.Stdout, "Job running:") || strings.Contains(result.Stdout, "progress:") || strings.Contains(result.Stdout, "=== Run") {
+		} else if !strings.Contains(result.Stdout, "Failures by cause:") || !strings.Contains(result.Stdout, "jobs have failed") || strings.Contains(result.Stdout, "Job running:") || strings.Contains(result.Stdout, "progress:") || strings.Contains(result.Stdout, "=== Run") {
 			t.Fatalf("quiet hid diagnostics or showed normal progress: %s", result)
 		}
 	}

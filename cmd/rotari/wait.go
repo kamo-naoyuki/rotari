@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -21,8 +27,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
-// cmdWait waits for selected runs to finish and returns the final run exit code
-// when a single run is targeted.
+// cmdWait waits concurrently for selected runs and returns the greatest run
+// exit code, unless the user detaches or requests cancellation.
 func cmdWait(args []string) int {
 	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -77,20 +83,257 @@ func cmdWait(args []string) int {
 	if *timeout > 0 {
 		deadline = time.Now().Add(*timeout)
 	}
-	exitCode := 0
+	waitTargets := make([]resolve.Run, 0, len(targets))
 	for _, target := range targets {
 		if target.RunID == "" {
-			continue // A project that does not exist yet has nothing to wait for.
+			continue
 		}
-		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *untilFailure, *jsonOutput, *quiet)
-		if result.exitCode > exitCode {
-			exitCode = result.exitCode
-		}
-		if result.timedOut {
+		baseDir, projectName, runID, err := resolveCLIExistingRunID(target.BaseDir, target.ProjectName, target.RunID)
+		if err != nil {
+			printError(err)
 			return 1
 		}
+		waitTargets = append(waitTargets, resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID})
+	}
+	if len(waitTargets) == 0 {
+		return 0 // A project that does not exist yet has nothing to wait for.
+	}
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	defer signal.Stop(interrupt)
+	detach := make(chan struct{}, 1)
+	if isTerminal(os.Stdin) {
+		go watchDetach(os.Stdin, detach)
+	}
+	return waitTargetsWithControl(waitTargets, deadline, *untilFailure, *jsonOutput, *quiet, interrupt, detach)
+}
+
+func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, untilFailure, jsonOutput, quiet bool, interrupt <-chan os.Signal, detach <-chan struct{}) int {
+	stop := make(chan struct{})
+
+	// Multiple runs are monitored concurrently. Their output is serialized at
+	// event boundaries and tagged so interleaved progress remains attributable.
+	var outputMu sync.Mutex
+	type indexedResult struct {
+		index  int
+		result waitResult
+	}
+	results := make(chan indexedResult, len(waitTargets))
+	outputs := make([]*waitOutput, len(waitTargets))
+	usedColors := make(map[int]bool)
+	for index, target := range waitTargets {
+		var bufferedJSON bytes.Buffer
+		output := newWaitOutput(target, len(waitTargets) > 1, &outputMu)
+		output.color = availableWaitColor(output.color, usedColors)
+		usedColors[output.color] = true
+		if jsonOutput {
+			output.stdout = &bufferedJSON
+			output.stdoutLabel = ""
+			output.stderrLabel = output.label
+		}
+		outputs[index] = output
+		go func(index int, target resolve.Run, output *waitOutput) {
+			result := waitForRunWithOutput(target.BaseDir, target.ProjectName, target.RunID, deadline, untilFailure, jsonOutput, quiet, output, stop)
+			results <- indexedResult{index: index, result: result}
+		}(index, target, output)
+	}
+	exitCode := 0
+	timedOut := false
+	completedCount := 0
+	for completedCount < len(waitTargets) {
+		var completed indexedResult
+		select {
+		case completed = <-results:
+			completedCount++
+		case <-detach:
+			close(stop)
+			for completedCount < len(waitTargets) {
+				<-results
+				completedCount++
+			}
+			flushWaitJSON(outputs, jsonOutput)
+			if !quiet && !jsonOutput {
+				fmt.Fprintln(os.Stdout, cyan("Stopped waiting; runs continue in the background."))
+			}
+			return 0
+		case <-interrupt:
+			for index, target := range waitTargets {
+				cancelWaitTarget(target, outputs[index])
+			}
+			close(stop)
+			for completedCount < len(waitTargets) {
+				<-results
+				completedCount++
+			}
+			flushWaitJSON(outputs, jsonOutput)
+			if !quiet && !jsonOutput {
+				fmt.Fprintln(os.Stdout, yellow("Cancellation requested; stopping running jobs..."))
+			}
+			return 130
+		}
+		if completed.result.exitCode > exitCode {
+			exitCode = completed.result.exitCode
+		}
+		timedOut = timedOut || completed.result.timedOut
+	}
+	flushWaitJSON(outputs, jsonOutput)
+	if timedOut {
+		return 1
 	}
 	return exitCode
+}
+
+// Completed JSON results survive an explicit detach or cancellation, in
+// selector order. Workers must have stopped before their buffers are read.
+func flushWaitJSON(outputs []*waitOutput, enabled bool) {
+	if !enabled {
+		return
+	}
+	for _, output := range outputs {
+		if buffer, ok := output.stdout.(*bytes.Buffer); ok {
+			_, _ = os.Stdout.Write(buffer.Bytes())
+		}
+	}
+}
+
+func cancelWaitTarget(target resolve.Run, output *waitOutput) {
+	paths, err := state.ResolveProjectPaths(target.BaseDir, target.ProjectName)
+	if err != nil {
+		output.errorf("failed to cancel run %s: %v", target.RunID, err)
+		return
+	}
+	phase, err := project.RunPhaseOf(paths, target.RunID)
+	if err != nil {
+		output.errorf("failed to inspect run %s before cancellation: %v", target.RunID, err)
+		return
+	}
+	if phase != project.RunPhaseRunning {
+		return
+	}
+	if _, err := jobController().Cancel(target.BaseDir, target.ProjectName, target.RunID, nil, false); err != nil {
+		// A run can finish between phase inspection and cancellation.
+		phase, phaseErr := project.RunPhaseOf(paths, target.RunID)
+		if phaseErr == nil && phase == project.RunPhaseRunning {
+			output.errorf("failed to cancel run %s: %v", target.RunID, err)
+		}
+	}
+}
+
+type waitOutput struct {
+	stdout      io.Writer
+	stderr      io.Writer
+	mu          *sync.Mutex
+	label       string
+	stdoutLabel string
+	stderrLabel string
+	color       int
+}
+
+var waitIdentityColors = [...]int{33, 63, 69, 99, 105, 129, 135, 141}
+
+func availableWaitColor(preferred int, used map[int]bool) int {
+	if !used[preferred] {
+		return preferred
+	}
+	for _, color := range waitIdentityColors {
+		if !used[color] {
+			return color
+		}
+	}
+	return preferred
+}
+
+func newWaitOutput(target resolve.Run, tag bool, mu *sync.Mutex) *waitOutput {
+	output := &waitOutput{mu: mu}
+	if !tag {
+		return output
+	}
+	suffix := target.RunID
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	output.label = target.ProjectName + "/…" + suffix
+	output.stdoutLabel = output.label
+	output.stderrLabel = output.label
+	hash := fnv.New32a()
+	_, _ = fmt.Fprintf(hash, "%s\x00%s\x00%s", target.BaseDir, target.ProjectName, target.RunID)
+	output.color = waitIdentityColors[hash.Sum32()%uint32(len(waitIdentityColors))]
+	return output
+}
+
+type waitOutputStream struct {
+	output *waitOutput
+	stderr bool
+}
+
+func (stream waitOutputStream) Write(data []byte) (int, error) {
+	output := stream.output
+	writer := output.stdout
+	label := output.stdoutLabel
+	if stream.stderr {
+		writer = output.stderr
+		label = output.stderrLabel
+	}
+	if writer == nil {
+		if stream.stderr {
+			writer = os.Stderr
+		} else {
+			writer = os.Stdout
+		}
+	}
+	text := string(data)
+	if label != "" {
+		file := os.Stdout
+		if stream.stderr {
+			file = os.Stderr
+		}
+		text = tagWaitOutput(text, label, output.color, file)
+	}
+	if output.mu != nil {
+		output.mu.Lock()
+		defer output.mu.Unlock()
+	}
+	_, err := io.WriteString(writer, text)
+	if err != nil {
+		return 0, err
+	}
+	return len(data), nil
+}
+
+func tagWaitOutput(text, label string, color int, file *os.File) string {
+	display := "[" + label + "] "
+	prefix := display
+	if terminalCheck(file) {
+		prefix = fmt.Sprintf("\033[38;5;%dm%s\033[0m", color, display)
+	}
+	continuation := strings.Repeat(" ", len(display))
+	lines := strings.SplitAfter(text, "\n")
+	for index, line := range lines {
+		if line == "" {
+			continue
+		}
+		if index == 0 {
+			lines[index] = prefix + line
+		} else {
+			lines[index] = continuation + line
+		}
+	}
+	return strings.Join(lines, "")
+}
+
+func (output *waitOutput) stdoutWriter() io.Writer { return waitOutputStream{output: output} }
+
+func (output *waitOutput) stderrWriter() io.Writer {
+	return waitOutputStream{output: output, stderr: true}
+}
+
+func (output *waitOutput) errorf(format string, args ...any) {
+	_, _ = fmt.Fprintln(output.stderrWriter(), redError(fmt.Sprintf(format, args...)))
+}
+
+func (output *waitOutput) error(err error) {
+	output.errorf("%v", err)
 }
 
 func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run, error) {
@@ -293,60 +536,91 @@ type waitResult struct {
 // waitForRun waits until runID finishes, or with untilFailure until one of
 // its jobs has failed with no retry left, whichever comes first.
 func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput, quiet bool) waitResult {
+	return waitForRunWithOutput(basedir, queueNameOption, runID, deadline, untilFailure, jsonOutput, quiet, &waitOutput{}, nil)
+}
+
+func waitForRunWithOutput(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput, quiet bool, output *waitOutput, stop <-chan struct{}) waitResult {
 	baseDir, queueName, runID, err := resolveCLIExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
-		printError(err)
+		output.error(err)
 		return waitResult{exitCode: 1}
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
-		printErrorf("failed to resolve paths: %v", err)
+		output.errorf("failed to resolve paths: %v", err)
 		return waitResult{exitCode: 1}
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
-		printErrorf("invalid run ID %q", runID)
+		output.errorf("invalid run ID %q", runID)
 		return waitResult{exitCode: 1}
 	}
-	// Do not replay historical progress for a run already finished when wait
-	// starts. JSON never reads or renders the text progress stream.
+	// Follow only events emitted after wait attaches. JSON never reads or
+	// renders the text progress stream.
 	phase, phaseErr := project.RunPhaseOf(paths, runID)
 	followProgress := !jsonOutput && phaseErr == nil && phase == project.RunPhaseRunning
 	var cursor state.ProgressCursor
-	printer := runProgressPrinter{quiet: quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
+	printer := runProgressPrinter{quiet: quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1, output: output.stdoutWriter()}
+	var attachedSnapshot model.ProgressEvent
+	hasAttachedSnapshot := false
+	if followProgress {
+		var err error
+		attachedSnapshot, hasAttachedSnapshot, err = cursor.SkipExisting(runDir)
+		if err != nil {
+			output.errorf("warning: failed to read progress for run %s: %v; continuing without progress", runID, err)
+			followProgress = false
+		}
+		if !quiet && !jsonOutput {
+			_, _ = fmt.Fprintln(output.stdoutWriter(), cyan("=== Run attached ==="))
+			_, _ = fmt.Fprintln(output.stdoutWriter(), cyan("Press Ctrl-D to stop waiting; Ctrl-C to cancel the run."))
+			if hasAttachedSnapshot {
+				printer.print(serverinternal.Response{
+					Progress: true, Completed: attachedSnapshot.Completed, Total: attachedSnapshot.Total,
+					Succeeded: attachedSnapshot.Succeeded, Failed: attachedSnapshot.Failed,
+				})
+			}
+		}
+	}
 	drainProgress := func() {
 		if !followProgress {
 			return
 		}
-		if err := readWaitProgress(&cursor, runDir, &printer); err != nil {
-			printErrorf("warning: failed to read progress for run %s: %v; continuing without progress", runID, err)
+		if err := readWaitProgress(&cursor, runDir, &printer, output); err != nil {
+			output.errorf("warning: failed to read progress for run %s: %v; continuing without progress", runID, err)
 			followProgress = false
 		}
 	}
 	for {
+		select {
+		case <-stop:
+			return waitResult{}
+		default:
+		}
 		drainProgress()
 		summaryPath, pathErr := state.ValidatedStateFile(runDir, "summary.json")
 		if pathErr != nil {
-			printErrorf("invalid run directory %q", runID)
+			output.errorf("invalid run directory %q", runID)
 			return waitResult{exitCode: 1}
 		}
 		summary, err := state.LoadRunSummary(summaryPath)
 		if err == nil {
 			phase, phaseErr := project.RunPhaseOf(paths, runID)
 			if phaseErr != nil {
-				printErrorf("failed to check project state: %v", phaseErr)
+				output.errorf("failed to check project state: %v", phaseErr)
 				return waitResult{exitCode: 1}
 			}
 			if phase == project.RunPhaseRunning {
 				if !deadline.IsZero() && time.Now().After(deadline) {
-					printErrorf("timed out waiting for run %s", runID)
+					output.errorf("timed out waiting for run %s", runID)
 					return waitResult{exitCode: 1, timedOut: true}
 				}
-				time.Sleep(500 * time.Millisecond)
+				if waitStopped(stop) {
+					return waitResult{}
+				}
 				continue
 			}
 			if phase == project.RunPhaseInterrupted {
-				printErrorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
+				output.errorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
 					runID, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID),
 					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 				return waitResult{exitCode: 1}
@@ -355,47 +629,58 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 			// The supervisor journals them before releasing the run lock.
 			drainProgress()
 			if jsonOutput {
-				_ = json.NewEncoder(os.Stdout).Encode(summary)
+				_ = json.NewEncoder(output.stdoutWriter()).Encode(summary)
 			} else if !quiet {
-				fmt.Print(formatRunCompletion(paths, runID, summary))
+				_, _ = io.WriteString(output.stdoutWriter(), formatRunCompletion(paths, runID, summary))
 			}
 			return waitResult{exitCode: summary.ExitCode}
 		}
 		if runInfo, statErr := os.Stat(runDir); os.IsNotExist(statErr) || (statErr == nil && !runInfo.IsDir()) {
-			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc --dry-run' to list stale registry entries and 'rotari gc' to remove them", runID)
+			output.errorf("run %q is registered but its run directory is missing; run 'rotari gc --dry-run' to list stale registry entries and 'rotari gc' to remove them", runID)
 			return waitResult{exitCode: 1}
 		} else if statErr != nil {
-			printErrorf("failed to inspect run directory %s: %v", runDir, statErr)
+			output.errorf("failed to inspect run directory %s: %v", runDir, statErr)
 			return waitResult{exitCode: 1}
 		}
 		if errors.Is(err, os.ErrNotExist) {
 			if message, ended := runEndedWithoutSummary(paths, runID); ended {
-				printError(message)
+				output.errorf("%s", message)
 				return waitResult{exitCode: 1}
 			}
 		} else if errors.Is(err, state.ErrNewerStateVersion) {
-			printError(err)
+			output.error(err)
 			return waitResult{exitCode: 1}
 		} else if errors.Is(err, state.ErrInvalidJSON) {
 			if message, ended := runEndedWithInvalidSummary(paths, runID); ended {
-				printError(message)
+				output.errorf("%s", message)
 				return waitResult{exitCode: 1}
 			}
 		} else {
-			printErrorf("failed to read run summary %s: %v", summaryPath, err)
+			output.errorf("failed to read run summary %s: %v", summaryPath, err)
 			return waitResult{exitCode: 1}
 		}
 		if untilFailure {
 			if failures := finalFailureGroups(paths, runID); len(failures) > 0 {
-				writeEarlyFailures(paths, runID, failures, jsonOutput)
+				writeEarlyFailures(paths, runID, failures, jsonOutput, output)
 				return waitResult{exitCode: 1}
 			}
 		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
-			printErrorf("timed out waiting for run %s", runID)
+			output.errorf("timed out waiting for run %s", runID)
 			return waitResult{exitCode: 1, timedOut: true}
 		}
-		time.Sleep(500 * time.Millisecond)
+		if waitStopped(stop) {
+			return waitResult{}
+		}
+	}
+}
+
+func waitStopped(stop <-chan struct{}) bool {
+	select {
+	case <-stop:
+		return true
+	case <-time.After(500 * time.Millisecond):
+		return false
 	}
 }
 
@@ -403,7 +688,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 // control hints. The cursor retains partial lines and tolerates old runs with
 // no journal. A malformed complete line is consumed: report it, then continue
 // draining so it cannot hide later events, including the final ones.
-func readWaitProgress(cursor *state.ProgressCursor, runDir string, printer *runProgressPrinter) error {
+func readWaitProgress(cursor *state.ProgressCursor, runDir string, printer *runProgressPrinter, output *waitOutput) error {
 	for {
 		events, err := cursor.Read(runDir)
 		for _, event := range events {
@@ -416,7 +701,7 @@ func readWaitProgress(cursor *state.ProgressCursor, runDir string, printer *runP
 		if !errors.Is(err, state.ErrInvalidJSON) {
 			return err
 		}
-		printErrorf("skipping malformed run progress: %v", err)
+		output.errorf("skipping malformed run progress: %v", err)
 	}
 }
 
@@ -440,20 +725,22 @@ type earlyFailureJSON struct {
 }
 
 // writeEarlyFailures reports that runID, still running, has failed jobs.
-func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runlineage.FailureGroup, jsonOutput bool) {
+func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runlineage.FailureGroup, jsonOutput bool, output *waitOutput) {
 	if jsonOutput {
-		_ = json.NewEncoder(os.Stdout).Encode(earlyFailureJSON{RunID: runID, Status: "running", Failures: failures})
+		_ = json.NewEncoder(output.stdoutWriter()).Encode(earlyFailureJSON{RunID: runID, Status: "running", Failures: failures})
 		return
 	}
-	fmt.Println(red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
+	var message bytes.Buffer
+	fmt.Fprintln(&message, red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
 	// The run is still running, so a retry of its failures cannot start yet.
-	writeFailureGroups(os.Stdout, failures, nil)
+	writeFailureGroups(&message, failures, nil)
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	fmt.Println(cyan("To keep waiting:"))
-	fmt.Printf("  rotari wait %s\n", target)
-	fmt.Println(cyan("To cancel the run:"))
-	fmt.Printf("  rotari cancel --basedir %s --project-name %s\n", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+	fmt.Fprintln(&message, cyan("To keep waiting:"))
+	fmt.Fprintf(&message, "  rotari wait %s\n", target)
+	fmt.Fprintln(&message, cyan("To cancel the run:"))
+	fmt.Fprintf(&message, "  rotari cancel --basedir %s --project-name %s\n", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+	_, _ = output.stdoutWriter().Write(message.Bytes())
 }
 
 // runEndedWithInvalidSummary reports an invalid summary only after its run is

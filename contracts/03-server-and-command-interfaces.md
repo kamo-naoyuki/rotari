@@ -314,6 +314,17 @@ follows:
 - `show` uses a lazy pager. `--no-pager` and non-TTY output go directly to
   stdout. On a TTY, output of at most 24 lines is direct; longer output uses
   `$PAGER`, defaulting to `less -R`. Pager failure falls back to stdout.
+- **CLI-20** Every command option has a corresponding CLI-default environment
+  variable, named by its explicit mapping or `ROTARI_<COMMAND>_<OPTION>`.
+  Options marked `CommandLineOnly` in the CLI specification are the only
+  exceptions: explicit configuration selection, safety/confirmation and
+  revision guards, one-invocation filters, explicit job-definition/path
+  settings, and the schema protocol switch must not be supplied implicitly.
+  The CLI reference marks these exceptions as `CLI only`.
+  The CLI schema and `rotari env` list the mapping; the mapping
+  and exception coverage are checked by
+  [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go) and
+  [`conformance/03-interfaces/environment_contract_test.go`](../conformance/03-interfaces/environment_contract_test.go).
 
 ### Quiet output contract
 

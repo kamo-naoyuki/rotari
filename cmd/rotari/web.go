@@ -157,12 +157,13 @@ func webStaticServerOptions(fs *flag.FlagSet) []string {
 	var incompatible []string
 	for _, name := range []string{"allow-control", "artifact-root", "auth-token", "host", "port"} {
 		provided := cliOptionSet(fs, name)
-		if !provided {
-			if envName := cliEnvironmentVariable(name); envName != "" {
+		spec := cliCommandFlag("web", name)
+		if !provided && !spec.CommandLineOnly {
+			if envName := cliCommandEnvironmentVariable("web", name); envName != "" {
 				_, provided = os.LookupEnv(envName)
 			}
 		}
-		if !provided {
+		if !provided && !spec.CommandLineOnly {
 			_, provided = configValue(name)
 		}
 		if provided {

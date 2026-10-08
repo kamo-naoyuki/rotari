@@ -66,3 +66,43 @@ passed. `python3 -m pre_commit` on the changed files passed (the `pre-commit`
 executable is not on PATH).
 
 **Remaining:** None.
+
+## Show only new wait progress
+
+**Change:** `wait` now starts at the end of the existing progress journal and
+prints an attach marker plus a single current progress-count snapshot, then only
+events appended afterward. It still drains events produced while waiting and
+before completion; partial records at the attach boundary are kept until
+complete. Updated the contract and running guide to make the no-history-replay
+behavior explicit.
+
+**Reason:** Replaying every progress line since the beginning of a long-running
+job is noisy when a user starts `wait` after `run --async` has already reported
+the start and current activity.
+
+**Plan impact:** Adjusts only the display cursor for `wait`; journaling,
+completion, exit status, JSON, and cancellation behavior are unchanged.
+
+**Validation:** Focused cursor tests and repeated live wait conformance passed;
+full repository validation is pending.
+
+**Remaining:** Complete repository validation and final diff review.
+
+## Add run controls to `wait`
+
+**Change:** Active text waits now advertise Ctrl-D to stop waiting without
+stopping the run and Ctrl-C to request cancellation. Ctrl-C cancels every
+selected run that is still active, waits for local observers to stop, and exits
+130. Quiet and JSON output remain free of interactive progress/control text.
+
+**Reason:** Make async `run` followed by `wait` offer the same practical
+detach/cancel controls as an attached synchronous run, while preserving the
+important distinction that Ctrl-D only detaches the waiter.
+
+**Plan impact:** Changes only the wait client's interaction with selected runs;
+it does not change synchronous run disconnect behavior.
+
+**Validation:** Focused CLI and conformance tests passed; full repository
+validation is pending.
+
+**Remaining:** Complete repository validation and final diff review.

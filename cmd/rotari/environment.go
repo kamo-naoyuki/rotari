@@ -82,7 +82,7 @@ var propagatedEnvironmentVariables = []string{
 }
 
 func environmentDefinitions() []webprojection.EnvironmentDefinition {
-	return []webprojection.EnvironmentDefinition{
+	definitions := []webprojection.EnvironmentDefinition{
 		{Name: envBaseDir, CLIDefault: true, Job: true, Array: true, Description: "State directory; --basedir default."},
 		{Name: envProjectName, CLIDefault: true, Job: true, Array: true, Description: "Project name; --project-name default."},
 		{Name: envMasterDir, CLIDefault: true, Description: "Server registry directory; --masterdir default."},
@@ -142,6 +142,27 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envWebhookURL, Description: "Webhook URL; overrides webhook.url in notifications.toml."},
 		{Name: envPrivateState, Description: "set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state)."},
 	}
+	seen := make(map[string]bool, len(definitions))
+	for _, definition := range definitions {
+		seen[definition.Name] = true
+	}
+	for _, command := range cliCommandSpecs {
+		for _, spec := range command.Flags {
+			if spec.CommandLineOnly {
+				continue
+			}
+			name := cliCommandEnvironmentVariable(command.Name, spec.Name)
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			definitions = append(definitions, webprojection.EnvironmentDefinition{
+				Name: name, CLIDefault: true,
+				Description: fmt.Sprintf("Default for rotari %s --%s.", command.Name, spec.Name),
+			})
+		}
+	}
+	return definitions
 }
 
 // cmdEnvironment prints Rotari environment variable definitions and current

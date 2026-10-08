@@ -469,33 +469,48 @@ func TestCLICommandSpecificEnvironmentDefaults(t *testing.T) {
 	t.Setenv("ROTARI_WEB_PORT", "9000")
 	t.Setenv(envWebAuthToken, "token-from-env")
 	t.Setenv("ROTARI_WAIT_TIMEOUT", "2s")
+	t.Setenv("ROTARI_WAIT_QUIET", "true")
 	web := flag.NewFlagSet("web", flag.ContinueOnError)
 	host := cliString(web, "host", "127.0.0.1")
 	port := cliInt(web, "port", 8787)
 	authToken := cliString(web, "auth-token", "")
-	timeout := cliDuration(flag.NewFlagSet("wait", flag.ContinueOnError), "timeout", 0)
-	if *host != "127.0.0.2" || *port != 9000 || *authToken != "token-from-env" || *timeout != 2*time.Second {
-		t.Fatalf("defaults = %q, %d, %q, %s", *host, *port, *authToken, *timeout)
+	wait := flag.NewFlagSet("wait", flag.ContinueOnError)
+	timeout := cliDuration(wait, "timeout", 0)
+	quiet := cliBool(wait, "quiet", false)
+	if *host != "127.0.0.2" || *port != 9000 || *authToken != "token-from-env" || *timeout != 2*time.Second || !*quiet {
+		t.Fatalf("defaults = %q, %d, %q, %s, quiet=%t", *host, *port, *authToken, *timeout, *quiet)
 	}
 }
 
 func TestCLIHelpShowsEnvironmentDefaults(t *testing.T) {
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	var output strings.Builder
 	fs.SetOutput(&output)
 	cliString(fs, "basedir", "")
-	cliBool(fs, "overwrite", false)
 	cliInt(fs, "local-concurrency", 8)
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
+	copyFS := flag.NewFlagSet("copy", flag.ContinueOnError)
+	cliBool(copyFS, "overwrite", false)
+	var copyHelp strings.Builder
+	copyFS.SetOutput(&copyHelp)
+	copyFS.PrintDefaults()
+	deleteFS := flag.NewFlagSet("delete", flag.ContinueOnError)
+	cliBool(deleteFS, "all", false)
+	var deleteHelp strings.Builder
+	deleteFS.SetOutput(&deleteHelp)
+	deleteFS.PrintDefaults()
 
 	fs.PrintDefaults()
 	help := output.String()
 	if !strings.Contains(help, "basedir") || !strings.Contains(help, "env: ROTARI_BASEDIR") {
 		t.Fatalf("help does not show basedir environment variable: %q", help)
 	}
-	if strings.Contains(help, "--overwrite") && strings.Contains(help, "ROTARI_OVERWRITE") {
-		t.Fatalf("help advertises unsupported overwrite environment variable: %q", help)
+	if !strings.Contains(copyHelp.String(), "ROTARI_COPY_OVERWRITE") {
+		t.Fatalf("help does not show command environment variable for --overwrite: %q", copyHelp.String())
+	}
+	if strings.Contains(deleteHelp.String(), "ROTARI_DELETE_ALL") {
+		t.Fatalf("help advertises environment variable for CLI-only --all: %q", deleteHelp.String())
 	}
 	if !strings.Contains(help, "env: ROTARI_RUN_LOCAL_CONCURRENCY") {
 		t.Fatalf("help does not show local concurrency environment variable: %q", help)
@@ -612,9 +627,20 @@ func TestCmdAddRejectsExecutorOutsideChoicesBeforeWritingQueue(t *testing.T) {
 }
 
 func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
-	definitions := environmentDefinitions()
-	seen := make(map[string]bool, len(definitions))
-	for _, definition := range definitions {
+	definitions := environmentDefinitionNames(t)
+	for _, name := range []string{envBaseDir, envRunID, envJobID, envExecutor, envRunRetry, envRunAsync, envQuiet, "ROTARI_WAIT_QUIET", envArrayTaskID, envWebPort} {
+		if !definitions[name] {
+			t.Errorf("missing environment definition %q", name)
+		}
+	}
+	assertEveryCLIFlagHasEnvironmentOrException(t, definitions)
+	assertEveryCLIDefaultEnvironmentIsMapped(t)
+}
+
+func environmentDefinitionNames(t *testing.T) map[string]bool {
+	t.Helper()
+	seen := make(map[string]bool)
+	for _, definition := range environmentDefinitions() {
 		if definition.Name == "" {
 			t.Fatal("environment definition has an empty name")
 		}
@@ -623,28 +649,44 @@ func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
 		}
 		seen[definition.Name] = true
 	}
-	for _, name := range []string{envBaseDir, envRunID, envJobID, envExecutor, envRunRetry, envRunAsync, envQuiet, envArrayTaskID, envWebPort} {
-		if !seen[name] {
-			t.Errorf("missing environment definition %q", name)
+	return seen
+}
+
+func assertEveryCLIFlagHasEnvironmentOrException(t *testing.T, definitions map[string]bool) {
+	t.Helper()
+	for flagName, name := range cliEnvironmentVariables {
+		if !definitions[name] {
+			t.Errorf("CLI environment variable %q for --%s is undocumented", name, flagName)
 		}
 	}
-	for flagName, envName := range cliEnvironmentVariables {
-		if !seen[envName] {
-			t.Errorf("CLI environment variable %q for --%s is undocumented", envName, flagName)
-		}
-	}
-	for _, definition := range definitions {
-		if !definition.CLIDefault {
-			continue
-		}
-		mapped := false
-		for _, envName := range cliEnvironmentVariables {
-			if envName == definition.Name {
-				mapped = true
-				break
+	for _, command := range cliCommandSpecs {
+		for _, spec := range command.Flags {
+			if spec.CommandLineOnly {
+				continue
+			}
+			name := cliCommandEnvironmentVariable(command.Name, spec.Name)
+			if name == "" || !definitions[name] {
+				t.Errorf("missing environment variable definition for %s --%s: %q", command.Name, spec.Name, name)
 			}
 		}
-		if !mapped {
+	}
+}
+
+func assertEveryCLIDefaultEnvironmentIsMapped(t *testing.T) {
+	t.Helper()
+	mapped := make(map[string]bool)
+	for _, name := range cliEnvironmentVariables {
+		mapped[name] = true
+	}
+	for _, command := range cliCommandSpecs {
+		for _, spec := range command.Flags {
+			if !spec.CommandLineOnly {
+				mapped[cliCommandEnvironmentVariable(command.Name, spec.Name)] = true
+			}
+		}
+	}
+	for _, definition := range environmentDefinitions() {
+		if definition.CLIDefault && !mapped[definition.Name] {
 			t.Errorf("CLI default environment variable %q has no flag mapping", definition.Name)
 		}
 	}
