@@ -148,17 +148,6 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple active projects are all waited on", func(t *testing.T) {
-		e := support.NewEnv(t)
-		first := e.StartRun("first", 1, true)
-		second := e.StartRun("second", 1, true)
-		r := e.Rotari("wait", "--timeout", "50ms")
-		out := r.Stderr + r.Stdout
-		if r.Code == 0 || !strings.Contains(out, first.RunID) || !strings.Contains(out, second.RunID) {
-			t.Fatalf("wait without selector did not wait on both active runs: %s", r)
-		}
-	})
-
 	t.Run("finished project returns its latest run", func(t *testing.T) {
 		for _, outcome := range []string{"success", "failure"} {
 			t.Run(outcome, func(t *testing.T) {
@@ -176,21 +165,53 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 	})
 }
 
+func TestWaitWithoutActiveRunsIsNoOp(t *testing.T) {
+	covers(t, "RES-16")
+	for _, test := range []struct {
+		name       string
+		hasProject bool
+	}{
+		{name: "empty basedir"},
+		{name: "idle project", hasProject: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			if test.hasProject {
+				e.MustRotari("reset", "-p", "idle")
+			}
+			r := e.Rotari("wait")
+			if r.Code != 0 || strings.TrimSpace(r.Stderr) != "" {
+				t.Fatalf("wait without active runs should be a silent no-op: %s", r)
+			}
+		})
+	}
+}
+
+func TestWaitWithoutSelectorWaitsAllProjectsDespiteProjectEnv(t *testing.T) {
+	covers(t, "RES-16")
+	e := support.NewEnv(t)
+	first := e.StartRun("first", 1, true)
+	second := e.StartRun("second", 1, true)
+	r := e.WithVar("ROTARI_PROJECT_NAME", first.Project).Rotari("wait", "--timeout", "50ms")
+	out := r.Stderr + r.Stdout
+	if r.Code == 0 || !strings.Contains(out, first.RunID) || !strings.Contains(out, second.RunID) {
+		t.Fatalf("wait without selector did not wait on both active runs: %s", r)
+	}
+}
+
 func checkWaitFinishedProjectSelections(t *testing.T, e *support.Env, project, runID string, wantCode int) {
 	t.Helper()
 	for _, selection := range []struct {
 		name string
 		args []string
-		env  *support.Env
 	}{
-		{"positional", []string{project}, e},
-		{"short option", []string{"-p", project}, e},
-		{"long option", []string{"--project-name", project}, e},
-		{"environment", nil, e.WithVar("ROTARI_PROJECT_NAME", project)},
+		{"positional", []string{project}},
+		{"short option", []string{"-p", project}},
+		{"long option", []string{"--project-name", project}},
 	} {
 		t.Run(selection.name, func(t *testing.T) {
 			args := append([]string{"wait", "--timeout", "1s"}, selection.args...)
-			r := selection.env.Rotari(args...)
+			r := e.Rotari(args...)
 			if r.Code != wantCode || !strings.Contains(r.Stdout, runID) {
 				t.Fatalf("wait omitted completed run %q or returned the wrong result (want exit %d): %s", runID, wantCode, r)
 			}

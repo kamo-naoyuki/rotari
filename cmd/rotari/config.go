@@ -221,6 +221,8 @@ func aggregateCommandInvocation(command string, options map[string][]string, pos
 		return true
 	case "lineage":
 		return len(positional) == 0 && len(options["run-id"]) == 0 && len(options["project-name"]) == 0
+	case "wait":
+		return len(positional) == 0 && len(options["run-id"]) == 0 && len(options["project-name"]) == 0
 	case "config":
 		return len(options["list"]) > 0
 	default:
@@ -244,7 +246,7 @@ func ignoredImplicitLocationDefaults(command string, aggregate bool) map[string]
 	case "jobs":
 		ignored["basedir"] = true
 		ignored["project-name"] = true
-	case "lineage", "config":
+	case "lineage", "config", "wait":
 		ignored["project-name"] = true
 	}
 	return ignored

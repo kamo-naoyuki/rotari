@@ -11,12 +11,12 @@ rotari run -p sweep --async
 rotari wait sweep
 ```
 
-`--async` starts the run in a detached session, so it survives terminal
-closure. `wait` prints new progress after attaching, then the completion
-message and run exit code. If the run has already finished, it prints only the
-completion message. Runs inherit the caller's working directory and
-environment unless overridden; use `--env=NONE` to suppress inherited
-variables. Job variables and rotari metadata still apply. See
+`run --async` starts the run in asynchronous mode and returns while its jobs
+continue. `wait` attaches a client to that run, prints new progress, then the
+completion message and run exit code. If the run has already finished, it
+prints only the completion message. Runs inherit the caller's working
+directory and environment unless overridden; use `--env=NONE` to suppress
+inherited variables. Job variables and rotari metadata still apply. See
 [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).
 
 Pass several selectors to wait for those runs concurrently, or omit selectors
@@ -29,16 +29,15 @@ rotari wait sweep eval
 rotari wait  # waits for all active projects
 ```
 
-With no selector or project option/environment setting, `wait` monitors every
-active project in the resolved basedir. It errors if no runs are active,
-including when the basedir has no projects; it does not wait for a project or
-run to be created later. A project selected by `-p` or `ROTARI_PROJECT_NAME`
-waits for that project's active run, or returns its latest result. The project
-must exist; a typo is an error and does not create it. `-r RUN_ID` selects one
-specific run and errors if the ID does not exist. Positional selectors are
-checked as project name, run name, then run ID; use `-r` to select an ID
-explicitly. Older runs without a progress journal can be waited on, but have
-no progress snapshot.
+With no selector or `-p`, `wait` monitors every active project in the resolved
+basedir, even if `ROTARI_PROJECT_NAME` is set. If no runs are active—including
+when the basedir has no projects—it succeeds silently; it does not wait for a
+project or run to be created later. `-p PROJECT` waits for that project's
+active run, or returns its latest result. The project must exist; a typo is an
+error and does not create it. `-r RUN_ID` selects one specific run and errors
+if the ID does not exist. Positional selectors are checked as project name,
+run name, then run ID; use `-r` to select an ID explicitly. Older runs without
+a progress journal can be waited on, but have no progress snapshot.
 
 Return as soon as a job fails with no retries left:
 
@@ -51,9 +50,9 @@ This exits with status 1 and reports failures grouped by cause (see
 count. Add `--json` for a running-status result with the failures. `--quiet`
 hides normal progress but keeps failures, errors, and timeouts; JSON prints
 only the result. Quiet defaults come from `ROTARI_QUIET` and configuration; an
-explicit CLI value overrides them. Ctrl-D detaches without stopping the run;
-Ctrl-C cancels selected active runs. Neither `--timeout` nor `--until-failure`
-cancels a run.
+explicit CLI value overrides them. Ctrl-D stops the wait client without
+cancelling or changing the run's mode. Ctrl-C requests cancellation of the
+selected active runs. Neither `--timeout` nor `--until-failure` cancels a run.
 
 If a tool timeout may kill a command, start the run asynchronously:
 
@@ -64,35 +63,30 @@ rotari wait sweep --timeout 3h
 rotari wait sweep
 ```
 
-Killing `wait` stops only monitoring; the async run continues. Killing a
-synchronous `rotari run` requests cancellation of that run.
+If a timeout ends `wait`, only the attached client stops; the run remains in
+asynchronous mode. Run `rotari wait sweep` again to attach another client.
+By contrast, if a timeout kills a synchronous `rotari run`, that run requests
+cancellation.
 
 ## Interrupting a synchronous run
 
 ```text
-Ctrl-C  Cancel the run; client exits with status 130.
-Ctrl-D  Detach; run continues. Follow with wait or show.
+Ctrl-C  Request run cancellation; client exits with status 130.
+Ctrl-D  Detach the client and switch the run to asynchronous mode.
 Ctrl-Z  Suspend the client only; use fg to resume its view.
 ```
 
-After Ctrl-C, cleanup continues in the background, so starting another run for
-the same project may briefly fail. Closing a terminal with the client stopped
-by Ctrl-Z disconnects it and requests cancellation.
-
-## Supervisor failure
-
-The supervisor is not restarted after a crash. Inspect the run, confirm its
-jobs have stopped, then unlock and retry unfinished work:
+After Ctrl-D, the same run continues in asynchronous mode; use this to attach
+again:
 
 ```sh
-rotari show -r RUN_ID
-rotari unlock -p sweep
-rotari retry --run-id RUN_ID
+rotari wait -p sweep
 ```
 
-The interrupted run's jobs are not put back in the queue. `reset` only clears
-the next queue, and `unlock` refuses while the supervisor is still alive on
-this host; cancel that run instead.
+Ctrl-C requests cancellation, after which cleanup continues in the background,
+so starting another run for the same project may briefly fail. Closing a
+terminal with the client stopped by Ctrl-Z disconnects it and requests
+cancellation.
 
 ## Array and matrix jobs
 
@@ -236,6 +230,21 @@ fails with exit code 124 and an error such as `timed out after 2h0m0s` in its
 log. A timeout is an ordinary failure for `run --retry`, `retry`, and
 `--depends-on`; it works across executors and is independent of scheduler
 walltime options such as Slurm `--time`.
+
+## Supervisor failure
+
+The supervisor is not restarted after a crash. Inspect the run, confirm its
+jobs have stopped, then unlock and retry unfinished work:
+
+```sh
+rotari show -r RUN_ID
+rotari unlock -p sweep
+rotari retry --run-id RUN_ID
+```
+
+The interrupted run's jobs are not put back in the queue. `reset` only clears
+the next queue, and `unlock` refuses while the supervisor is still alive on
+this host; cancel that run instead.
 
 ## Queue and job control
 

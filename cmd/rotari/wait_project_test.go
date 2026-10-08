@@ -13,29 +13,48 @@ import (
 func TestResolveWaitProjectOptionsUseActiveOrLatestRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	for _, test := range []struct {
-		name    string
-		active  bool
-		fromEnv bool
+		name   string
+		active bool
 	}{
-		{"finished/option", false, false},
-		{"finished/environment", false, true},
-		{"active/option", true, false},
-		{"active/environment", true, true},
+		{"finished", false},
+		{"active", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv(envProjectName, "")
 			paths, wantID := waitProjectFixture(t, test.active)
-			projectName := "demo"
-			if test.fromEnv {
-				t.Setenv(envProjectName, projectName)
-				projectName = ""
-			}
-			got, err := resolveActiveWaitTargets(paths.BaseDir, projectName)
+			got, err := resolveActiveWaitTargets(paths.BaseDir, "demo")
 			want := resolve.Run{BaseDir: paths.BaseDir, ProjectName: "demo", RunID: wantID}
 			if err != nil || len(got) != 1 || got[0] != want {
 				t.Fatalf("wait targets = %#v, err=%v; want %#v", got, err, want)
 			}
 		})
+	}
+}
+
+func TestResolveWaitWithoutProjectOptionIgnoresProjectEnvironment(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	t.Setenv(envProjectName, "beta")
+	baseDir := t.TempDir()
+	for _, projectName := range []string{"alpha", "beta"} {
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := resolveActiveWaitTargets(baseDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []resolve.Run{
+		{BaseDir: baseDir, ProjectName: "alpha", RunID: "alpha-run"},
+		{BaseDir: baseDir, ProjectName: "beta", RunID: "beta-run"},
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("wait targets = %#v, want all active projects %#v", got, want)
 	}
 }
 

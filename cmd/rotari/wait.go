@@ -67,8 +67,7 @@ func cmdWait(args []string) int {
 			return 1
 		}
 		if len(activeTargets) == 0 {
-			printError("no active runs")
-			return 1
+			return 0
 		}
 		targets = append(targets, activeTargets...)
 	}
@@ -440,7 +439,7 @@ func latestRunPerProject(runs []resolve.Run) []resolve.Run {
 }
 
 func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run, error) {
-	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
+	if cliProjectName != "" {
 		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
 			return nil, err
