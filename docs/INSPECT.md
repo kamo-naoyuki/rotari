@@ -127,41 +127,25 @@ not shown for an older one.
 
 ### Artifacts
 
-Each attempt also records the files and directories its job definition
-refers to, in `artifacts.json` in the attempt directory: paths found in the
-command's arguments (such as `train.py` or `--config conf/run.yaml`), in
-`--env` and matrix values (a value that looks like a path, or any value of a
-variable whose name ends in `_DIR`, `_PATH`, or `_FILE`), bare names after
-options such as `--output results` or `--save-dir ckpt` (but not a format name
-such as `--output png`), in
-`--output`/`--error`, and in the YAML, JSON, or TOML files those name.
-Relative paths are resolved on the job's working directory. Files a job
-builds in code that discovery cannot see can be declared with
-`rotari add --artifact PATH` (repeatable; `change --artifact` replaces and
-`change --clear-artifacts` removes the declarations). A declared path may use
-`$ROTARI_ARRAY_TASK_ID`, `$ROTARI_JOB_DIR`, and the job's own `--env` and
-matrix variables, so each array task or matrix member records its own file:
+Rotari records candidate files and directories referenced by a job definition.
+Discovery is best-effort and static: it does not run the job, verify that a
+path exists, or determine whether it is an input or output. In particular, it
+may not find paths that the job constructs at runtime. Recording candidates
+does not affect job execution. Declare runtime-generated paths explicitly with
+repeatable `rotari add --artifact PATH`; paths can use
+`$ROTARI_ARRAY_TASK_ID`, `$ROTARI_JOB_DIR`, and the job's `--env` and matrix
+variables, so each array task or matrix member can have its own artifact:
 
 ```sh
 rotari add --array 0-9 --artifact 'results/$ROTARI_ARRAY_TASK_ID/plot.png' python train.py
 ```
 
-These are candidates, found without running anything: rotari does not check that they
-exist or tell inputs from outputs, and finding them never affects the job.
-Shell code given to `bash -c` (or `sh`, `dash`, `zsh`) is parsed without
-running it: its commands' arguments and literal redirection targets such as
-`> out/log.txt` are recorded, and `$ROTARI_ARRAY_TASK_ID`, `$ROTARI_JOB_DIR`,
-and the job's own `--env` and matrix variables are filled in, so each array
-task records its own paths. Shell scripts the job runs, such as
-`bash run.sh` or a `.sh` argument, are read and inspected the same way.
-Other variables, `$(...)`, and globs are not evaluated. A Python file the
-job names, such as `train.py`, is read without running it: the `default` of
-each `argparse` `add_argument` and the plain string literals in it are
-recorded, but not paths the code builds with f-strings, `.format`, or
-`os.path.join`. Code given to `python -c` and the text given to `echo` or
-`printf` are not searched. Configuration
-files are read on the host that runs `rotari run`, also for SSH and scheduler
-jobs; a file that host cannot read is skipped.
+Automatic discovery looks for likely paths in command arguments, environment
+and matrix values, output destinations, and referenced configuration or script
+files. Paths in configuration and scripts are inspected without running the
+job; dynamically generated paths and unreadable files may be missed. For SSH
+and scheduler jobs, discovery reads files available on the host running
+`rotari run`.
 
 `rotari show -j JOB` lists the first 20 of them after the command, each with
 what is at the path now on the host running `show` (`file`, `directory`,
@@ -177,31 +161,23 @@ Artifacts: relative to /work/exp
   missing    out/3.log  (> (run.sh:2:15))
 ```
 
-`missing` only means the path is not there for this host: an SSH job's files
-may exist on its own host. `rotari show -j ATTEMPT_ID --artifacts` lists all
-of them, with notes on files discovery could not read, instead of the logs,
-and `show -j JOB --json` includes the same listing as `artifacts`. In the
-Web UI, a job row's Artifacts button shows the same listing for the attempt
-its Output button shows, also in a static export, where the listing
-describes the files as they were when the export was made.
+`missing` means only that the path is absent on the host running `show`; an
+SSH or scheduler job's files may be on another host. Use
+`rotari show -j ATTEMPT_ID --artifacts` to list all recorded candidates and
+discovery notes instead of logs; `show -j JOB --json` includes them as
+`artifacts`. Older runs from before artifact recording show `(not recorded)`.
+A carried job shows candidates from the attempt that produced its result.
 
-In the live Web UI, a listed file or directory under the job's working
-directory can be opened: images are shown, audio and video play, NumPy
-`.npy` and `.npz` files show each array's dtype, shape, and first values,
-CSV and TSV files show as tables, logs
-and `.txt` files from the end, other text from the start, each loading more
-on demand, and a directory as its immediate children, 200 at a time. Any
-file can be downloaded. Opening a file or directory automatically scrolls
-to its preview below the listing; loading more content does not move the view.
-A path outside the working directory, or a symlink
-leading out of it, is listed but not opened; add a directory with
-`rotari web --artifact-root DIR` to allow it. A static export contains no
-file contents unless it is made with `--static-artifact-contents`, which
-copies previewable files from the jobs' working directories (up to 10 MiB
-each, 100 MiB in all) so previews work in the export; anyone who can read the
-export can then read those files. A carried
-job shows the candidates of the attempt that produced its result. Runs from
-before this record existed show `(not recorded)`.
+In the live Web UI, the Artifacts button opens the listing for the attempt
+shown by Output. Files under the job's working directory can be previewed in
+supported formats (including images, audio/video, NumPy arrays, CSV/TSV, and
+text) or downloaded; directories show their immediate contents. Other paths
+are listed but not opened unless allowed by `rotari web --artifact-root DIR`.
+A static export records the listing as of export time. It includes no file
+contents by default; `--static-artifact-contents` copies previewable files
+(up to 10 MiB each and 100 MiB total) so they can be previewed there. Anyone
+who can access the Web UI or an export with copied contents may be able to read
+those files; see [Web UI security](OPERATIONS.md#security-model) before sharing.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `run` until you acknowledge it. First confirm
