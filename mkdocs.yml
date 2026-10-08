@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - User guide:
       - Getting started: GETTING_STARTED.md
+      - Examples: examples.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
       - Running jobs: RUNNING.md
@@ -27,11 +28,10 @@ nav:
       - CLI reference: CLI_REFERENCE.md
       - Environment variables: ENVIRONMENT_VARIABLES.md
       - Notifications: NOTIFICATIONS.md
-      - Operations: OPERATIONS.md
+      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
       - Docker: DOCKER.md
       - MCP Server: MCP.md
-      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
-      - Examples: examples.md
+      - Operations: OPERATIONS.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - FAQ: FAQ.md
   - Development:
