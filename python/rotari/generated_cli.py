@@ -1412,6 +1412,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "print each completed run as one JSON object",
                     "name": "json",
                 },
+                {
+                    "description": "suppress normal progress and completion "
+                    "output; keep failure diagnostics and JSON "
+                    "results",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
+                },
             ],
             "name": "wait",
             "positional": "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",

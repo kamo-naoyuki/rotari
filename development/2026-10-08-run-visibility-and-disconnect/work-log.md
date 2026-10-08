@@ -39,3 +39,29 @@ See [plan.md](plan.md) for current scope and open lifecycle decisions.
 **Validation:** Focused `cmd/rotari` tests, settings/completion tests, runs-window conformance, CLI flag-pair inventory, schema/golden generation, and documentation checks passed. Final `scripts/check.sh --short` and `scripts/check.sh` both passed (go vet, all Go tests, and race tests; combined validation command exited 0). Python tests against the freshly built CLI passed (64 tests), as did `TestContractStatus` and `TestGoldenOutputs` with `-count=1`. Final successful logs are retained as `rotari-cross-short-final.log` and `rotari-cross-full-final.log` in the session's temporary directory. Documentation and final diff checks were reviewed before commit; no full tests were rerun during commit cleanup.
 
 **Remaining:** None for this listing change. Client attachment visibility and disconnect policy remain separate work items.
+
+## Share live progress between run and wait
+
+**Change:** Added `wait --quiet` and live text progress matching synchronous
+`run`. Both execution modes record the existing observer's events in an optional
+append-only progress journal regardless of the starting client's quiet setting.
+`wait` uses an incremental reader and the shared CLI renderer, drains final events
+before completion, and does not replay old progress for already-finished runs.
+JSON remains result-only; quiet preserves failure diagnostics and requested JSON.
+Journal I/O failures fall back to result-only waiting, and a job ID matching the
+journal filename disables the optional journal rather than breaking execution.
+
+**Reason:** `run --async` followed by `wait` should provide the same progress
+information as a synchronous run rather than silently waiting until completion.
+
+**Plan impact:** Adds a read-only progress projection, not a supervisor reconnect
+or a change to cancellation/detach semantics. Ending or interrupting `wait` leaves
+the run executing. Historical runs without a journal remain waitable.
+
+**Validation:** The regression test failed before the CLI fix. Focused journal,
+observer, CLI, public wait, and all 28 wait flag-pair tests passed, as did the full
+CLI package and affected resolution/interface/selector conformance suites. `scripts/check.sh --short`
+and `scripts/check.sh` passed (vet, full tests, and race tests). `git diff --check`
+passed. `pre-commit` could not run because it is not installed in this environment.
+
+**Remaining:** None.

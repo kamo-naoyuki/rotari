@@ -1045,6 +1045,9 @@
         },
         {
           "name": "json"
+        },
+        {
+          "name": "quiet"
         }
       ],
       "name": "wait"

@@ -230,6 +230,23 @@ follows:
   once and ending with a newline. Both use
   [`internal/supervisor/messages.go`](../internal/supervisor/messages.go);
   checked by [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
+- **CLI-19** Text `wait` started while a run is active renders its persisted
+  run-start, job-start, retry, final-failure, and progress-count events with
+  the same printer as synchronous `run`, draining final events before
+  completion. It does not replay events for an already finished run, and an
+  absent journal remains compatible with old runs. Partial lines are deferred;
+  malformed complete lines are reported and skipped without losing subsequent
+  events. `wait --quiet` suppresses normal progress and completion, but keeps
+  failure diagnostics, early-failure reports, errors, and timeouts. Quiet uses
+  the ordinary CLI/environment/config precedence. `--json` never emits text
+  progress and still emits its result with `--quiet`. Ending wait, including
+  interruption, timeout, and `--until-failure`, does not cancel the run, and
+  wait never offers synchronous run's Ctrl-D/Ctrl-C controls. Implemented in
+  [`cmd/rotari/wait.go`](../cmd/rotari/wait.go) and the shared printer in
+  [`cmd/rotari/run_command.go`](../cmd/rotari/run_command.go), with cursor and
+  output tests in [`cmd/rotari/wait_progress_test.go`](../cmd/rotari/wait_progress_test.go)
+  and public coverage in
+  [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
 - **CLI-15** A single-value CLI option may be specified only once in an
   invocation; a second occurrence is rejected before command effects. Options
   declared repeatable remain repeatable, including short and long aliases of

@@ -138,8 +138,24 @@ environment variables for that run. The default `--env=ALL` propagates them;
 job `--env` values and rotari metadata still apply in either mode.
 
 The async start message prints commands for checking status and cancelling the
-run. When it finishes, `wait` prints the same completion message as `run` and
-returns the overall run exit code. Pass a project name, run name,
+run. When started while the run is active, `wait` shows the same persisted
+run-start, job-start, retry, failure, and progress-count messages as a
+synchronous `run`, including events recorded before `wait` attached. It drains
+the final events before printing the same completion message as `run` and
+returns the overall run exit code. A run already finished when `wait` starts
+prints only its completion message, without replaying progress. Older runs
+without a progress journal remain waitable, but have no live progress.
+
+`wait --quiet` suppresses normal progress and completion output, but retains
+job-failure diagnostics, early-failure reports, errors, and timeouts. It uses
+the usual quiet default from `ROTARI_QUIET` and configuration (`quiet` or
+`wait.quiet`); an explicit CLI value overrides those defaults. `wait --json`
+prints only the JSON result on stdout, never text progress; `--quiet` does not
+suppress that result. Ending or interrupting `wait`, reaching its timeout, or
+returning on `--until-failure` does not cancel the run. Use `rotari cancel`
+to stop it; the synchronous run's Ctrl-D/Ctrl-C controls do not apply to `wait`.
+
+Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a
 project name wins over a run name and a run ID when the same string is used for
 more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.

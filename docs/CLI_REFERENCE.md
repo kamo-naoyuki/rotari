@@ -419,6 +419,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
 | `--until-failure` | `` | `` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 | `--json` | `` | `` | print each completed run as one JSON object |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress normal progress and completion output; keep failure diagnostics and JSON results |
 
 ### `rotari add`
 

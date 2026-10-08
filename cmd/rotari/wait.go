@@ -16,6 +16,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
@@ -32,6 +33,7 @@ func cmdWait(args []string) int {
 	timeout := cliDuration(fs, "timeout", 0)
 	untilFailure := cliBool(fs, "until-failure", false)
 	jsonOutput := cliBool(fs, "json", false)
+	quiet := cliBool(fs, "quiet", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -80,7 +82,7 @@ func cmdWait(args []string) int {
 		if target.RunID == "" {
 			continue // A project that does not exist yet has nothing to wait for.
 		}
-		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *untilFailure, *jsonOutput)
+		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *untilFailure, *jsonOutput, *quiet)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
 		}
@@ -290,7 +292,7 @@ type waitResult struct {
 
 // waitForRun waits until runID finishes, or with untilFailure until one of
 // its jobs has failed with no retry left, whichever comes first.
-func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput bool) waitResult {
+func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput, quiet bool) waitResult {
 	baseDir, queueName, runID, err := resolveCLIExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
@@ -306,7 +308,23 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 		printErrorf("invalid run ID %q", runID)
 		return waitResult{exitCode: 1}
 	}
+	// Do not replay historical progress for a run already finished when wait
+	// starts. JSON never reads or renders the text progress stream.
+	phase, phaseErr := project.RunPhaseOf(paths, runID)
+	followProgress := !jsonOutput && phaseErr == nil && phase == project.RunPhaseRunning
+	var cursor state.ProgressCursor
+	printer := runProgressPrinter{quiet: quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
+	drainProgress := func() {
+		if !followProgress {
+			return
+		}
+		if err := readWaitProgress(&cursor, runDir, &printer); err != nil {
+			printErrorf("warning: failed to read progress for run %s: %v; continuing without progress", runID, err)
+			followProgress = false
+		}
+	}
 	for {
+		drainProgress()
 		summaryPath, pathErr := state.ValidatedStateFile(runDir, "summary.json")
 		if pathErr != nil {
 			printErrorf("invalid run directory %q", runID)
@@ -333,9 +351,12 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 				return waitResult{exitCode: 1}
 			}
+			// Final events can arrive between the poll above and finalization.
+			// The supervisor journals them before releasing the run lock.
+			drainProgress()
 			if jsonOutput {
 				_ = json.NewEncoder(os.Stdout).Encode(summary)
-			} else {
+			} else if !quiet {
 				fmt.Print(formatRunCompletion(paths, runID, summary))
 			}
 			return waitResult{exitCode: summary.ExitCode}
@@ -375,6 +396,27 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 			return waitResult{exitCode: 1, timedOut: true}
 		}
 		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+// readWaitProgress shares the attached run's renderer without its terminal
+// control hints. The cursor retains partial lines and tolerates old runs with
+// no journal. A malformed complete line is consumed: report it, then continue
+// draining so it cannot hide later events, including the final ones.
+func readWaitProgress(cursor *state.ProgressCursor, runDir string, printer *runProgressPrinter) error {
+	for {
+		events, err := cursor.Read(runDir)
+		for _, event := range events {
+			printer.print(serverinternal.Response{
+				OK: event.OK, Message: event.Message, Progress: event.Progress,
+				JobID: event.JobID, Completed: event.Completed, Total: event.Total,
+				Succeeded: event.Succeeded, Failed: event.Failed,
+			})
+		}
+		if !errors.Is(err, state.ErrInvalidJSON) {
+			return err
+		}
+		printErrorf("skipping malformed run progress: %v", err)
 	}
 }
 

@@ -330,7 +330,10 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 	if isTerminal(os.Stdin) {
 		go watchDetach(os.Stdin, detach)
 	}
-	printer := runProgressPrinter{quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
+	printer := runProgressPrinter{
+		quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1,
+		controlHint: "Press Ctrl-D to detach; Ctrl-C to cancel.",
+	}
 	response, outcome, err := client.StreamRun(request, detach, signals, printer.print)
 	if err != nil {
 		return serverinternal.Response{}, err
@@ -365,9 +368,11 @@ func watchDetach(input io.Reader, detach chan<- struct{}) {
 	}
 }
 
-// runProgressPrinter renders a synchronous run's progress responses.
+// runProgressPrinter renders live or persisted run progress. Only an attached
+// synchronous client supplies a control hint that offers run cancellation.
 type runProgressPrinter struct {
 	quiet                                    bool
+	controlHint                              string
 	lastCompleted, lastSucceeded, lastFailed int
 }
 
@@ -391,7 +396,9 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 		fmt.Printf("%s\n", colorKeyValueMessage(response.Message, yellow))
 	case strings.HasPrefix(response.Message, "=== Run started ==="):
 		fmt.Printf("%s\n", colorMessage(response.Message))
-		fmt.Println(cyan("Press Ctrl-D to detach; Ctrl-C to cancel."))
+		if printer.controlHint != "" {
+			fmt.Println(cyan(printer.controlHint))
+		}
 	case strings.HasPrefix(response.Message, "Job running:"):
 		title, details, _ := strings.Cut(response.Message, "\n")
 		fmt.Printf("%s\n%s\n", cyan(title), colorLabeledDetails(details, false))

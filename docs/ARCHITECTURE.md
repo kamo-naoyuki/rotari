@@ -95,6 +95,20 @@ The supervisor is started with `setsid`, detached from the client's terminal
 session, so a run keeps going when an async client returns or a sync client
 detaches with Ctrl-D.
 
+Both modes use the same progress observer. The supervisor records run-start,
+job-start, retry, failure, and completion-count events in the run's
+`progress.jsonl`, independently of the starting client's quiet setting, and
+also forwards them to an attached synchronous client. Journaling is best-effort
+and does not determine execution or finalization. A colliding job ID disables
+journaling rather than changing the job's behavior; reader I/O failures warn
+and fall back to result-only waiting. `rotari wait` incrementally
+reads these events while waiting for the authoritative finalized summary and
+uses the same CLI progress renderer; it does not reconnect to the supervisor
+or acquire cancellation authority. JSON wait reads only the result state.
+See [progress observer](../internal/supervisor/run.go),
+[journal I/O](../internal/state/progress.go), and
+[wait](../cmd/rotari/wait.go).
+
 Because the filesystem is the shared medium, any process can die and the next
 one can reconstruct what happened from the files. That is why so much code
 takes a `state.ProjectPaths` and not an in-memory object.

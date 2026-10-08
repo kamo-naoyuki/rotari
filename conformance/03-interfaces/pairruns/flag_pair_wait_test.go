@@ -101,6 +101,12 @@ func assertPairWaitOutcome(t *testing.T, f pairFixture, flags []pairFlag, result
 		assertPairWaitJSON(t, result, f.Run)
 		return
 	}
+	if pairHasFlag(flags, "quiet") {
+		if result.Stdout != "" {
+			t.Fatalf("wait --quiet did not suppress completion: %s", result)
+		}
+		return
+	}
 	if !strings.Contains(result.Stdout, "=== Run failed ===") || !strings.Contains(result.Stdout, "Run: "+f.Run) {
 		t.Fatalf("wait did not report the selected failed run: %s", result)
 	}
@@ -160,7 +166,7 @@ func TestCLIFlagPairWaitJSONAndEarlyFailure(t *testing.T) {
 	started := time.Now()
 	timedOut := pairInvoke(t, waitEnv, "wait", "--config", f.Config, "--run-id", f.Run, "--timeout", "1s")
 	elapsed := time.Since(started)
-	if timedOut.Code != 1 || !strings.Contains(timedOut.Stderr, "timed out waiting for run "+f.Run) || timedOut.Stdout != "" || elapsed < time.Second || elapsed >= 5*time.Second {
+	if timedOut.Code != 1 || !strings.Contains(timedOut.Stderr, "timed out waiting for run "+f.Run) || !strings.Contains(timedOut.Stdout, "=== Run started ===") || strings.Contains(timedOut.Stdout, "=== Run failed ===") || elapsed < time.Second || elapsed >= 5*time.Second {
 		t.Fatalf("--timeout did not bound the wait as requested (elapsed %s): %s", elapsed, timedOut)
 	}
 	assertPairWaitStateUnchanged(t, f, before)

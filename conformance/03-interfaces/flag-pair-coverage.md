@@ -26,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,757 unordered flag-name pairs
+- `TestCLIFlagPairInventory` enumerates all 6,764 unordered flag-name pairs
   from the command schema.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
@@ -113,14 +113,15 @@ implementation imports. The staged rollout is tracked in the
   output and exit status and verify that fixture state stays unchanged.
   Standalone samples and dedicated async-conflict, run-name, and selection
   witnesses supplement this mode-specific matrix; no job or scheduler starts.
-- `TestCLIFlagPairWait` executes all 21 `wait` pairs in both orders against a
+- `TestCLIFlagPairWait` executes all 28 `wait` pairs in both orders against a
   single finished failed run, with an explicit two-second timeout on every
   invocation. The expected exit 1 is the fixture run's result, not a diagnosed
   option rejection; stderr must remain empty, output must match the selected
-  text/JSON mode, and the fixture tree must remain unchanged. Separate
+  text/JSON mode (`--quiet` suppresses text completion but preserves JSON),
+  and the fixture tree must remain unchanged. Separate
   synthetic-running witnesses remove the summary and add a remote lock without
   starting a process: one confirms timeout and CLI-over-environment/config
-  precedence, and `--until-failure` returns early with final failure groups in
+  precedence while retaining persisted progress, and `--until-failure` returns early with final failure groups in
   text and JSON. These checks do not exercise live-run synchronization or
   retrying failures.
 - `TestCLIFlagPairRegistries` executes three `gc` and three `server` pairs

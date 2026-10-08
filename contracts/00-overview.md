@@ -75,6 +75,7 @@ The normal state layout is:
         ├── commands.json
         ├── carried.json  # results carried from earlier runs, written at start
         ├── context.json
+        ├── progress.jsonl # optional append-only display events for run/wait
         ├── summary.json
         └── <job-id>/
             └── attempts/<attempt-id>/
@@ -92,6 +93,9 @@ The normal state layout is:
   inventing completed results.
 - Run status and each attempt's configured merged or separate stream logs
   remain the durable execution record.
+- The optional progress journal is a best-effort display projection, not the
+  authority for run completion or job results. Missing journals in older runs
+  do not prevent result inspection or waiting.
 
 ## Core design contracts
 

@@ -341,6 +341,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "timeout", Description: "maximum wait duration", ValueName: "DURATION"},
 			cliFlagSpec{Name: "until-failure", Description: "return as soon as a job of the run has failed with no retry left, without waiting for the rest"},
 			cliFlagSpec{Name: "json", Description: "print each completed run as one JSON object"},
+			cliFlagSpec{Name: "quiet", Description: "suppress normal progress and completion output; keep failure diagnostics and JSON results"},
 		),
 		Positional: "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",
 	},

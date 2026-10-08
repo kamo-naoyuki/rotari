@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -27,11 +28,12 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 	if err != nil {
 		return "", "", err
 	}
+	observer := ops.progressObserver(request, started, nil)
 	go func() {
 		if onDone != nil {
 			defer onDone()
 		}
-		if _, err := ops.Runner.Run(started.paths, started.options, projectrun.Observer{}); err != nil {
+		if _, err := ops.Runner.Run(started.paths, started.options, observer); err != nil {
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
@@ -49,10 +51,7 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 		return "", 1, err
 	}
 	paths, runID := started.paths, started.runID
-	if progress != nil {
-		progress(server.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, started.submitted, started.total-started.submitted, started.total)})
-	}
-	exitCode, err := ops.Runner.Run(paths, started.options, runObserver(request, runID, progress))
+	exitCode, err := ops.Runner.Run(paths, started.options, ops.progressObserver(request, started, progress))
 	if err != nil {
 		return "", 1, err
 	}
@@ -77,6 +76,8 @@ type startedRun struct {
 	sourceRunID         string
 	usedQueueWithSource bool
 	omittedSourceJobs   []string
+	// A valid job ID may occupy the optional journal's path.
+	progressJobIDCollision bool
 }
 
 // beginRun validates a run request and records the new run with Begin, under
@@ -98,11 +99,20 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	}
 	options := runRequestOptions(request, runID)
 	options.Executor = prepared.executor
+	jobs := model.QueueToJobs(prepared.queue.Commands)
+	progressJobIDCollision := false
+	for _, job := range jobs {
+		if job.ID == state.ProgressFileName {
+			progressJobIDCollision = true
+			break
+		}
+	}
 	return startedRun{
 		paths: prepared.paths, runID: runID, options: options,
-		submitted: len(prepared.plan.Execute), total: len(model.QueueToJobs(prepared.queue.Commands)),
+		submitted: len(prepared.plan.Execute), total: len(jobs),
 		sourceRunID: prepared.sourceRunID, usedQueueWithSource: prepared.usedQueueWithSource,
-		omittedSourceJobs: prepared.omittedSourceJobs,
+		omittedSourceJobs:      prepared.omittedSourceJobs,
+		progressJobIDCollision: progressJobIDCollision,
 	}, nil
 }
 
@@ -249,8 +259,47 @@ func runRequestOptions(request server.Request, runID string) projectrun.Options 
 	}
 }
 
-// runObserver turns job starts and results into progress responses for an
-// attached client.
+// progressObserver journals the same stream for sync and async runs, regardless
+// of Quiet, and optionally forwards it to the attached client. A journal error
+// disables further writes (a failed write may have left a partial line), logs
+// once, and never prevents execution or forwarding.
+func (ops Operations) progressObserver(request server.Request, started startedRun, progress func(server.Response)) projectrun.Observer {
+	var journal *state.ProgressJournal
+	if started.progressJobIDCollision {
+		ops.logf("run %s progress journal disabled: job ID %s uses the journal path", started.runID, state.ProgressFileName)
+	} else {
+		runDir, err := state.SafeJoin(started.paths.RunsDir, started.runID)
+		if err == nil {
+			journal, err = state.NewProgressJournal(runDir)
+		}
+		if err != nil {
+			ops.logf("run %s progress journal failed: %v", started.runID, err)
+		}
+	}
+	var mu sync.Mutex
+	emit := func(response server.Response) {
+		mu.Lock()
+		defer mu.Unlock()
+		if journal != nil {
+			event := model.ProgressEvent{
+				OK: response.OK, Progress: response.Progress, Message: response.Message,
+				JobID: response.JobID, Completed: response.Completed, Total: response.Total,
+				Succeeded: response.Succeeded, Failed: response.Failed,
+			}
+			if err := journal.Append(event); err != nil {
+				ops.logf("run %s progress journal failed: %v", started.runID, err)
+				journal = nil
+			}
+		}
+		if progress != nil {
+			progress(response)
+		}
+	}
+	emit(server.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
+	return runObserver(request, started.runID, emit)
+}
+
+// runObserver turns job starts and results into progress responses.
 func runObserver(request server.Request, runID string, progress func(server.Response)) projectrun.Observer {
 	if progress == nil {
 		return projectrun.Observer{}
