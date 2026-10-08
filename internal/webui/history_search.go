@@ -320,22 +320,14 @@ func historySearchBaseRecord(entry webBaseDir, projectName string, summary model
 }
 
 func historySearchJobRecord(base webprojection.HistorySearchRecord, job webprojection.Job) webprojection.HistorySearchRecord {
-	jobStatus := "pending"
-	if base.RunStatus == "running" {
-		jobStatus = "running"
-	}
-	if job.SchedulerState != "" {
-		jobStatus = job.SchedulerState
+	jobStatus := job.ExecutionStatus
+	if jobStatus == "" {
+		jobStatus = "unknown"
 	}
 	var exitCode *int
 	if job.Result != nil {
-		switch {
-		case job.Result.Accepted:
+		if job.Result.Accepted {
 			jobStatus = "success (accepted)"
-		case job.Result.Error == "blocked by failed dependency":
-			jobStatus = "blocked"
-		default:
-			jobStatus = model.ResultStatus(*job.Result, true)
 		}
 		value := job.Result.ExitCode
 		exitCode = &value

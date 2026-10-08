@@ -47,7 +47,10 @@ expose run and project attributes, and job results expose job, run, and
 project attributes. Run attributes include the run's host and working
 directory; a job with no job-specific working directory uses its run's
 working directory for job searches. Ignore-case matching is on by default and
-can be disabled.
+can be disabled. Job status uses the shared persisted execution-status
+projection, so interrupted-run attempts can be searched by recorded states
+such as `running (recorded)`, `waiting (recorded)`, `suspended (recorded)`, or
+`unknown`, without requiring a live supervisor.
 Fuzzy matching is an independent, opt-in setting for free-text attributes; it
 allows a small edit distance and ignores terms shorter than four characters.
 Status, executor, and diagnosis conditions use dropdowns and exact value
@@ -75,8 +78,9 @@ and the page is in
 API coverage is in
 [`internal/web/search_test.go`](../internal/web/search_test.go) and
 [`internal/webui/webui_test.go`](../internal/webui/webui_test.go); the
-cross-project API behavior is covered by
-[`TestHistorySearchAcrossProjects`](../conformance/05-web/history_search_test.go).
+cross-project API behavior and recorded unfinished job status are covered by
+[`TestHistorySearchAcrossProjects`](../conformance/05-web/history_search_test.go)
+and [`TestHistorySearchFindsRecordedUnfinishedJobStatus`](../conformance/05-web/history_search_test.go).
 
 ## Asset layout
 

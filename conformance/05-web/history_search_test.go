@@ -183,3 +183,69 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Errorf("diagnosis search total = %d, want 1", diagnosisResult.Total)
 	}
 }
+
+func TestHistorySearchFindsRecordedUnfinishedJobStatus(t *testing.T) {
+	covers(t, "WEB-2")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "demo", "--", "true")
+	e.MustRotari("run", "-p", "demo", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+		Jobs  []struct {
+			Job struct {
+				ID string `json:"id"`
+			} `json:"job"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "demo", "--json").Stdout), &shown); err != nil || shown.RunID == "" || len(shown.Jobs) != 1 {
+		t.Fatalf("show --json did not describe one completed job: %v", err)
+	}
+	jobID := shown.Jobs[0].Job.ID
+	runDir := filepath.Join(e.Base, "projects", "demo", "runs", shown.RunID)
+	attemptEntries, err := os.ReadDir(filepath.Join(runDir, jobID, "attempts"))
+	if err != nil || len(attemptEntries) != 1 {
+		t.Fatalf("attempt directory entries = %v, %v", attemptEntries, err)
+	}
+	attemptDir := filepath.Join(runDir, jobID, "attempts", attemptEntries[0].Name())
+	for _, path := range []string{
+		filepath.Join(runDir, "summary.json"),
+		filepath.Join(attemptDir, "status"),
+		filepath.Join(attemptDir, "finished_at"),
+	} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(attemptDir, "status.json"), []byte(`{"phase":"running"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metaPath := filepath.Join(e.Base, "projects", "demo", "meta.json")
+	if err := os.WriteFile(metaPath, []byte(`{"phase":"running","last_run_id":"`+shown.RunID+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	base := e.StartWeb()
+	absBase, err := filepath.Abs(e.Base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
+		"scopes": []map[string]string{{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase))), "project_name": "demo"}},
+		"target": "job", "filters": []map[string]string{{"target": "job", "field": "status", "word": "running (recorded)"}},
+	})
+	if response.Status != 200 {
+		t.Fatalf("history search: status %d: %s", response.Status, response.Body)
+	}
+	var result struct {
+		Total int `json:"total"`
+		Rows  []struct {
+			JobID     string `json:"job_id"`
+			JobStatus string `json:"job_status"`
+		} `json:"rows"`
+	}
+	if err := json.Unmarshal([]byte(response.Body), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || len(result.Rows) != 1 || result.Rows[0].JobID != jobID || result.Rows[0].JobStatus != "running (recorded)" {
+		t.Fatalf("history search = %#v, want the interrupted attempt with recorded status", result)
+	}
+}

@@ -53,13 +53,19 @@ let historySearchInitialScopesPromise = null;
 const historySearchStatusOptions = {
   run: ["running", "finished", "failed", "unreadable"],
   job: [
-    "pending",
-    "running",
+    "running (recorded)",
+    "waiting (recorded)",
+    "suspended (recorded)",
+    "unknown",
     "success",
     "success (accepted)",
+    "success (carried)",
     "failed",
+    "failed (carried)",
     "cancelled",
+    "cancelled (carried)",
     "blocked",
+    "blocked (carried)",
   ],
 };
 

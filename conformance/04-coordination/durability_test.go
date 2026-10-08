@@ -15,6 +15,9 @@ func TestJobOutlivesKilledSupervisor(t *testing.T) {
 	if !strings.Contains(interrupted, "Lifecycle: interrupted") || !strings.Contains(interrupted, "running (recorded)") || !strings.Contains(interrupted, "Client: unknown") {
 		t.Errorf("interrupted run does not distinguish lifecycle, recorded job phase, and unknown client state:\n%s", interrupted)
 	}
+	if rows := e.MustRotari("jobs", "--basedir", e.Base, "p", "--format", "%s").Stdout; !strings.Contains(rows, "running (recorded)") {
+		t.Errorf("jobs omitted the interrupted run's recorded attempt: %s", rows)
+	}
 	e.JobExitStatus("p", jobID)
 	updated := e.MustRotari("show", "-p", "p").Stdout
 	if !strings.Contains(updated, "Lifecycle: interrupted") || !strings.Contains(updated, "failed") {

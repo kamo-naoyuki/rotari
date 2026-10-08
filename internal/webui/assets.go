@@ -166,7 +166,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_SESSION__", notificationSession, 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	if len(rows) == 0 {
-		builder.WriteString(`<p class="meta">No running or recently finished jobs found.</p>`)
+		builder.WriteString(`<p class="meta">No unfinished or recently finished jobs found.</p>`)
 		return composeInfoHTML(template, homePath, builder.String())
 	}
 	builder.WriteString(`<section><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="command">Command</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
@@ -207,15 +207,21 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		builder.WriteString(`</code>`)
 		writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
 		builder.WriteString(`</td><td data-sort-value="`)
-		builder.WriteString(html.EscapeString(row.StartedAt.Format(time.RFC3339Nano)))
+		if !row.StartedAt.IsZero() {
+			builder.WriteString(html.EscapeString(row.StartedAt.Format(time.RFC3339Nano)))
+		}
 		builder.WriteString(`">`)
-		builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.StartedAt)))
+		if row.StartedAt.IsZero() {
+			builder.WriteString(`-`)
+		} else {
+			builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.StartedAt)))
+		}
 		builder.WriteString(`</td><td data-sort-value="`)
-		if row.State != "running" {
+		if !row.FinishedAt.IsZero() {
 			builder.WriteString(html.EscapeString(row.FinishedAt.Format(time.RFC3339Nano)))
 		}
 		builder.WriteString(`">`)
-		if row.State == "running" {
+		if row.FinishedAt.IsZero() {
 			builder.WriteString(`-`)
 		} else {
 			builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.FinishedAt)))
@@ -354,6 +360,8 @@ func jobsStateClass(state string) string {
 	switch state {
 	case "success", "failed", "running":
 		return state
+	case "running (recorded)":
+		return "running"
 	default:
 		return "unknown"
 	}

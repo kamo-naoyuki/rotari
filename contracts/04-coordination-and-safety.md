@@ -59,7 +59,8 @@ Representative implementation and tests:
 - **DUR-8** Run lifecycle, best-effort per-job execution state, and the initiating
   client's connection history are separate display dimensions. Job readers
   distinguish recorded nonterminal phases from terminal results and unknown
-  state; a recorded `running` phase does not prove the executor is still alive.
+  state; `jobs` keeps attempts from interrupted runs visible, and a recorded
+  `running` phase does not prove the executor is still alive.
   The client record distinguishes `detached (async)` from `detached (Ctrl-D)`
   with detached-first labels and is reported as unknown when the supervisor
   cannot be verified. The Web UI prefers the server's `client_label`, falling

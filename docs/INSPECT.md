@@ -18,7 +18,7 @@ The four list commands differ in what each row represents:
 
 | Command | Lists |
 | --- | --- |
-| `rotari jobs` | Running and recently finished jobs |
+| `rotari jobs` | Unfinished jobs of active, interrupted, or incomplete runs, and recently finished jobs |
 | `rotari runs` | Active, interrupted, and recently finished runs |
 | `rotari projects` | Projects, with their latest run status |
 | `rotari basedirs` | Known state directories (not job working directories) |
@@ -57,8 +57,11 @@ directory on disk. `basedirs` also prints the resolved master directory.
 Use `--basedir DIR` on `jobs`, `runs`, or `projects` to inspect one state
 directory.
 
-For `jobs` and `runs`, finished entries default to the last day. Running jobs
-and active or interrupted runs are always included.
+For `jobs` and `runs`, finished entries default to the last day. Unfinished
+attempts of active, interrupted, or incomplete runs, and active or interrupted
+runs, are always included. Their job states are persisted observations: for example,
+`running (recorded)` does not assert that an executor is still alive. Jobs
+without an attempt are not listed by `jobs`.
 
 ```sh
 rotari jobs --since 7d

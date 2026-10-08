@@ -112,6 +112,91 @@ func TestCollectRunIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t *tes
 	}
 }
 
+func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	runID := "20261009-100000-12345678"
+	jobs := []model.QueuedCommand{
+		{ID: "running", Name: "running", Command: []string{"sleep", "60"}},
+		{ID: "waiting", Name: "waiting", Command: []string{"true"}},
+		{ID: "unknown", Name: "unknown", Command: []string{"true"}},
+		{ID: "not-started", Name: "not-started", Command: []string{"true"}},
+	}
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: jobs}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	// A later completed run outside the window must not hide an older
+	// unfinished attempt left behind by a recovered supervisor.
+	writeTestJobsRun(t, baseDir, "demo", "20261010-100000-12345678", "completed", now.Add(-49*time.Hour), now.Add(-25*time.Hour), 0)
+	for _, record := range []struct {
+		jobID         string
+		state         string
+		submittedAt   time.Time
+		wrapperStarts string
+	}{
+		{jobID: "running", state: `{"phase":"running"}`, wrapperStarts: now.Add(-48 * time.Hour).Format(time.RFC3339)},
+		{jobID: "waiting", state: `{"phase":"pending"}`, submittedAt: now.Add(-48 * time.Hour)},
+		{jobID: "unknown"},
+	} {
+		writeTestInterruptedAttempt(t, runDir, record.jobID, record.state, record.submittedAt, record.wrapperStarts)
+	}
+
+	rows, err := Collect(testStore(), baseDir, []string{"demo"}, now, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"running": "running (recorded)", "waiting": "waiting (recorded)", "unknown": "unknown"}
+	actual := make(map[string]Row, len(rows))
+	for _, row := range rows {
+		actual[row.JobName] = row
+	}
+	if len(actual) != len(want) {
+		t.Fatalf("Collect() returned %d rows, want %d: %#v", len(actual), len(want), rows)
+	}
+	for jobName, expected := range want {
+		row, ok := actual[jobName]
+		if !ok || row.State != expected {
+			t.Errorf("job %q row = %#v, want state %q", jobName, row, expected)
+		}
+	}
+	if row := actual["running"]; !row.StartedAt.Equal(now.Add(-48*time.Hour)) || !row.FinishedAt.IsZero() {
+		t.Errorf("running attempt timestamps = %#v, want wrapper start and no finish", row)
+	}
+	if row := actual["unknown"]; !row.StartedAt.IsZero() || row.Elapsed >= 0 {
+		t.Errorf("unknown attempt without timestamps = %#v, want missing times", row)
+	}
+}
+
+func writeTestInterruptedAttempt(t *testing.T, runDir, jobID, status string, submittedAt time.Time, wrapperStartedAt string) {
+	t.Helper()
+	attemptID := state.MakeAttemptID(filepath.Base(runDir), jobID, 0)
+	attemptDir := filepath.Join(runDir, jobID, "attempts", attemptID)
+	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !submittedAt.IsZero() {
+		if err := writeTestFile(filepath.Join(attemptDir, "submitted_at"), []byte(submittedAt.Format(time.RFC3339)+"\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if status != "" {
+		if wrapperStartedAt != "" {
+			status = strings.TrimSuffix(status, "}") + `,"started_at":"` + wrapperStartedAt + `"}`
+		}
+		if err := writeTestFile(filepath.Join(attemptDir, "status.json"), []byte(status)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestFormatElapsed(t *testing.T) {
 	cases := map[time.Duration]string{
 		0:                             "0s",

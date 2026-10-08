@@ -315,7 +315,7 @@ vm.runInContext(code, context);
 	const jobStatus = context.historySearchValueControl('job', 'status');
 	const executor = context.historySearchValueControl('job', 'executor');
 	if (!runStatus.startsWith('<select') || !runStatus.includes('Choose status') || !runStatus.includes('failed')) throw new Error('run status is not a dropdown');
-	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked')) throw new Error('job status is not a dropdown');
+	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked') || !jobStatus.includes('running (recorded)') || !jobStatus.includes('waiting (recorded)') || !jobStatus.includes('suspended (recorded)') || !jobStatus.includes('unknown')) throw new Error('job status dropdown is missing recorded or unknown states');
 	if (!executor.startsWith('<select') || !executor.includes('Choose executor') || !executor.includes('slurm')) throw new Error('executor is not a dropdown');
 	const pendingDiagnosis = context.historySearchValueControl('job', 'diagnosis');
 	if (!pendingDiagnosis.includes('disabled')) throw new Error('diagnosis dropdown should wait for candidates');
@@ -2802,11 +2802,12 @@ func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 }
 
 func TestJobsHTMLStylesStates(t *testing.T) {
-	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true, true)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}, {State: "running (recorded)"}}, joblist.DefaultSinceText, true, true)
 	for _, want := range []string{
 		`class="jobs-state jobs-state-success"`,
 		`class="jobs-state jobs-state-failed"`,
 		`class="jobs-state jobs-state-running"`,
+		`class="jobs-state jobs-state-running">running (recorded)</td>`,
 		`.jobs-state-success`,
 		`.jobs-state-failed`,
 		`.jobs-state-running`,
@@ -2814,6 +2815,51 @@ func TestJobsHTMLStylesStates(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("jobs HTML does not contain %q", want)
 		}
+	}
+}
+
+func TestJobsNotificationsRecognizeRecordedStates(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	start := strings.Index(jobsTemplateHTML, "async function pollJobsActivity()")
+	end := strings.Index(jobsTemplateHTML, "async function toggleJobsNotificationBasedir(")
+	if start < 0 || end <= start {
+		t.Fatal("jobs notification polling function not found")
+	}
+	code, err := json.Marshal(jobsTemplateHTML[start:end])
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const vm = require('vm');
+let nextState = 'success';
+const notifications = [];
+const previous = new Map();
+const context = {
+  jobsNotificationTargets: () => [{id: 'base'}],
+  loadJobsNotificationSnapshot: async () => new Map([['attempt', {state: nextState}]]),
+  previousJobsActivity: new Map([['base', previous]]),
+  notifyJobsActivity: job => notifications.push(job.state),
+};
+vm.createContext(context);
+vm.runInContext(` + string(code) + `, context);
+(async () => {
+  for (const before of ['running (recorded)', 'waiting (recorded)', 'suspended (recorded)', 'unknown']) {
+    for (const terminal of ['success', 'failed', 'cancelled', 'blocked']) {
+      nextState = terminal;
+      context.previousJobsActivity.set('base', new Map([['attempt', {state: before}]]));
+      const count = notifications.length;
+      await context.pollJobsActivity();
+      if (notifications.length !== count + 1) throw new Error(before + ' -> ' + terminal + ' did not notify');
+      await context.pollJobsActivity();
+      if (notifications.length !== count + 1) throw new Error('duplicate terminal notification');
+    }
+  }
+})().catch(error => { console.error(error); process.exit(1); });
+`
+	if output, err := exec.Command("node", "-e", script).CombinedOutput(); err != nil {
+		t.Fatalf("recorded job notifications: %v\n%s", err, output)
 	}
 }
 

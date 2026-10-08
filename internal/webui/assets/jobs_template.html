@@ -404,8 +404,17 @@
               nextJobs.forEach((job, key) => {
                 const before = previous.get(key);
                 if (
-                  (job.state === "failed" || job.state === "success") &&
-                  (!before || before.state === "running")
+                  ["failed", "success", "cancelled", "blocked"].includes(
+                    job.state,
+                  ) &&
+                  (!before ||
+                    [
+                      "running",
+                      "running (recorded)",
+                      "waiting (recorded)",
+                      "suspended (recorded)",
+                      "unknown",
+                    ].includes(before.state))
                 )
                   notifyJobsActivity(job);
               });

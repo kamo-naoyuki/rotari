@@ -22,8 +22,8 @@ const (
 	DefaultSinceText = "1d"
 )
 
-// Row is one job attempt in the listing: a running job of an active run or a
-// job that finished inside the window.
+// Row is one job attempt in the listing: an unfinished attempt of an active
+// or interrupted run, or a job that finished inside the window.
 type Row struct {
 	State       string
 	BaseDir     string
@@ -100,7 +100,7 @@ func Projects(baseDir, requested string) ([]string, error) {
 	return projects, nil
 }
 
-// Collect lists the running jobs and the jobs of projects in baseDir that
+// Collect lists unfinished attempts and jobs of projects in baseDir that
 // finished within window before now. Each job's status follows the
 // internal/jobstatus fallback chain.
 func Collect(store state.Store, baseDir string, projects []string, now time.Time, window time.Duration) ([]Row, error) {
@@ -126,23 +126,15 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 		}
 		sort.SliceStable(runs, func(left, right int) bool { return runs[left].Name() > runs[right].Name() })
 		for _, run := range runs {
-			runRows, include, stop, err := collectRun(store, paths, run.Name(), now, cutoff)
+			runRows, include, _, err := collectRun(store, paths, run.Name(), now, cutoff)
 			if err != nil {
 				return nil, err
 			}
 			if include {
 				rows = append(rows, runRows...)
 			}
-			// Run IDs are generated from UTC timestamps, and a project cannot
-			// start its next run until the previous run has finished. Therefore,
-			// after an ordinary completed run is older than the cutoff, every
-			// remaining run in this order is also outside the search window.
-			// This does not apply to active/interrupted runs or runs with missing
-			// or invalid summaries: those cases are deliberately not a signal to
-			// stop, because their completion order is unknown.
-			if stop {
-				break
-			}
+			// An older interrupted run can retain an unfinished attempt even
+			// after recovery and a later completed run. Keep scanning history.
 		}
 	}
 	return rows, nil
@@ -178,32 +170,27 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		}
 		summaryResult, hasSummary := resultByID[job.ID]
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
-		status, statusOK := resolved.ExitCode, resolved.Finished()
-		jobState := ""
-		if statusOK {
-			if status == 0 {
-				jobState = "success"
-			} else {
-				jobState = "failed"
-			}
-		} else if active {
-			jobState = "running"
-		} else {
-			continue
-		}
+		statusOK := resolved.Finished()
+		jobState := resolved.DisplayStatus(model.JobSpec{ID: job.ID, Command: job.Command})
 		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil, false)
 		startedAt, err := parseTimestamp(submittedText)
+		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
+			startedAt, err = parseTimestamp(resolved.Attempt.Wrapper.StartedAt)
+		}
 		if err != nil && summary.StartedAt != "" {
 			startedAt, err = parseTimestamp(summary.StartedAt)
 		}
-		if err != nil {
+		if err != nil && statusOK {
 			continue
 		}
 		finishedAt, finishedErr := parseTimestamp(finishedText)
 		if finishedErr != nil && summary.FinishedAt != "" && statusOK {
 			finishedAt, finishedErr = parseTimestamp(summary.FinishedAt)
 		}
-		if jobState != "running" {
+		if !statusOK {
+			finishedAt = time.Time{}
+		}
+		if statusOK {
 			if finishedErr == nil {
 				if finishedAt.Before(cutoff) {
 					continue
@@ -231,13 +218,17 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		fullCommand := strings.Join(job.Command, " ")
 		command := ShortenText(fullCommand, 40)
 		end := now
-		if jobState != "running" {
+		if statusOK {
 			end = finishedAt
 		}
-		if jobState != "running" && finishedErr != nil {
+		if statusOK && finishedErr != nil {
 			end = time.Time{}
 		}
-		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, Elapsed: end.Sub(startedAt)})
+		elapsed := end.Sub(startedAt)
+		if startedAt.IsZero() {
+			elapsed = -1
+		}
+		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, Elapsed: elapsed})
 	}
 	return rows, true, false, nil
 }

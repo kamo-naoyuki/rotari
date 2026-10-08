@@ -96,7 +96,7 @@ func cmdJobs(args []string) int {
 		if projectFilter != "" {
 			scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
 		}
-		fmt.Printf("No running or recently finished jobs found in %s (finished within %s).\n", scope, *since)
+		fmt.Printf("No unfinished or recently finished jobs found in %s (finished within %s).\n", scope, *since)
 		return 0
 	}
 	joblist.Sort(rows)
@@ -201,6 +201,9 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 	case 'c':
 		return row.Command
 	case 't':
+		if row.StartedAt.IsZero() {
+			return "-"
+		}
 		return joblist.FormatTimestamp(row.StartedAt)
 	case 'f':
 		if row.FinishedAt.IsZero() {
@@ -240,6 +243,9 @@ func colorJobsValue(code byte, value string) string {
 	case "running":
 		return yellow(value)
 	default:
+		if strings.HasPrefix(value, "running (") {
+			return yellow(value)
+		}
 		return value
 	}
 }

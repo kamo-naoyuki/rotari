@@ -391,7 +391,8 @@ Usage: `rotari lineage [RUN_ID ...]`
 
 ### `rotari jobs`
 
-list running and recently finished jobs across known state directories
+list unfinished jobs of active, interrupted, or incomplete runs, and recently
+finished jobs across known state directories
 
 Usage: `rotari jobs [PROJECT]`
 

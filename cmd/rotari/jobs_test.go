@@ -237,7 +237,7 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 		not  []string
 	}{
 		{"one basedir", []string{"--basedir", baseDir}, []string{"in state directory " + baseDir + " (finished within 1d)"}, []string{"--all-basedirs"}},
-		{"all default directories without activity", nil, []string{"No running or recently finished jobs found"}, []string{"--all-basedirs"}},
+		{"all default directories without activity", nil, []string{"No unfinished or recently finished jobs found"}, []string{"--all-basedirs"}},
 		{"specified window", []string{"--since", "7d"}, []string{"finished within 7d"}, []string{"--all-basedirs"}},
 	}
 	for _, test := range tests {
