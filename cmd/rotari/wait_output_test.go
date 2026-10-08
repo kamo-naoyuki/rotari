@@ -28,6 +28,27 @@ func TestWaitOutputTagsOnlyMultipleRuns(t *testing.T) {
 }
 
 func TestWaitOutputColorsOnlyLabelAndRespectsStreamTTY(t *testing.T) {
+	// go test -json aliases os.Stderr to os.Stdout. Give the TTY mock
+	// distinct streams so it can model stdout as a terminal and stderr as a pipe.
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = stdoutReader.Close()
+		_ = stdoutWriter.Close()
+	})
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Stdout, os.Stderr = oldStdout, oldStderr
+		_ = stderrReader.Close()
+		_ = stderrWriter.Close()
+	})
+	os.Stdout, os.Stderr = stdoutWriter, stderrWriter
 	oldCheck := terminalCheck
 	terminalCheck = func(file *os.File) bool { return file == os.Stdout }
 	t.Cleanup(func() { terminalCheck = oldCheck })
