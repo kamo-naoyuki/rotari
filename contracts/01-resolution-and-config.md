@@ -422,42 +422,21 @@ order:
 - Automatic garbage collection is not performed. Malformed or invalid registry
   files are reported and left untouched for manual inspection.
 
-### Implementation note: basedir discovery registry
+Basedir discovery preserves these behaviors:
 
-This is an internal indexing decision, not a user-facing contract. Do not add
-SQLite for registry metadata. Keep the filesystem state authoritative and
-maintain a separate one-record-per-basedir index under the master directory:
+- Commands that create or adopt project state register its basedir
+  idempotently; [`TestCommandsThatCreateAProjectRegisterItsBasedir`](../cmd/rotari/config_test.go)
+  covers the creating commands. Read-only commands such as `show` and `jobs`,
+  and `--dry-run`, do not register it.
+- Existing installations remain discoverable when the basedir index is empty;
+  the run registry provides a backfill or fallback path.
+- Deleting a run removes its run-registry entry but does not remove the
+  basedir's discovery record. A stale basedir record is skipped when its
+  directory cannot be read; garbage collection does not delete state
+  directories.
 
-```text
-<masterdir>/basedirs/<hash>.json -> { base_dir }
-```
-
-Register a basedir idempotently when a command creates or adopts state there:
-queue/project creation, run creation, import, copy, and server startup. Do
-not register from read-only commands such as `show` or `jobs`, or from a
-`--dry-run`, which writes nothing. `add` and `copy` register through
-`queueops.Editor.RegisterBaseDir`, import through `workflowstate.Import`;
-`TestCommandsThatCreateAProjectRegisterItsBasedir` checks the commands that
-create a project. The basedir
-registry is used for discovery by `projects` and `basedirs`, so those
-commands do not need to scan every historical run record. Existing
-installations are backfilled from the run registry when the basedir index is
-empty; a deliberate repair or fallback path must remain available for older
-state.
-
-The run registry remains the run-ID lookup index:
-
-```text
-<masterdir>/runs/<run-id>.json -> { base_dir, project_name, run_id }
-```
-
-Registering a run also registers its basedir. Deleting a run removes only the
-run-registry entry; it does not remove the basedir entry because queues,
-projects, or other runs may still use that basedir. The basedir registry is a
-discovery index only, so a stale entry is harmless and is skipped when the
-basedir cannot be read. The first implementation does not GC basedir entries
-and never deletes state directories. Run-registry orphan GC remains separate
-because stale run entries can interfere with run-ID resolution.
+The non-normative [basedir discovery registry implementation note](../docs/internal/contracts/basedir-discovery.md)
+records the index layout and wiring details.
 
 ### Why the registry is run-scoped
 

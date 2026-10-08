@@ -9,7 +9,8 @@ Keep this file focused on the shared model and invariants; chapter-specific
 implementation details belong in the numbered notes. Detailed Web asset, static
 export, and routing notes live in
 [05-web-assets-and-static-export.md](05-web-assets-and-static-export.md). Read
-that file for Web UI changes.
+that file for Web UI changes. Internal technology rationale is kept in
+[docs/internal/architecture/design-rationale.md](../docs/internal/architecture/design-rationale.md).
 
 ## Terminology
 
@@ -23,28 +24,6 @@ that file for Web UI changes.
 - In prose and user-facing messages, use **supervisor** or **Web server** when
   the distinction matters rather than referring to either process only as the
   server.
-
-## Technology rationale
-
-- The core implementation uses Go because rotari is primarily a command-line
-  and background-server tool that coordinates OS processes, files, locks,
-  signals, pipes, and external schedulers.
-- A statically linked Go binary keeps installation and deployment simple on
-  login nodes, worker nodes, and shared HPC environments. The core does not
-  require a language runtime, daemon framework, or database service at runtime.
-- Go's standard library provides required filesystem, process, signal,
-  networking, JSON, and concurrency primitives directly. This keeps the
-  file-backed state model explicit and makes the local and server execution
-  paths share the same implementation.
-- Goroutines and channels fit the execution model: multiple jobs may run
-  concurrently, while locks and a single server coordinate access to each
-  project.
-- Python is intentionally limited to the optional client interface. It wraps the
-  installed CLI rather than reimplementing queue, persistence, or execution
-  semantics, so there is one authoritative core implementation.
-- This choice does not make Go a requirement for job commands or scheduler
-  integrations. Jobs may use any executable, and executor-specific behavior
-  remains behind the `JobExecutor` boundary.
 
 ## System model
 
