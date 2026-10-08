@@ -314,21 +314,6 @@ as Slurm `--time`, which still apply.
 
 ## Queue and job control
 
-Remove jobs from the current queue without affecting saved run history:
-
-```sh
-rotari remove -p sweep --job-name train
-rotari remove -p sweep -j JOB_ID -j OTHER_JOB_ID
-rotari remove -p sweep --stage eval
-```
-
-Like `change`, `remove` edits the current queue and does not restore an empty
-one; restore a run with `copy`, or pass `--run-id/-r ID` (or `latest`) to replace
-the queue with that run's jobs first. Specify exactly one target selector:
-`--job-name NAME`, one or more `--job-id/-j ID` options, `--stage STAGE`,
-`--matrix NAME`, or `--all`, as for `change`. Removing a job that another queued
-job depends on is rejected.
-
 Stop running jobs without stopping the supervisor:
 
 ```sh
@@ -372,6 +357,21 @@ Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id
 to control selected jobs; job IDs select as for `cancel`, except that an array
 job's ID selects only its running tasks. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
 `scontrol suspend`/`scontrol resume`; SGE jobs use `qmod` suspend/unsuspend.
+
+Remove jobs from the current queue without affecting saved run history:
+
+```sh
+rotari remove -p sweep --job-name train
+rotari remove -p sweep -j JOB_ID -j OTHER_JOB_ID
+rotari remove -p sweep --stage eval
+```
+
+Like `change`, `remove` edits the current queue and does not restore an empty
+one; restore a run with `copy`, or pass `--run-id/-r ID` (or `latest`) to replace
+the queue with that run's jobs first. Specify exactly one target selector:
+`--job-name NAME`, one or more `--job-id/-j ID` options, `--stage STAGE`,
+`--matrix NAME`, or `--all`, as for `change`. Removing a job that another queued
+job depends on is rejected.
 
 Delete saved run logs while keeping queued commands:
 
