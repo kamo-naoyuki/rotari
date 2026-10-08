@@ -188,8 +188,6 @@ them:
 - **Nextflow** for pipelines that are shared, reproduced, and run at scale,
   with containers, clusters, or cloud.
 - **Dagu** for a lightweight, single-binary workflow engine with a Web UI,
-  cron, and event triggers. Choose it when you need those workflow-engine
-  features; rotari is for running batches, not defining and operating
-  workflows.
+  cron, and event triggers.
 - **Airflow, Prefect, or Dagster** for production pipelines that run on a
   schedule and need monitoring.
