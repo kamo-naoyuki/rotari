@@ -64,12 +64,12 @@ func TestUnlockMissingProjectIsNoOp(t *testing.T) {
 	}
 }
 
-func TestWaitMissingProjectIsNoOp(t *testing.T) {
+func TestWaitMissingProjectIsAnError(t *testing.T) {
 	covers(t, "RES-3", "RES-16")
 	e := support.NewEnv(t)
 	for _, args := range [][]string{{"wait", "--project-name", "nope"}, {"wait", "nope"}} {
-		if r := e.Rotari(args...); r.Code != 0 {
-			t.Errorf("wait for missing project %v failed: %s", args, r)
+		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, `project "nope" does not exist`) {
+			t.Errorf("wait for missing project %v did not report an error: %s", args, r)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(e.Base, "projects", "nope")); !os.IsNotExist(err) {

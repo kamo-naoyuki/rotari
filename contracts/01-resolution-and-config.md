@@ -54,9 +54,9 @@ The per-command view of these rules, with job selectors, is in
   `project "x" does not exist`, except `check` reports an empty, non-runnable queue without
   creating a project (exit status 1), and `unlock` without `--run-id` succeeds
   without creating a project. `add`, `import`, and `reset` create projects;
-  `reset` on a missing project succeeds with an empty queue. `wait` selecting
-  an uncreated project by name also succeeds
-  without creating it. Explicit `--run-id` selection still requires its run.
+  `reset` on a missing project succeeds with an empty queue. `wait` requires a
+  selected project to exist and never creates one; explicit `--run-id`
+  selection also requires its run.
 - **RES-4** `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.
 - **RES-5** `jobs` also accepts one optional positional project name to filter the
@@ -143,18 +143,17 @@ Other non-location option defaults remain applicable to aggregate views.
   picks a non-empty queue before the latest run; see
   [06-selectors.md](06-selectors.md) for the options that skip the queue.
 - **RES-16** `wait` without a selector scans the resolved basedir's projects and waits
-  when exactly one active `running.lock` exists; multiple active projects are
-  listed for explicit selection, and no active project is an error. A positional
+  concurrently for all active `running.lock` runs; no active project is an error. A positional
   selector is resolved in this order: `latest`, a project name, a run name,
   then a run ID. A project or run name waits for its active run, or else
   returns the result of the latest matching run at once, as a finished run ID
   does, so a run that ends before `wait` starts is not an error; a run name
   whose latest runs are in several projects is ambiguous. If a selected
-  project does not yet exist, `wait` succeeds as a no-op; a name that matches
-  neither a project nor a run is treated as an uncreated project unless it
-  looks like a run ID. A project selected by `--project-name/-p` or
-  `ROTARI_PROJECT_NAME` without a selector follows the same active-then-latest
-  rule, but no selector and no project still reports no active runs.
+  project does not yet exist, `wait` fails without creating it; a name that
+  matches neither a project nor a run is an error. A project selected by
+  `--project-name/-p` or `ROTARI_PROJECT_NAME` without a selector follows the
+  same active-then-latest rule. With no selector or project option, all active
+  projects in the resolved basedir are waited on concurrently.
   An explicit `--run-id` bypasses this selector resolution.
   Implementation: [project wait resolution](../cmd/rotari/wait.go).
   Tests: [option and environment resolution](../cmd/rotari/wait_project_test.go)

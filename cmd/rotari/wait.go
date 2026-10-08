@@ -70,14 +70,7 @@ func cmdWait(args []string) int {
 			printError("no active runs")
 			return 1
 		}
-		if len(activeTargets) > 1 {
-			printError("multiple active runs; specify a project or selector:")
-			for _, target := range activeTargets {
-				fmt.Fprintf(os.Stderr, "  project=%s run=%s\n", target.ProjectName, target.RunID)
-			}
-			return 1
-		}
-		targets = append(targets, activeTargets[0])
+		targets = append(targets, activeTargets...)
 	}
 	deadline := time.Time{}
 	if *timeout > 0 {
@@ -358,8 +351,10 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	if selectedProject == "" {
 		selectedProject = os.Getenv(envProjectName)
 	}
-	if selectedProject == selector && !resolve.IsRunID(selector) && state.IsValidPathElement(selector) {
-		return resolve.Run{BaseDir: baseDir, ProjectName: selector}, nil
+	if selectedProject != "" {
+		if err := resolve.RequireProject(baseDir, selectedProject); err != nil {
+			return resolve.Run{}, err
+		}
 	}
 
 	activeTargets, err := resolve.RunsByName(baseDir, cliProjectName, selector, true)
@@ -395,9 +390,8 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		}
 		return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: selector}, nil
 	}
-	if state.IsValidPathElement(selector) && !resolve.IsRunID(selector) &&
-		selectedProject == "" {
-		return resolve.Run{BaseDir: baseDir, ProjectName: selector}, nil
+	if state.IsValidPathElement(selector) && !resolve.IsRunID(selector) && selectedProject == "" {
+		return resolve.Run{}, resolve.RequireProject(baseDir, selector)
 	}
 	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
 }
@@ -455,8 +449,8 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if err != nil {
 			return nil, err
 		}
-		if !resolve.ProjectExists(baseDir, projectName) {
-			return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName}}, nil
+		if err := resolve.RequireProject(baseDir, projectName); err != nil {
+			return nil, err
 		}
 		target, err := resolveProjectWaitTarget(baseDir, projectName)
 		if err != nil {

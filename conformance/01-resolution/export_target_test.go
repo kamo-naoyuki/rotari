@@ -139,7 +139,7 @@ func writeLastRunID(t *testing.T, e *support.Env, project, runID string) {
 
 func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 	covers(t, "RES-16")
-	t.Run("one active project is selected", func(t *testing.T) {
+	t.Run("one active project is waited on", func(t *testing.T) {
 		e := support.NewEnv(t)
 		run := e.StartRun("single", 1, true)
 		r := e.Rotari("wait", "--timeout", "50ms")
@@ -148,14 +148,14 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple active projects require selection", func(t *testing.T) {
+	t.Run("multiple active projects are all waited on", func(t *testing.T) {
 		e := support.NewEnv(t)
 		first := e.StartRun("first", 1, true)
 		second := e.StartRun("second", 1, true)
 		r := e.Rotari("wait", "--timeout", "50ms")
 		out := r.Stderr + r.Stdout
-		if r.Code == 0 || !strings.Contains(out, first.Project) || !strings.Contains(out, second.Project) {
-			t.Fatalf("wait did not list multiple active projects: %s", r)
+		if r.Code == 0 || !strings.Contains(out, first.RunID) || !strings.Contains(out, second.RunID) {
+			t.Fatalf("wait without selector did not wait on both active runs: %s", r)
 		}
 	})
 

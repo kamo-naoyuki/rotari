@@ -118,7 +118,7 @@ func TestCmdWaitRejectsMissingRegisteredRunDirectory(t *testing.T) {
 	}
 }
 
-func TestCmdWaitMissingProjectIsNoOp(t *testing.T) {
+func TestCmdWaitMissingProjectIsAnError(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
 	for _, args := range [][]string{
@@ -126,9 +126,13 @@ func TestCmdWaitMissingProjectIsNoOp(t *testing.T) {
 		{"--basedir", baseDir, "demo"},
 		{"--basedir", baseDir, "--project-name", "demo", "demo"},
 	} {
-		if code := cmdWait(args); code != 0 {
-			t.Fatalf("cmdWait(%q) exit code = %d, want 0", args, code)
+		if code := cmdWait(args); code == 0 {
+			t.Fatalf("cmdWait(%q) succeeded for missing project, want error", args)
 		}
+	}
+	t.Setenv(envProjectName, "demo")
+	if code := cmdWait([]string{"--basedir", baseDir}); code == 0 {
+		t.Fatal("cmdWait succeeded for missing project from environment, want error")
 	}
 	if _, err := os.Stat(filepath.Join(baseDir, "projects", "demo")); !os.IsNotExist(err) {
 		t.Fatalf("wait created project: %v", err)

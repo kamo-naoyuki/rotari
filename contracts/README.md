@@ -121,7 +121,7 @@ the IDs, this table, and those calls disagree.
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
 | RES-2 | Project resolution order and the single-project default for project-scoped commands | partial | `TestProjectResolutionOrder` |
-| RES-3 | Missing projects fail except `check` reports empty, `unlock`/`wait` without run ID no-op, and `add`, `import`, `reset` create one | partial | `TestMissingProjectIsAnError`, `TestCheckMissingProjectIsEmptyWithoutCreatingIt`, `TestResetMissingProjectCreatesEmptyQueue`, `TestUnlockMissingProjectIsNoOp`, `TestWaitMissingProjectIsNoOp` |
+| RES-3 | Missing projects fail except `check` reports empty, `unlock` without run ID no-ops, and `add`, `import`, `reset` create one | partial | `TestMissingProjectIsAnError`, `TestCheckMissingProjectIsEmptyWithoutCreatingIt`, `TestResetMissingProjectCreatesEmptyQueue`, `TestUnlockMissingProjectIsNoOp`, `TestWaitMissingProjectIsAnError` |
 | RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
@@ -134,7 +134,7 @@ the IDs, this table, and those calls disagree.
 | RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | partial | `TestRunIDAloneResolvesLocation` |
 | RES-14 | Explicit location options win; conflicts with the registry fail | partial | `TestExplicitLocationMustMatchRegistry` |
 | RES-15 | History consumers fall back to `last_run_id`, then the newest run | conformance | `TestHistoryUsesLastRunThenNewestRun` |
-| RES-16 | `wait` selector resolution, missing-project no-op, and single-active-project scan | partial | `TestWaitResolvesActiveAndFinishedSelectors`, `TestWaitReturnsCompletedRunExitCode`, `TestWaitMissingProjectIsNoOp` |
+| RES-16 | `wait` selector resolution, missing-project errors, and waiting for all active projects | partial | `TestWaitResolvesActiveAndFinishedSelectors`, `TestWaitReturnsCompletedRunExitCode`, `TestWaitMissingProjectIsAnError` |
 | RES-17 | Run lookup applies to history commands only | partial | `TestStateCreatingCommandsDoNotResolveRunIDs` |
 | RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | conformance | `TestJobControlSelectors` |
 | RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
