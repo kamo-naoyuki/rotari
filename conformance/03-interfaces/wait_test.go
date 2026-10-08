@@ -264,6 +264,7 @@ func TestWaitInterruptCancelsAllSelectedRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	attached := make(chan struct{}, 2)
+	scanDone := make(chan error, 1)
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
@@ -271,23 +272,35 @@ func TestWaitInterruptCancelsAllSelectedRuns(t *testing.T) {
 				attached <- struct{}{}
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			t.Errorf("scan multi-run wait output: %v", err)
-		}
+		scanDone <- scanner.Err()
 	}()
+	killAndReap := func() {
+		_ = cmd.Process.Kill()
+		<-scanDone
+		_ = cmd.Wait()
+	}
 	for range 2 {
 		select {
 		case <-attached:
 		case <-time.After(12 * time.Second):
-			_ = cmd.Process.Kill()
-			_ = cmd.Wait()
+			killAndReap()
 			t.Fatal("multi-run wait did not attach to both active runs")
 		}
 	}
 	if err := cmd.Process.Signal(os.Interrupt); err != nil {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		killAndReap()
 		t.Fatal(err)
+	}
+	var scanErr error
+	select {
+	case scanErr = <-scanDone:
+	case <-time.After(12 * time.Second):
+		killAndReap()
+		t.Fatal("multi-run wait stdout did not close after Ctrl-C")
+	}
+	if scanErr != nil {
+		_ = cmd.Wait()
+		t.Fatalf("scan multi-run wait output: %v", scanErr)
 	}
 	if err := cmd.Wait(); err == nil {
 		t.Fatal("Ctrl-C unexpectedly returned success")
