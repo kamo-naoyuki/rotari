@@ -456,7 +456,7 @@ CLI and Web UI agree.
 
 `rotari mcp` ([mcp.go](../cmd/rotari/mcp.go)) serves the MCP tools of
 [internal/mcp](../internal/mcp/) over stdio. The user guide is
-[docs/MCP.md](MCP.md), the rules are MCP-1 to MCP-5 in
+[docs/MCP.md](MCP.md), the rules are MCP-1 to MCP-7 in
 [contracts/03-server-and-command-interfaces.md](../contracts/03-server-and-command-interfaces.md),
 and how the design was chosen is in the
 [agent interface plan](../development/2026-10-02-mcp-agent-interface/plan.md).
@@ -473,6 +473,12 @@ and how the design was chosen is in the
   What only the binary can do comes in as `mcp.Options`: starting a
   supervisor (`startRunForMCP`) and new job IDs. `internal/mcp` does not
   import `cmd/rotari`.
+- **Add tools for demonstrated MCP-only gaps.** Do not expose CLI commands
+  or flags through MCP just for parity. Add a task-shaped tool when an
+  MCP-only agent trial shows that an existing workflow cannot be completed,
+  or takes disproportionate calls or output; otherwise, do not expand the
+  MCP surface. Record the trial outcome and update the plan's shared behavior
+  map when adding a capability.
 - **Located through the master directory.** A run is found by its ID in the
   run registry (`resolve.RegisteredRun`). A project is found by
   `basedir_ref`, a hash from the basedir registry, and its name. No tool
