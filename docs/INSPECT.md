@@ -4,86 +4,90 @@ Checking status and logs, run readiness, and execution history.
 
 ## Inspect
 
-Use `jobs` to inspect current activity and recent execution history across all
-known state directories. Active jobs are always included; completed jobs default
-to the last day.
+Choose a command by what you want to see:
+
+| Purpose | Commands |
+| --- | --- |
+| Find objects in a list | `jobs`, `runs`, `projects`, `basedirs` |
+| Inspect a selected object | `show` |
+| Trace execution history or compare runs | `lineage` |
+
+## Lists: jobs, runs, projects, basedirs
+
+The four list commands differ in what each row represents:
+
+| Command | Lists |
+| --- | --- |
+| `rotari jobs` | Running and recently finished jobs |
+| `rotari runs` | Active, interrupted, and recently finished runs |
+| `rotari projects` | Projects, with their latest run status |
+| `rotari basedirs` | Known state directories (not job working directories) |
+
+Use these lists to find a project, run, or job, then use `show` for its details.
+
+### Scope and time window
+
+The lists cover state directories known to the master registry, not every
+directory on disk. `basedirs` also prints the resolved master directory.
+Use `--basedir DIR` on `jobs`, `runs`, or `projects` to inspect one state
+directory.
+
+For `jobs` and `runs`, finished entries default to the last day. Running jobs
+and active or interrupted runs are always included.
 
 ```sh
-rotari jobs # list running and recently finished jobs across known basedirs
-rotari jobs --since 7d # include finished jobs from the last seven days
-rotari jobs --basedir DIR # limit the listing to one state directory
-rotari jobs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
+rotari jobs --since 7d
+rotari runs --since 7d
+rotari projects --basedir DIR
 ```
 
 When `jobs` finds nothing, it names the state directories it searched and the
-time window; use `--basedir DIR` to inspect one state directory.
+time window. To choose its displayed fields, use `--format`; see the
+[CLI reference](CLI_REFERENCE.md#rotari-jobs).
 
-Use the plural commands to list objects, and `show` to inspect a selected
-project's current run or pending queue, or a specific run/job.
+The project list shows each project's last run and its result, such as
+`failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the
+basedir (`-b BASEDIR`) when a listed project lies outside the default state
+directory. To inspect a project in another state directory, use
+`rotari show -b DIR -p PROJECT`.
+
+## Details: show
+
+Use `show` to inspect a project's current run or pending queue, or a specific
+run, job, or attempt.
 
 ```sh
-rotari projects # list projects and their latest run status across known basedirs
-rotari projects --basedir DIR # limit the project list to one state directory
-rotari basedirs # print the resolved master directory and known state directories
-rotari runs # list active/interrupted runs and runs finished within 1d across known basedirs
-rotari runs --since 7d # include runs finished within the last seven days
-rotari runs --basedir DIR # limit the listing to one state directory
-rotari show -p sweep # inspect the selected project's current run or queue
-rotari show # inspect the uniquely selected project; use `rotari projects` if ambiguous
-rotari show -p sweep --failed # list failed jobs in the selected run
-rotari show -p sweep --stage train # list only the jobs in stage train of the selected run or queue
-rotari show -p sweep --matrix train # list only the jobs of matrix train, named by its base job name
-rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, stdout, and stderr
-rotari show JOB_ID --stream stderr # show only the selected job's stderr
-rotari show JOB_ID # show a job from the resolved run or queue
-rotari show JOB_NAME # show a job by name
-rotari show -p sweep --logs # print each job's configured log for every job in the selected run
-rotari show -p sweep --failed-logs --stream stderr # print stderr for failed jobs whose logs are separate
-rotari show -p sweep --job-id JOB_ID --stream stdout --follow # follow only stdout
-rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
-rotari show RUN_ID --report # describe the whole run and include recent logs
-rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
+rotari show -p sweep # the project's current run or queue
+rotari show RUN_ID # one run
+rotari show JOB_ID # one job from the resolved run or queue
+rotari show ATTEMPT_ID # one execution attempt, including its logs
 ```
+
+### Selecting the target
 
 With no selector, `show` resolves one project from explicit options,
 configuration/environment defaults, or sole-project discovery, then displays
 its current run or queue. If more than one project remains, it exits with a
 hint to use `rotari projects`; it does not silently switch to a list view.
 
-Workspace defaults from cwd `.rotari.toml` also select the project and basedir.
-They are not inherited from parent directories. Run/attempt IDs still resolve
-their own locations through the registry unless an explicit location selector
-conflicts; see [Configuration](CONFIGURATION.md#workspace-defaults-and-initialization).
-
-When a run is active and output is a terminal, `show JOB_ID` and
-`show ATTEMPT_ID` follow the selected attempt's log automatically. The default
-merged log mode follows the combined `output` file, where stdout and stderr
-cannot be distinguished. `--log-mode separate` stores them independently, and
-`--stream` chooses which one to follow. Output buffered by the job itself
-appears only after that program flushes it.
-
-When the selected run is active or interrupted, a non-empty next queue is
-shown separately after the run. In JSON, `commands` remains the run snapshot
-and `next_queue` contains the queued work; `check` reports its queued count.
-
-`show --logs --failed` (or `--logs --filter-result failed`) selects the same
-failed jobs as `--failed-logs`, including output carried from an older run.
-
-The project list shows each project's last run and its result, such as
-`failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the
-basedir (`-b BASEDIR`) when a listed project lies outside the default state
-directory; with `ROTARI_BASEDIR` set, `show` lists only that directory, so use
-`rotari show -b DIR` for another one.
-
-The run/job JSON view includes the resolved run and project, a `jobs` array
-with each job's definition, a `finished` flag, and a `result` when available.
-For a running job, `finished` is false and no `result` is present. With
-`--failed`, the run JSON keeps only the failed jobs' summary results and
-failure groups (the `commands` snapshot stays whole), and the job and array
-JSON keeps only the failed jobs, as the job table does. Passing
+You can also select a job by name with `rotari show JOB_NAME`. Passing
 `--run-id latest` selects the latest settled run even when the project has a
 non-empty queue or an active run; an unknown job ID fails instead of showing
 the queue.
+
+When the selected run is active or interrupted, a non-empty next queue is
+shown separately after the run; `check` reports its queued count.
+
+### Filtering jobs and inspecting failures
+
+```sh
+rotari show -p sweep --failed
+rotari show -p sweep --stage train
+rotari show -p sweep --matrix train
+```
+
+`--matrix` names the matrix by its base job name. For other result selections
+and per-job conditions, see the [CLI reference](CLI_REFERENCE.md#rotari-show).
 
 For a run with failed jobs, `show` prints a `Failure summary:` line before
 the job table, with the `rotari lineage` command that prints only the run's
@@ -111,10 +115,30 @@ selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
 --json` carries the same groups, with every job ID, as `failures`; so do
 `lineage RUN_ID --json` and the Web UI's run summary.
 
-A report's log section shows, for a job whose saved diagnosis cites a line
-found in its log, the lines around that evidence and the last 20 lines, with
-the skipped lines marked as `[... N lines omitted ...]`. Otherwise it shows
-the last 100 lines. Either way it keeps at most 12000 characters.
+### Logs
+
+Showing one job or attempt includes its logs. To view logs for several jobs,
+select a stream, or explicitly follow output:
+
+```sh
+rotari show -p sweep --logs # logs for every job in the selected run
+rotari show -p sweep --failed-logs --stream stderr # failed jobs' separate stderr
+rotari show -p sweep --job-id JOB_ID --stream stdout --follow
+```
+
+`show --logs --failed` (or `--logs --filter-result failed`) selects the same
+failed jobs as `--failed-logs`, including output carried from an older run.
+
+When a run is active and output is a terminal, `show JOB_ID` and
+`show ATTEMPT_ID` follow the selected attempt's log automatically. The default
+merged log mode follows the combined `output` file, where stdout and stderr
+cannot be distinguished. `--log-mode separate` stores them independently, and
+`--stream` chooses which one to follow. Output buffered by the job itself
+appears only after that program flushes it.
+
+When output is a terminal, log views (including `--job-id/-j`) longer than 24
+lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
+directly; piped and redirected output is always printed directly.
 
 An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
 Logs are merged by default; use `add --log-mode separate` when adding a job to
@@ -124,6 +148,30 @@ omitted, stderr follows the `--output` destinations too. Destinations append
 by default; `--open-mode truncate` truncates them before execution.
 The run's saved hosts and diagnoses belong to the latest attempt, so they are
 not shown for an older one.
+
+### JSON and reports
+
+Use `--json` for structured data, or `--report` for an AI-ready Markdown report:
+
+```sh
+rotari show -p sweep --run-id latest --job-id JOB_ID --json
+rotari show ATTEMPT_ID --report
+rotari show RUN_ID --report
+```
+
+The run/job JSON view includes the resolved run and project, a `jobs` array
+with each job's definition, a `finished` flag, and a `result` when available.
+For a running job, `finished` is false and no `result` is present. With
+`--failed`, the run JSON keeps only the failed jobs' summary results and
+failure groups (the `commands` snapshot stays whole), and the job and array
+JSON keeps only the failed jobs, as the job table does. When a next queue is
+shown, `commands` remains the run snapshot and `next_queue` contains the
+queued work.
+
+A report's log section shows, for a job whose saved diagnosis cites a line
+found in its log, the lines around that evidence and the last 20 lines, with
+the skipped lines marked as `[... N lines omitted ...]`. Otherwise it shows
+the last 100 lines. Either way it keeps at most 12000 characters.
 
 ### Artifacts
 
@@ -179,6 +227,8 @@ contents by default; `--static-artifact-contents` copies previewable files
 who can access the Web UI or an export with copied contents may be able to read
 those files; see [Web UI security](OPERATIONS.md#security-model) before sharing.
 
+### Interrupted runs
+
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `run` until you acknowledge it. First confirm
 that all jobs have stopped:
@@ -206,11 +256,8 @@ active or interrupted; it does not recover the run. If the project does not
 exist yet, `reset` initializes an empty project, so it can safely start a
 batch-building script. Use `unlock` only after confirming interrupted jobs
 have stopped.
-When output is a terminal, log views (including `--job-id/-j`) longer than 24
-lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
-directly; piped and redirected output is always printed directly.
 
-### Run lineage
+## Run lineage
 
 Use `lineage` as the run history and comparison view. With no run IDs, it
 shows the whole sequence oldest first:
@@ -247,7 +294,7 @@ The one-run summary also counts failed jobs by diagnosis, groups them by
 cause as `show` does, and reports their source-run origins, including `new`
 for jobs without an origin.
 
-### Check run readiness
+## Check run readiness
 
 To check whether a project can start its queued run without changing any
 state:
