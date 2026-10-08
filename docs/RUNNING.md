@@ -50,9 +50,8 @@ This exits with status 1 and reports failures grouped by cause (see
 count. Add `--json` for a running-status result with the failures. `--quiet`
 hides normal progress but keeps failures, errors, and timeouts; JSON prints
 only the result. Quiet defaults come from `ROTARI_QUIET` and configuration; an
-explicit CLI value overrides them. Ctrl-D stops the wait client without
-cancelling or changing the run's mode. Ctrl-C requests cancellation of the
-selected active runs. Neither `--timeout` nor `--until-failure` cancels a run.
+explicit CLI value overrides them. Neither `--timeout` nor `--until-failure`
+cancels a run.
 
 If a tool timeout may kill a command, start the run asynchronously:
 
@@ -68,24 +67,20 @@ asynchronous mode. Run `rotari wait sweep` again to attach another client.
 By contrast, if a timeout kills a synchronous `rotari run`, that run requests
 cancellation.
 
-## Interrupting a synchronous run
+## Controlling attached clients
 
-```text
-Ctrl-C  Request run cancellation; client exits with status 130.
-Ctrl-D  Detach the client and switch the run to asynchronous mode.
-Ctrl-Z  Suspend the client only; use fg to resume its view.
-```
+Both `wait` and a synchronous `run` respond to Ctrl-C, Ctrl-D, and Ctrl-Z. The
+key actions are similar, but Ctrl-D changes a synchronous run to asynchronous
+mode; detaching from `wait` only stops waiting.
 
-After Ctrl-D, the same run continues in asynchronous mode; use this to attach
-again:
+| Client | Ctrl-C | Ctrl-D | Ctrl-Z |
+| --- | --- | --- | --- |
+| `rotari wait` | Request cancellation of selected active runs; exit 130. | Stop waiting; the run continues in its current mode. | Suspend the wait client only; `fg` resumes waiting. The run continues. |
+| Synchronous `rotari run` | Request cancellation; client exits 130. | Detach the client and switch the run to asynchronous mode. Reattach with `rotari wait`. | Suspend the client only; `fg` resumes its view. The run continues. |
 
-```sh
-rotari wait -p sweep
-```
-
-Ctrl-C requests cancellation, after which cleanup continues in the background,
-so starting another run for the same project may briefly fail. Closing a
-terminal with the client stopped by Ctrl-Z disconnects it and requests
+After Ctrl-C on synchronous `run`, cleanup continues in the background, so
+starting another run for the same project may briefly fail. Closing a terminal
+with a synchronous-run client stopped by Ctrl-Z disconnects it and requests
 cancellation.
 
 ## Array and matrix jobs
