@@ -170,8 +170,8 @@ rotari metadata.
 See [Projects, queues, runs, and state](docs/CONCEPTS.md#projects-queues-runs-and-state)
 for project selection and state layout, [Inspect](docs/INSPECT.md#inspect) for
 status and logs, [Recovering failed runs](docs/RECOVERING.md) for retries,
-[Async runs, waits, and interruptions](docs/RUNS.md#async-runs) for asynchronous
-runs, [Executors and schedulers](docs/EXECUTORS.md#executors-and-schedulers)
+[Running and controlling jobs](docs/RUNNING.md#async-runs) for starting and waiting
+for runs, [Executors and schedulers](docs/EXECUTORS.md#executors-and-schedulers)
 for execution backends, and [Array and matrix jobs](docs/RUNNING.md#array-and-matrix-jobs)
 for task expansion and matrix combinations.
 
