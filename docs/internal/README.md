@@ -11,6 +11,9 @@ pages are not part of the user guide.
 - [Technology rationale](architecture/design-rationale.md) records internal
   implementation choices without making them user-facing compatibility
   promises.
+- [Implicit location defaults](architecture/implicit-location-defaults.md)
+  records which aggregate command invocations ignore implicit basedir and
+  project defaults.
 
 ## Contract implementation notes
 
