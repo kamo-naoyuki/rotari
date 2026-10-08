@@ -65,55 +65,79 @@ jobs:
     depends_on_finished: [train]
 ```
 
-`depends_on` and `depends_on_finished` correspond to `add --depends-on` and
-`--depends-on-finished`; `timeout`, `retry`, `retry_delay`, `retry_backoff`,
-and `retry_max_delay` correspond to the `add` options of the same names.
-Each YAML `matrix` key defines one dimension, and its sequence lists that
-dimension's values. The compact form `matrix: ["SEED=1,2,3"]` is also accepted.
-`matrix_exclude` omits combinations matching every assignment in an entry;
-entries may name only declared dimensions and values. A partial entry omits
-all matching combinations, so `- SEED: 2` excludes every combination whose
-`SEED` is `2`. Entries must be non-empty and unique, and the rules together
-must leave at least one combination. The field is also supported in JSON and
-TOML. Queue and run exports preserve the declared exclusions, and import
-expands only the remaining combinations.
-`env` accepts either a name-to-value mapping or a `KEY=VALUE` sequence, such as
-`env: ["EPOCHS=20", "DATA_ROOT=./data"]`. The previous YAML `environment` key
-is still accepted as an alias for `env`. `array` accepts either its string range
-syntax, such as `array: "1-10"`, or a task list such as `array: [1, 2, 4]`.
-`executor_options` accepts the compact string sequence and a mapping from
-option names to values; mapping entries such as `--partition: gpu` become
-`--partition=gpu`. Exported YAML uses mappings for `env` when names are unique,
-but keeps `executor_options` as a sequence. JSON and TOML manifests keep the
-`environment` and `executor_options` sequence fields and the string form of
-`array`.
-`artifacts` lists the files and directories a job declares, like
-`rotari add --artifact`, for example `artifacts: [results/, "out/$SEED.csv"]`;
-each attempt records them as artifact candidates, with `$SEED`-style job
-variables, `$ROTARI_ARRAY_TASK_ID`, and `$ROTARI_JOB_DIR` filled in.
-Declarations do not change whether a job counts as changed when matching runs.
+## Job options and values
 
-Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
-and `accept` decisions without changing the queue. Jobs with provenance also
-show the source attempt and status they refer to (per task for arrays), and
-source jobs no longer described by the manifest are listed as `remove`. Each
-job line ends with its command. `--json` reports the same plan and also
-includes the source run and job IDs. Jobs that keep a source job ID show the
-same ID in `--dry-run` and in the real import, but new or changed jobs receive
-a fresh ID each time, so their `--dry-run` IDs are only provisional. A non-empty destination
-queue requires `--overwrite`. Queue export omits previous-run status and imports
-as fresh work. Run export includes source and attempt references for
-reconciliation. Repeat `--run-id` to combine saved runs by job ID; distinct job
-IDs are retained, while duplicate non-empty job names are rejected.
+- `depends_on` and `depends_on_finished` map to `add --depends-on` and
+  `add --depends-on-finished`.
+- `timeout`, `retry`, `retry_delay`, `retry_backoff`, and `retry_max_delay` map
+  to the `add` options with the same names.
+- `env` accepts a name-to-value mapping or a `KEY=VALUE` sequence, for example
+  `env: ["EPOCHS=20", "DATA_ROOT=./data"]`. YAML `environment` remains an
+  accepted alias. YAML export uses a mapping when variable names are unique;
+  JSON and TOML use the `environment` sequence field.
+- `array` accepts a range string, such as `array: "1-10"`, or a task list, such
+  as `array: [1, 2, 4]`. JSON and TOML use the string form.
+- `executor_options` accepts a string sequence or an option-to-value mapping.
+  For example, `--partition: gpu` becomes `--partition=gpu`. YAML export keeps
+  this field as a sequence; JSON and TOML use the `executor_options` sequence
+  field as well.
+
+## Matrix and exclusions
+
+Each YAML `matrix` key defines a dimension, and its sequence lists the values
+for that dimension. The compact form `matrix: ["SEED=1,2,3"]` is also accepted.
+
+`matrix_exclude` omits combinations matching every assignment in an entry.
+Entries may use only declared dimensions and values. A partial entry excludes
+all combinations matching its assignments; for example, `- SEED: 2` excludes
+every combination where `SEED` is `2`. Entries must be non-empty and unique,
+and all rules together must leave at least one combination. JSON and TOML also
+support this field. Queue and run exports preserve the exclusions, and import
+expands only the combinations that remain.
+
+## Artifacts
+
+`artifacts` lists the files and directories declared by a job, like
+`rotari add --artifact`; for example, `artifacts: [results/, "out/$SEED.csv"]`.
+Each attempt records these as artifact candidates, expanding `$SEED`-style job
+variables, `$ROTARI_ARRAY_TASK_ID`, and `$ROTARI_JOB_DIR`. Artifact declarations
+do not affect whether a job counts as changed when matching runs.
+
+## Import preview and exports
+
+Run `rotari import --dry-run FILE` to validate a manifest and preview `execute`,
+`reuse`, and `accept` decisions without changing the queue. The preview also
+shows the source attempt and status for jobs with provenance (per task for
+arrays), and lists source jobs missing from the manifest as `remove`. Each job
+line ends with its command. `--json` reports the same plan and includes source
+run and job IDs.
+
+IDs in the preview have two cases:
+
+- A job retaining its source job ID has the same ID in the preview and actual
+  import.
+- New or changed jobs receive a fresh ID on each import, so their preview IDs
+  are provisional.
+
+A non-empty destination queue requires `--overwrite`. Queue export omits
+previous-run status, so its jobs import as fresh work. Run export includes
+source and attempt references for reconciliation. Repeat `--run-id` to combine
+saved runs by job ID: distinct IDs are retained, while duplicate non-empty job
+names are rejected.
+
+## Provenance and status editing
 
 `attempt_id` is provenance and should normally remain unchanged. Import rejects
-malformed, missing, or unreachable attempts. Status is intentionally editable.
-Matrix and array manifests keep only non-success leaves under `instances`, while
-successful leaves are recovered from the source runs. A matrix or array job has
-no `status` of its own: edit each combination's or task's status in its
-`instances` entry, for example to `success` to accept that failure. A leaf
-missing from `instances` keeps its source result, even after every entry is
-removed, and a task added by widening an array runs as new work. Import rejects
-a `status` on a matrix or array job, except the aggregate value that exports
-before this rule wrote. To execute a whole matrix again, use
-`rotari run --matrix NAME` after importing.
+malformed, missing, or unreachable attempts. Status, by contrast, is
+intentionally editable.
+
+Matrix and array manifests store only non-success leaves under `instances`;
+successful leaves are recovered from the source runs. A matrix or array job
+does not have a `status` of its own. Edit the status of each combination or task
+in its `instances` entry—for example, set it to `success` to accept that
+failure. A leaf omitted from `instances` keeps its source result, even if all
+entries are removed. Widening an array adds new tasks, which run as new work.
+
+Import rejects `status` on a matrix or array job, except for the aggregate value
+exported by older versions. To execute a whole matrix again after importing,
+run `rotari run --matrix NAME`.
