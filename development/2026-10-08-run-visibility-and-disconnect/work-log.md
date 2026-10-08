@@ -113,3 +113,48 @@ their logs were retained. The final non-overlapping `scripts/check.sh` passed
 
 **Remaining:** None. Implementation changes were included in concurrent commit
 `01701c58`; this follow-up synchronizes the wait contract and validation record.
+
+## Display run, job, and client status separately
+
+**Change:** Persisted the initiating client's sync/async mode and last connection
+transition in each run. `runs` and `show` now display lifecycle and client
+connection separately, distinguishing `async (detached)` from
+`detached (Ctrl-D)` and reporting unverified supervisor/client state as
+`unknown`. Added shared best-effort job execution labels for terminal results,
+recorded waiting/running/suspended phases, carried results,
+and unknown state. Exposed the same projection in run/job JSON and the Web API/UI.
+
+**Reason:** A run can be interrupted while one or more jobs still execute or
+later update their wrapper status. Persisted job observations provide useful
+visibility without contacting executors, while separate lifecycle/client fields
+avoid implying that `running` proves a process is alive or that a run is attached.
+
+**Plan impact:** Implements the planned status dimensions and leaves
+unexpected-disconnect behavior unchanged (detach by default, configurable
+cancellation). No executor probing or run recovery was added.
+
+**Validation:** Uncached CLI and focused conformance tests passed, including
+wait controls/environment policies, selectors, async visibility, interrupted
+wrapper updates, carried results, and contract/golden checks. Related package
+tests and uncached race tests passed. The Web runtime test also failed for the
+expected lifecycle/cache reasons against pre-fix `6b40a5ba` in a temporary
+worktree, which was removed, and passed on the final implementation.
+
+A full check and an additional uncached race check exposed concurrent JSON
+encoder use by progress and the detached response. Response writes are now
+serialized; sync-client tests passed with `-race -count=20`. The post-fix CLI
+suite, focused conformance, and `scripts/check.sh --short` passed. Formatting,
+JavaScript syntax, architecture, and document-link checks passed. Complete logs
+and exit-code sidecars are retained under the session temporary directory as
+`rotari-status-*.log` and `rotari-status-*.log.exit`.
+
+The final `scripts/check.sh` completed successfully (vet, all Go tests, and
+race tests; exit 0), logged as `rotari-status-full-serial-complete.log`.
+The large edit-pair suite also passed uncached with race detection (512.787s),
+logged as `rotari-status-editpairs-verbose-final.log`. Final review restored
+unrelated editor overwrites in the running guide, architecture, contracts,
+and async hints. The existing coarse recent-jobs list projection is recorded
+separately in `development/ISSUES.md`; its behavior was not changed here.
+
+**Remaining:** None for this status-visibility work. The pre-existing
+`examples/basic.sh` edit is excluded from the commit.

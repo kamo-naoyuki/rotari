@@ -1,7 +1,7 @@
 # Plan: Run Visibility and Client Disconnect Behavior
 
 Created: 2026-10-08
-Status: Listing commands and detail-only `show` implemented; job/client status visibility and disconnect behavior remain open
+Status: Run, job, and initiating-client status visibility implemented and validated
 
 Implementation history: [work-log.md](work-log.md).
 
@@ -37,7 +37,7 @@ There is no compatibility requirement for unreleased CLI forms. Do not add alias
 - Ctrl-D is an intentional detach.
 - Ctrl-Z suspends the client; it does not stop the run.
 - A run that continues after its initiating client is gone must be readily discoverable and inspectable.
-- The preferred direction is to consider treating an unexpected run-client disconnect as detach rather than cancellation, once background-run visibility is available. The default behavior is not yet approved: distinguish Ctrl-C from EOF, client timeout/termination, and supervisor death before changing it.
+- Unexpected run-client disconnect defaults to detach; `--disconnect-action cancel` or `ROTARI_DISCONNECT_ACTION=cancel` restores cancellation. Ctrl-C remains explicit cancellation and Ctrl-D remains intentional detach.
 - A killed supervisor is not automatically restarted. Its local jobs may outlive it and write their own attempt status. Existing `rotari cancel --job-id JOB_ID` was manually verified to send TERM to an orphan local job's process group while its stale run lock remains; it does not finalize the interrupted run. This is useful for stopping stray work, not run recovery.
 
 ### Status dimensions
@@ -47,8 +47,8 @@ Do not collapse run lifecycle, per-job execution, and client attachment into one
 | Dimension | Values / display | Meaning |
 | --- | --- | --- |
 | Run lifecycle | `running`, `interrupted`, `finished`, `failed`, `incomplete` | Whether the coordinator is active and whether the run has a valid summary. `finished` and `failed` are settled run outcomes; `incomplete` means no valid summary is available. |
-| Job execution | `not started`, `waiting (recorded)`, `running (recorded)`, `success`, `failed`, `cancelled`, `blocked`, `unknown` | Best-effort interpretation of the latest attempt and recorded result. `waiting (recorded)` and `running (recorded)` are last-observed states, not proof of current executor state. Missing status alone must not be presented as definitely `not started`; use `unknown` unless there is positive evidence. A carried result should be identified as carried rather than as work executed in this run. |
-| Client connection | `attached`, `async (detached)`, `detached (Ctrl-D)`, `disconnecting/cancelling`, `unknown` | Connection between the initiating synchronous run/retry client and its supervisor. Async and Ctrl-D both mean no attached progress client, but retain their reason in the label. Unexpected disconnect remains distinct because the current behavior requests cancellation. |
+| Job execution | `waiting (recorded)`, `running (recorded)`, `suspended (recorded)`, `success`, `failed`, `cancelled`, `blocked`, `unknown` | Best-effort interpretation of the latest attempt and recorded result. Recorded phases are last-observed states, not proof of current executor state. No positive evidence of execution yields `unknown`; the implementation does not emit `not started`. A carried result is identified as carried rather than as work executed in this run. |
+| Client connection | `attached`, `async (detached)`, `detached (Ctrl-D)`, `detached (disconnect)`, `disconnecting/cancelling`, `completed`, `unknown` | Connection history of the initiating run/retry client. Async and Ctrl-D both mean no attached progress client but retain their reason. Unexpected disconnect detaches by default or records cancellation when configured. Finalized client records show completed history; interrupted or unverifiable records show unknown, never a live attachment. |
 
 `wait`, Web, and MCP consumers are not attached run-progress clients: `wait` and Web poll/read persisted state, while MCP starts runs asynchronously. Do not count them as attached clients in this first implementation. A completed run can show its recorded launch/detach mode as history, but must not imply a live client remains attached. If the supervisor is unavailable or the recorded connection state cannot be validated, report `unknown`; do not treat a stale `attached` record as current.
 
@@ -73,7 +73,7 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 
 ## Open decisions
 
-1. **Unexpected disconnect default:** Should a synchronous run whose client receives EOF or is terminated detach automatically, or keep the current cancellation default? Can users select the policy per invocation/configuration?
+1. **Unexpected disconnect default — resolved:** Unexpected run/wait client disconnect detaches by default; CLI/environment configuration can request cancellation. Ctrl-C and Ctrl-D retain their explicit meanings.
 2. **Orphan stopping:** Is existing `cancel -p PROJECT --job-id JOB_ID` sufficient after supervisor death, or is a dedicated interrupted-run stop operation needed? What should happen for scheduler/SSH jobs, remote-host mismatch, stale/reused local PIDs, and TERM-resistant descendants?
 3. **`server list`:** Keep it as supervisor diagnostics, separate from user-facing run listing, unless implementation shows the views can be unified without losing meaning.
 
@@ -81,8 +81,8 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 
 1. **Confirm lifecycle semantics.** Trace EOF, Ctrl-C, Ctrl-D, process timeout/termination, and supervisor death through the pipe protocol. Specify which cases cancel, detach, or interrupt. Do not conflate client and supervisor signals.
 2. **Add collection commands.** Complete: `basedirs`, `projects`, `runs`, and `jobs` use existing registry/project state; listing commands scan all known basedirs by default, and `--basedir` narrows `runs`/`jobs`. The obsolete `--all-basedirs` option was removed. `runs`/`jobs` default to a one-day history window while retaining active work. Bare `show` resolves one project to its detail view and directs ambiguous selection to `projects`. CLI schema/help, generated Python schema, user docs, contracts, and CLI/conformance tests were updated.
-3. **Expose job and client status.** Not implemented. Read each job's persisted attempt/result using the shared job-status resolution; display terminal outcomes, recorded nonterminal phase, and unknown distinctly. Persist the initiating client's sync/async mode and connection transitions in run-scoped state. Provide a shared read path for `runs`, `show`, and the corresponding Web/API projection. Ignore stale attachment records when the supervisor is not verifiably alive; remote-host cases that cannot be checked are `unknown`.
-4. **Adjust disconnect policy, if approved.** Deferred and out of scope for status visibility. Keep the current unexpected-disconnect cancellation behavior for this work. Preserve explicit Ctrl-C cancellation and Ctrl-D detach; make resulting status text unambiguous.
+3. **Expose job and client status.** Implemented: `jobstatus.Job.DisplayStatus` classifies terminal, recorded nonterminal, and unknown states without querying executors. Run-scoped `client_status.json` records sync/async mode and the last connection transition. Shared `runview` projections supply lifecycle/client labels to CLI and Web; `runs` and `show` display them separately, and run/job JSON and Web API expose structured fields. An unverified supervisor makes live attachment `unknown`.
+4. **Adjust disconnect policy.** Implemented before this status work: unexpected client disconnect detaches by default and can be configured to cancel. This task preserves that policy, Ctrl-C cancellation, and Ctrl-D detach while recording their reasons.
 5. **Document orphan cancellation.** State that job-level cancel can signal eligible orphan jobs but does not finalize an interrupted run. Define and test any stronger stop/escalation mechanism separately.
 
 ## Tests and validation
@@ -90,7 +90,7 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 - Table-test bare `show` with no project, explicit project defaults, a sole project, multiple projects, and run/job selectors.
 - Exercise each list command in isolated state: empty state, multiple basedirs/projects, active, interrupted, incomplete, and settled runs.
 - Table-test client states: synchronous attached, async (detached), Ctrl-D detached, unexpected EOF/cancellation, completed, interrupted supervisor, stale/malformed state, and unverifiable remote-host supervisor.
-- Test per-job display for recorded waiting/running followed by a wrapper terminal update after supervisor exit, success/failure/cancelled/blocked results, definitely-not-started jobs, missing status, and carried results. Assert that an unverified waiting/running record is labeled as recorded/best-effort, not confirmed live.
+- Test per-job display for recorded waiting/running/suspended followed by a wrapper terminal update after supervisor exit, success/failure/cancelled/blocked results, missing or unusable status, and carried results. Assert that absent execution evidence is unknown and recorded phases are best-effort, not confirmed live.
 - Verify that `wait`, Web, and MCP do not falsely appear as attached run-progress clients.
 - Verify `runs` and `show` share the same status interpretation; add Web/API coverage for the same projection.
 - Use subprocess tests to distinguish Ctrl-C, Ctrl-D, EOF, SIGTERM, and SIGKILL of the CLI client; assert job effects and run finalization separately.
@@ -102,5 +102,5 @@ Run/job status is best-effort and must not query executors for this feature. Loc
 
 - `TestJobOutlivesKilledSupervisor` passes and confirms local work can outlive a SIGKILLed supervisor and the project becomes interrupted.
 - An isolated manual trial confirmed `rotari cancel -p PROJECT --job-id JOB_ID` can terminate an orphan local job's process group after the supervisor is killed; the run remains interrupted.
-- Existing docs specify Ctrl-C cancellation, Ctrl-D detach, and Ctrl-Z suspend for synchronous runs. Unexpected client disconnect currently requests cancellation.
-- The list-command/show phase is complete. Focused CLI tests, affected conformance suites, read-only flag pairs, contract/golden checks, pre-commit, and `scripts/check.sh --short` passed. The final `scripts/check.sh` passed with go vet, all Go tests, and race tests (exit 0). Python tests passed against the freshly built CLI (64 passed); generated references and README synchronization checks passed, as did the strict MkDocs build.
+- Existing CLI behavior defaults unexpected client disconnect to detach; `--disconnect-action cancel` and `ROTARI_DISCONNECT_ACTION=cancel` retain cancellation as an option.
+- The list-command/show and disconnect-policy phases are complete. Job/client status visibility is implemented; focused and full validation results will be recorded after execution.

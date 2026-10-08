@@ -60,7 +60,7 @@ func TestDetachRunMarksClientDetached(t *testing.T) {
 		t.Fatal(err)
 	}
 	ops := Operations{BaseDir: baseDir, Runner: runner}
-	ops.DetachRun(server.Request{QueueName: "demo"})
+	ops.UpdateRunClientStatus(server.Request{QueueName: "demo"}, model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientDetached, Reason: model.RunClientReasonCtrlD})
 	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil || lock.ClientAttached {
 		t.Fatalf("lock after detach = %+v, %v; want detached client", lock, err)

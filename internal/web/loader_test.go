@@ -114,7 +114,6 @@ func TestLoadQueueStateMarksRunsFromNewerRotariUnreadable(t *testing.T) {
 		}
 	}
 }
-
 func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	runsDir := t.TempDir()
 	runDir := filepath.Join(runsDir, "run-1")
@@ -136,6 +135,28 @@ func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	}
 	if jobs[0].Stage != "build" || jobs[0].Origin != origin || jobs[0].SubmittedAt != "submitted" || jobs[0].FinishedAt != "finished" {
 		t.Fatalf("job projection = %#v, want origin and timestamps", jobs[0])
+	}
+}
+
+func TestLoadJobsProjectsRecordedExecutionStatus(t *testing.T) {
+	runID := "20261009-120000-12345678"
+	runDir := filepath.Join(t.TempDir(), runID)
+	attemptID := state.MakeAttemptID(runID, "running", 0)
+	writeTestFile(t, filepath.Join(runDir, "running", "attempts", attemptID, "status.json"), `{"phase":"running","hosts":["node1"]}`)
+	writeTestFile(t, filepath.Join(runDir, "unknown", "attempts", state.MakeAttemptID(runID, "unknown", 0), "command.json"), `{}`)
+	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{Commands: []model.QueuedCommand{
+		{ID: "running", Command: []string{"sleep", "10"}},
+		{ID: "unknown", Command: []string{"true"}},
+		{ID: "not-started", Command: []string{"true"}},
+	}}, model.RunSummary{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"running (recorded)", "unknown", "unknown"}
+	for index, status := range want {
+		if jobs[index].ExecutionStatus != status {
+			t.Errorf("job %s execution status = %q, want %q", jobs[index].ID, jobs[index].ExecutionStatus, status)
+		}
 	}
 }
 
@@ -333,6 +354,39 @@ func TestLoadQueueStateFallsBackToRunningSummaryWhenMissing(t *testing.T) {
 	}
 	if len(state.Runs) != 1 || state.Runs[0].Status != "running" || !state.Runs[0].Running {
 		t.Fatalf("state = %#v, want one running fallback run", state)
+	}
+}
+
+func TestLoadQueueStateProjectsLifecycleAndClientStatus(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20261009-120000-12345678"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", ExitCode: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteRunClientStatus(state.NewStore(0o700, 0o600), runDir, model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientCompleted, Reason: model.RunClientReasonAsync}); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadQueueState(QueueLoader{
+		ProjectName: "demo", Paths: paths,
+		Queue: func() (model.Queue, error) { return model.Queue{}, nil },
+		Lock:  func() (model.LockInfo, error) { return model.LockInfo{}, assertNotFound{} },
+		Runs:  func() ([]string, error) { return []string{runID}, nil },
+		Summary: func(string) (model.RunSummary, error) {
+			return state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+		},
+		Jobs:    func(string, model.RunSummary) ([]Job, error) { return nil, nil },
+		Context: func(string) (model.RunContext, error) { return model.RunContext{}, nil },
+		Samples: func(string) []model.LoadSample { return nil },
+	})
+	if err != nil || len(loaded.Runs) != 1 {
+		t.Fatalf("LoadQueueState() = %#v, %v", loaded, err)
+	}
+	if run := loaded.Runs[0]; run.Lifecycle != "finished" || run.ClientStatus.Mode != model.RunClientModeAsync || run.ClientStatus.Reason != model.RunClientReasonAsync {
+		t.Fatalf("run projection = %#v; want finished async history", run)
 	}
 }
 

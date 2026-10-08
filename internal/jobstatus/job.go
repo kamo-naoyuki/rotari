@@ -63,6 +63,80 @@ func (job Job) Blocked() bool {
 	return job.Source == SourceSummary && strings.HasPrefix(job.Summary.Error, "blocked")
 }
 
+// DisplayStatus classifies the latest persisted state for human/API views.
+// Nonterminal executor states are explicitly marked as recorded, not live.
+// Missing or unusable records are unknown, not evidence of an unstarted job.
+func (job Job) DisplayStatus(spec model.JobSpec) string {
+	if job.Blocked() {
+		return "blocked"
+	}
+	phase, schedulerState := job.recordedPhases()
+	if job.Finished() {
+		status := job.terminalStatus(spec, schedulerState)
+		if job.ExitCode != 0 && status != model.StatusSuccess && job.recordedCancellation(phase, schedulerState) {
+			return model.StatusCancelled
+		}
+		return status
+	}
+	if state := recordedState(phase, schedulerState); state != "" {
+		return state
+	}
+	return "unknown"
+}
+
+func (job Job) recordedCancellation(phase, schedulerState string) bool {
+	switch job.Source {
+	case SourceStatus, SourceWrapper:
+		return job.Attempt.HasWrapper && WrapperTerminal(job.Attempt.Wrapper) && isCancelledState(phase)
+	case SourceScheduler:
+		return isCancelledState(schedulerState)
+	default:
+		return false
+	}
+}
+
+func (job Job) recordedPhases() (string, string) {
+	phase := ""
+	if job.Attempt.HasWrapper {
+		phase = strings.ToLower(strings.TrimSpace(job.Attempt.Wrapper.Phase))
+	}
+	return phase, strings.ToLower(strings.TrimSpace(job.Attempt.SchedulerState))
+}
+
+func (job Job) terminalStatus(spec model.JobSpec, schedulerState string) string {
+	if job.Source == SourceScheduler && schedulerState == "unknown" {
+		return "unknown"
+	}
+	result, ok := job.Result(spec)
+	if !ok {
+		result = model.JobResult{ID: spec.ID, Command: spec.Command, ExitCode: job.ExitCode}
+		if job.Attempt.HasWrapper {
+			result.Error = job.Attempt.Wrapper.Error
+		}
+	}
+	return model.ResultStatus(result, true)
+}
+
+func isCancelledState(value string) bool {
+	return value == "cancelled" || value == "canceled"
+}
+
+func recordedState(values ...string) string {
+	for _, value := range values {
+		switch value {
+		case "unknown":
+			return "unknown"
+		case "running":
+			return "running (recorded)"
+		case "pending", "queued", "waiting", "submitted", "configuring", "launching", "held", "queued_and_held":
+			return "waiting (recorded)"
+		case "suspended", "suspending":
+			return "suspended (recorded)"
+		}
+	}
+	return ""
+}
+
 // Hosts returns the summary's hosts, falling back to the wrapper's.
 func (job Job) Hosts() []string {
 	if job.HasSummary && len(job.Summary.Hosts) > 0 {

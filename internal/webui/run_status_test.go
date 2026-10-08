@@ -1,0 +1,122 @@
+package webui
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+)
+
+func TestWebRunStatusRuntime(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const assert = require('node:assert/strict');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+let detail = null;
+const requests = [];
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/',
+  virtualConsole,
+  beforeParse(window) {
+    window.setInterval = () => 1;
+    window.fetch = async url => {
+      if (url === '/api/state') return {ok: true, json: async () => ({base_dir: '/state', projects: []})};
+      requests.push(url);
+      assert.equal(url, '/api/run?project_name=default&run_id=run-1');
+      return {ok: detail !== null, json: async () => detail};
+    };
+  },
+});
+setTimeout(async () => {
+  try {
+    const window = dom.window;
+    if (process.argv[2] === 'queue') {
+      const runs = [
+        {run_id: 'interrupted', status: 'running', lifecycle: 'interrupted', running: false, client_status: {state: 'detached', reason: 'disconnect'}},
+        {run_id: 'incomplete', status: 'running', lifecycle: 'incomplete', running: false},
+        {run_id: 'active', status: 'running', lifecycle: 'running', running: true, client_status: {state: 'attached'}},
+        {run_id: 'finished', status: 'failed', lifecycle: 'finished', finished_at: 'done', exit_code: 7, client_label: 'server <label>', client_status: {state: 'completed', mode: 'sync'}},
+        {run_id: 'legacy', status: 'failed', finished_at: 'done', exit_code: 3},
+      ];
+      window.renderQueue({project_name: 'default', queue: {commands: []}, runs});
+      const rows = [...window.document.querySelectorAll('#app tbody tr')];
+      assert.equal(rows.length, runs.length);
+      const states = ['interrupted', 'incomplete', 'running', 'finished', 'failed'];
+      rows.forEach((row, index) => {
+        const pill = row.children[2].querySelector('span');
+        assert.equal(pill.textContent, states[index] + (runs[index].running ? ' ...' : ''));
+        assert(pill.classList.contains('status-' + states[index]));
+        if (index < 2) assert(!pill.classList.contains('status-running'));
+      });
+      assert.equal(rows[0].children[3].textContent, 'detached (disconnect)');
+      assert.equal(rows[1].children[3].textContent, 'unknown');
+      assert.equal(rows[2].children[3].textContent, 'attached');
+      assert.equal(rows[3].children[3].textContent, 'server <label>');
+      assert.equal(rows[3].children[4].textContent, '7');
+      assert.equal(rows[4].children[4].textContent, '3');
+      assert(window.document.getElementById('summary').textContent.includes('1 running'));
+      window.renderRun({project_name: 'default', queue: {commands: []}, runs: [{...runs[3], jobs: []}]}, 'finished');
+      const summary = window.document.getElementById('summary').textContent;
+      assert(summary.includes('Status: failed'), 'summary outcome was lost');
+      assert(summary.includes('Lifecycle: finished'));
+      assert(summary.includes('Client: server <label>'));
+    } else {
+      const index = {projects: [{project_name: 'default', runs: []}]};
+      const active = new Set();
+      for (const lifecycle of ['interrupted', 'incomplete']) {
+        window.eval('runDetailCache.clear()');
+        requests.length = 0;
+        for (let version = 1; version <= 3; version++) {
+          detail = {run_id: 'run-1', status: 'running', lifecycle, running: false, jobs: [{id: 'job-' + version}]};
+          await window.refreshSelectedRun(index, 'default', 'run-1', active);
+          assert.equal(requests.length, version, lifecycle + ' stopped polling');
+          assert.equal(window.mergeWebIndex(index).projects[0].runs[0].jobs[0].id, 'job-' + version);
+        }
+        detail = null;
+        await window.refreshSelectedRun(index, 'default', 'run-1', active);
+        assert.equal(requests.length, 4, 'transient failure was not requested');
+        assert.equal(window.mergeWebIndex(index).projects[0].runs[0].jobs[0].id, 'job-3', 'transient failure discarded cached details');
+        detail = {run_id: 'run-1', status: 'finished', lifecycle: 'finished', running: false, jobs: [{id: 'final'}]};
+        await window.refreshSelectedRun(index, 'default', 'run-1', active);
+        assert.equal(requests.length, 5, 'did not recover after transient failure');
+        assert.equal(window.mergeWebIndex(index).projects[0].runs[0].jobs[0].id, 'final');
+        await window.refreshSelectedRun(index, 'default', 'run-1', active);
+        assert.equal(requests.length, 5, 'finalized run was fetched again');
+      }
+      for (const status of ['finished', 'failed']) {
+        window.eval('runDetailCache.clear()');
+        requests.length = 0;
+        detail = {run_id: 'run-1', status, running: false, jobs: []};
+        await window.refreshSelectedRun(index, 'default', 'run-1', active);
+        await window.refreshSelectedRun(index, 'default', 'run-1', active);
+        assert.equal(requests.length, 1, 'legacy finalized run was fetched again');
+      }
+    }
+    assert.deepEqual(errors, []);
+  } catch (error) {
+    console.error(error.stack || String(error));
+    process.exitCode = 1;
+  } finally {
+    dom.window.close();
+  }
+}, 0);
+`
+	for _, name := range []string{"queue", "cache"} {
+		t.Run(name, func(t *testing.T) {
+			if output, err := exec.Command("node", "-e", script, htmlPath, name).CombinedOutput(); err != nil {
+				t.Fatalf("run status runtime check failed: %v\n%s", err, output)
+			}
+		})
+	}
+}

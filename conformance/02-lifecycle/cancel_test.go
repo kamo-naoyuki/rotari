@@ -215,7 +215,7 @@ func TestCancelledPendingJobNeverStarts(t *testing.T) {
 // cancel command names the run and cancels it, and its wait command waits
 // for that run.
 func TestAsyncStartHintsWork(t *testing.T) {
-	covers(t, "CAN-7")
+	covers(t, "CAN-7", "DUR-8")
 	e := support.NewEnv(t)
 	e.MustRotari("add", "-p", "hints", "--", "sleep", "30")
 	started := e.MustRotari("run", "-p", "hints", "--async").Stdout
@@ -242,6 +242,22 @@ func TestAsyncStartHintsWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := shown.RunID
+	if out := e.MustRotari("runs", "--project-name", "hints").Stdout; !strings.Contains(out, "async (detached)") {
+		t.Errorf("runs does not distinguish an async detached run:\n%s", out)
+	}
+	var runStatus struct {
+		Lifecycle string `json:"lifecycle"`
+		Client    struct {
+			Mode  string `json:"mode"`
+			State string `json:"state"`
+		} `json:"client_status"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "hints", "--run-id", runID, "--json").Stdout), &runStatus); err != nil {
+		t.Fatal(err)
+	}
+	if runStatus.Lifecycle != "running" || runStatus.Client.Mode != "async" || runStatus.Client.State != "detached" {
+		t.Fatalf("async run lifecycle/client = %q/%+v", runStatus.Lifecycle, runStatus.Client)
+	}
 	if cancel[len(cancel)-1] != runID {
 		t.Fatalf("the cancel hint %v does not name run %s", cancel, runID)
 	}

@@ -125,7 +125,8 @@ async function refreshSelectedRun(index, projectName, runID, activeRunKeys) {
   if (
     !cached ||
     (isRunning && !activeRunKeys.has(key)) ||
-    (cached.running && !isRunning)
+    (cached.running && !isRunning) ||
+    ["interrupted", "incomplete"].includes(cached.lifecycle || cached.status)
   ) {
     const detail = await fetchWebJSON(
       "/api/run?project_name=" +
@@ -1366,11 +1367,13 @@ function renderQueue(q) {
         '">' +
         esc(r.run_id) +
         '</a></td><td><span class="status-' +
-        r.status +
+        esc(r.lifecycle || r.status) +
         '">' +
-        esc(r.status) +
+        esc(r.lifecycle || r.status) +
         (r.running ? " ..." : "") +
         "</span></td><td>" +
+        esc(r.client_label || clientStatusLabel(r.client_status)) +
+        "</td><td>" +
         (r.finished_at ? esc(r.exit_code) : "-") +
         "</td><td>" +
         esc(r.started_at || "-") +
@@ -1382,7 +1385,7 @@ function renderQueue(q) {
   document.getElementById("app").innerHTML =
     '<div class="toolbar"><a class="link" href="/">All projects</a></div>' +
     (rows
-      ? '<table class="runs"><thead><tr><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
+      ? '<table class="runs"><thead><tr><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
       : '<div class="empty">No runs found.</div>');
@@ -1405,6 +1408,10 @@ function renderRun(q, runID) {
     copyIconForValue(run.run_id, "run ID") +
     "</span><span>Status: " +
     esc(run.status) +
+    "</span><span>Lifecycle: " +
+    esc(run.lifecycle || "unknown") +
+    "</span><span>Client: " +
+    esc(run.client_label || clientStatusLabel(run.client_status)) +
     "</span><span>Exit: " +
     (run.finished_at ? esc(run.exit_code) : "-") +
     "</span>";
@@ -1453,6 +1460,7 @@ function renderRun(q, runID) {
     if (!attempt || attempt === job.attempts[0]) return;
     job.attempt_id = attempt.id;
     job.result = attempt.result;
+    job.execution_status = attempt.execution_status;
     job.diagnosis_outdated = false;
     job.submitted_at = attempt.submitted_at;
     job.finished_at = attempt.finished_at;
@@ -1648,6 +1656,36 @@ function renderRun(q, runID) {
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +
     '<pre id="log" class="log">Select a job output.</pre>';
+}
+
+function clientStatusLabel(status) {
+  if (!status) return "unknown";
+  switch (status.state) {
+    case "attached":
+      return "attached";
+    case "detached":
+      return (
+        {
+          async: "async (detached)",
+          "ctrl-d": "detached (Ctrl-D)",
+          disconnect: "detached (disconnect)",
+        }[status.reason] || "detached"
+      );
+    case "cancelling":
+      return "disconnecting/cancelling";
+    case "completed":
+      if (status.mode === "async") return "async (completed)";
+      return (
+        {
+          "ctrl-d": "sync (completed; Ctrl-D detached)",
+          disconnect: "sync (completed; disconnected)",
+          "disconnect-cancel": "sync (completed; cancelled after disconnect)",
+          "ctrl-c": "sync (completed; Ctrl-C)",
+        }[status.reason] || "sync (completed)"
+      );
+    default:
+      return status.mode === "async" ? "async (unknown)" : "unknown";
+  }
 }
 function selectJobAttempt(projectName, runID, jobID, attemptID) {
   const key = projectName + "/" + runID + "/" + jobID;

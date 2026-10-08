@@ -89,7 +89,11 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	defer prepared.release()
 	request.SourceRunID = prepared.sourceRunID
 	runID := ops.NewRunID()
-	start := projectrun.Start{RunID: runID, RunName: request.RunName, ClientAttached: !request.Async, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig}
+	clientStatus := model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}
+	if request.Async {
+		clientStatus = model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientDetached, Reason: model.RunClientReasonAsync}
+	}
+	start := projectrun.Start{RunID: runID, RunName: request.RunName, ClientAttached: !request.Async, ClientStatus: clientStatus, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig}
 	if prepared.snapshotFromSource {
 		start.Snapshot = &prepared.queue
 	}
@@ -294,7 +298,7 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 			progress(response)
 		}
 	}
-	emit(server.Response{Progress: true, Total: started.submitted, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
+	emit(server.Response{Progress: true, Total: started.total, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
 	return runObserver(request, started.runID, emit)
 }
 

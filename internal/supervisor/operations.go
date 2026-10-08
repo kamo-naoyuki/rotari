@@ -28,8 +28,8 @@ type Operations struct {
 
 var _ server.Operations = Operations{}
 
-// DetachRun records that the synchronous run no longer has an attached client.
-func (ops Operations) DetachRun(request server.Request) {
+// UpdateRunClientStatus records the synchronous client's connection transition.
+func (ops Operations) UpdateRunClientStatus(request server.Request, status model.RunClientStatus) {
 	paths, err := state.ResolveProjectPaths(ops.BaseDir, request.QueueName)
 	if err == nil {
 		var lock model.LockInfo
@@ -38,11 +38,11 @@ func (ops Operations) DetachRun(request server.Request) {
 			return
 		}
 		if err == nil {
-			err = ops.Runner.SetClientAttached(paths, lock.RunID, false)
+			err = ops.Runner.SetRunClientStatus(paths, lock.RunID, status)
 		}
 	}
 	if err != nil {
-		ops.logf("failed to mark project %s run detached: %v", request.QueueName, err)
+		ops.logf("failed to update project %s run client status: %v", request.QueueName, err)
 	}
 }
 

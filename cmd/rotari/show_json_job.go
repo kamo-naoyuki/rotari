@@ -8,12 +8,16 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type showJSONJob struct {
 	Job      model.JobSpec    `json:"job"`
 	Finished bool             `json:"finished"`
+	Status   string           `json:"status"`
+	Carried  bool             `json:"carried,omitempty"`
 	Result   *model.JobResult `json:"result,omitempty"`
 	// Artifacts are the candidates of the attempt that produced the job's
 	// result, as `show -j JOB --artifacts` lists them.
@@ -52,35 +56,47 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID, selection string) in
 		return 1
 	}
 	output := struct {
-		BaseDir string        `json:"base_dir"`
-		Project string        `json:"project_name"`
-		RunID   string        `json:"run_id"`
-		JobID   string        `json:"job_id"`
-		Jobs    []showJSONJob `json:"jobs"`
+		BaseDir      string                `json:"base_dir"`
+		Project      string                `json:"project_name"`
+		RunID        string                `json:"run_id"`
+		JobID        string                `json:"job_id"`
+		Lifecycle    string                `json:"lifecycle"`
+		ClientStatus model.RunClientStatus `json:"client_status"`
+		Jobs         []showJSONJob         `json:"jobs"`
 	}{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: jobID}
-	output.Jobs, err = resolveRunJSONJobs(runDir, selected, summary)
+	output.Lifecycle, _ = runview.RunLifecycleLabel(paths, runID)
+	output.ClientStatus, _ = runview.ClientStatus(paths, runID)
+	if output.ClientStatus.State == "" {
+		output.ClientStatus.State = "unknown"
+	}
+	output.Jobs, err = resolveRunJSONJobs(runDir, selected, model.QueueOriginsByJobID(queue), summary)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if selection != "" {
-		kept := make([]showJSONJob, 0, len(output.Jobs))
-		for _, entry := range output.Jobs {
-			var result model.JobResult
-			if entry.Result != nil {
-				result = *entry.Result
-			}
-			if selectsShownJob(paths, runID, entry.Job.ID, result, entry.Finished, selection, jobfilter.Filter{}) {
-				kept = append(kept, entry)
-			}
-		}
-		output.Jobs = kept
-	}
+	output.Jobs = filterRunJSONJobs(paths, runID, output.Jobs, selection)
 	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
 		printErrorf("failed to write JSON: %v", err)
 		return 1
 	}
 	return 0
+}
+
+func filterRunJSONJobs(paths state.ProjectPaths, runID string, jobs []showJSONJob, selection string) []showJSONJob {
+	if selection == "" {
+		return jobs
+	}
+	kept := make([]showJSONJob, 0, len(jobs))
+	for _, entry := range jobs {
+		var result model.JobResult
+		if entry.Result != nil {
+			result = *entry.Result
+		}
+		if selectsShownJob(paths, runID, entry.Job.ID, result, entry.Finished, selection, jobfilter.Filter{}) {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
 }
 
 func selectRunJSONJobs(queue model.Queue, jobID string) []model.JobSpec {
@@ -97,7 +113,7 @@ func selectRunJSONJobs(queue model.Queue, jobID string) []model.JobSpec {
 	return nil
 }
 
-func resolveRunJSONJobs(runDir string, selected []model.JobSpec, summary *model.RunSummary) ([]showJSONJob, error) {
+func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[string]*model.JobOrigin, summary *model.RunSummary) ([]showJSONJob, error) {
 	results := jobstatus.RecordedResults(runDir, summary)
 	entries := make([]showJSONJob, 0, len(selected))
 	for _, spec := range selected {
@@ -107,7 +123,13 @@ func resolveRunJSONJobs(runDir string, selected []model.JobSpec, summary *model.
 		}
 		saved, hasSummary := results[spec.ID]
 		resolved := jobstatus.ReadJob(jsonStore(), jobDir, saved, hasSummary)
-		item := showJSONJob{Job: spec, Finished: resolved.Finished(),
+		latestAttemptID, _ := state.LatestAttemptID(runDir, spec.ID)
+		carried := runlineage.IsCarried(origins[spec.ID], latestAttemptID, resolved.Blocked(), hasSummary)
+		status := resolved.DisplayStatus(spec)
+		if carried {
+			status += " (carried)"
+		}
+		item := showJSONJob{Job: spec, Finished: resolved.Finished(), Status: status, Carried: carried,
 			Artifacts: jobstatus.ListArtifacts(jsonStore(), filepath.Dir(runDir), model.JobOrigin{RunID: filepath.Base(runDir), JobID: spec.ID})}
 		if result, ok := resolved.Result(spec); ok {
 			item.Result = &result

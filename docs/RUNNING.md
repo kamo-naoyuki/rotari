@@ -249,6 +249,12 @@ rotari unlock -p sweep
 rotari retry --run-id RUN_ID
 ```
 
+The run lifecycle, each job's last recorded execution phase, and the initiating
+client's connection history are shown separately. A `running (recorded)` job
+may have since stopped, and client state becomes `unknown` when the supervisor
+cannot be verified; these are best-effort file-backed observations, not live
+executor checks.
+
 The interrupted run's jobs are not put back in the queue. `reset` only clears
 the next queue, and `unlock` refuses while the supervisor is still alive on
 this host; cancel that run instead.

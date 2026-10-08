@@ -24,6 +24,31 @@ The four list commands differ in what each row represents:
 | `rotari basedirs` | Known state directories (not job working directories) |
 
 Use these lists to find a project, run, or job, then use `show` for its details.
+The `runs` list shows both run `STATUS` and the initiating client's separate
+`CLIENT` state; a client that started a run with `--async` is labeled
+`async (detached)`, while a synchronous client that pressed Ctrl-D is labeled
+`detached (Ctrl-D)`.
+
+### Reading run and job states
+
+Run lifecycle and job execution are independent. A run can be `interrupted`
+while a job still reports `running (recorded)`, or while some jobs already have
+terminal results. Job phases are the latest persisted observations, not live
+executor probes: `running (recorded)` does not prove that the process is still
+alive. `waiting (recorded)` and `suspended (recorded)` have the same limitation.
+When state is missing or cannot be interpreted, Rotari displays `unknown`
+rather than claiming the job has not started. Completed jobs show `success`,
+`failed`, `cancelled`, or `blocked`; results carried from another run are marked
+`(carried)`.
+
+Client state describes only the initiating run/retry progress client, not
+`wait`, Web, or MCP readers. If the supervisor cannot be verified, the current
+connection is `unknown`; where available, the label retains the last recorded
+detach reason. A finalized client record shows `async (completed)` or
+`sync (completed)` and retains recorded detach/cancel history; this describes
+history, not a live connection. A finished run without a finalized client
+record still shows `unknown`. These classifications are best-effort and do not
+contact an executor or scheduler.
 
 ### Scope and time window
 

@@ -42,7 +42,7 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 	for name, check := range map[string]func() (string, bool){
 		"show": func() (string, bool) {
 			out := e.MustRotari("show", "-p", "p1", "-r", shown.RunID).Stdout
-			return out, strings.Contains(out, "Job status: success: 1, failed: 0, blocked: 0, running: 1")
+			return out, strings.Contains(out, "Job status: success: 1, failed: 0, blocked: 0, cancelled: 0, running (recorded): 1") && strings.Contains(out, "success (carried)")
 		},
 		"lineage": func() (string, bool) {
 			out := e.MustRotari("lineage", "-p", "p1", shown.RunID).Stdout

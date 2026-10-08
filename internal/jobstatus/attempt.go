@@ -2,6 +2,7 @@ package jobstatus
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -31,6 +32,10 @@ const (
 type Attempt struct {
 	ExitCode int
 	Source   Source
+	// HasAttempt indicates an existing concrete attempt directory,
+	// even when it has not yet written a status file. False is not evidence
+	// that the job has never started.
+	HasAttempt bool
 	// Wrapper is the attempt's `status.json`, valid when HasWrapper is set,
 	// whether or not its phase is terminal.
 	Wrapper        executor.WrapperStatus
@@ -63,6 +68,11 @@ func (attempt Attempt) Result(job model.JobSpec) (model.JobResult, bool) {
 // terminal wrapper `status.json`, then a terminal `scheduler_status.json`.
 func ReadAttempt(store state.Store, jobDir string) Attempt {
 	attempt := Attempt{SchedulerState: executor.LoadSchedulerStatus(store, jobDir)}
+	if state.ValidateStatePath(jobDir) == nil && filepath.Base(filepath.Dir(jobDir)) == "attempts" {
+		if info, err := os.Stat(jobDir); err == nil && info.IsDir() {
+			attempt.HasAttempt = true
+		}
+	}
 	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
 		attempt.Wrapper, attempt.HasWrapper = executor.LoadWrapperStatus(store, path)
 	}

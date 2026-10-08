@@ -185,13 +185,14 @@ func (f selectorFixture) observeShowJSON(output string) selectorResult {
 		return selectorResult{err: "invalid JSON: " + err.Error()}
 	}
 	result := selectorResult{run: f.runKey(shown.RunID)}
-	if shown.Summary != nil {
+	if len(shown.Jobs) > 0 {
+		for _, item := range shown.Jobs {
+			result.jobs = append(result.jobs, f.jobKey(item.Job.ID))
+		}
+	} else if shown.Summary != nil {
 		for _, item := range shown.Summary.Results {
 			result.jobs = append(result.jobs, f.jobKey(item.ID))
 		}
-	}
-	for _, item := range shown.Jobs {
-		result.jobs = append(result.jobs, f.jobKey(item.Job.ID))
 	}
 	sort.Strings(result.jobs)
 	return result

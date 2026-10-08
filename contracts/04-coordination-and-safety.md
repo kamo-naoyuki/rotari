@@ -56,6 +56,17 @@ Representative implementation and tests:
   through `jobstatus.RecordedResults` and `runlineage.IsCarried`; checked by
   `TestCarriedJobsReadAsCarriedDuringTheRun` in
   [conformance/03-interfaces/carried_test.go](../conformance/03-interfaces/carried_test.go).
+- **DUR-8** Run lifecycle, best-effort per-job execution state, and the initiating
+  client's connection history are separate display dimensions. Job readers
+  distinguish recorded nonterminal phases from terminal results and unknown
+  state; a recorded `running` phase does not prove the executor is still alive.
+  The client record distinguishes `async` from Ctrl-D detach and is reported as
+  unknown when the supervisor cannot be verified. `runs`, `show`, and the Web
+  API use the shared projections in
+  [internal/runview](../internal/runview/client.go) and
+  [internal/jobstatus](../internal/jobstatus/job.go); checked by
+  `TestCLIAndWebAgreeOnJobResults` and `TestJobOutlivesKilledSupervisor` in
+  [conformance/04-coordination](../conformance/04-coordination/).
 
 Implementation and tests: the wrapper is built in
 [`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with

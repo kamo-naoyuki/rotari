@@ -12,7 +12,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -63,6 +63,7 @@ type runListRow struct {
 	RunID      string
 	Name       string
 	Status     string
+	Client     string
 	ExitCode   string
 	StartedAt  string
 	Finished   string
@@ -231,12 +232,16 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 			row.Order = started.UnixNano()
 		}
 	}
-	phase, err := project.RunPhaseOf(paths, runID)
+	lifecycle, err := runview.RunLifecycleLabel(paths, runID)
 	if err != nil {
 		return runListRow{}, err
 	}
-	if phase == project.RunPhaseRunning || phase == project.RunPhaseInterrupted {
-		row.Status = string(phase)
+	row.Status = lifecycle
+	clientStatus, err := runview.ClientStatus(paths, runID)
+	if err != nil {
+		row.Client = "unknown"
+	} else {
+		row.Client = runview.ClientStatusLabel(clientStatus)
 	}
 	return row, nil
 }
@@ -263,14 +268,14 @@ func filterRunRows(rows []runListRow, cutoff time.Time) []runListRow {
 }
 
 func printRunRows(rows []runListRow, showBaseDir bool) {
-	header := []string{"PROJECT", "RUN ID", "NAME", "STATUS", "EXIT CODE", "STARTED", "FINISHED"}
+	header := []string{"PROJECT", "RUN ID", "NAME", "STATUS", "CLIENT", "EXIT CODE", "STARTED", "FINISHED"}
 	if showBaseDir {
 		header = append([]string{"BASEDIR"}, header...)
 	}
 	table := [][]string{header}
 	widths := make([]int, len(header))
 	for _, row := range rows {
-		values := []string{row.Project, row.RunID, row.Name, row.Status, row.ExitCode, row.StartedAt, row.Finished}
+		values := []string{row.Project, row.RunID, row.Name, row.Status, row.Client, row.ExitCode, row.StartedAt, row.Finished}
 		if showBaseDir {
 			values = append([]string{row.BaseDir}, values...)
 		}

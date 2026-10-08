@@ -21,6 +21,9 @@ func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
 	if !strings.Contains(webAppTablesJS, "success (accepted)") {
 		t.Fatal("Web job status does not distinguish manually accepted results")
 	}
+	if !strings.Contains(webAppTablesJS, "job.execution_status") || !strings.Contains(webAppCoreJS, "async (detached)") {
+		t.Fatal("Web UI does not render the shared job/client status classifications")
+	}
 }
 
 func TestComposeStaticBootstrapInjectsData(t *testing.T) {

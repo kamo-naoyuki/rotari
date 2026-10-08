@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 // ProtocolVersion is reported by Ready. A `run` client talks only to the
@@ -44,11 +46,10 @@ type Operations interface {
 	StartRun(request Request, onDone func()) (runID, message string, err error)
 	// Run executes a synchronous run, reporting progress as it goes.
 	Run(request Request, progress func(Response)) (message string, exitCode int, err error)
-	// DetachRun records that a synchronous run no longer has a connected
-	// client, whether it detached or disconnected.
-	DetachRun(request Request)
-	// CancelRun cancels a synchronous run whose client disconnected without
-	// detaching.
+	// UpdateRunClientStatus records a synchronous client's connection transition.
+	UpdateRunClientStatus(request Request, status model.RunClientStatus)
+	// CancelRun cancels a synchronous run after explicit Ctrl-C or a disconnect
+	// configured to cancel.
 	CancelRun(request Request)
 }
 
@@ -194,8 +195,16 @@ func (server *Server) Handle(conn io.ReadWriteCloser) {
 	}
 	server.logger.Writef("request op=%s", request.Op)
 	encoder := json.NewEncoder(conn)
+	var responseMu sync.Mutex
+	encode := func(response Response) {
+		// Detached runs can still emit progress while Handle sends its final
+		// response. Neither the encoder nor the connection allows interleaving.
+		responseMu.Lock()
+		defer responseMu.Unlock()
+		_ = encoder.Encode(response)
+	}
 	if !IsKnownOperation(request.Op) {
-		_ = encoder.Encode(Response{Message: "unknown server operation: " + request.Op})
+		encode(Response{Message: "unknown server operation: " + request.Op})
 		return
 	}
 	var response Response
@@ -214,9 +223,7 @@ func (server *Server) Handle(conn io.ReadWriteCloser) {
 			response = messageResponse(message, err)
 			response.RunID = runID
 		} else {
-			message, exitCode, err, detached := server.runAttached(conn, request, func(progress Response) {
-				_ = encoder.Encode(progress)
-			})
+			message, exitCode, err, detached := server.runAttached(conn, request, encode)
 			if !detached {
 				defer server.EndRun()
 			}
@@ -226,7 +233,7 @@ func (server *Server) Handle(conn io.ReadWriteCloser) {
 	default:
 		response.Message = "unsupported server operation: " + request.Op
 	}
-	_ = encoder.Encode(response)
+	encode(response)
 }
 
 func messageResponse(message string, err error) Response {
@@ -236,9 +243,37 @@ func messageResponse(message string, err error) Response {
 	return Response{OK: true, Message: message}
 }
 
-// runAttached runs a synchronous run while watching its client. A detach
-// leaves the run going and moves EndRun to its completion; any other
-// disconnect cancels the run and waits for it to finish.
+type clientEvent int
+
+const (
+	clientDisconnected clientEvent = iota
+	clientDetached
+	clientCancelled
+)
+
+// clientTransition returns the persisted state and whether the run should
+// continue after a client event.
+func clientTransition(event clientEvent, disconnectAction string) (model.RunClientStatus, bool) {
+	status := model.RunClientStatus{Mode: model.RunClientModeSync}
+	switch event {
+	case clientDetached:
+		status.State, status.Reason = model.RunClientDetached, model.RunClientReasonCtrlD
+	case clientCancelled:
+		status.State, status.Reason = model.RunClientCancelling, model.RunClientReasonCtrlC
+	case clientDisconnected:
+		if disconnectAction == DisconnectActionCancel {
+			status.State, status.Reason = model.RunClientCancelling, model.RunClientReasonCancel
+		} else {
+			status.State, status.Reason = model.RunClientDetached, model.RunClientReasonEOF
+		}
+	}
+	detach := event == clientDetached || event == clientDisconnected && disconnectAction != DisconnectActionCancel
+	return status, detach
+}
+
+// runAttached runs a synchronous run while watching its client. Ctrl-D and a
+// detach-configured unexpected disconnect leave it going and move EndRun to
+// completion; explicit or configured cancellation waits for the run to finish.
 func (server *Server) runAttached(conn io.Reader, request Request, progress func(Response)) (string, int, error, bool) {
 	type result struct {
 		message  string
@@ -246,16 +281,15 @@ func (server *Server) runAttached(conn io.Reader, request Request, progress func
 		err      error
 	}
 	done := make(chan result, 1)
+	started := make(chan struct{})
+	var startOnce sync.Once
 	go func() {
-		message, exitCode, err := server.ops.Run(request, progress)
+		message, exitCode, err := server.ops.Run(request, func(response Response) {
+			startOnce.Do(func() { close(started) })
+			progress(response)
+		})
 		done <- result{message: message, exitCode: exitCode, err: err}
 	}()
-	type clientEvent int
-	const (
-		clientDisconnected clientEvent = iota
-		clientDetached
-		clientCancelled
-	)
 	disconnected := make(chan clientEvent, 1)
 	go func() {
 		var buffer [1]byte
@@ -278,8 +312,14 @@ func (server *Server) runAttached(conn io.Reader, request Request, progress func
 	case result := <-done:
 		return result.message, result.exitCode, result.err, false
 	case event := <-disconnected:
-		server.ops.DetachRun(request)
-		if event == clientDetached || event == clientDisconnected && request.DisconnectAction != DisconnectActionCancel {
+		select {
+		case <-started:
+		case result := <-done:
+			return result.message, result.exitCode, result.err, false
+		}
+		status, detach := clientTransition(event, request.DisconnectAction)
+		server.ops.UpdateRunClientStatus(request, status)
+		if detach {
 			go func() {
 				<-done
 				server.EndRun()

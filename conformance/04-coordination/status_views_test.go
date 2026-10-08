@@ -16,10 +16,15 @@ import (
 )
 
 func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
-	covers(t, "DUR-5")
+	covers(t, "DUR-5", "DUR-8")
 	e := support.NewEnv(t)
 	run := e.CreateFinishedRun()
 	var shown struct {
+		Lifecycle string `json:"lifecycle"`
+		Client    struct {
+			Mode  string `json:"mode"`
+			State string `json:"state"`
+		} `json:"client_status"`
 		Summary struct {
 			Results []struct {
 				ID        string `json:"id"`
@@ -31,21 +36,46 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, "--json").Stdout), &shown); err != nil {
 		t.Fatal(err)
 	}
+	if shown.Lifecycle != "failed" || shown.Client.Mode != "sync" || shown.Client.State != "completed" {
+		t.Fatalf("show --json lifecycle/client = %q/%+v, want failed/sync completed", shown.Lifecycle, shown.Client)
+	}
 	jobRows := parseJobsTable(t, e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--format", "%a %s %f").Stdout)
-	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), run.Project, run.RunID)).Body, run.Project, run.RunID)
+	webBody := e.HTTPGet(webRunURL(e.StartWeb(), run.Project, run.RunID)).Body
+	var webRun struct {
+		Lifecycle    string `json:"lifecycle"`
+		ClientStatus struct {
+			Mode  string `json:"mode"`
+			State string `json:"state"`
+		} `json:"client_status"`
+	}
+	if err := json.Unmarshal([]byte(webBody), &webRun); err != nil {
+		t.Fatal(err)
+	}
+	if webRun.Lifecycle != shown.Lifecycle || webRun.ClientStatus.Mode != shown.Client.Mode || webRun.ClientStatus.State != shown.Client.State {
+		t.Fatalf("CLI/Web run lifecycle/client differ: cli=%q/%+v web=%q/%+v", shown.Lifecycle, shown.Client, webRun.Lifecycle, webRun.ClientStatus)
+	}
+	webJobs := loadWebJobs(t, webBody, run.Project, run.RunID)
 	if len(shown.Summary.Results) != 2 {
 		t.Fatalf("show --json lists %d results, want 2", len(shown.Summary.Results))
 	}
 	for _, result := range shown.Summary.Results {
+		wantState := "failed"
+		if result.ExitCode == 0 {
+			wantState = "success"
+		}
 		web, ok := webJobs[result.ID]
 		if !ok || web.AttemptID != result.AttemptID || web.Result == nil || web.Result.ExitCode != result.ExitCode {
 			t.Errorf("job %s differs between CLI and Web: cli=%+v web=%+v", result.ID, result, web)
+		}
+		if web.ExecutionStatus != wantState {
+			t.Errorf("Web job %s execution status = %q, want %q", result.ID, web.ExecutionStatus, wantState)
 		}
 		var selected struct {
 			RunID string `json:"run_id"`
 			JobID string `json:"job_id"`
 			Jobs  []struct {
-				Finished bool `json:"finished"`
+				Finished bool   `json:"finished"`
+				Status   string `json:"status"`
 				Result   *struct {
 					ID       string `json:"id"`
 					ExitCode int    `json:"exit_code"`
@@ -58,9 +88,8 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 		if selected.RunID != run.RunID || selected.JobID != result.ID || len(selected.Jobs) != 1 || !selected.Jobs[0].Finished || selected.Jobs[0].Result == nil || selected.Jobs[0].Result.ID != result.ID || selected.Jobs[0].Result.ExitCode != result.ExitCode {
 			t.Errorf("job JSON view differs from run summary: %+v", selected)
 		}
-		wantState := "failed"
-		if result.ExitCode == 0 {
-			wantState = "success"
+		if selected.Jobs[0].Status != wantState {
+			t.Errorf("show JSON job status = %q, want %q", selected.Jobs[0].Status, wantState)
 		}
 		if jobRows[result.AttemptID]["STATE"] != wantState {
 			t.Errorf("job %s state = %q, want %q", result.ID, jobRows[result.AttemptID]["STATE"], wantState)
@@ -73,9 +102,10 @@ func webRunURL(base, project, runID string) string {
 }
 
 type statusWebJob struct {
-	ID        string `json:"id"`
-	AttemptID string `json:"attempt_id"`
-	Result    *struct {
+	ID              string `json:"id"`
+	AttemptID       string `json:"attempt_id"`
+	ExecutionStatus string `json:"execution_status"`
+	Result          *struct {
 		ExitCode int `json:"exit_code"`
 	} `json:"result"`
 }

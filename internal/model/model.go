@@ -450,6 +450,31 @@ type LockInfo struct {
 	ClientAttached bool   `json:"client_attached,omitempty"`
 }
 
+const (
+	RunClientModeSync  = "sync"
+	RunClientModeAsync = "async"
+
+	RunClientAttached     = "attached"
+	RunClientDetached     = "detached"
+	RunClientCancelling   = "cancelling"
+	RunClientCompleted    = "completed"
+	RunClientReasonAsync  = "async"
+	RunClientReasonCtrlD  = "ctrl-d"
+	RunClientReasonCtrlC  = "ctrl-c"
+	RunClientReasonEOF    = "disconnect"
+	RunClientReasonCancel = "disconnect-cancel"
+)
+
+// RunClientStatus records the initiating CLI client's mode and its last
+// connection transition. It describes the progress stream, not observers
+// such as wait, Web, or MCP clients.
+type RunClientStatus struct {
+	Mode      string `json:"mode"`
+	State     string `json:"state"`
+	Reason    string `json:"reason,omitempty"`
+	UpdatedAt string `json:"updated_at"`
+}
+
 // EnvJobDir is the environment variable name used to carry a job's working
 // state directory into scheduler array wrapper scripts. It is a wire-format
 // contract shared between cmd/rotari (which sets it) and internal/executor

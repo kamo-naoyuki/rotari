@@ -13,11 +13,13 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type QueueLoader struct {
 	ProjectName string
+	Paths       state.ProjectPaths
 	Queue       func() (model.Queue, error)
 	Lock        func() (model.LockInfo, error)
 	Runs        func() ([]string, error)
@@ -71,8 +73,19 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			context = model.RunContext{}
 		}
 		context.LoadSamples = loader.Samples(runID)
+		lifecycle := summary.Status
+		clientStatus := model.RunClientStatus{State: "unknown"}
+		if loader.Paths.ProjectDir != "" {
+			if resolved, statusErr := runview.RunLifecycleLabel(loader.Paths, runID); statusErr == nil {
+				lifecycle = resolved
+			}
+			if resolved, statusErr := runview.ClientStatus(loader.Paths, runID); statusErr == nil {
+				clientStatus = resolved
+			}
+		}
 		state.Runs = append(state.Runs, Run{
 			RunSummary: summary, LineageSummary: buildLineageSummary(summary, jobs), Jobs: jobs,
+			Lifecycle: lifecycle, ClientStatus: clientStatus,
 			CWD: context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
 		})
 	}
@@ -204,6 +217,10 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			}
 			job.Result = &result
 		}
+		job.ExecutionStatus = resolved.DisplayStatus(jobSpec)
+		if job.Carried {
+			job.ExecutionStatus += " (carried)"
+		}
 		if job.Result != nil {
 			job.DiagnosisOutdated = diagnose.Outdated(*job.Result)
 		}
@@ -219,7 +236,11 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			continue
 		}
 		resultCopy := result
-		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
+		displayStatus := model.ResultStatus(resultCopy, true)
+		if strings.HasPrefix(resultCopy.Error, "blocked") {
+			displayStatus = "blocked"
+		}
+		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, ExecutionStatus: displayStatus, DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return jobs, nil
 }
@@ -237,7 +258,7 @@ func loadAttempts(store state.Store, runDir string, jobSpec model.JobSpec) []Att
 			continue
 		}
 		outcome := jobstatus.ReadAttempt(store, jobDir)
-		attempt := Attempt{ID: attemptID, SubmittedAt: state.ReadAttemptTimestamp(jobDir, "submitted_at"), FinishedAt: state.ReadAttemptTimestamp(jobDir, "finished_at"), SchedulerState: outcome.SchedulerState}
+		attempt := Attempt{ID: attemptID, ExecutionStatus: jobstatus.ResolveJob(outcome, model.JobResult{}, false).DisplayStatus(jobSpec), SubmittedAt: state.ReadAttemptTimestamp(jobDir, "submitted_at"), FinishedAt: state.ReadAttemptTimestamp(jobDir, "finished_at"), SchedulerState: outcome.SchedulerState}
 		if result, ok := outcome.Result(jobSpec); ok {
 			result.AttemptID = attemptID
 			attempt.Result = &result

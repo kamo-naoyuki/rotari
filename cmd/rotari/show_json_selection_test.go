@@ -68,13 +68,14 @@ func TestShowJSONAppliesFailedSelection(t *testing.T) {
 				t.Fatalf("show %q JSON: %v\n%s", args, err, output.String())
 			}
 			got := []string{}
-			if shown.Summary != nil {
+			if len(shown.Jobs) > 0 {
+				for _, job := range shown.Jobs {
+					got = append(got, job.Job.ID)
+				}
+			} else if shown.Summary != nil {
 				for _, result := range shown.Summary.Results {
 					got = append(got, result.ID)
 				}
-			}
-			for _, job := range shown.Jobs {
-				got = append(got, job.Job.ID)
 			}
 			sort.Strings(got)
 			if !reflect.DeepEqual(got, test.want) {

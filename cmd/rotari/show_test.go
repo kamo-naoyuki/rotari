@@ -65,7 +65,7 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "array-1") || !strings.Contains(string(output), " 0 ") || !strings.Contains(string(output), "Job status: success: 1, failed: 0, blocked: 0, running: 0, pending: 0") {
+	if code != 0 || !strings.Contains(string(output), "array-1") || !strings.Contains(string(output), "success") || !strings.Contains(string(output), "Job status: success: 1, failed: 0, blocked: 0, cancelled: 0") {
 		t.Fatalf("code=%d output=%q", code, output)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/report"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
@@ -1483,7 +1484,15 @@ func (s site) loadWebRunSummary(paths stateinternal.ProjectPaths, runID string, 
 	if summary.RunID == "" {
 		summary.RunID = runID
 	}
-	return webprojection.Run{RunSummary: summary, Running: runID == project.RunningRunID}, nil
+	lifecycle, lifecycleErr := runview.RunLifecycleLabel(paths, runID)
+	if lifecycleErr != nil {
+		lifecycle = "unknown"
+	}
+	clientStatus, clientErr := runview.ClientStatus(paths, runID)
+	if clientErr != nil {
+		clientStatus = model.RunClientStatus{State: "unknown"}
+	}
+	return webprojection.Run{RunSummary: summary, Lifecycle: lifecycle, ClientStatus: clientStatus, Running: runID == project.RunningRunID}, nil
 }
 
 func (s site) loadWebRunDetail(baseDir, projectName, runID string) (webprojection.Run, error) {
@@ -1496,6 +1505,7 @@ func (s site) loadWebRunDetail(baseDir, projectName, runID string) (webprojectio
 	}
 	loaded, err := webprojection.LoadQueueState(webprojection.QueueLoader{
 		ProjectName: projectName,
+		Paths:       paths,
 		Queue:       func() (model.Queue, error) { return model.Queue{}, nil },
 		Lock:        func() (model.LockInfo, error) { return stateinternal.LoadLock(paths.LockFile) },
 		Runs:        func() ([]string, error) { return []string{runID}, nil },
@@ -1894,6 +1904,7 @@ func writeStaticStylesheet(directory string) error {
 func (s site) loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection.QueueState, error) {
 	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
 		ProjectName: paths.ProjectName,
+		Paths:       paths,
 		Queue:       func() (model.Queue, error) { return stateinternal.LoadQueue(paths.QueueFile) },
 		Lock:        func() (model.LockInfo, error) { return stateinternal.LoadLock(paths.LockFile) },
 		Runs: func() ([]string, error) {

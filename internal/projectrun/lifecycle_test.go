@@ -2,6 +2,7 @@ package projectrun
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,12 +57,16 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 
 func TestBeginRecordsAttachedClientAndCanDetachIt(t *testing.T) {
 	runner, paths := testRunner(t)
-	if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true}); err != nil {
+	if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true, ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
 		t.Fatal(err)
 	}
 	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil || !lock.ClientAttached {
 		t.Fatalf("lock after Begin = %+v, %v; want attached client", lock, err)
+	}
+	status, err := state.LoadRunClientStatus(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
+	if err != nil || status.Mode != model.RunClientModeSync || status.State != model.RunClientAttached {
+		t.Fatalf("status after Begin = %+v, %v; want sync attached", status, err)
 	}
 	if err := runner.SetClientAttached(paths, "run-1", false); err != nil {
 		t.Fatal(err)
@@ -69,6 +74,45 @@ func TestBeginRecordsAttachedClientAndCanDetachIt(t *testing.T) {
 	lock, err = state.LoadLock(paths.LockFile)
 	if err != nil || lock.ClientAttached {
 		t.Fatalf("lock after detach = %+v, %v; want detached client", lock, err)
+	}
+	status, err = state.LoadRunClientStatus(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
+	if err != nil || status.Mode != model.RunClientModeSync || status.State != model.RunClientDetached {
+		t.Fatalf("status after detach = %+v, %v; want sync detached", status, err)
+	}
+}
+
+func TestClientMetadataCannotPreventRunOrDetach(t *testing.T) {
+	for _, collision := range []bool{false, true} {
+		t.Run(fmt.Sprint("collision=", collision), func(t *testing.T) {
+			runner, paths := testRunner(t)
+			runDir := filepath.Join(paths.RunsDir, "run-1")
+			jobID := "job"
+			if collision {
+				jobID = state.RunClientStatusFileName
+			}
+			if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: []string{"true"}}}}); err != nil {
+				t.Fatal(err)
+			}
+			if !collision {
+				// An unreadable metadata destination must not prevent starting.
+				if err := os.MkdirAll(filepath.Join(runDir, state.RunClientStatusFileName), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true, ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
+				t.Fatal(err)
+			}
+			if collision {
+				if err := os.MkdirAll(filepath.Join(runDir, jobID, "attempts"), 0o700); err != nil {
+					t.Fatalf("metadata prevented job directory creation: %v", err)
+				}
+			}
+			_ = runner.SetRunClientStatus(paths, "run-1", model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientDetached, Reason: model.RunClientReasonCtrlD})
+			lock, err := state.LoadLock(paths.LockFile)
+			if err != nil || lock.ClientAttached {
+				t.Fatalf("metadata failure prevented detach: lock=%+v error=%v", lock, err)
+			}
+		})
 	}
 }
 

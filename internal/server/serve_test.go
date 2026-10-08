@@ -10,15 +10,19 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 type fakeOperations struct {
-	mu        sync.Mutex
-	cancelled []Request
-	detached  []Request
-	runStart  chan struct{}
-	runFinish chan struct{}
-	startErr  error
+	mu             sync.Mutex
+	cancelled      []Request
+	clientStatuses []model.RunClientStatus
+	runStart       chan struct{}
+	runFinish      chan struct{}
+	runEntered     chan struct{}
+	runGate        chan struct{}
+	startErr       error
 }
 
 func (ops *fakeOperations) StartRun(_ Request, _ func()) (string, string, error) {
@@ -26,6 +30,12 @@ func (ops *fakeOperations) StartRun(_ Request, _ func()) (string, string, error)
 }
 
 func (ops *fakeOperations) Run(_ Request, progress func(Response)) (string, int, error) {
+	if ops.runEntered != nil {
+		close(ops.runEntered)
+	}
+	if ops.runGate != nil {
+		<-ops.runGate
+	}
 	progress(Response{OK: true, Progress: true, Message: "started"})
 	if ops.runStart != nil {
 		close(ops.runStart)
@@ -45,9 +55,9 @@ func (ops *fakeOperations) CancelRun(request Request) {
 	}
 }
 
-func (ops *fakeOperations) DetachRun(request Request) {
+func (ops *fakeOperations) UpdateRunClientStatus(_ Request, status model.RunClientStatus) {
 	ops.mu.Lock()
-	ops.detached = append(ops.detached, request)
+	ops.clientStatuses = append(ops.clientStatuses, status)
 	ops.mu.Unlock()
 }
 
@@ -203,8 +213,8 @@ func TestHandleSyncRunDisconnectDetachesByDefault(t *testing.T) {
 	if len(ops.cancelled) != 0 {
 		t.Fatalf("disconnect cancelled the run: %#v", ops.cancelled)
 	}
-	if len(ops.detached) != 1 {
-		t.Fatalf("detached = %#v, want the disconnected run detached", ops.detached)
+	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientDetached || ops.clientStatuses[0].Reason != model.RunClientReasonEOF {
+		t.Fatalf("client statuses = %#v, want unexpected disconnect recorded as detached", ops.clientStatuses)
 	}
 	if !server.Busy() {
 		t.Fatal("detached run is no longer active")
@@ -239,9 +249,45 @@ func TestHandleSyncRunDisconnectCanCancel(t *testing.T) {
 	if len(ops.cancelled) != 1 || ops.cancelled[0].QueueName != "demo" {
 		t.Fatalf("cancelled = %#v, want the disconnected run", ops.cancelled)
 	}
+	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientCancelling || ops.clientStatuses[0].Reason != model.RunClientReasonCancel {
+		t.Fatalf("client statuses = %#v, want disconnect cancellation", ops.clientStatuses)
+	}
 	if server.Busy() {
 		t.Fatal("cancelled run is still active")
 	}
+}
+
+func TestHandleSyncDisconnectWaitsForRunStartBeforeRecordingTransition(t *testing.T) {
+	ops := &fakeOperations{runEntered: make(chan struct{}), runGate: make(chan struct{}), runFinish: make(chan struct{})}
+	server := New(ops, nil)
+	client, serverConn := net.Pipe()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.Handle(serverConn)
+	}()
+	if err := json.NewEncoder(client).Encode(Request{Op: OpRun, QueueName: "demo"}); err != nil {
+		t.Fatal(err)
+	}
+	<-ops.runEntered
+	_ = client.Close()
+	if len(ops.clientStatuses) != 0 {
+		t.Fatalf("client status recorded before run start: %#v", ops.clientStatuses)
+	}
+	close(ops.runGate)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("disconnect was not handled after run start")
+	}
+	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].Reason != model.RunClientReasonEOF {
+		t.Fatalf("client statuses = %#v, want the disconnect recorded after run start", ops.clientStatuses)
+	}
+	if len(ops.cancelled) != 0 || !server.Busy() {
+		t.Fatalf("cancelled = %#v, busy = %v; want detached live run", ops.cancelled, server.Busy())
+	}
+	close(ops.runFinish)
+	waitIdle(server)
 }
 
 func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
@@ -274,8 +320,8 @@ func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
 	if server.Busy() || !server.Stopped() || len(ops.cancelled) != 0 {
 		t.Fatalf("busy = %v, stopped = %v, cancelled = %#v", server.Busy(), server.Stopped(), ops.cancelled)
 	}
-	if len(ops.detached) != 1 {
-		t.Fatalf("detached = %#v, want one detach notification", ops.detached)
+	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientDetached || ops.clientStatuses[0].Reason != model.RunClientReasonCtrlD {
+		t.Fatalf("client statuses = %#v, want one Ctrl-D detach notification", ops.clientStatuses)
 	}
 }
 

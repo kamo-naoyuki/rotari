@@ -167,13 +167,14 @@ func pairJSONIDs(t *testing.T, r support.Result) []string {
 		t.Fatalf("JSON has no summary or jobs projection: %s", r)
 	}
 	ids := []string{}
-	if shown.Summary != nil {
+	if len(shown.Jobs) > 0 {
+		for _, job := range shown.Jobs {
+			ids = append(ids, job.Job.ID)
+		}
+	} else if shown.Summary != nil {
 		for _, result := range shown.Summary.Results {
 			ids = append(ids, result.ID)
 		}
-	}
-	for _, job := range shown.Jobs {
-		ids = append(ids, job.Job.ID)
 	}
 	return ids
 }

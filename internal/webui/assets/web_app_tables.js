@@ -260,6 +260,7 @@ function addQueueOverviewPathActions() {
   });
 }
 function jobDisplayStatus(job, run) {
+  if (job.execution_status) return job.execution_status;
   const result = job.result;
   if (!result)
     return job.scheduler_state || (run.running ? "running" : "pending");
@@ -268,15 +269,22 @@ function jobDisplayStatus(job, run) {
   return result.exit_code === 0 ? "success" : "failed";
 }
 function jobStatusClass(status) {
+  status = status.toLowerCase().replace(/ \(carried\)$/, "");
   const classes = {
     pending: "status-pending",
     unfinished: "status-pending",
     running: "status-running",
+    "running (recorded)": "status-running",
+    "waiting (recorded)": "status-pending",
+    "not started": "status-pending",
+    "suspended (recorded)": "status-pending",
     success: "status-finished",
     finished: "status-finished",
     "success (accepted)": "status-finished",
     failed: "status-failed",
+    cancelled: "status-failed",
     blocked: "status-blocked",
+    unknown: "status-unreadable",
   };
   return classes[status.toLowerCase()] || "status-unreadable";
 }

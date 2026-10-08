@@ -29,6 +29,28 @@ func writeListsRun(t *testing.T, baseDir, projectName, runID string) state.Proje
 	return paths
 }
 
+func TestListsRunsShowClientModeAndDetachReason(t *testing.T) {
+	paths := writeListsRun(t, t.TempDir(), "demo", "run-async")
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-async", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientCompleted, Reason: model.RunClientReasonAsync}); err != nil {
+		t.Fatal(err)
+	}
+	paths = writeListsRun(t, paths.BaseDir, "demo", "run-ctrl-d")
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-ctrl-d", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientCompleted, Reason: model.RunClientReasonCtrlD}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := collectRunRows([]string{paths.BaseDir}, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]string{}
+	for _, row := range rows {
+		labels[row.RunID] = row.Client
+	}
+	if labels["run-async"] != "async (completed)" || labels["run-ctrl-d"] != "sync (completed; Ctrl-D detached)" {
+		t.Fatalf("client labels = %#v", labels)
+	}
+}
+
 func TestListsRunsRejectsExplicitInvalidProject(t *testing.T) {
 	for _, name := range []string{"", ".", "..", "../outside", "a/b", `a\b`, "/absolute"} {
 		for _, positional := range []bool{false, true} {

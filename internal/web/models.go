@@ -19,6 +19,8 @@ type Run struct {
 	model.RunSummary
 	LineageSummary runlineage.RunSummary `json:"lineage_summary,omitempty"`
 	Jobs           []Job                 `json:"jobs"`
+	Lifecycle      string                `json:"lifecycle,omitempty"`
+	ClientStatus   model.RunClientStatus `json:"client_status"`
 	CWD            string                `json:"cwd,omitempty"`
 	Context        model.RunContext      `json:"context,omitempty"`
 	Timeline       []TimelinePoint       `json:"timeline,omitempty"`
@@ -45,26 +47,28 @@ type Job struct {
 	DependsOn         []string  `json:"depends_on,omitempty"`
 	DependsOnFinished []string  `json:"depends_on_finished,omitempty"`
 	// Matrix places a matrix member in its group's grid.
-	Matrix         *Matrix          `json:"matrix,omitempty"`
-	Result         *model.JobResult `json:"result,omitempty"`
-	Origin         *model.JobOrigin `json:"origin,omitempty"`
-	Carried        bool             `json:"-"`
-	AttemptDir     string           `json:"-"`
-	SubmittedAt    string           `json:"submitted_at,omitempty"`
-	FinishedAt     string           `json:"finished_at,omitempty"`
-	SchedulerState string           `json:"scheduler_state,omitempty"`
-	Final          bool             `json:"final,omitempty"`
+	Matrix          *Matrix          `json:"matrix,omitempty"`
+	Result          *model.JobResult `json:"result,omitempty"`
+	Origin          *model.JobOrigin `json:"origin,omitempty"`
+	Carried         bool             `json:"carried,omitempty"`
+	ExecutionStatus string           `json:"execution_status"`
+	AttemptDir      string           `json:"-"`
+	SubmittedAt     string           `json:"submitted_at,omitempty"`
+	FinishedAt      string           `json:"finished_at,omitempty"`
+	SchedulerState  string           `json:"scheduler_state,omitempty"`
+	Final           bool             `json:"final,omitempty"`
 	// DiagnosisOutdated reports that Result's saved rule-based analysis was
 	// produced by earlier diagnosis rules.
 	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`
 }
 
 type Attempt struct {
-	ID             string           `json:"id"`
-	Result         *model.JobResult `json:"result,omitempty"`
-	SubmittedAt    string           `json:"submitted_at,omitempty"`
-	FinishedAt     string           `json:"finished_at,omitempty"`
-	SchedulerState string           `json:"scheduler_state,omitempty"`
+	ID              string           `json:"id"`
+	Result          *model.JobResult `json:"result,omitempty"`
+	ExecutionStatus string           `json:"execution_status"`
+	SubmittedAt     string           `json:"submitted_at,omitempty"`
+	FinishedAt      string           `json:"finished_at,omitempty"`
+	SchedulerState  string           `json:"scheduler_state,omitempty"`
 }
 
 type QueueState struct {

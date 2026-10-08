@@ -25,6 +25,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -491,17 +492,24 @@ type showJSON struct {
 	RunID     string                    `json:"run_id"`
 	RunDir    string                    `json:"run_dir"`
 	Summary   *model.RunSummary         `json:"summary,omitempty"`
+	Lifecycle string                    `json:"lifecycle,omitempty"`
+	Client    *model.RunClientStatus    `json:"client_status,omitempty"`
+	Jobs      []showJSONJob             `json:"jobs,omitempty"`
 	Failures  []runlineage.FailureGroup `json:"failures,omitempty"`
 	Commands  model.Queue               `json:"commands"`
 	NextQueue *model.Queue              `json:"next_queue,omitempty"`
 }
 
 type showJobCounts struct {
-	success int
-	failed  int
-	blocked int
-	running int
-	pending int
+	success    int
+	failed     int
+	blocked    int
+	cancelled  int
+	running    int
+	waiting    int
+	notStarted int
+	suspended  int
+	unknown    int
 }
 
 // showJobFilter selects the rows of a run job table.
@@ -563,6 +571,12 @@ func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector, f
 // the jobs it selects; the command snapshot stays whole.
 func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 	result := showJSON{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, RunDir: filepath.Join(paths.RunsDir, runID)}
+	result.Lifecycle, _ = runview.RunLifecycleLabel(paths, runID)
+	clientStatus, _ := runview.ClientStatus(paths, runID)
+	if clientStatus.State == "" {
+		clientStatus.State = "unknown"
+	}
+	result.Client = &clientStatus
 	var selected map[string]bool
 	if summary, err := state.LoadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
 		if selection != "" {
@@ -587,6 +601,12 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		return 1
 	}
 	result.Commands = commands
+	result.Jobs, err = resolveRunJSONJobs(result.RunDir, model.QueueToJobs(commands.Commands), model.QueueOriginsByJobID(commands), result.Summary)
+	if err != nil {
+		printErrorf("failed to read job states: %v", err)
+		return 1
+	}
+	result.Jobs = filterRunJSONJobs(paths, runID, result.Jobs, selection)
 	nextQueue, err := nextQueueForRun(paths, runID)
 	if err != nil {
 		printErrorf("failed to load next queue: %v", err)
@@ -852,6 +872,16 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		fmt.Printf("%s %s\n", cyan("Run name:"), summary.RunName)
 	}
 	fmt.Printf("%s %s\n", cyan("Directory:"), runDir)
+	lifecycle, lifecycleErr := runview.RunLifecycleLabel(paths, runID)
+	if lifecycleErr != nil {
+		printErrorf("failed to determine run lifecycle: %v", lifecycleErr)
+		return 1
+	}
+	clientStatus, clientErr := runview.ClientStatus(paths, runID)
+	if clientErr != nil {
+		clientStatus = model.RunClientStatus{State: "unknown"}
+	}
+	fmt.Printf("%s %s\n%s %s\n", cyan("Lifecycle:"), lifecycle, cyan("Client:"), runview.ClientStatusLabel(clientStatus))
 	if summaryOK {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
@@ -869,7 +899,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
-	runActive := project.RunActive(paths, runID)
 	jobCounts := showJobCounts{}
 	var recorded *model.RunSummary
 	if summaryOK {
@@ -947,20 +976,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		summaryResult, hasSummary := resultByID[jobSpec.ID]
 		resolved := jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)
 		status, statusOK, blocked := resolved.ExitCode, resolved.Finished(), resolved.Blocked()
-		if statusOK {
-			switch {
-			case blocked:
-				jobCounts.blocked++
-			case status == 0:
-				jobCounts.success++
-			default:
-				jobCounts.failed++
-			}
-		} else if runActive {
-			jobCounts.running++
-		} else {
-			jobCounts.pending++
-		}
 		// An attempt records the executor it ran on, which a run-level
 		// --executor can make differ from the job's definition.
 		executorSpec := jobSpec
@@ -969,12 +984,37 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		executorText := queueExecutorText(runQueue, executorSpec)
 		jobResult, _ := resolved.Result(jobSpec)
+		origin := originByID[jobID]
+		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
+		displayStatus := resolved.DisplayStatus(jobSpec)
+		countStatus := displayStatus
+		switch countStatus {
+		case "success":
+			jobCounts.success++
+		case "failed":
+			jobCounts.failed++
+		case "blocked":
+			jobCounts.blocked++
+		case "cancelled":
+			jobCounts.cancelled++
+		case "running (recorded)":
+			jobCounts.running++
+		case "waiting (recorded)":
+			jobCounts.waiting++
+		case "not started", "not started (carried)":
+			jobCounts.notStarted++
+		case "suspended (recorded)":
+			jobCounts.suspended++
+		default:
+			jobCounts.unknown++
+		}
+		if carried {
+			displayStatus += " (carried)"
+		}
 		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
 			continue
 		}
 		displayed[jobID] = true
-		origin := originByID[jobID]
-		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
@@ -989,21 +1029,24 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		submittedAt = model.FormatDisplayTimestamp(submittedAt)
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)
-		if statusOK {
-			statusText := green(strconv.Itoa(status))
-			if resolved.Accepted() {
-				statusText = green("success (accepted)")
-			} else if blocked {
-				statusText = yellow("blocked")
-			} else if status != 0 {
-				statusText = red(strconv.Itoa(status))
+		statusText := displayStatus
+		if resolved.Accepted() {
+			statusText = "success (accepted)"
+			if carried {
+				statusText += " (carried)"
 			}
-			fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
-		} else {
-			fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
 		}
+		switch {
+		case strings.HasPrefix(statusText, "success"):
+			statusText = green(statusText)
+		case strings.HasPrefix(statusText, "failed"), statusText == "cancelled":
+			statusText = red(statusText)
+		default:
+			statusText = yellow(statusText)
+		}
+		fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-24s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
 	}
-	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
+	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, not started: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.notStarted, jobCounts.suspended, jobCounts.unknown)
 	// Grouping needs the job definitions, which a run without a readable
 	// command snapshot lacks; its table above lists job IDs only.
 	if runQueueErr == nil {
@@ -1383,6 +1426,15 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	writeShowTargetHeaderWithMode(writer, paths, "run job")
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Run:"), runID, cyan("Job:"), jobID)
+	lifecycle, lifecycleErr := runview.RunLifecycleLabel(paths, runID)
+	if lifecycleErr != nil {
+		lifecycle = "unknown"
+	}
+	clientStatus, clientErr := runview.ClientStatus(paths, runID)
+	if clientErr != nil {
+		clientStatus = model.RunClientStatus{State: "unknown"}
+	}
+	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Lifecycle:"), lifecycle, cyan("Client:"), runview.ClientStatusLabel(clientStatus))
 	latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
@@ -1447,6 +1499,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(finishedAt))
 	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
 	resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, summaryResult, hasSummary)
+	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), resolved.DisplayStatus(jobSpecs[jobID]))
 	if resolved.HasSummary {
 		hosts := strings.Join(resolved.Summary.Hosts, ",")
 		if hosts == "" {

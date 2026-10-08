@@ -16,6 +16,8 @@ type Start struct {
 	RunName string
 	// ClientAttached marks a synchronous run whose client is still connected.
 	ClientAttached bool
+	// ClientStatus records the initiating client's mode and initial state.
+	ClientStatus model.RunClientStatus
 	// Snapshot, when non-nil, is already built from a saved run. Begin writes
 	// it to the new run and leaves queue.json untouched.
 	Snapshot *model.Queue
@@ -51,6 +53,14 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 	}
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return fmt.Errorf("failed to save run commands: %w", err)
+	}
+	if start.ClientStatus.Mode != "" {
+		if start.ClientStatus.UpdatedAt == "" {
+			start.ClientStatus.UpdatedAt = runner.timestampNano()
+		}
+		if err := state.WriteRunClientStatus(runner.Store, runDir, start.ClientStatus); err != nil {
+			runner.errorf("failed to save run client status: %v", err)
+		}
 	}
 	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp(), ClientAttached: start.ClientAttached}); err != nil {
 		return fmt.Errorf("project %q is already running: %w", paths.ProjectName, err)
@@ -93,6 +103,16 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 // SetClientAttached updates whether the run's synchronous client remains
 // attached. A completed run or a replacement lock needs no update.
 func (runner Runner) SetClientAttached(paths state.ProjectPaths, runID string, attached bool) error {
+	status := model.RunClientStatus{State: model.RunClientDetached}
+	if attached {
+		status.State = model.RunClientAttached
+	}
+	return runner.SetRunClientStatus(paths, runID, status)
+}
+
+// SetRunClientStatus records a connection transition for the active run. A
+// summary or replacement lock means the run has already moved on.
+func (runner Runner) SetRunClientStatus(paths state.ProjectPaths, runID string, status model.RunClientStatus) error {
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock run state: %w", err)
@@ -106,9 +126,35 @@ func (runner Runner) SetClientAttached(paths state.ProjectPaths, runID string, a
 	if err != nil {
 		return fmt.Errorf("failed to load run lock: %w", err)
 	}
-	lock.ClientAttached = attached
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return err
+	}
+	currentStatus, statusErr := state.LoadRunClientStatus(runner.Store, runDir)
+	if statusErr != nil && !errors.Is(statusErr, os.ErrNotExist) {
+		runner.errorf("failed to read run client status: %v", statusErr)
+	}
+	if status.Mode == "" {
+		status.Mode = currentStatus.Mode
+		if status.Mode == "" {
+			status.Mode = model.RunClientModeSync
+		}
+	}
+	if status.Reason == "" {
+		status.Reason = currentStatus.Reason
+	}
+	if _, err := state.LoadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json")); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to read run summary: %w", err)
+	}
+	status.UpdatedAt = runner.timestampNano()
+	lock.ClientAttached = status.State == model.RunClientAttached
 	if err := runner.Store.WriteJSON(paths.LockFile, lock); err != nil {
 		return fmt.Errorf("failed to update run lock: %w", err)
+	}
+	if err := state.WriteRunClientStatus(runner.Store, runDir, status); err != nil {
+		return fmt.Errorf("failed to update run client status: %w", err)
 	}
 	return nil
 }
@@ -181,6 +227,20 @@ func (runner Runner) Finalize(paths state.ProjectPaths, runID string, exitCode i
 	}
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return err
+	}
+	clientStatus, statusErr := state.LoadRunClientStatus(runner.Store, runDir)
+	if statusErr == nil {
+		clientStatus.State = model.RunClientCompleted
+		clientStatus.UpdatedAt = runner.timestampNano()
+		if err := state.WriteRunClientStatus(runner.Store, runDir, clientStatus); err != nil {
+			runner.errorf("failed to finalize run client status: %v", err)
+		}
+	} else if !errors.Is(statusErr, os.ErrNotExist) {
+		runner.errorf("failed to read run client status: %v", statusErr)
 	}
 	if runner.RunFinished != nil {
 		runner.RunFinished(paths, runID, exitCode)
