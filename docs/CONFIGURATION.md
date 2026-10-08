@@ -86,44 +86,13 @@ Both arguments are optional: `BASEDIR` defaults to `.rotari-state` and
 `PROJECT` to `default`. The basedir must be a relative path; the project must
 be a single safe name (not `.` or `..`, and containing no `/` or `\\`).
 
-### Aggregate command scopes
+### Project defaults and listings
 
-Aggregate commands do not use an implicit project name from environment or
-config files to narrow their results. Their basedir behavior differs by view:
-
-- `projects` ignores implicit basedir and project defaults. It lists
-	registered basedirs plus the cwd-local/XDG/home default state directory;
-	CLI `--basedir` limits the listing to one basedir.
-- `show` uses ordinary project resolution and displays the selected project's
-	details. If multiple projects are possible and none is selected, it points
-	to `rotari projects` rather than listing them implicitly.
-- `runs` and `jobs` ignore implicit basedir and project defaults and search
-	registered basedirs plus the cwd-local/XDG/home default basedir. CLI
-	`--basedir` limits either command to one basedir. Their `--since` window
-	defaults to `1d`. Running jobs and active/interrupted runs are included
-	regardless of age; `--since 7d` widens the completed-history window.
-	`--all-basedirs` is removed because cross-basedir is the default. Cross-basedir
-	invocations load global/workspace option defaults, not an arbitrary basedir's
-	config. Explicit `--basedir` adds that scope, and an explicit project filter
-	within it adds project config.
-- `basedirs` lists registered state directories.
-- Argumentless `lineage` ignores the implicit project name. It honors the
-	normal basedir precedence from CLI, environment, workspace/basedir/global
-	config, then local/XDG/home fallback, and lists project candidates when
-	several exist, selects the sole project, or reports an error when none exist.
-- `config --list` ignores the implicit project name. It honors the normal
-	basedir precedence from CLI, environment, workspace/global config, then
-	local/XDG/home fallback, and lists every project config in that basedir;
-	explicit `--project-name` narrows the inventory.
-
-Thus `rotari init`'s project default remains useful for commands operating on
-one project without unexpectedly hiding other projects from aggregate views.
-
-This exception applies only to target selection. Other options, such as
-`jobs --since` or `show --json`, retain their normal CLI → environment → merged
-config precedence. For `lineage`, run IDs remain positional selectors and
-continue to resolve through the run registry; project names are selected with
-`--project-name`.
+The project default created by `rotari init` selects a project for
+single-project commands; it does not hide other projects from listings such as
+`projects`, `runs`, and `jobs`. Use `--basedir` or a command's project filter
+when you want to narrow a listing. For command examples, see
+[Inspecting runs and jobs](INSPECT.md).
 
 ### Inspecting and recording configuration
 
