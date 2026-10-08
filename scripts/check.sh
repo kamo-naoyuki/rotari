@@ -36,7 +36,9 @@ else
     step "go test"
     go test ./...
     step "go test -race"
-    go test -race ./...
+    # pairedits executes thousands of CLI invocations and can exceed Go's
+    # default ten-minute package timeout under the full race-suite load.
+    go test -race -timeout 15m ./...
 fi
 
 step "all checks passed"
