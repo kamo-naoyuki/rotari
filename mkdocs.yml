@@ -20,7 +20,8 @@ nav:
       - Examples: examples.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
-      - Running jobs: RUNNING.md
+      - Defining and controlling jobs: RUNNING.md
+      - Async runs, waits, and interruptions: RUNS.md
       - Recovering failed runs: RECOVERING.md
       - Inspecting: INSPECT.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
