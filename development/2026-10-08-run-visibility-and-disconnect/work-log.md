@@ -62,6 +62,7 @@ the run executing. Historical runs without a journal remain waitable.
 observer, CLI, public wait, and all 28 wait flag-pair tests passed, as did the full
 CLI package and affected resolution/interface/selector conformance suites. `scripts/check.sh --short`
 and `scripts/check.sh` passed (vet, full tests, and race tests). `git diff --check`
-passed. `pre-commit` could not run because it is not installed in this environment.
+passed. `python3 -m pre_commit` on the changed files passed (the `pre-commit`
+executable is not on PATH).
 
 **Remaining:** None.
