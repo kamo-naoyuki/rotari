@@ -2,11 +2,6 @@
 
 This directory contains internal work tracking for issues, ongoing plans, and the commits that advance each plan. It complements, but does not replace, contracts, user documentation, or GitHub issues.
 
-## Development and CI notes
-
-- [Scheduler test coverage](SCHEDULER_TESTING.md) records what the scheduler
-  integration jobs exercise and what they do not certify.
-
 ## Tracking issues
 
 Use [ISSUES.md](ISSUES.md) for bugs, design concerns, and technical debt discovered during development.

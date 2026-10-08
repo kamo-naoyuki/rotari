@@ -270,6 +270,23 @@ are checked against this graph by
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
 | [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library and their own harness, `conformance/support`. Document-to-directory mapping is in `layout.json`; tests are being migrated under the matching contract groups. | `harness_test.go`, `contracts_test.go`, `layout.json` |
 
+## Scheduler validation
+
+The [Scheduler integration workflow](../.github/workflows/scheduler-integration.yml)
+tests Slurm and PBS against containers. Passing these tests does not certify
+compatibility with every real cluster configuration. LSF has unit tests using
+fake scheduler commands, but has not yet been tested against a real LSF
+installation. SGE also has fake-command unit tests and can be exercised on
+demand by selecting `sge` in the workflow. That job uses a digest-pinned
+CentOS 7 Grid Engine image last published in 2021; it is a compatibility smoke
+test, not certification for every Grid Engine fork or a recommendation to use
+that image in production.
+
+Relevant tests: [LSF](../internal/executor/lsf_test.go),
+[SGE](../internal/executor/sge_test.go),
+[scheduler containers](../cmd/rotari/scheduler_container_test.go), and
+[container run behavior](../cmd/rotari/scheduler_container_run_test.go).
+
 The interface flag-pair suites are split between
 [03-interfaces](../conformance/03-interfaces/),
 [pairedits](../conformance/03-interfaces/pairedits/), and
