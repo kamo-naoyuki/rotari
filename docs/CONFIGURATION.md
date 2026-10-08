@@ -66,12 +66,31 @@ command-line-only.
 
 ### Workspace defaults and initialization
 
-`rotari init` is a shortcut for setting just the workspace's location
-defaults. For a full configuration template, use `rotari config` instead.
-Run `rotari init [BASEDIR [PROJECT]]` from the workspace directory:
+Use `rotari init` when you want **one experiment working directory paired
+with its own job and log storage**. Run it once in that directory to record
+the basedir and default project. Subsequent commands from the same directory
+automatically load those defaults: `add` and `run` use that storage, and
+`show` inspects the same experiment without repeating `--basedir` and
+`--project-name`.
+
+This is why `init` exists separately from `config`: `rotari config` generates
+a template for general configuration, while `rotari init` fills in the two
+location defaults that associate a working directory with its experiment
+history. They use the same configuration mechanism, not separate kinds of
+workspace.
+
+Run `rotari init [BASEDIR [PROJECT]]` from the experiment directory:
 
 ```sh
+mkdir experiment-a
+cd experiment-a
 rotari init .rotari-state sweep
+
+rotari add python train.py --lr 0.1
+rotari run
+rotari show
+# Limit the cross-workspace job listing to this experiment's storage.
+rotari jobs --basedir .rotari-state
 ```
 
 It creates `.rotari.toml` with `basedir` and `project-name` filled in; other
@@ -86,12 +105,28 @@ Both arguments are optional: `BASEDIR` defaults to `.rotari-state` and
 `PROJECT` to `default`. The basedir must be a relative path; the project must
 be a single safe name (not `.` or `..`, and containing no `/` or `\\`).
 
+With the example above, job definitions, run history, and captured stdout and
+stderr logs live under `experiment-a/.rotari-state`. Initializing another
+experiment directory the same way gives it separate storage, even if it uses
+the same project name.
+
+`init` writes only the configuration file; state is created when needed by
+commands such as `add`. It refuses to overwrite an existing `.rotari.toml`;
+edit that file to change the defaults. The association applies only when
+invoking rotari from that directory, not its subdirectories. CLI options and
+environment variables can override it. It does not change the working
+directory in which jobs execute; see
+[Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).
+
 ### Project defaults and listings
 
-The project default created by `rotari init` selects a project for
-single-project commands; it does not hide other projects from listings such as
-`projects`, `runs`, and `jobs`. Use `--basedir` or a command's project filter
-when you want to narrow a listing. For command examples, see
+The location defaults created by `rotari init` select storage and a project
+for single-project commands such as `add`, `run`, and `show`. They do not
+narrow the cross-workspace listings `projects`, `runs`, and `jobs`: those
+commands still scan all known basedirs unless you explicitly select one.
+Use `--basedir .rotari-state` to inspect only the storage below the current
+experiment directory, and a command's project filter to narrow it further.
+For command examples, see
 [Inspecting runs and jobs](INSPECT.md).
 
 ### Inspecting and recording configuration
