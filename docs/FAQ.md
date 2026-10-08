@@ -90,6 +90,19 @@ Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, basedir/workspace/global
 
 Run `rotari projects`. Use `--basedir DIR` to limit the list to a state directory, `--masterdir DIR` to select the registry, and `rotari show -p PROJECT` to inspect a project.
 
+### Why does `show NAME` mention a missing project?
+
+`show NAME` tries an attempt ID, registered run ID, `latest`, and an existing
+project before searching run names, job IDs, and job names. Those searches use
+the selected basedir and project scope. If the selected project does not exist,
+the error names both the requested selector and the missing project rather
+than silently changing scope.
+
+Missing-project errors, including from bare `show`, list the projects in the
+selected basedir, or `(none)` if there are none. Select one with
+`--project-name`; if the named project exists in another registered basedir,
+the error also gives a `--basedir` hint.
+
 ### I don't know which basedir contains my jobs. How do I find it?
 
 Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry.

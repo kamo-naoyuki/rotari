@@ -9,6 +9,34 @@ import (
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
+func TestMissingTargetDiagnostics(t *testing.T) {
+	covers(t, "CLI-11", "SEL-3")
+	e := support.NewEnv(t)
+	for _, args := range [][]string{{"show", "jjj"}, {"show", "-p", "default", "jjj"}} {
+		r := e.Rotari(args...)
+		if r.Code != 1 || !strings.Contains(r.Stderr, `selector "jjj" not found`) {
+			t.Errorf("%v should name the requested selector: %s", args, r)
+		}
+	}
+	if r := e.WithVar("ROTARI_PROJECT_NAME", "default").Rotari("show", "jjj"); r.Code != 1 || !strings.Contains(r.Stderr, `selector "jjj" not found`) {
+		t.Errorf("implicit missing project should not hide the selector: %s", r)
+	}
+	if r := e.Rotari("show"); r.Code != 1 || !strings.Contains(r.Stderr, "available projects in this state directory: (none)") {
+		t.Errorf("bare show should report an empty project list: %s", r)
+	}
+	e.MustRotari("add", "-p", "zeta", "--", "true")
+	e.MustRotari("add", "-p", "alpha", "--", "true")
+	for _, args := range [][]string{{"show", "-p", "default"}, {"remove", "-p", "default", "--all"}, {"wait", "-p", "default"}} {
+		r := e.Rotari(args...)
+		if r.Code != 1 || !strings.Contains(r.Stderr, `available projects in this state directory: "alpha", "zeta"`) || !strings.Contains(r.Stderr, "--project-name") {
+			t.Errorf("%v should list projects in the selected basedir: %s", args, r)
+		}
+	}
+	if r := e.WithVar("ROTARI_PROJECT_NAME", "default").Rotari("show"); r.Code != 1 || !strings.Contains(r.Stderr, `available projects in this state directory: "alpha", "zeta"`) {
+		t.Errorf("bare show with a missing implicit project should list local projects: %s", r)
+	}
+}
+
 func TestMissingProjectIsAnError(t *testing.T) {
 	covers(t, "RES-3")
 	e := support.NewEnv(t)

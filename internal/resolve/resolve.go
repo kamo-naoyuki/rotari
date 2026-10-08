@@ -387,6 +387,16 @@ func ProjectExists(baseDir, name string) bool {
 	return err == nil && info.IsDir()
 }
 
+// ProjectNotFoundError reports a missing project, with location hints.
+// Selector callers can distinguish it from failures to read existing state.
+type ProjectNotFoundError struct {
+	message string
+}
+
+func (err *ProjectNotFoundError) Error() string {
+	return err.message
+}
+
 // RequireProject reports a project that does not exist, for commands that
 // read or edit a project rather than create one.
 func RequireProject(baseDir, projectName string) error {
@@ -394,6 +404,18 @@ func RequireProject(baseDir, projectName string) error {
 		return nil
 	}
 	message := fmt.Sprintf("project %q does not exist in state directory %q", projectName, baseDir)
+	if projects, err := ExistingProjectNames(baseDir); err == nil {
+		message += "; available projects in this state directory: "
+		if len(projects) == 0 {
+			message += "(none)"
+		} else {
+			quoted := make([]string, len(projects))
+			for index, name := range projects {
+				quoted[index] = strconv.Quote(name)
+			}
+			message += strings.Join(quoted, ", ") + " (select one with --project-name)"
+		}
+	}
 	if elsewhere := RegisteredProjectBaseDirs(projectName, baseDir); len(elsewhere) > 0 {
 		quoted := make([]string, len(elsewhere))
 		for index, other := range elsewhere {
@@ -401,7 +423,7 @@ func RequireProject(baseDir, projectName string) error {
 		}
 		message += fmt.Sprintf("; registered state directories that have it: %s (select one with --basedir)", strings.Join(quoted, ", "))
 	}
-	return errors.New(message)
+	return &ProjectNotFoundError{message: message}
 }
 
 // lastRunNote describes projectName's last run in baseDir, as the project

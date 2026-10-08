@@ -208,7 +208,7 @@ the IDs, this table, and those calls disagree.
 | CLI-8 | `run` and `retry` reject `--async` with `--dry-run`, which does not start a run | conformance | `TestAsyncDryRunRefusalShowsTheWayToPreview`, `TestCLIFlagPairAsyncDryRunIsRejected` |
 | CLI-9 | `run` and `retry` use consistent selector combinations in dry-run plans | partial | `TestCLIFlagPairRunSelectionEffects` |
 | CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
-| CLI-11 | A missing project's error names the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs` |
+| CLI-11 | A missing project's error lists local projects and the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs`, `TestMissingTargetDiagnostics` |
 | CLI-12 | `wait --json` reports completed and early-failure runs as structured JSON | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestCLIFlagPairWaitSamples` |
 | CLI-14 | Text `wait` prints the same single, newline-terminated completion message as `run` | conformance | `TestWaitPrintsSameCompletionMessageAsRun` |
 | CLI-15 | Single-value CLI options reject duplicate occurrences while repeatable options remain repeatable | conformance | `TestCLIRejectsRepeatedSingleValueOption` |
@@ -226,7 +226,7 @@ the IDs, this table, and those calls disagree.
 | MCP-7 | MCP unlock previews the interrupted run, applies at the revision, refuses a live run, and keeps the queue | conformance | `TestMCPUnlockRecoversAnInterruptedRun` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |
-| SEL-3 | `show` resolves each selector form as its column says | conformance | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |
+| SEL-3 | `show` resolves each selector form as its column says and names missing positional selectors | conformance | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestMissingTargetDiagnostics`, `TestSelectorTable` |
 | SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestCLIFlagPairCopyObservability`, `TestSelectorTable` |
 | SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestCLIFlagPairRunSelectionEffects`, `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
 | SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |

@@ -100,6 +100,12 @@ see [Known deviations](#known-deviations).
 | Positional | an attempt ID, then a registered run ID; otherwise a saved run name, job ID, or job name, where more than one match fails | run ID | – | – | job IDs |
 
 - **SEL-3** `show` resolves each form as its column says.
+  A missing positional selector is named in the error even when the selected
+  project is missing; that case retains the missing-project location and
+  candidate hints. Implemented by `cmdShow` in
+  [cmd/rotari/show.go](../cmd/rotari/show.go), checked by
+  `TestMissingTargetDiagnostics` in
+  [conformance/01-resolution/missing_project_test.go](../conformance/01-resolution/missing_project_test.go).
 - **SEL-4** `copy` resolves each form as its column says.
 - **SEL-5** `run` and `retry` resolve each form as their column says.
 - **SEL-6** `change` resolves each form as its column says.

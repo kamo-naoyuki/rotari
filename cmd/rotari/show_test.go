@@ -17,6 +17,24 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+func TestCmdShowMissingSelectorNamesRequestedTarget(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	t.Setenv("ROTARI_PROJECT_NAME", "default")
+	for _, projectName := range []string{"", "missing"} {
+		t.Run("project="+projectName, func(t *testing.T) {
+			args := []string{"--basedir", t.TempDir()}
+			if projectName != "" {
+				args = append(args, "--project-name", projectName)
+			}
+			args = append(args, "jjj")
+			code, stderr := captureStderr(t, func() int { return cmdShow(args) })
+			if code != 1 || !strings.Contains(stderr, `selector "jjj" not found`) || !strings.Contains(stderr, "does not exist") {
+				t.Fatalf("code=%d stderr=%q", code, stderr)
+			}
+		})
+	}
+}
+
 func TestFormatDisplayTimestampUsesLocalZone(t *testing.T) {
 	if got, want := model.FormatDisplayTimestamp("2026-09-16T00:00:01Z"), model.FormatDisplayTimestampIn("2026-09-16T00:00:01Z", time.Local); got != want {
 		t.Fatalf("formatDisplayTimestamp() = %q, want the local zone's %q", got, want)

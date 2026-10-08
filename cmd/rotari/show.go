@@ -232,6 +232,10 @@ func cmdShow(args []string) int {
 	if selector != "" {
 		targets, err := resolveShowSelector(*basedir, *queueNameOption, selector)
 		if err != nil {
+			var missingProject *resolve.ProjectNotFoundError
+			if errors.As(err, &missingProject) {
+				err = fmt.Errorf("selector %q not found: %w", selector, err)
+			}
 			printError(err)
 			return 1
 		}

@@ -22,6 +22,31 @@ func registerRunLocation(location runLocation) error {
 	return registry.Register(location)
 }
 
+func TestRequireProjectListsLocalProjects(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	for _, projects := range [][]string{nil, {"zeta", "alpha space"}} {
+		t.Run(strings.Join(projects, ","), func(t *testing.T) {
+			baseDir := t.TempDir()
+			for _, name := range projects {
+				if err := os.MkdirAll(filepath.Join(baseDir, "projects", name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := RequireProject(baseDir, "default")
+			want := "available projects in this state directory: (none)"
+			if len(projects) > 0 {
+				want = `available projects in this state directory: "alpha space", "zeta" (select one with --project-name)`
+			}
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("RequireProject() = %v, want %q", err, want)
+			}
+			if len(projects) > 0 && RequireProject(baseDir, projects[0]) != nil {
+				t.Fatal("existing project rejected")
+			}
+		})
+	}
+}
+
 func TestJobSelectionPassesThroughPlainJobIDs(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()

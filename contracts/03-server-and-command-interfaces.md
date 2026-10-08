@@ -198,16 +198,21 @@ client disconnect, and run completion as follows:
   executes marked `depends_on_rerun=NAME` (`run.Plan.RerunDependencies`), and `--if-revision` starts the run only at that revision, compared again by
   the supervisor when it begins the run.
 - **CLI-11** When a command names a project that its state directory does not
-  have, the error lists the other registered state directories that have a
+  have, the error lists the available projects in the selected state directory,
+  sorted by name, with a `--project-name` hint, or `(none)` when it has no
+  projects. If that list cannot be read, it is omitted rather than reported
+  as empty. The error also lists the other registered state directories that have a
   project of that name, each with its last run's ID, status, and failure
   count, and says to select one with `--basedir`; cross-basedir `jobs` can list
   the project without extra flags, and `rotari basedirs` shows the registered
-  state directories. A
-  project that no registered state directory has gets the plain error.
+  state directories. A project that no registered state directory has gets
+  no alternate-directory hint.
   Implemented once in `resolve.RegisteredProjectBaseDirs`, used by
   `resolve.RequireProject` and `rotari jobs`; checked by
   `TestMissingProjectNamesWhereItIs` in
-  [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
+  [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go)
+  and `TestMissingTargetDiagnostics` in
+  [`conformance/01-resolution/missing_project_test.go`](../conformance/01-resolution/missing_project_test.go).
 - **CLI-8** `run` and `retry` reject `--async` with `--dry-run`: a preview does
   not start a run, so asynchronous return behavior cannot apply. The rejection
   names both options and changes no project state; see
