@@ -30,13 +30,15 @@ rotari wait  # waits for all active projects
 ```
 
 With no selector or project option/environment setting, `wait` monitors every
-active project in the resolved basedir; it errors if there are none. A project
-selected by `-p` or `ROTARI_PROJECT_NAME` waits for that project's active run,
-or returns its latest result. The project must exist; a typo is an error and
-does not create it. `-r RUN_ID` selects one specific run and errors if the ID
-does not exist. Positional selectors are checked as project name, run name,
-then run ID; use `-r` to select an ID explicitly. Older runs without a progress
-journal can be waited on, but have no progress snapshot.
+active project in the resolved basedir. It errors if no runs are active,
+including when the basedir has no projects; it does not wait for a project or
+run to be created later. A project selected by `-p` or `ROTARI_PROJECT_NAME`
+waits for that project's active run, or returns its latest result. The project
+must exist; a typo is an error and does not create it. `-r RUN_ID` selects one
+specific run and errors if the ID does not exist. Positional selectors are
+checked as project name, run name, then run ID; use `-r` to select an ID
+explicitly. Older runs without a progress journal can be waited on, but have
+no progress snapshot.
 
 Return as soon as a job fails with no retries left:
 
