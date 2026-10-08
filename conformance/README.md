@@ -4,6 +4,10 @@ The tests in this directory exercise the built `rotari` binary and Web API from
 outside the implementation packages. Contract coverage is checked by
 `TestContractStatus` in `contracts_test.go`.
 
+Maintainer notes on test strategy and coverage are indexed in
+[docs/internal](../docs/internal/README.md). Package-specific run instructions
+remain beside their tests.
+
 ## Golden outputs
 
 `golden_test.go` compares stable representative CLI output with the files in

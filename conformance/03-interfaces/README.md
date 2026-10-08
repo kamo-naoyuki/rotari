@@ -11,5 +11,6 @@ The contract-to-directory mapping stays at this group in
 [layout.json](../layout.json); contract tests scan all child packages.
 Use `go test ./conformance/03-interfaces/...` to include every suite.
 
-See [CLI flag-pair coverage](flag-pair-coverage.md) for generated pairs, current
-execution/observation coverage, reasoned equivalences, and deferred adapters.
+See [CLI flag-pair coverage](../../docs/internal/testing/cli-flag-pair-coverage.md)
+for generated pairs, current execution/observation coverage, reasoned
+equivalences, and deferred adapters.

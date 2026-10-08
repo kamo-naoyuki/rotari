@@ -12,4 +12,5 @@ check and CI use a 15-minute race-test timeout for this reason. To run the
 package's race tests directly, use `go test -race -timeout 15m
 ./conformance/03-interfaces/pairedits`. Run all interface suites using `go test
 ./conformance/03-interfaces/...`.
-See [coverage](../flag-pair-coverage.md) for remaining gaps.
+See [coverage](../../../docs/internal/testing/cli-flag-pair-coverage.md) for
+remaining gaps.

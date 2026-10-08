@@ -8,4 +8,5 @@ are in [conformance/support/pairs.go](../../support/pairs.go).
 The suite is a separate Go package to stay below the default ten-minute
 package timeout without excluding cases in short or race mode. Run all
 interface suites using `go test ./conformance/03-interfaces/...`.
-See [coverage](../flag-pair-coverage.md) for safety boundaries and remaining gaps.
+See [coverage](../../../docs/internal/testing/cli-flag-pair-coverage.md) for
+safety boundaries and remaining gaps.
