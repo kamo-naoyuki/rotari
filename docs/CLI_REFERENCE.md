@@ -406,7 +406,7 @@ Usage: `rotari jobs [PROJECT]`
 
 ### `rotari wait`
 
-wait for an asynchronous run by project, run name, or run ID
+wait for a run by project, run name, or run ID
 
 Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 
@@ -415,6 +415,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `--config` | `FILE` | `CLI only` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the wait client's input closes, detach or cancel selected runs (default detach) (choices: detach, cancel) |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
 | `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
 | `--until-failure` | `` | `ROTARI_WAIT_UNTIL_FAILURE` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
@@ -523,6 +524,7 @@ Usage: `rotari run [RUN_ID]`
 | `--matrix` | `NAME` | `ROTARI_RUN_MATRIX` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
 | `--partial-array` | `` | `ROTARI_RUN_PARTIAL_ARRAY` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
 | `--quiet` | `` | `ROTARI_RUN_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--env` | `ALL\|NONE` | `CLI only` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
@@ -592,6 +594,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--matrix` | `NAME` | `ROTARI_RUN_MATRIX` | only retry jobs of this matrix, named by its base job name |
 | `--partial-array` | `` | `ROTARI_RUN_PARTIAL_ARRAY` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
 | `--quiet` | `` | `ROTARI_RUN_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--env` | `ALL\|NONE` | `CLI only` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |

@@ -1032,6 +1032,14 @@
           "value_name": "NAME"
         },
         {
+          "name": "disconnect-action",
+          "value_name": "ACTION",
+          "values": [
+            "detach",
+            "cancel"
+          ]
+        },
+        {
           "name": "run-id",
           "short": "r",
           "value_name": "ID"
@@ -1395,6 +1403,14 @@
           "name": "async"
         },
         {
+          "name": "disconnect-action",
+          "value_name": "ACTION",
+          "values": [
+            "detach",
+            "cancel"
+          ]
+        },
+        {
           "name": "quiet"
         },
         {
@@ -1664,6 +1680,14 @@
         },
         {
           "name": "async"
+        },
+        {
+          "name": "disconnect-action",
+          "value_name": "ACTION",
+          "values": [
+            "detach",
+            "cancel"
+          ]
         },
         {
           "name": "quiet"

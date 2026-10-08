@@ -18,11 +18,11 @@ values. Notifications select one project/basedir/global file without merging.
 - Start runs with `rotari run --async`, then block on `rotari wait`. To
   preview a run first, give the same command `--dry-run` in place of
   `--async`, which it cannot be combined with, then start it with
-  `--async --if-revision REVISION`. A
-  synchronous `rotari run` requests cancellation when its client is killed, so
-  a tool-call timeout that kills the command cancels the whole run. If a
-  timeout kills `wait`, the async run continues; run `rotari wait PROJECT`
-  again to reattach. It exits with the run's exit code.
+  `--async --if-revision REVISION`. If a tool-call timeout kills a
+  synchronous `rotari run` or `wait`, the run detaches and continues by
+  default (`--disconnect-action cancel` or `ROTARI_DISCONNECT_ACTION=cancel`
+  cancels instead); run `rotari wait PROJECT` again to reattach. It exits with
+  the run's exit code.
   `wait --until-failure` also returns as soon as a job fails with no retry
   left, so a long run's first failure can be fixed early.
 - Read summaries before logs. `rotari lineage RUN_ID` prints a run's counts

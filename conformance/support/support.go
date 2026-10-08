@@ -368,7 +368,7 @@ func (e *Env) StartRun(project string, count int, async bool, runArgs ...string)
 		e.MustRotari(append(args, "--async")...)
 		e.T.Cleanup(func() { _ = e.command("cancel", "-p", project, "--wait").Run() })
 	} else {
-		client := e.command(args...)
+		client := e.command(append(args, "--disconnect-action", "cancel")...)
 		if err := client.Start(); err != nil {
 			e.T.Fatal(err)
 		}

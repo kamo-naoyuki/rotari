@@ -29,7 +29,16 @@ func pairWaitArgs(t *testing.T, f pairFixture, flags []pairFlag) []string {
 	if !pairHasFlag(flags, "timeout") {
 		args = append(args, "--timeout", "2s")
 	}
-	return args
+	return withPairWaitTarget(f, flags, args)
+}
+
+// withPairWaitTarget names the completed fixture run unless a flag selects
+// it; wait without a target returns at once when no detached run is active.
+func withPairWaitTarget(f pairFixture, flags []pairFlag, args []string) []string {
+	if pairHasFlag(flags, "run-id") || pairHasFlag(flags, "project-name") {
+		return args
+	}
+	return append(args, f.Run)
 }
 
 func TestCLIFlagPairWaitSamples(t *testing.T) {
@@ -46,6 +55,7 @@ func TestCLIFlagPairWaitSamples(t *testing.T) {
 				if !pairHasFlag([]pairFlag{flag}, "timeout") {
 					args = append(args, "--timeout", "2s")
 				}
+				args = withPairWaitTarget(f, []pairFlag{flag}, args)
 				before := savePairTree(t, f.E.Root)
 				result := pairInvoke(t, f.E, args...)
 				assertPairWaitOutcome(t, f, []pairFlag{flag}, result)

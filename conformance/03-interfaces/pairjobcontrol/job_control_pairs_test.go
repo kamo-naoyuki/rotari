@@ -41,17 +41,17 @@ func startControlRun(t *testing.T) controlRun {
 	r.ids["hold"] = support.AddedJobID(t, e.MustRotari("add", "--job-name", "hold", "--stage", "batch", "--array", "1-2", "--", "sleep", "300"))
 	e.MustRotari("add", "--job-name", "idle", "--stage", "single", "--", "sleep", "301")
 	e.MustRotari("add", "--job-name", "grid", "--stage", "matrix", "--matrix", "SEED=1,2", "--", "sleep", "302")
-	client := e.Command("run", "--quiet")
+	// The fixture's cleanup kills this client to cancel its run.
+	client := e.Command("run", "--quiet", "--disconnect-action", "cancel")
 	if err := client.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		// A suspended job cannot act on the cancel, so resume first.
 		_ = e.Command("resume").Run()
-		// Disconnecting the synchronous client cancels its run.
 		_ = client.Process.Kill()
 		_ = client.Wait()
-		_ = e.Command("wait", "--timeout", "30s").Run()
+		_ = e.Command("wait", controlProject, "--timeout", "30s").Run()
 		support.KillStrays(t, e.Root)
 	})
 	support.WaitUntil(t, 15*time.Second, func() (bool, string) {

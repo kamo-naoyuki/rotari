@@ -62,6 +62,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | yes | no | no | SGE transient submit retry limit; --sge-submit-retry-limit default. |
 | `ROTARI_RUN_RETRY` | yes | yes | yes | Retry count; --retry default. |
 | `ROTARI_RUN_ASYNC` | yes | yes | yes | Async run mode; --async default. |
+| `ROTARI_DISCONNECT_ACTION` | yes | no | no | Default action when a synchronous run or wait client disconnects; detach or cancel. |
 | `ROTARI_QUIET` | yes | yes | yes | Global quiet mode; --quiet default. |
 | `ROTARI_ADD_QUIET` | yes | no | no | Add command quiet mode; --quiet default. |
 | `ROTARI_COPY_QUIET` | yes | no | no | Copy command quiet mode; --quiet default. |

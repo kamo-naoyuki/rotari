@@ -100,17 +100,22 @@ Representative implementation and tests:
 
 ## Client connection lifecycle
 
-The server distinguishes client cancellation, detach, and run completion as
-follows:
+The server distinguishes explicit cancellation, intentional detach, unexpected
+client disconnect, and run completion as follows:
 
-- A synchronous client disconnect, including Ctrl-C, requests cancellation and
-  returns immediately with exit code 130. The server-side run continues in the
-  background and then finalizes normally.
-- Ctrl-D sends an explicit detach before disconnecting. The run is left
-  uncancelled and completion cleanup moves to the background waiter.
+- An unexpected synchronous-client disconnect detaches by default: the run
+  continues and finalizes normally, and is eligible for implicit `wait`.
+  `--disconnect-action cancel` or `ROTARI_DISCONNECT_ACTION=cancel` changes
+  unexpected disconnects to cancellation; the CLI option takes precedence.
+- Ctrl-C sends an explicit cancellation control and returns immediately with
+  exit code 130, independent of the disconnect policy. The server-side run
+  continues stopping jobs and then finalizes normally.
+- Ctrl-D sends an explicit detach control. The run is left uncancelled and
+  completion cleanup moves to the background waiter, independent of the
+  disconnect policy.
 - Ctrl-Z sends no rotari protocol message. The terminal suspends the client
-  while the server-side run continues; a later EOF follows the normal
-  disconnect path and requests cancellation.
+  while the server-side run continues; if the client is later closed, that
+  unexpected disconnect follows the selected policy.
 - An async run executes inside its supervisor, like a sync run whose client
   detached at once: `run --async` returns after `=== Run started ===`, and the
   supervisor finishes the run in the background. Interrupted-run recovery is
@@ -242,8 +247,17 @@ follows:
   failure diagnostics, early-failure reports, errors, and timeouts. Quiet uses
   the ordinary CLI/environment/config precedence. `--json` never emits text
   progress and still emits its result with `--quiet`. Ctrl-D ends only the wait
-  client and leaves every run running; Ctrl-C requests cancellation of every
-  still-active selected run and exits 130. Timeout and `--until-failure` do not
+  client and leaves every run running; a terminated wait client (closed
+  terminal, `SIGHUP`, or `SIGTERM`) also leaves the runs running by default,
+  or cancels selected runs with
+  `--disconnect-action cancel` / `ROTARI_DISCONNECT_ACTION=cancel`. Ctrl-C
+  explicitly requests cancellation of every
+  still-active selected run and exits 130. `wait` warns when an explicitly
+  selected active run still has its synchronous client attached, then monitors
+  it normally; an explicit detach makes it eligible for implicit selection.
+  Implicit selection considers only detached runs. With multiple
+  selected runs, Ctrl-D stops waiting for all of them and Ctrl-C cancels all
+  still-active selected runs. Timeout and `--until-failure` do not
   cancel runs. Multiple selected runs are monitored concurrently with text
   labels and atomic multiline events; single-run text has no label. Identity
   colors affect only labels, not status coloring. Quiet suppresses ordinary

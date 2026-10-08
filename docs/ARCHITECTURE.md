@@ -93,7 +93,10 @@ async:  client ─starts─▶ supervisor: Begin ──▶ "Run started" to clie
 
 The supervisor is started with `setsid`, detached from the client's terminal
 session, so a run keeps going when an async client returns or a sync client
-detaches with Ctrl-D.
+detaches with Ctrl-D. Unexpected client disconnects detach by default for both
+`run` and `wait`; `--disconnect-action cancel` or
+`ROTARI_DISCONNECT_ACTION=cancel` restores cancellation on disconnect. Explicit
+Ctrl-C still cancels, Ctrl-D detaches, and Ctrl-Z suspends the client.
 
 Both modes use the same progress observer. The supervisor records run-start,
 job-start, retry, failure, and completion-count events in the run's

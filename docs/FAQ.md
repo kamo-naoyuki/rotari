@@ -216,6 +216,15 @@ show `copy --failed --unfinished --append` to include them. Use
 `retry --run-id RUN_ID` to build the retry directly from a saved run without
 changing the next queue; `--overwrite` is not accepted by `run` or `retry`.
 
+### What's the difference between a job ID and an attempt ID?
+
+A job ID identifies a job in a project. An attempt ID identifies one specific
+execution of that job and has the form `att_<run-id>-<job-id>-<attempt-number>`.
+If a job is retried, its job ID usually stays the same while each execution gets
+a different attempt ID. Job IDs are scoped to a project; an attempt ID also
+identifies its run, so it can be used to locate that execution without naming
+the project separately.
+
 ### How can I edit a previous queue before rerunning only failed jobs?
 
 Run `rotari copy` to restore every job from the latest run, edit the queue with
@@ -344,13 +353,19 @@ A lock from another host cannot be cleared by checking its PID. Confirm that the
 
 Yes. Ctrl-C returns code 130 immediately while the supervisor continues stopping jobs and finalizing the run. Operations on the same project may be rejected briefly during cleanup.
 
-### Can I detach a synchronous run without cancelling it?
+### What happens if a run client disconnects unexpectedly?
 
-Yes. Press Ctrl-D while progress is displayed to exit the client while the run continues. You can also start with `rotari run --async`.
+By default, `run` and `wait` detach: the run continues and can later be found by
+an unselected `rotari wait`. Use `--disconnect-action cancel` or
+`ROTARI_DISCONNECT_ACTION=cancel` to cancel when the client is killed or its
+terminal closes. Ctrl-C always explicitly cancels; Ctrl-D always detaches. You
+can also start a run with `rotari run --async`.
 
 ### What happens if I press Ctrl-Z during a synchronous run?
 
-Only the client is suspended; the run continues. Use `fg` to resume it, but use Ctrl-D or `--async` when you intend to detach.
+Only the client is suspended; the run continues. Use `fg` to resume it. If the
+suspended client is later closed, that is an unexpected disconnect and follows
+`--disconnect-action` (default `detach`).
 
 ### Can `wait` find the run ID for me?
 

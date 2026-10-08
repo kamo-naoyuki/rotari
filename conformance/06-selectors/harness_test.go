@@ -187,7 +187,7 @@ func (e *env) startRun(p string, n int, async bool, extra ...string) activeRun {
 		e.mustRotari(append(args, "--async")...)
 		e.t.Cleanup(func() { _ = e.command("cancel", "-p", p, "--wait").Run() })
 	} else {
-		c := e.command(args...)
+		c := e.command(append(args, "--disconnect-action", "cancel")...)
 		if err := c.Start(); err != nil {
 			e.t.Fatal(err)
 		}

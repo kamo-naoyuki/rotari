@@ -16,7 +16,7 @@ an implicit `ROTARI_BASEDIR` value.
 | `jobs` | Yes | Yes | Aggregate job listing; explicit basedir and positional project filters still apply. |
 | `lineage` with no selector or project option | No | Yes | Search the normally resolved basedir without choosing its default project. |
 | `config --list` | No | Yes | List config files in the normally resolved basedir without selecting its default project. |
-| `wait` with no selector, `--run-id`, or `--project-name` | No | Yes | Wait for every active project in the normally resolved basedir. |
+| `wait` with no selector, `--run-id`, or `--project-name` | No | Yes | Wait for every active detached run in the normally resolved basedir; skip runs with an attached synchronous client. |
 
 A selector or explicit project option changes the invocation out of its
 aggregate form where applicable, so normal project selection rules apply. In

@@ -18,6 +18,14 @@ const ProtocolVersion = 11
 // disconnecting to leave the run going in the background.
 const DetachControl byte = 0x04
 
+// CancelControl is sent by a run client for an explicit Ctrl-C cancellation.
+const CancelControl byte = 0x03
+
+const (
+	DisconnectActionDetach = "detach"
+	DisconnectActionCancel = "cancel"
+)
+
 // DetachedMessage reports a synchronous run that was detached from its client.
 const DetachedMessage = "Run detached; it continues in the background."
 
@@ -36,6 +44,9 @@ type Operations interface {
 	StartRun(request Request, onDone func()) (runID, message string, err error)
 	// Run executes a synchronous run, reporting progress as it goes.
 	Run(request Request, progress func(Response)) (message string, exitCode int, err error)
+	// DetachRun records that a synchronous run no longer has a connected
+	// client, whether it detached or disconnected.
+	DetachRun(request Request)
 	// CancelRun cancels a synchronous run whose client disconnected without
 	// detaching.
 	CancelRun(request Request)
@@ -239,23 +250,36 @@ func (server *Server) runAttached(conn io.Reader, request Request, progress func
 		message, exitCode, err := server.ops.Run(request, progress)
 		done <- result{message: message, exitCode: exitCode, err: err}
 	}()
-	disconnected := make(chan bool, 1)
+	type clientEvent int
+	const (
+		clientDisconnected clientEvent = iota
+		clientDetached
+		clientCancelled
+	)
+	disconnected := make(chan clientEvent, 1)
 	go func() {
 		var buffer [1]byte
 		n, err := conn.Read(buffer[:])
-		if n > 0 && buffer[0] == DetachControl {
-			disconnected <- true
-			return
+		if n > 0 {
+			switch buffer[0] {
+			case DetachControl:
+				disconnected <- clientDetached
+				return
+			case CancelControl:
+				disconnected <- clientCancelled
+				return
+			}
 		}
 		if err != nil && (err == io.EOF || !errors.Is(err, os.ErrDeadlineExceeded)) {
-			disconnected <- false
+			disconnected <- clientDisconnected
 		}
 	}()
 	select {
 	case result := <-done:
 		return result.message, result.exitCode, result.err, false
-	case detached := <-disconnected:
-		if detached {
+	case event := <-disconnected:
+		server.ops.DetachRun(request)
+		if event == clientDetached || event == clientDisconnected && request.DisconnectAction != DisconnectActionCancel {
 			go func() {
 				<-done
 				server.EndRun()

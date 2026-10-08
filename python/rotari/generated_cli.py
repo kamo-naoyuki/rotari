@@ -1563,8 +1563,7 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[PROJECT]",
         },
         {
-            "description": "wait for an asynchronous run by project, run name, or "
-            "run ID",
+            "description": "wait for a run by project, run name, or run ID",
             "flags": [
                 {
                     "command_line_only": True,
@@ -1585,6 +1584,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "project-name",
                     "short": "p",
                     "value_name": "NAME",
+                },
+                {
+                    "description": "when the wait client's input closes, detach "
+                    "or cancel selected runs (default detach)",
+                    "environment": "ROTARI_DISCONNECT_ACTION",
+                    "name": "disconnect-action",
+                    "value_name": "ACTION",
+                    "values": ["detach", "cancel"],
                 },
                 {
                     "description": "run ID; may be repeated",
@@ -2181,6 +2188,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "async",
                 },
                 {
+                    "description": "when the client input or connection closes "
+                    "unexpectedly, detach or cancel (default "
+                    "detach)",
+                    "environment": "ROTARI_DISCONNECT_ACTION",
+                    "name": "disconnect-action",
+                    "value_name": "ACTION",
+                    "values": ["detach", "cancel"],
+                },
+                {
                     "description": "suppress progress and completion output",
                     "environment": "ROTARI_RUN_QUIET",
                     "name": "quiet",
@@ -2601,6 +2617,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "return after starting the run",
                     "environment": "ROTARI_RUN_ASYNC",
                     "name": "async",
+                },
+                {
+                    "description": "when the client input or connection closes "
+                    "unexpectedly, detach or cancel (default "
+                    "detach)",
+                    "environment": "ROTARI_DISCONNECT_ACTION",
+                    "name": "disconnect-action",
+                    "value_name": "ACTION",
+                    "values": ["detach", "cancel"],
                 },
                 {
                     "description": "suppress progress and completion output",
@@ -3288,6 +3313,14 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Async run mode; --async default.",
             "job": True,
             "name": "ROTARI_RUN_ASYNC",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default action when a synchronous run or wait "
+            "client disconnects; detach or cancel.",
+            "job": False,
+            "name": "ROTARI_DISCONNECT_ACTION",
         },
         {
             "array": True,

@@ -160,8 +160,8 @@ const (
 
 // StreamRun sends a synchronous run request and passes each progress response
 // to progress until the final response arrives, then closes the connection.
-// A value from detach sends DetachControl before disconnecting; a value from
-// interrupt disconnects without it.
+// A value from detach sends DetachControl; a value from interrupt sends
+// CancelControl so explicit cancellation remains distinct from EOF.
 func (client *Client) StreamRun(request Request, detach <-chan struct{}, interrupt <-chan os.Signal, progress func(Response)) (Response, RunOutcome, error) {
 	defer client.conn.Close()
 	if err := json.NewEncoder(client.conn).Encode(request); err != nil {
@@ -190,6 +190,9 @@ func (client *Client) StreamRun(request Request, detach <-chan struct{}, interru
 			}
 			return Response{OK: true}, RunDetached, nil
 		case <-interrupt:
+			if _, err := client.conn.Write([]byte{CancelControl}); err != nil {
+				return Response{}, RunInterrupted, err
+			}
 			return Response{OK: true, ExitCode: 130}, RunInterrupted, nil
 		case err := <-decodeErrors:
 			return Response{}, RunFinished, err

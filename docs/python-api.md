@@ -81,6 +81,7 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `matrix` | `str` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
+| `disconnect_action` | `str` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
@@ -150,6 +151,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `matrix` | `str` | only retry jobs of this matrix, named by its base job name |
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
+| `disconnect_action` | `str` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
@@ -215,11 +217,12 @@ Discard the current, not-yet-run queue.
 Rotari.wait(selector: Run | str | Sequence[Run | str] | None = None, **options: object) -> dict[str, object] | list[dict[str, object]]
 ```
 
-Wait for an asynchronous run by project, run name, or run id.
+Wait for a run by project, run name, or run id.
 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
+| `disconnect_action` | `str` | when the wait client's input closes, detach or cancel selected runs (default detach) (choices: detach, cancel) |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
 | `until_failure` | `bool` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |

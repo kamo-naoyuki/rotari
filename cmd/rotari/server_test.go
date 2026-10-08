@@ -206,22 +206,30 @@ func TestCmdRunRejectsRemovedOverwriteOption(t *testing.T) {
 	}
 }
 
-func TestWatchDetach(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  io.Reader
-		detach bool
+func TestWatchClientInput(t *testing.T) {
+	closed := func() io.Reader { return iotest.ErrReader(errors.New("closed")) }
+	for _, test := range []struct {
+		name       string
+		input      io.Reader
+		action     string
+		wantDetach bool
+		wantCancel bool
 	}{
-		{name: "EOF from Ctrl-D at line start", input: strings.NewReader(""), detach: true},
-		{name: "detach byte after other input", input: io.MultiReader(strings.NewReader("\n"), strings.NewReader("x\x04")), detach: true},
-		{name: "read error", input: iotest.ErrReader(errors.New("closed")), detach: false},
-	}
-	for _, test := range tests {
+		{name: "Ctrl-D EOF detaches under detach policy", input: strings.NewReader(""), action: serverinternal.DisconnectActionDetach, wantDetach: true},
+		{name: "Ctrl-D EOF detaches under cancel policy", input: strings.NewReader(""), action: serverinternal.DisconnectActionCancel, wantDetach: true},
+		{name: "detach byte after other input", input: io.MultiReader(strings.NewReader("\n"), strings.NewReader("x\x04")), action: serverinternal.DisconnectActionCancel, wantDetach: true},
+		{name: "lost terminal detaches by default", input: closed(), action: serverinternal.DisconnectActionDetach, wantDetach: true},
+		{name: "lost terminal can cancel", input: closed(), action: serverinternal.DisconnectActionCancel, wantCancel: true},
+	} {
 		t.Run(test.name, func(t *testing.T) {
 			detach := make(chan struct{}, 1)
-			watchDetach(test.input, detach)
-			if got := len(detach) == 1; got != test.detach {
-				t.Fatalf("detached = %v, want %v", got, test.detach)
+			interrupt := make(chan os.Signal, 1)
+			watchClientInput(test.input, detach, interrupt, test.action)
+			if got := len(detach) == 1; got != test.wantDetach {
+				t.Fatalf("detach = %v, want %v", got, test.wantDetach)
+			}
+			if got := len(interrupt) == 1; got != test.wantCancel {
+				t.Fatalf("cancel = %v, want %v", got, test.wantCancel)
 			}
 		})
 	}

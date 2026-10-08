@@ -41,6 +41,7 @@ const (
 	envRunSGESubmitRetryLimit   = "ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT"
 	envRunRetry                 = "ROTARI_RUN_RETRY"
 	envRunAsync                 = "ROTARI_RUN_ASYNC"
+	envDisconnectAction         = "ROTARI_DISCONNECT_ACTION"
 	envQuiet                    = "ROTARI_QUIET"
 	envAddQuiet                 = "ROTARI_ADD_QUIET"
 	envCopyQuiet                = "ROTARI_COPY_QUIET"
@@ -79,7 +80,7 @@ var propagatedEnvironmentVariables = []string{
 	envRunPBSConc, envRunPBSOptions, envRunPBSSubmitInterval, envRunPBSSubmitRetryLimit,
 	envRunLSFConc, envRunLSFOptions, envRunLSFSubmitInterval, envRunLSFSubmitRetryLimit,
 	envRunSGEConc, envRunSGEOptions, envRunSGESubmitInterval, envRunSGESubmitRetryLimit,
-	envRunRetry, envRunAsync, envQuiet, envRunQuiet, envArrayRange,
+	envRunRetry, envRunAsync, envDisconnectAction, envQuiet, envRunQuiet, envArrayRange,
 }
 
 func environmentDefinitions() []webprojection.EnvironmentDefinition {
@@ -116,6 +117,7 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envRunSGESubmitRetryLimit, CLIDefault: true, Description: "SGE transient submit retry limit; --sge-submit-retry-limit default."},
 		{Name: envRunRetry, CLIDefault: true, Job: true, Array: true, Description: "Retry count; --retry default."},
 		{Name: envRunAsync, CLIDefault: true, Job: true, Array: true, Description: "Async run mode; --async default."},
+		{Name: envDisconnectAction, CLIDefault: true, Description: "Default action when a synchronous run or wait client disconnects; detach or cancel."},
 		{Name: envQuiet, CLIDefault: true, Job: true, Array: true, Description: "Global quiet mode; --quiet default."},
 		{Name: envAddQuiet, CLIDefault: true, Description: "Add command quiet mode; --quiet default."},
 		{Name: envCopyQuiet, CLIDefault: true, Description: "Copy command quiet mode; --quiet default."},

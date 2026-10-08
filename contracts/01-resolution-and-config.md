@@ -143,17 +143,20 @@ Other non-location option defaults remain applicable to aggregate views.
   picks a non-empty queue before the latest run; see
   [06-selectors.md](06-selectors.md) for the options that skip the queue.
 - **RES-16** `wait` without a selector scans the resolved basedir's projects and waits
-  concurrently for all active `running.lock` runs; if none are active, it succeeds
-  without output. A positional
-  selector is resolved in this order: `latest`, a project name, a run name,
-  then a run ID. A project or run name waits for its active run, or else
-  returns the result of the latest matching run at once, as a finished run ID
-  does, so a run that ends before `wait` starts is not an error; a run name
-  whose latest runs are in several projects is ambiguous. If a selected
-  project does not yet exist, `wait` fails without creating it; a name that
-  matches neither a project nor a run is an error. A project selected by
-  `--project-name/-p` without a selector follows the same active-then-latest
-  rule. With no selector or `--project-name`, all active projects in the
+  concurrently only for active detached runs; attached runs are ignored, and if
+  no detached runs are active it succeeds without output. Explicitly selecting
+  an active attached run, including through its project, warns and then waits
+  on it.
+  A positional selector is resolved in this order: `latest`, a project name, a
+  run name, then a run ID. A project or run name waits for its active detached
+  run, or else returns the result of the latest matching run at once, as a
+  finished run ID does, so a run that ends before `wait` starts is not an
+  error; a run name whose latest runs are in several projects is ambiguous.
+  If a selected project does not yet exist, `wait` fails without creating it;
+  a name that matches neither a project nor a run is an error. A project
+  selected by `--project-name/-p` without a selector follows the same
+  active-then-latest rule. A missing explicitly selected project or run is an
+  error. With no selector or `--project-name`, all active detached runs in the
   resolved basedir are waited on concurrently, ignoring `ROTARI_PROJECT_NAME`.
   An explicit `--run-id` bypasses this selector resolution.
   Implementation: [project wait resolution](../cmd/rotari/wait.go).

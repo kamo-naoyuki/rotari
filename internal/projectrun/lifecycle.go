@@ -14,6 +14,8 @@ import (
 type Start struct {
 	RunID   string
 	RunName string
+	// ClientAttached marks a synchronous run whose client is still connected.
+	ClientAttached bool
 	// Snapshot, when non-nil, is already built from a saved run. Begin writes
 	// it to the new run and leaves queue.json untouched.
 	Snapshot *model.Queue
@@ -50,7 +52,7 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return fmt.Errorf("failed to save run commands: %w", err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp(), ClientAttached: start.ClientAttached}); err != nil {
 		return fmt.Errorf("project %q is already running: %w", paths.ProjectName, err)
 	}
 	if runner.RegisterRun != nil {
@@ -84,6 +86,29 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 		_ = state.WriteJSON(paths.MetaFile, previous)
 		_ = removeLock(paths)
 		return fmt.Errorf("failed to take the queue: %w", err)
+	}
+	return nil
+}
+
+// SetClientAttached updates whether the run's synchronous client remains
+// attached. A completed run or a replacement lock needs no update.
+func (runner Runner) SetClientAttached(paths state.ProjectPaths, runID string, attached bool) error {
+	release, err := state.AcquireStateLock(paths.StateLockFile)
+	if err != nil {
+		return fmt.Errorf("failed to lock run state: %w", err)
+	}
+	defer release()
+
+	lock, err := state.LoadLock(paths.LockFile)
+	if errors.Is(err, os.ErrNotExist) || err == nil && lock.RunID != runID {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to load run lock: %w", err)
+	}
+	lock.ClientAttached = attached
+	if err := runner.Store.WriteJSON(paths.LockFile, lock); err != nil {
+		return fmt.Errorf("failed to update run lock: %w", err)
 	}
 	return nil
 }

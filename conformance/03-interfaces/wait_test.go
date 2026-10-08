@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -216,7 +218,7 @@ func TestWaitInterruptCancelsRun(t *testing.T) {
 	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 130 {
 		t.Fatalf("Ctrl-C exit = %v, want 130", err)
 	}
-	result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "2s")
+	result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "10s")
 	var summary struct {
 		Status string `json:"status"`
 	}
@@ -225,6 +227,166 @@ func TestWaitInterruptCancelsRun(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &summary); err != nil || summary.Status == "running" {
 		t.Fatalf("Ctrl-C did not cancel run or polluted JSON: %v; %s", err, result)
+	}
+}
+
+func TestRunClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
+	covers(t, "CLI-19")
+	for _, test := range []struct {
+		name   string
+		flag   bool
+		env    bool
+		cancel bool
+	}{
+		{name: "default detaches"},
+		{name: "option cancels", flag: true, cancel: true},
+		{name: "environment cancels", env: true, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			project := "disconnect-policy"
+			gate := filepath.Join(e.Root, "release")
+			t.Cleanup(func() {
+				_ = os.WriteFile(gate, nil, 0o600)
+				_ = e.Rotari("cancel", "-p", project, "--wait")
+			})
+			e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f "+gate+" ]; do sleep 0.05; done")
+			clientEnv := e
+			args := []string{"run", "-p", project, "--quiet"}
+			if test.flag {
+				args = append(args, "--disconnect-action", "cancel")
+			}
+			if test.env {
+				clientEnv = e.WithVar("ROTARI_DISCONNECT_ACTION", "cancel")
+			}
+			cmd := clientEnv.Command(args...)
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			runID := ""
+			support.WaitUntil(t, 10*time.Second, func() (bool, string) {
+				jobs := e.MustRotari("jobs", "--basedir", e.Base, project, "--since", "0").Stdout
+				if strings.Contains(jobs, "\nrunning ") {
+					var shown struct {
+						RunID string `json:"run_id"`
+					}
+					output := e.MustRotari("show", "-p", project, "--json").Stdout
+					_ = json.Unmarshal([]byte(output), &shown)
+					runID = shown.RunID
+				}
+				return runID != "", jobs
+			})
+			if err := cmd.Process.Kill(); err != nil {
+				t.Fatal(err)
+			}
+			_ = cmd.Wait()
+			support.WaitUntil(t, 5*time.Second, func() (bool, string) {
+				data, err := os.ReadFile(filepath.Join(e.Base, "projects", project, "running.lock"))
+				if errors.Is(err, os.ErrNotExist) {
+					// A cancelled run may already have finished.
+					return test.cancel, "run lock removed"
+				}
+				if err != nil {
+					return false, err.Error()
+				}
+				var lock struct {
+					ClientAttached bool `json:"client_attached"`
+				}
+				if err := json.Unmarshal(data, &lock); err != nil {
+					return false, err.Error()
+				}
+				return !lock.ClientAttached, string(data)
+			})
+
+			if test.cancel {
+				waited := e.Rotari("wait", "--basedir", e.Base, "--run-id", runID, "--quiet", "--json", "--timeout", "5s")
+				var summary struct {
+					Status string `json:"status"`
+				}
+				if waited.Code == 0 || strings.Contains(waited.Stderr, "timed out waiting") || json.Unmarshal([]byte(waited.Stdout), &summary) != nil || summary.Status == "running" {
+					t.Fatalf("disconnect policy did not cancel run: %s", waited)
+				}
+				return
+			}
+
+			implicit := e.Rotari("wait", "--basedir", e.Base, "--timeout", "50ms")
+			if implicit.Code == 0 || !strings.Contains(implicit.Stderr, "timed out waiting for run "+runID) {
+				t.Fatalf("default disconnect was not discoverable as a detached run: %s", implicit)
+			}
+			if err := os.WriteFile(gate, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if completed := e.Rotari("wait", "--basedir", e.Base, "--timeout", "5s"); completed.Code != 0 {
+				t.Fatalf("wait after releasing detached run: %s", completed)
+			}
+		})
+	}
+}
+
+func TestWaitClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
+	covers(t, "CLI-19")
+	for _, test := range []struct {
+		name   string
+		args   []string
+		env    bool
+		cancel bool
+	}{
+		{name: "default detaches"},
+		{name: "option cancels", args: []string{"--disconnect-action", "cancel"}, cancel: true},
+		{name: "environment cancels", env: true, cancel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			project := "wait-disconnect"
+			gate := filepath.Join(e.Root, "release")
+			t.Cleanup(func() {
+				_ = os.WriteFile(gate, nil, 0o600)
+				_ = e.Rotari("cancel", "-p", project, "--wait")
+			})
+			e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f "+gate+" ]; do sleep 0.05; done")
+			e.MustRotari("run", "-p", project, "--async", "--quiet")
+			waiterEnv := e
+			if test.env {
+				waiterEnv = e.WithVar("ROTARI_DISCONNECT_ACTION", "cancel")
+			}
+			cmd := waiterEnv.Command(append([]string{"wait", "-p", project, "--timeout", "30s"}, test.args...)...)
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			attached := make(chan bool, 1)
+			go func() {
+				scanner := bufio.NewScanner(stdout)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(), "Run attached") {
+						attached <- true
+						break
+					}
+				}
+				_, _ = io.Copy(io.Discard, stdout)
+			}()
+			select {
+			case <-attached:
+			case <-time.After(12 * time.Second):
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+				t.Fatal("wait did not attach")
+			}
+			// A closed terminal or a tool timeout terminates the waiter.
+			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+				t.Fatal(err)
+			}
+			_ = cmd.Wait()
+
+			result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "3s")
+			stillRunning := strings.Contains(result.Stderr, "timed out waiting")
+			if stillRunning == test.cancel {
+				t.Fatalf("waiter disconnect cancel=%v left run running=%v: %s", test.cancel, stillRunning, result)
+			}
+		})
 	}
 }
 

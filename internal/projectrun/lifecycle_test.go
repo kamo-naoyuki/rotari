@@ -54,6 +54,24 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 	}
 }
 
+func TestBeginRecordsAttachedClientAndCanDetachIt(t *testing.T) {
+	runner, paths := testRunner(t)
+	if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true}); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil || !lock.ClientAttached {
+		t.Fatalf("lock after Begin = %+v, %v; want attached client", lock, err)
+	}
+	if err := runner.SetClientAttached(paths, "run-1", false); err != nil {
+		t.Fatal(err)
+	}
+	lock, err = state.LoadLock(paths.LockFile)
+	if err != nil || lock.ClientAttached {
+		t.Fatalf("lock after detach = %+v, %v; want detached client", lock, err)
+	}
+}
+
 func TestBeginSnapshotsLoadedConfigWithCanonicalName(t *testing.T) {
 	runner, paths := testRunner(t)
 	configPath := filepath.Join(t.TempDir(), "chosen.toml")

@@ -1,9 +1,14 @@
 package supervisor
 
 import (
+	"errors"
+	"os"
+
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/server"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // Operations performs the requests of the supervisor of Project in BaseDir.
@@ -22,6 +27,24 @@ type Operations struct {
 }
 
 var _ server.Operations = Operations{}
+
+// DetachRun records that the synchronous run no longer has an attached client.
+func (ops Operations) DetachRun(request server.Request) {
+	paths, err := state.ResolveProjectPaths(ops.BaseDir, request.QueueName)
+	if err == nil {
+		var lock model.LockInfo
+		lock, err = state.LoadLock(paths.LockFile)
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		if err == nil {
+			err = ops.Runner.SetClientAttached(paths, lock.RunID, false)
+		}
+	}
+	if err != nil {
+		ops.logf("failed to mark project %s run detached: %v", request.QueueName, err)
+	}
+}
 
 // CancelRun cancels the project's whole active run.
 func (ops Operations) CancelRun(request server.Request) {

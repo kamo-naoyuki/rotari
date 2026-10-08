@@ -442,11 +442,12 @@ type Meta struct {
 }
 
 type LockInfo struct {
-	PID       int    `json:"pid"`
-	RunID     string `json:"run_id"`
-	RunName   string `json:"run_name,omitempty"`
-	StartedAt string `json:"started_at"`
-	Host      string `json:"host,omitempty"`
+	PID            int    `json:"pid"`
+	RunID          string `json:"run_id"`
+	RunName        string `json:"run_name,omitempty"`
+	StartedAt      string `json:"started_at"`
+	Host           string `json:"host,omitempty"`
+	ClientAttached bool   `json:"client_attached,omitempty"`
 }
 
 // EnvJobDir is the environment variable name used to carry a job's working

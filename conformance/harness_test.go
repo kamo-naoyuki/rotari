@@ -321,13 +321,13 @@ func (e *env) startRun(project string, count int, async bool, runArgs ...string)
 			_ = e.command("cancel", "-p", project, "--wait").Run()
 		})
 	} else {
-		client := e.command(args...)
+		client := e.command(append(args, "--disconnect-action", "cancel")...)
 		client.Stdout, client.Stderr = &output, &output
 		if err := client.Start(); err != nil {
 			e.t.Fatal(err)
 		}
 		e.t.Cleanup(func() {
-			// Disconnecting a synchronous client cancels its run.
+			// The client cancels its run when disconnected.
 			_ = client.Process.Kill()
 			_ = client.Wait()
 			_ = e.command("wait", "-p", project, "--timeout", "30s").Run()

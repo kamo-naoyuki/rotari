@@ -11,22 +11,24 @@ rotari run -p sweep --async
 rotari wait sweep
 ```
 
-`run --async` starts the run in asynchronous mode and returns while its jobs
-continue. `wait` attaches a client to that run, prints new progress, then the
-completion message and run exit code. If the run has already finished, it
+`run --async` starts a detached run and returns while its jobs continue.
+`wait` can monitor detached runs, printing new progress, then the completion
+message and run exit code. If the selected run still has a synchronous `run`
+client attached, `wait` warns and monitors it anyway. Detach it with Ctrl-D to
+include it in implicit selection. If the run has already finished, `wait`
 prints only the completion message. Runs inherit the caller's working
 directory and environment unless overridden; use `--env=NONE` to suppress
 inherited variables. Job variables and rotari metadata still apply. See
 [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).
 
-Pass several selectors to wait for those runs concurrently, or omit selectors
-to wait for every active project in the resolved basedir:
+Pass several selectors to wait for those detached runs concurrently, or omit
+selectors to wait for every active detached run in the resolved basedir:
 
 ```sh
 rotari run -p sweep --async
 rotari run -p eval --async
 rotari wait sweep eval
-rotari wait  # waits for all active projects
+rotari wait  # waits for all active detached runs
 ```
 
 Pass a run ID/name or project name to wait for it:
@@ -36,11 +38,14 @@ rotari wait RUN_ID
 rotari wait PROJECT
 ```
 
-For a project, `wait` automatically selects its active run; if none is active,
+For a project, `wait` selects its active run; if the synchronous client is
+still attached, it warns and continues monitoring. If no run is active,
 it returns the latest run's result. A positional selector is checked as project
 name, run name, then run ID; use `-r RUN_ID` to select an ID explicitly. With
-no selector or `-p`, it waits for all active projects in the basedir, ignoring
-`ROTARI_PROJECT_NAME`; if none are active, it succeeds silently.
+no selector or `-p`, it waits for all active detached runs in the basedir,
+ignoring `ROTARI_PROJECT_NAME`; attached runs are ignored, and if no detached
+runs are active it succeeds silently. An explicitly named project or run that
+does not exist is an error.
 
 Return as soon as a job fails with no retries left:
 
@@ -65,26 +70,30 @@ rotari wait sweep --timeout 3h
 rotari wait sweep
 ```
 
-If a timeout ends `wait`, only the attached client stops; the run remains in
-asynchronous mode. Run `rotari wait sweep` again to attach another client.
-By contrast, if a timeout kills a synchronous `rotari run`, that run requests
-cancellation.
+If a timeout ends `wait`, only the waiting client stops; the detached run
+continues. Run `rotari wait sweep` again to wait on it later. A synchronous
+`rotari run` killed by a timeout also detaches by default; see below.
 
 ## Controlling attached clients
 
-Both `wait` and a synchronous `run` respond to Ctrl-C, Ctrl-D, and Ctrl-Z. The
-key actions are similar, but Ctrl-D changes a synchronous run to asynchronous
-mode; detaching from `wait` only stops waiting.
+`run` and `wait` share the same client controls. Ctrl-C explicitly requests
+cancellation (and exits with status 130); for a multi-run `wait`, it requests
+cancellation of every selected active run. Ctrl-D detaches: a synchronous
+`run` continues in the background and becomes eligible for an unselected
+`wait`, while `wait` merely stops waiting and leaves every run alone. Ctrl-Z
+suspends the client; `fg` resumes it, and the work continues meanwhile.
 
-| Client | Ctrl-C | Ctrl-D | Ctrl-Z |
-| --- | --- | --- | --- |
-| `rotari wait` | Request cancellation of selected active runs; exit 130. | Stop waiting; the run continues in its current mode. | Suspend the wait client only; `fg` resumes waiting. The run continues. |
-| Synchronous `rotari run` | Request cancellation; client exits 130. | Detach the client and switch the run to asynchronous mode. Reattach with `rotari wait`. | Suspend the client only; `fg` resumes its view. The run continues. |
+If the client instead disappears—for example, a tool timeout kills it or its
+terminal closes—both commands detach by default. The run continues, and a
+later unselected `wait` can find it. To cancel on such disconnects instead,
+pass `--disconnect-action cancel` to `run` or `wait`, or set
+`ROTARI_DISCONNECT_ACTION=cancel`; the CLI option overrides the environment
+variable, and the default is `detach`. The setting does not change Ctrl-C,
+Ctrl-D, or Ctrl-Z. A `wait` killed with `SIGKILL` cannot act on it; a killed
+`run` client still can, because its supervisor sees the connection close.
 
 After Ctrl-C on synchronous `run`, cleanup continues in the background, so
-starting another run for the same project may briefly fail. Closing a terminal
-with a synchronous-run client stopped by Ctrl-Z disconnects it and requests
-cancellation.
+starting another run for the same project may briefly fail.
 
 ## Array and matrix jobs
 

@@ -149,7 +149,7 @@ func (f PairFixture) Sample(t *testing.T, flag PairFlag) []string {
 		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*", "filter-started-after": "2000-01-01T00:00:00Z",
 		"filter-started-before": "2000-01-01T00:00:00Z", "filter-finished-after": "2000-01-01T00:00:00Z",
 		"filter-finished-before": "2000-01-01T00:00:00Z", "filter-longer-than": "1h", "filter-shorter-than": "1h",
-		"stream": "stderr", "format": "%a %n", "since": "7d",
+		"stream": "stderr", "format": "%a %n", "since": "7d", "disconnect-action": "cancel",
 	}
 	if flag.ValueName == "" {
 		return []string{"--" + flag.Name + "=true"}

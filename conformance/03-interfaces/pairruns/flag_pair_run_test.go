@@ -22,7 +22,7 @@ func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string 
 		"run-id": f.Run, "run-name": "pair-preview",
 		"local-concurrency": "2", "batch-concurrency": "2", "retry": "2",
 		"job-id": f.Bad, "job-name": "bad", "stage": "training", "matrix": "train",
-		"executor": "local", "env": "ALL", "match-by": "id-and-fingerprint", "executor-option": "--debug",
+		"executor": "local", "env": "ALL", "match-by": "id-and-fingerprint", "executor-option": "--debug", "disconnect-action": "cancel",
 		"ssh-concurrency": "2", "ssh-options": "ConnectTimeout=1",
 		"slurm-concurrency": "2", "slurm-options": "--partition=debug", "slurm-submit-interval": "1s", "slurm-submit-retry-limit": "2",
 		"pbs-concurrency": "2", "pbs-options": "-q debug", "pbs-submit-interval": "1s", "pbs-submit-retry-limit": "2",

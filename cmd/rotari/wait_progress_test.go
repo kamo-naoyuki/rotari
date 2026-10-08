@@ -144,38 +144,51 @@ func TestWaitQuietCompletedResult(t *testing.T) {
 
 func TestWaitDetachStopsWaitingButKeepsRunActive(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	useInProcessSupervisor(t)
 	baseDir := t.TempDir()
-	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--", "sh", "-c", "sleep 30"}); code != 0 {
-		t.Fatalf("cmdAdd exit = %d", code)
+	targets := make([]resolve.Run, 0, 2)
+	pathsByTarget := make([]state.ProjectPaths, 0, 2)
+	for _, projectName := range []string{"demo-a", "demo-b"} {
+		target, paths := activeWaitControlTestRun(t, baseDir, projectName)
+		targets = append(targets, target)
+		pathsByTarget = append(pathsByTarget, paths)
 	}
-	if code := cmdRun([]string{"--basedir", baseDir, "--project-name", "demo", "--async", "--quiet"}); code != 0 {
-		t.Fatalf("cmdRun exit = %d", code)
-	}
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	lock, err := state.LoadLock(paths.LockFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	target := resolve.Run{BaseDir: baseDir, ProjectName: "demo", RunID: lock.RunID}
-	defer cancelWaitTarget(target, &waitOutput{})
 	for _, quiet := range []bool{false, true} {
 		detach := make(chan struct{}, 1)
 		detach <- struct{}{}
 		code, output := captureWorkflowStdout(t, func() int {
-			return waitTargetsWithControl([]resolve.Run{target}, time.Time{}, false, false, quiet, nil, detach)
+			return waitTargetsWithControl(targets, time.Time{}, false, false, quiet, nil, detach)
 		})
 		if code != 0 || !quiet && !strings.Contains(string(output), "Stopped waiting; runs continue in the background.") || quiet && len(output) != 0 {
 			t.Fatalf("detach quiet=%t result = %d, %s", quiet, code, output)
 		}
 	}
-	phase, err := project.RunPhaseOf(paths, lock.RunID)
-	if err != nil || phase != project.RunPhaseRunning {
-		t.Fatalf("Ctrl-D stopped run: phase=%s, err=%v", phase, err)
+	for index, target := range targets {
+		phase, err := project.RunPhaseOf(pathsByTarget[index], target.RunID)
+		if err != nil || phase != project.RunPhaseRunning {
+			t.Fatalf("Ctrl-D stopped run %s: phase=%s, err=%v", target.RunID, phase, err)
+		}
 	}
+}
+
+// activeWaitControlTestRun records an active run of projectName held by this
+// test process, without a supervisor that would write to stdout.
+func activeWaitControlTestRun(t *testing.T, baseDir, projectName string) (resolve.Run, state.ProjectPaths) {
+	t.Helper()
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := projectName + "-run"
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID}, paths
 }
 
 func TestWaitProgressCursorRecovery(t *testing.T) {

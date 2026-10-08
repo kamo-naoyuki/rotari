@@ -15,6 +15,7 @@ import (
 type fakeOperations struct {
 	mu        sync.Mutex
 	cancelled []Request
+	detached  []Request
 	runStart  chan struct{}
 	runFinish chan struct{}
 	startErr  error
@@ -42,6 +43,12 @@ func (ops *fakeOperations) CancelRun(request Request) {
 	if ops.runFinish != nil {
 		close(ops.runFinish)
 	}
+}
+
+func (ops *fakeOperations) DetachRun(request Request) {
+	ops.mu.Lock()
+	ops.detached = append(ops.detached, request)
+	ops.mu.Unlock()
 }
 
 func roundTrip(t *testing.T, server *Server, request Request) Response {
@@ -170,7 +177,7 @@ func TestHandleAsyncRunStartFailureEndsRun(t *testing.T) {
 	}
 }
 
-func TestHandleSyncRunDisconnectCancelsRun(t *testing.T) {
+func TestHandleSyncRunDisconnectDetachesByDefault(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
 	server := New(ops, nil)
 	client, serverConn := net.Pipe()
@@ -192,6 +199,42 @@ func TestHandleSyncRunDisconnectCancelsRun(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("disconnect did not end the request")
+	}
+	if len(ops.cancelled) != 0 {
+		t.Fatalf("disconnect cancelled the run: %#v", ops.cancelled)
+	}
+	if len(ops.detached) != 1 {
+		t.Fatalf("detached = %#v, want the disconnected run detached", ops.detached)
+	}
+	if !server.Busy() {
+		t.Fatal("detached run is no longer active")
+	}
+	close(ops.runFinish)
+	waitIdle(server)
+}
+
+func TestHandleSyncRunDisconnectCanCancel(t *testing.T) {
+	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
+	server := New(ops, nil)
+	client, serverConn := net.Pipe()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.Handle(serverConn)
+	}()
+	if err := json.NewEncoder(client).Encode(Request{Op: OpRun, QueueName: "demo", DisconnectAction: DisconnectActionCancel}); err != nil {
+		t.Fatal(err)
+	}
+	var progress Response
+	if err := json.NewDecoder(client).Decode(&progress); err != nil || !progress.Progress {
+		t.Fatalf("progress = %#v, %v", progress, err)
+	}
+	<-ops.runStart
+	_ = client.Close()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run was not cancelled after disconnect")
 	}
 	if len(ops.cancelled) != 1 || ops.cancelled[0].QueueName != "demo" {
 		t.Fatalf("cancelled = %#v, want the disconnected run", ops.cancelled)
@@ -230,6 +273,9 @@ func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
 	waitIdle(server)
 	if server.Busy() || !server.Stopped() || len(ops.cancelled) != 0 {
 		t.Fatalf("busy = %v, stopped = %v, cancelled = %#v", server.Busy(), server.Stopped(), ops.cancelled)
+	}
+	if len(ops.detached) != 1 {
+		t.Fatalf("detached = %#v, want one detach notification", ops.detached)
 	}
 }
 
@@ -386,8 +432,8 @@ func TestStreamRunOutcomes(t *testing.T) {
 	if err != nil || outcome != RunInterrupted || response.ExitCode != 130 {
 		t.Fatalf("interrupt = %#v, %v, %v", response, outcome, err)
 	}
-	if got := <-received; len(got) != 0 {
-		t.Fatalf("server received %v on interrupt, want plain disconnect", got)
+	if got := <-received; len(got) != 1 || got[0] != CancelControl {
+		t.Fatalf("server received %v on interrupt, want cancel control", got)
 	}
 }
 

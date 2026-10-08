@@ -237,14 +237,14 @@ func (f selectorFixture) startJobControlRun(includeMatrix bool) jobControlRun {
 		jobKeys["grid-SEED2"] = "grid-SEED2"
 	}
 	f.recordJobs(f.base, "sweep", jobKeys, "")
-	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
+	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet", "--disconnect-action", "cancel")
 	if err := client.Start(); err != nil {
 		f.e.t.Fatal(err)
 	}
 	f.e.t.Cleanup(func() {
 		// Resume first: a suspended job cannot act on the cancel.
 		_ = f.e.command("resume", "-b", f.base, "-p", "sweep").Run()
-		// Disconnecting a synchronous client cancels its run.
+		// The client cancels its run when disconnected.
 		_ = client.Process.Kill()
 		_ = client.Wait()
 	})

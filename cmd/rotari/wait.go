@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -40,7 +41,12 @@ func cmdWait(args []string) int {
 	untilFailure := cliBool(fs, "until-failure", false)
 	jsonOutput := cliBool(fs, "json", false)
 	quiet := cliBool(fs, "quiet", false)
+	disconnectAction := cliString(fs, "disconnect-action", serverinternal.DisconnectActionDetach)
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *disconnectAction != serverinternal.DisconnectActionDetach && *disconnectAction != serverinternal.DisconnectActionCancel {
+		printErrorf("invalid disconnect action %q (choose detach or cancel)", *disconnectAction)
 		return 1
 	}
 	if *timeout < 0 {
@@ -90,15 +96,52 @@ func cmdWait(args []string) int {
 	if len(waitTargets) == 0 {
 		return 0 // A project that does not exist yet has nothing to wait for.
 	}
+	if err := warnAttachedWaitTargets(waitTargets); err != nil {
+		printError(err)
+		return 1
+	}
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
+	if *disconnectAction == serverinternal.DisconnectActionCancel {
+		// A closed terminal or a terminated waiter is a disconnect; by
+		// default it simply ends wait and leaves the runs going.
+		signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGTERM)
+	}
 	defer signal.Stop(interrupt)
 	detach := make(chan struct{}, 1)
 	if isTerminal(os.Stdin) {
-		go watchDetach(os.Stdin, detach)
+		go watchClientInput(os.Stdin, detach, interrupt, *disconnectAction)
 	}
 	return waitTargetsWithControl(waitTargets, deadline, *untilFailure, *jsonOutput, *quiet, interrupt, detach)
+}
+
+func warnAttachedWaitTargets(targets []resolve.Run) error {
+	for _, target := range targets {
+		if err := warnAttachedWaitTarget(target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func warnAttachedWaitTarget(target resolve.Run) error {
+	paths, err := state.ResolveProjectPaths(target.BaseDir, target.ProjectName)
+	if err != nil {
+		return err
+	}
+	phase, err := project.RunPhaseOf(paths, target.RunID)
+	if err != nil || phase != project.RunPhaseRunning {
+		return err
+	}
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil {
+		return fmt.Errorf("failed to inspect run %s client: %w", target.RunID, err)
+	}
+	if lock.RunID == target.RunID && lock.ClientAttached {
+		printWarningf("run %s in project %q is attached to a client; wait will attach to it", target.RunID, target.ProjectName)
+	}
+	return nil
 }
 
 func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, untilFailure, jsonOutput, quiet bool, interrupt <-chan os.Signal, detach <-chan struct{}) int {
@@ -487,6 +530,9 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		lock, lockErr := state.LoadLock(paths.LockFile)
 		if lockErr != nil {
 			return nil, lockErr
+		}
+		if lock.ClientAttached {
+			continue
 		}
 		active = append(active, resolve.Run{BaseDir: baseDir, ProjectName: entry.Name(), RunID: lock.RunID})
 	}

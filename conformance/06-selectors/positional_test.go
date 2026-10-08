@@ -261,12 +261,12 @@ func (f selectorFixture) setUp(setup, tmp string) {
 func (f selectorFixture) startLive() {
 	f.e.t.Helper()
 	f.add(f.base, "sweep", "--job-name", "hold", "--", "sleep", "300")
-	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
+	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet", "--disconnect-action", "cancel")
 	if err := client.Start(); err != nil {
 		f.e.t.Fatal(err)
 	}
 	f.e.t.Cleanup(func() {
-		// Disconnecting a synchronous client cancels its run.
+		// The client cancels its run when disconnected.
 		_ = client.Process.Kill()
 		_ = client.Wait()
 	})

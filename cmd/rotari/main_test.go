@@ -3026,7 +3026,7 @@ func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 		defer close(done)
 		newRotariServer(testProjectPaths(t, baseDir, "default")).Handle(serverConn)
 	}()
-	startAttachedTestRun(t, client)
+	startAttachedTestRunWithDisconnectAction(t, client, serverinternal.DisconnectActionCancel)
 
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
@@ -3132,8 +3132,12 @@ func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
 // startAttachedTestRun sends a synchronous run request for the default
 // project and drains progress, returning the final response.
 func startAttachedTestRun(t *testing.T, client net.Conn) <-chan serverinternal.Response {
+	return startAttachedTestRunWithDisconnectAction(t, client, serverinternal.DisconnectActionDetach)
+}
+
+func startAttachedTestRunWithDisconnectAction(t *testing.T, client net.Conn, action string) <-chan serverinternal.Response {
 	t.Helper()
-	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: serverinternal.OpRun, QueueName: "default", LocalConcurrency: 1, BatchMaxActive: 1, PartialArray: true}); err != nil {
+	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: serverinternal.OpRun, QueueName: "default", LocalConcurrency: 1, BatchMaxActive: 1, PartialArray: true, DisconnectAction: action}); err != nil {
 		t.Fatal(err)
 	}
 	final := make(chan serverinternal.Response, 1)

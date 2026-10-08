@@ -199,6 +199,28 @@ func TestWaitWithoutSelectorWaitsAllProjectsDespiteProjectEnv(t *testing.T) {
 	}
 }
 
+func TestWaitWarnsForAttachedRunTargetsAndSkipsThemImplicitly(t *testing.T) {
+	covers(t, "RES-16", "CLI-19")
+	e := support.NewEnv(t)
+	run := e.StartRun("attached", 1, false)
+
+	implicit := e.Rotari("wait", "--timeout", "50ms")
+	if implicit.Code != 0 || implicit.Stdout != "" || implicit.Stderr != "" {
+		t.Fatalf("wait without selectors should skip attached runs: %s", implicit)
+	}
+
+	for _, args := range [][]string{
+		{"wait", "--timeout", "50ms", run.Project},
+		{"wait", "--timeout", "50ms", "--project-name", run.Project},
+		{"wait", "--timeout", "50ms", "--run-id", run.RunID},
+	} {
+		result := e.Rotari(args...)
+		if result.Code == 0 || !strings.Contains(strings.ToLower(result.Stderr), "attached") || !strings.Contains(result.Stdout, "Run attached") || !strings.Contains(result.Stderr, "timed out waiting") {
+			t.Errorf("wait(%q) = %s; want attached warning and active wait", args, result)
+		}
+	}
+}
+
 func checkWaitFinishedProjectSelections(t *testing.T, e *support.Env, project, runID string, wantCode int) {
 	t.Helper()
 	for _, selection := range []struct {

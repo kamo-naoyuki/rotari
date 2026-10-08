@@ -25,6 +25,7 @@ type Request struct {
 	ConfigPath       string                    `json:"config_path,omitempty"`
 	FileConfig       *model.FileConfigSnapshot `json:"file_config,omitempty"`
 	Async            bool                      `json:"async,omitempty"`
+	DisconnectAction string                    `json:"disconnect_action,omitempty"`
 	Quiet            bool                      `json:"quiet,omitempty"`
 	Executor         string                    `json:"executor,omitempty"`
 	ExecutorOptions  []string                  `json:"executor_options,omitempty"`

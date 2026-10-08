@@ -48,6 +48,25 @@ func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 	}
 }
 
+func TestDetachRunMarksClientDetached(t *testing.T) {
+	baseDir := t.TempDir()
+	store := state.NewStore(0o755, 0o644)
+	runner := projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, nil)}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, projectrun.Start{RunID: "run-1", ClientAttached: true}); err != nil {
+		t.Fatal(err)
+	}
+	ops := Operations{BaseDir: baseDir, Runner: runner}
+	ops.DetachRun(server.Request{QueueName: "demo"})
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil || lock.ClientAttached {
+		t.Fatalf("lock after detach = %+v, %v; want detached client", lock, err)
+	}
+}
+
 func TestFailedJobHintsUsesJobIDWhenAttemptIDIsMissing(t *testing.T) {
 	hints := failedJobHints("run-1", []model.JobResult{{
 		ID: "job-1", Command: []string{"false"}, ExitCode: 1,

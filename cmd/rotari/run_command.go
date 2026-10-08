@@ -54,6 +54,7 @@ func runJobs(args []string, defaultSelection string) int {
 	cliValue(fs, &jobIDs, "job-id")
 	partialArray := cliBool(fs, "partial-array", true)
 	async := cliBool(fs, "async", false)
+	disconnectAction := cliString(fs, "disconnect-action", serverinternal.DisconnectActionDetach)
 	quiet := cliBool(fs, "quiet", false)
 	executor := cliString(fs, "executor", "")
 	envMode := cliString(fs, "env", model.EnvModeAll)
@@ -66,6 +67,10 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	if *async && *guard.dryRun {
 		printError("--async cannot be combined with --dry-run, which starts no run; preview without --async, then start the run with --async --if-revision REVISION, taking REVISION from the preview")
+		return 1
+	}
+	if *disconnectAction != serverinternal.DisconnectActionDetach && *disconnectAction != serverinternal.DisconnectActionCancel {
+		printErrorf("invalid disconnect action %q (choose detach or cancel)", *disconnectAction)
 		return 1
 	}
 	if *matchBy != model.MatchByJobID && *matchBy != model.MatchByFingerprint && *matchBy != model.MatchByIDAndFingerprint {
@@ -259,7 +264,7 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	defer client.Close()
 	request := serverinternal.Request{
-		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
+		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, DisconnectAction: *disconnectAction, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath, FileConfig: fileConfig,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID,
 		SourcePolicy: string(sourcePolicy), CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
@@ -328,7 +333,7 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 	defer signal.Stop(signals)
 	detach := make(chan struct{}, 1)
 	if isTerminal(os.Stdin) {
-		go watchDetach(os.Stdin, detach)
+		go watchClientInput(os.Stdin, detach, signals, request.DisconnectAction)
 	}
 	printer := runProgressPrinter{
 		quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1,
@@ -351,10 +356,11 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 	return response, nil
 }
 
-// watchDetach signals detach when input reaches EOF, which is how a canonical
-// mode terminal reports Ctrl-D at the start of a line, or carries the detach
-// byte. Other input is discarded.
-func watchDetach(input io.Reader, detach chan<- struct{}) {
+// watchClientInput signals detach on Ctrl-D, which a canonical-mode terminal
+// reports as EOF at the start of a line, or on the detach byte. Any other
+// read failure means the terminal went away and follows action. Other input
+// is discarded.
+func watchClientInput(input io.Reader, detach chan<- struct{}, interrupt chan<- os.Signal, action string) {
 	var buffer [256]byte
 	for {
 		n, err := input.Read(buffer[:])
@@ -363,6 +369,11 @@ func watchDetach(input io.Reader, detach chan<- struct{}) {
 			return
 		}
 		if err != nil {
+			if action == serverinternal.DisconnectActionCancel && interrupt != nil {
+				interrupt <- os.Interrupt
+			} else if detach != nil {
+				detach <- struct{}{}
+			}
 			return
 		}
 	}
