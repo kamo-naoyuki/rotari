@@ -25,7 +25,6 @@ nav:
       - Inspecting: INSPECT.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Configuration: CONFIGURATION.md
-      - CLI reference: CLI_REFERENCE.md
       - Environment variables: ENVIRONMENT_VARIABLES.md
       - Notifications: NOTIFICATIONS.md
       - Local diagnosis rules: LOCAL_DIAGNOSIS.md
@@ -37,6 +36,7 @@ nav:
   - Development:
       - Architecture: ARCHITECTURE.md
   - API reference:
+      - CLI reference: CLI_REFERENCE.md
       - Python client: PYTHON_CLIENT.md
       - Python API: python-api.md
       - Go API: go-api.md
