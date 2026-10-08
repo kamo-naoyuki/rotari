@@ -84,9 +84,10 @@ the start and current activity.
 completion, exit status, JSON, and cancellation behavior are unchanged.
 
 **Validation:** Focused cursor tests and repeated live wait conformance passed;
-full repository validation is pending.
+related packages also passed with race detection and `-count=1`. Final
+`scripts/check.sh` passed (vet, all tests, and race tests; exit 0).
 
-**Remaining:** Complete repository validation and final diff review.
+**Remaining:** None.
 
 ## Add run controls to `wait`
 
@@ -102,7 +103,13 @@ important distinction that Ctrl-D only detaches the waiter.
 **Plan impact:** Changes only the wait client's interaction with selected runs;
 it does not change synchronous run disconnect behavior.
 
-**Validation:** Focused CLI and conformance tests passed; full repository
-validation is pending.
+**Validation:** Single/multiple-run Ctrl-C cancellation, Ctrl-D detach, quiet,
+JSON, and output-label tests passed. Related CLI/state/supervisor/interface/run
+pair/lifecycle packages passed with race detection and `-count=1`; pre-commit
+passed. Earlier full checks encountered edit-pair race and static-web timeouts;
+their logs were retained. The final non-overlapping `scripts/check.sh` passed
+(vet, all tests, and race tests; exit 0), recorded in
+`rotari-wait-controls-serial-final.log` in the session temporary directory.
 
-**Remaining:** Complete repository validation and final diff review.
+**Remaining:** None. Implementation changes were included in concurrent commit
+`01701c58`; this follow-up synchronizes the wait contract and validation record.
