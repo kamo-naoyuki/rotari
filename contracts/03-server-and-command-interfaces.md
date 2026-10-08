@@ -340,7 +340,7 @@ follows:
   commands that support quiet output. Each command also accepts its own
   environment default (`ROTARI_ADD_QUIET`, `ROTARI_COPY_QUIET`,
   `ROTARI_CHANGE_QUIET`, `ROTARI_REMOVE_QUIET`, `ROTARI_RESET_QUIET`,
-  `ROTARI_CHECK_QUIET` or `ROTARI_RUN_QUIET`), which overrides the global
+  `ROTARI_CHECK_QUIET`, `ROTARI_RUN_QUIET`, or `ROTARI_WAIT_QUIET`), which overrides the global
   value. `retry` shares `ROTARI_RUN_QUIET`. Config files support
   root `quiet` and command-specific values such as `add.quiet` and `run.quiet`
   with the same precedence.

@@ -70,6 +70,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_RESET_QUIET` | yes | no | no | Reset command quiet mode; --quiet default. |
 | `ROTARI_CHECK_QUIET` | yes | no | no | Check command quiet mode; --quiet default. |
 | `ROTARI_RUN_QUIET` | yes | yes | yes | Run-specific quiet mode; --quiet default. |
+| `ROTARI_WAIT_QUIET` | yes | no | no | Wait command quiet mode; --quiet default. |
 | `ROTARI_ARRAY_RANGE` | yes | yes | yes | Array range; --array default. |
 | `ROTARI_BIN` | no | yes | yes | Absolute path to the rotari binary. |
 | `ROTARI_RUN_DIR` | no | yes | yes | Current run directory. |
@@ -145,7 +146,6 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_JOBS_SINCE` | yes | no | no | Default for rotari jobs --since. |
 | `ROTARI_WAIT_UNTIL_FAILURE` | yes | no | no | Default for rotari wait --until-failure. |
 | `ROTARI_WAIT_JSON` | yes | no | no | Default for rotari wait --json. |
-| `ROTARI_WAIT_QUIET` | yes | no | no | Default for rotari wait --quiet. |
 | `ROTARI_ADD_WORKING_DIRECTORY` | yes | no | no | Default for rotari add --working-directory. |
 | `ROTARI_ADD_ENV` | yes | no | no | Default for rotari add --env. |
 | `ROTARI_ADD_STAGE` | yes | no | no | Default for rotari add --stage. |

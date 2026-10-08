@@ -49,6 +49,7 @@ const (
 	envResetQuiet               = "ROTARI_RESET_QUIET"
 	envCheckQuiet               = "ROTARI_CHECK_QUIET"
 	envRunQuiet                 = "ROTARI_RUN_QUIET"
+	envWaitQuiet                = "ROTARI_WAIT_QUIET"
 	envArrayRange               = "ROTARI_ARRAY_RANGE"
 	envResetRecover             = "ROTARI_RESET_RECOVER"
 	envWaitTimeout              = "ROTARI_WAIT_TIMEOUT"
@@ -123,6 +124,7 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envResetQuiet, CLIDefault: true, Description: "Reset command quiet mode; --quiet default."},
 		{Name: envCheckQuiet, CLIDefault: true, Description: "Check command quiet mode; --quiet default."},
 		{Name: envRunQuiet, CLIDefault: true, Job: true, Array: true, Description: "Run-specific quiet mode; --quiet default."},
+		{Name: envWaitQuiet, CLIDefault: true, Description: "Wait command quiet mode; --quiet default."},
 		{Name: envArrayRange, CLIDefault: true, Job: true, Array: true, Description: "Array range; --array default."},
 		{Name: envBin, Job: true, Array: true, Description: "Absolute path to the rotari binary."},
 		{Name: envRunDir, Job: true, Array: true, Description: "Current run directory."},

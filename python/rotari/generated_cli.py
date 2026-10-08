@@ -3346,6 +3346,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "name": "ROTARI_RUN_QUIET",
         },
         {
+            "array": False,
+            "cli_default": True,
+            "description": "Wait command quiet mode; --quiet default.",
+            "job": False,
+            "name": "ROTARI_WAIT_QUIET",
+        },
+        {
             "array": True,
             "cli_default": True,
             "description": "Array range; --array default.",
@@ -3871,13 +3878,6 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari wait --json.",
             "job": False,
             "name": "ROTARI_WAIT_JSON",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "Default for rotari wait --quiet.",
-            "job": False,
-            "name": "ROTARI_WAIT_QUIET",
         },
         {
             "array": False,

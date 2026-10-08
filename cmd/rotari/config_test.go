@@ -144,6 +144,7 @@ func TestQuietEnvironmentVariablesSupportGlobalAndCommandDefaults(t *testing.T) 
 	t.Setenv(envQuiet, "true")
 	t.Setenv(envAddQuiet, "false")
 	t.Setenv(envRunQuiet, "true")
+	t.Setenv(envWaitQuiet, "false")
 	for _, test := range []struct {
 		command string
 		want    bool
@@ -151,6 +152,7 @@ func TestQuietEnvironmentVariablesSupportGlobalAndCommandDefaults(t *testing.T) 
 		{command: "add", want: false},
 		{command: "copy", want: true},
 		{command: "run", want: true},
+		{command: "wait", want: false},
 	} {
 		fs := flag.NewFlagSet(test.command, flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
