@@ -29,15 +29,18 @@ rotari wait sweep eval
 rotari wait  # waits for all active projects
 ```
 
-With no selector or `-p`, `wait` monitors every active project in the resolved
-basedir, even if `ROTARI_PROJECT_NAME` is set. If no runs are active—including
-when the basedir has no projects—it succeeds silently; it does not wait for a
-project or run to be created later. `-p PROJECT` waits for that project's
-active run, or returns its latest result. The project must exist; a typo is an
-error and does not create it. `-r RUN_ID` selects one specific run and errors
-if the ID does not exist. Positional selectors are checked as project name,
-run name, then run ID; use `-r` to select an ID explicitly. Older runs without
-a progress journal can be waited on, but have no progress snapshot.
+Pass a run ID/name or project name to wait for it:
+
+```sh
+rotari wait RUN_ID
+rotari wait PROJECT
+```
+
+For a project, `wait` automatically selects its active run; if none is active,
+it returns the latest run's result. A positional selector is checked as project
+name, run name, then run ID; use `-r RUN_ID` to select an ID explicitly. With
+no selector or `-p`, it waits for all active projects in the basedir, ignoring
+`ROTARI_PROJECT_NAME`; if none are active, it succeeds silently.
 
 Return as soon as a job fails with no retries left:
 
