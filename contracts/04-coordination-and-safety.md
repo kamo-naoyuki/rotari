@@ -62,10 +62,8 @@ Representative implementation and tests:
   state; a recorded `running` phase does not prove the executor is still alive.
   The client record distinguishes `detached (async)` from `detached (Ctrl-D)`
   with detached-first labels and is reported as unknown when the supervisor
-  cannot be verified. A settled run without client history is `not attached
-  (completed)`; its launch mode is unknown, not its current connection state.
-  The Web UI prefers the server's `client_label`, falling back to the same
-  labels when absent. `runs`, `show`, and the Web
+  cannot be verified. The Web UI prefers the server's `client_label`, falling
+  back to the same labels when absent. `runs`, `show`, and the Web
   API use the shared projections in
   [internal/runview](../internal/runview/client.go) and
   [internal/jobstatus](../internal/jobstatus/job.go); checked by
