@@ -231,11 +231,14 @@ For a reproducible, reviewable edit, export and import a workflow manifest:
 rotari export -p sweep -r RUN_ID > experiment.yaml
 rotari import -p sweep --dry-run experiment.yaml
 rotari import -p sweep experiment.yaml
-rotari run -p sweep
+rotari retry -p sweep
 ```
 
-Successful unchanged jobs carry forward; failed or changed jobs and their
-downstream dependents execute.
+`retry` selects failed and unfinished jobs and carries other completed results
+forward. An unfiltered `run` executes the entire queue, even when imported jobs
+have successful source results. A changed definition alone does not make a
+previously successful job run again; mark its manifest `status` as `unfinished`
+when it should execute.
 
 ### Can I mark a failed job as successful after reviewing its log?
 

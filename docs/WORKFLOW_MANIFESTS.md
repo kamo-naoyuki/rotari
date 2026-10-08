@@ -2,15 +2,19 @@
 
 Export a run as an editable manifest, fix or accept jobs, and import it as the next queue.
 
-Export a saved run, edit its failed jobs, import the result, and run the new
-queue:
+Export a saved run, edit its failed jobs, import the result, and retry failed
+and unfinished jobs while carrying other completed results forward:
 
 ```sh
 rotari export -p sweep -r RUN_ID > experiment.yaml
 # Edit commands, status, executor options, or dependencies.
 rotari import -p sweep experiment.yaml
-rotari run -p sweep
+rotari retry -p sweep
 ```
+
+`retry` selects failed and unfinished imported jobs by default. In contrast,
+`run` without a result selection executes every job in the queue, including
+jobs whose successful results were exported in the manifest.
 
 The copy target and output file can be passed positionally. The target is a
 project or run ID; when both a project and a run must be named explicitly, use
@@ -28,11 +32,14 @@ run, which `export` names on stderr. A run that is still running or was
 interrupted cannot be exported: wait for it with `rotari wait`, or recover it
 with `rotari unlock`, first.
 
-An unchanged successful job carries its result and output reference forward.
-Failed, cancelled, unfinished, new, and changed jobs execute. Their downstream
-dependents execute as well. Changing an unchanged failed job's `status` to
-`success` manually accepts that result; the new run displays
-`success (accepted)` and retains a link to the original failed attempt.
+The selected results determine what executes, not whether a job definition
+changed. With the default `retry` selection, failed and unfinished jobs execute,
+along with their downstream dependents; other completed jobs carry their result
+and output reference forward. A changed job that previously succeeded is still
+successful for selection purposes, so mark its `status` as `unfinished` if it
+should execute again. Changing an unchanged failed job's `status` to `success`
+manually accepts that result; the new run displays `success (accepted)` and
+retains a link to the original failed attempt.
 
 Create a commented starter file without reading project state:
 

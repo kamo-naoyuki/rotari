@@ -380,12 +380,16 @@
   restores the older whole-array behavior: any match re-executes every task,
   using only the whole-command `Origin`.
 - A run-exported workflow manifest records compact status and attempt
-  provenance. Import validates source attempts, writes explicit carry, force,
-  and manual-acceptance dispositions into the queue, and leaves execution to
-  the normal run path. Unchanged successes carry forward; failed, unfinished,
-  changed, and downstream jobs execute. Matrix combinations and array tasks
-  retain independent dispositions. A leaf without its own manifest attempt is
-  recovered from the listed source run that supplied its command (the same
+  provenance. Import validates source attempts and preserves their origins and
+  explicit status marks in the queue; the normal run selection determines
+  execution. An unfiltered `run` executes every queued job, including imported
+  jobs with successful source results. `retry` defaults to failed and
+  unfinished jobs, carrying other completed results forward; a changed
+  definition alone does not force execution, so a previously successful job
+  must be marked `unfinished` if it should run again. New jobs without source
+  provenance are unfinished. Matrix combinations and array tasks retain
+  independent results and status marks. A leaf without its own manifest
+  attempt is recovered from the listed source run that supplied its command (the same
   latest-run rule as export): snapshots are ordered by the latest leaf finish
   or submission time, falling back to run finish time, and ties select the
   last run in the manifest's `run_ids` order. Run ID suffixes are not an
