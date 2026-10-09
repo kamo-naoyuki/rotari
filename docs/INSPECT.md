@@ -142,6 +142,14 @@ the queue.
 When the selected run is active or interrupted, a non-empty next queue is
 shown separately after the run; `check` reports its queued count.
 
+A run's job table sizes each column to its contents and shortens long
+commands; `show -j` prints a job's full command. Its ELAPSED column, also
+printed by `show -j`, gives a finished job's run time. For a running job it
+gives how long the job has run and how long ago it last wrote to its logs,
+such as `12m 03s, quiet 11m 58s`, or `no output`. A running job that has been
+quiet much longer than usual may be stuck. Logs that an executor keeps on
+another host are not seen.
+
 ### Filtering jobs and inspecting failures
 
 ```sh

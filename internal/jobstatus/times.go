@@ -1,7 +1,9 @@
 package jobstatus
 
 import (
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -21,6 +23,30 @@ func Timestamps(runDir, jobID string, origin *model.JobOrigin, carried bool) (su
 		}
 		return state.ReadJobTimestamp(sourceRunDir, sourceJobID, "submitted_at"), state.ReadJobTimestamp(sourceRunDir, sourceJobID, "finished_at")
 	})
+}
+
+// LastOutputAt returns when the attempt in jobDir last wrote to its output
+// logs, the latest modification time of its merged or separate stdout and
+// stderr files, and false when it has written none. A running job whose last
+// output is long past may be stuck. Logs an executor keeps on another host
+// are not seen.
+func LastOutputAt(jobDir string) (time.Time, bool) {
+	var latest time.Time
+	for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
+		path, err := state.ValidatedStateFile(jobDir, name)
+		if err != nil {
+			continue
+		}
+		// codeql[go/path-injection]: path is returned by ValidatedStateFile for a fixed state file.
+		info, err := os.Stat(path)
+		if err != nil || info.Size() == 0 {
+			continue
+		}
+		if info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+	}
+	return latest, !latest.IsZero()
 }
 
 type originTimestampSource func(runID, jobID string) (submittedAt, finishedAt string)

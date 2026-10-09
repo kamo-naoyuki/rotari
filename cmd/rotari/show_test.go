@@ -1718,3 +1718,38 @@ func TestShowRunJobTableAlignsStatusColumn(t *testing.T) {
 		}
 	}
 }
+
+// TestShowJobElapsed checks the ELAPSED value of the run table and show -j:
+// a finished job's run time, and for a running job how long it has run and
+// how long ago it last wrote output.
+func TestShowJobElapsed(t *testing.T) {
+	now := time.Date(2026, 10, 10, 1, 20, 0, 0, time.UTC)
+	submitted := now.Add(-12 * time.Minute).Format(time.RFC3339Nano)
+	finished := now.Add(-2 * time.Minute).Format(time.RFC3339Nano)
+	quietDir := t.TempDir()
+	output := filepath.Join(quietDir, "output")
+	if err := os.WriteFile(output, []byte("started\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(output, now.Add(-11*time.Minute), now.Add(-11*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name                string
+		submitted, finished string
+		done                bool
+		jobDir              string
+		want                string
+	}{
+		{name: "finished", submitted: submitted, finished: finished, done: true, jobDir: t.TempDir(), want: "10m 00s"},
+		{name: "running and quiet", submitted: submitted, jobDir: quietDir, want: "12m 00s, quiet 11m 00s"},
+		{name: "running without output", submitted: submitted, jobDir: t.TempDir(), want: "12m 00s, no output"},
+		{name: "not submitted", submitted: "", jobDir: t.TempDir(), want: "-"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := showJobElapsed(test.submitted, test.finished, test.done, test.jobDir, now); got != test.want {
+				t.Fatalf("showJobElapsed() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

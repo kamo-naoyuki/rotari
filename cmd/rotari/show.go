@@ -18,6 +18,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -935,7 +936,8 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-20s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
+	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
+	now := time.Now()
 	for _, jobID := range jobIDs {
 		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
@@ -1030,21 +1032,13 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if command == "" {
 			command = strings.Join(jobSpec.Command, " ")
 		}
-		submittedAt = model.FormatDisplayTimestamp(submittedAt)
-		finishedAt = model.FormatDisplayTimestamp(finishedAt)
 		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
-		// Pad before coloring so escape codes do not count toward the width.
-		paddedStatus := fmt.Sprintf("%-20s", statusText)
-		switch {
-		case strings.HasPrefix(statusText, "success"):
-			statusText = green(paddedStatus)
-		case strings.HasPrefix(statusText, "failed"), statusText == "cancelled":
-			statusText = red(paddedStatus)
-		default:
-			statusText = yellow(paddedStatus)
-		}
-		fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
+		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
+		table = append(table, []string{jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText,
+			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts,
+			joblist.ShortenText(command, showCommandWidth)})
 	}
+	printShowJobTable(table)
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, not started: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.notStarted, jobCounts.suspended, jobCounts.unknown)
 	// Grouping needs the job definitions, which a run without a readable
 	// command snapshot lacks; its table above lists job IDs only.
@@ -1499,6 +1493,9 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
 	resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, summaryResult, hasSummary)
 	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), colorJobStatus(resolved.DisplayStatus(jobSpecs[jobID])))
+	if !neverRan {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Elapsed:"), showJobElapsed(submittedAt, finishedAt, resolved.Finished(), jobDir, time.Now()))
+	}
 	if resolved.HasSummary {
 		hosts := strings.Join(resolved.Summary.Hosts, ",")
 		if hosts == "" {
@@ -1929,4 +1926,71 @@ func loadRunResult(runDir, jobID string) (model.JobResult, bool) {
 	}
 	result, ok := jobstatus.RecordedResults(runDir, recorded)[jobID]
 	return result, ok
+}
+
+// showCommandWidth caps the COMMAND column of the run table, as `jobs` does;
+// `show -j` prints a job's full command.
+const showCommandWidth = 60
+
+// showJobElapsed describes how long a job ran: from submission to its finish,
+// or until now while it runs. A running job also shows how long ago it last
+// wrote output, so one that has gone quiet stands out.
+func showJobElapsed(submittedAt, finishedAt string, finished bool, jobDir string, now time.Time) string {
+	start, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(submittedAt))
+	if err != nil {
+		return "-"
+	}
+	if finished {
+		end, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(finishedAt))
+		if err != nil {
+			return "-"
+		}
+		return joblist.FormatElapsed(end.Sub(start))
+	}
+	elapsed := joblist.FormatElapsed(now.Sub(start))
+	if lastOutput, ok := jobstatus.LastOutputAt(jobDir); ok {
+		return elapsed + ", quiet " + joblist.FormatElapsed(max(now.Sub(lastOutput), 0))
+	}
+	return elapsed + ", no output"
+}
+
+// printShowJobTable prints the run table with each column as wide as its
+// longest value, coloring the STATUS column after padding so escape codes do
+// not count toward the width.
+func printShowJobTable(table [][]string) {
+	widths := make([]int, len(table[0]))
+	for _, row := range table {
+		for index, value := range row {
+			widths[index] = max(widths[index], len(value))
+		}
+	}
+	const statusColumn = 6
+	for rowIndex, row := range table {
+		var line strings.Builder
+		for index, value := range row {
+			if index > 0 {
+				line.WriteString("  ")
+			}
+			padded := value
+			if index < len(row)-1 {
+				padded += strings.Repeat(" ", widths[index]-len(value))
+			}
+			if rowIndex > 0 && index == statusColumn {
+				switch {
+				case strings.HasPrefix(value, "success"):
+					padded = green(padded)
+				case strings.HasPrefix(value, "failed"), value == "cancelled":
+					padded = red(padded)
+				default:
+					padded = yellow(padded)
+				}
+			}
+			line.WriteString(padded)
+		}
+		if rowIndex == 0 {
+			fmt.Println(cyan(line.String()))
+		} else {
+			fmt.Println(line.String())
+		}
+	}
 }

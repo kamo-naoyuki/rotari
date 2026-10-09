@@ -173,6 +173,16 @@ does not promise to detect a lost remote client.
   [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go)
   (`TestHintLocationOmitsImplicitBaseDir`) and
   [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
+- **CLI-23** The job table of `show` for a run, and `show -j`, report each
+  job's elapsed time: from submission to its finish, or for a running job
+  until now, followed by how long ago the job last wrote to its logs
+  (`quiet DURATION`) or `no output` when it has written none. Logs an
+  executor keeps on another host are not seen. The last write is read once,
+  by `jobstatus.LastOutputAt` in
+  [`internal/jobstatus/times.go`](../internal/jobstatus/times.go); the
+  presentation is `showJobElapsed` in
+  [`cmd/rotari/show.go`](../cmd/rotari/show.go). Covered by
+  [`conformance/03-interfaces/show_elapsed_test.go`](../conformance/03-interfaces/show_elapsed_test.go).
 - **CLI-1** `check --json` reports the same project state, run identifier,
   queue count, lock, and runnable result as the human-readable `check`
   output.

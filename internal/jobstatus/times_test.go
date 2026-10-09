@@ -1,8 +1,10 @@
 package jobstatus
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -58,5 +60,33 @@ func TestTimestampsRejectsUnsafeOriginRunID(t *testing.T) {
 		if submittedAt, finishedAt := Timestamps(runDir, "job-1", &model.JobOrigin{RunID: runID, JobID: "job-1"}, true); submittedAt != "" || finishedAt != "" {
 			t.Fatalf("unsafe origin %q timestamps = %q, %q, want empty", runID, submittedAt, finishedAt)
 		}
+	}
+}
+
+// TestLastOutputAtTakesTheLatestNonEmptyLog checks that a job's last output
+// is the latest write to any of its logs, and that empty logs do not count.
+func TestLastOutputAtTakesTheLatestNonEmptyLog(t *testing.T) {
+	jobDir := t.TempDir()
+	if _, ok := LastOutputAt(jobDir); ok {
+		t.Fatal("LastOutputAt reports output for a job without logs")
+	}
+	write := func(name, content string, at time.Time) {
+		path := filepath.Join(jobDir, name)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := time.Date(2026, 10, 10, 1, 0, 0, 0, time.UTC)
+	write("stdout", "", base.Add(time.Hour))
+	if _, ok := LastOutputAt(jobDir); ok {
+		t.Fatal("LastOutputAt counts an empty log as output")
+	}
+	write("output", "early\n", base)
+	write("stderr", "late\n", base.Add(time.Minute))
+	if got, ok := LastOutputAt(jobDir); !ok || !got.Equal(base.Add(time.Minute)) {
+		t.Fatalf("LastOutputAt = %v, %v; want %v", got, ok, base.Add(time.Minute))
 	}
 }
