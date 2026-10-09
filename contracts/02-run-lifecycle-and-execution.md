@@ -888,7 +888,9 @@ the request, on the host that owns the run.
   records a cancelled result: its error is `cancelled`, keeping an earlier
   error in parentheses. `--filter-failure-kind cancelled` selects it, and
   failure groups list it as `cancelled` rather than by its exit code or
-  signal. The result is set once, when the job reaches its final result, in
+  signal. Like other causes rotari records (blocked, timeout), it is not
+  counted in the run's diagnosis summary, and text summaries never print
+  `no_match`, which only says that no rule applied. The result is set once, when the job reaches its final result, in
   [internal/projectrun/execute.go](../internal/projectrun/execute.go); covered
   by `TestCancelledJobsReadAsCancelled` in
   [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).

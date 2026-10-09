@@ -195,3 +195,25 @@ func TestFirstNonEmpty(t *testing.T) {
 		t.Fatal("firstNonEmpty returned unexpected results")
 	}
 }
+
+// The text summary lists rule diagnoses but not no_match, which only says
+// that no rule applied; JSON keeps the full counts.
+func TestRunSummaryTextOmitsNoMatchDiagnoses(t *testing.T) {
+	var output bytes.Buffer
+	writeRunSummary(&output, state.ProjectPaths{ProjectName: "demo"}, runlineage.RunSummary{
+		Run:       runlineage.RunInfo{ID: "run-1"},
+		Diagnoses: []runlineage.DiagnosisCount{{Name: "OOM", Count: 2}, {Name: model.DiagnosisNoMatch, Count: 3}},
+	})
+	text := output.String()
+	if !strings.Contains(text, "Diagnoses:\n  OOM 2\n") || strings.Contains(text, model.DiagnosisNoMatch) {
+		t.Fatalf("summary text:\n%s", text)
+	}
+	output.Reset()
+	writeRunSummary(&output, state.ProjectPaths{ProjectName: "demo"}, runlineage.RunSummary{
+		Run:       runlineage.RunInfo{ID: "run-1"},
+		Diagnoses: []runlineage.DiagnosisCount{{Name: model.DiagnosisNoMatch, Count: 3}},
+	})
+	if strings.Contains(output.String(), "Diagnoses:") {
+		t.Fatalf("a summary with only no_match printed a Diagnoses section:\n%s", output.String())
+	}
+}

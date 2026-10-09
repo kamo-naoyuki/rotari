@@ -9,7 +9,6 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
 - **Leftovers from the 2026-10-10 zero-information agent trial** ([development/2026-10-02-mcp-agent-interface/agent-trial-2026-10-10-zero-info.md](2026-10-02-mcp-agent-interface/agent-trial-2026-10-10-zero-info.md)):
-  - `lineage`'s `Diagnoses:` section, and its JSON, count a job the user cancelled as `no_match`, while its failures by cause group the job as `cancelled`. Deciding whether the diagnosis summary should skip recorded causes affects the JSON, MCP, and Web consumers of `runlineage.SummarizeDiagnoses`.
   - Hints built outside `cmd/rotari`, in [internal/project/inspect.go](../internal/project/inspect.go) and `sourceNotice`, still name `--basedir`, because they cannot see the CLI configuration that `hintLocation` (CLI-22) reads.
   - `cancel --wait` with a job selection is still rejected (SEL-12); its help and error now point to `rotari wait`. Waiting for the selected jobs to stop would need a contract change.
 

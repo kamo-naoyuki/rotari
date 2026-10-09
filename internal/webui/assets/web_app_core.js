@@ -1390,6 +1390,14 @@ function renderQueue(q) {
         "</tbody></table>"
       : '<div class="empty">No runs found.</div>');
 }
+// lineageDiagnosisText lists a run's rule diagnoses as the CLI summary does,
+// leaving out no_match, which only says that no rule applied.
+function lineageDiagnosisText(diagnoses) {
+  return (diagnoses || [])
+    .filter((item) => item.name !== "no_match")
+    .map((item) => item.name + " " + item.count)
+    .join(", ");
+}
 function renderRun(q, runID) {
   const run = q.runs.find((r) => r.run_id === runID);
   if (!run) {
@@ -1417,9 +1425,7 @@ function renderRun(q, runID) {
     "</span>";
   if (run.lineage_summary) {
     const lineage = run.lineage_summary;
-    const diagnosisText = (lineage.diagnoses || [])
-      .map((item) => item.name + " " + item.count)
-      .join(", ");
+    const diagnosisText = lineageDiagnosisText(lineage.diagnoses);
     const failureText = (lineage.failures || [])
       .map((group) => group.cause + " " + group.count)
       .join(", ");

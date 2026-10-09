@@ -60,12 +60,10 @@ still open. History is in [work-log.md](work-log.md).
 
 ### Status and wording (from the same agent trial)
 
-4. `lineage`'s `Diagnoses:` summary, and its JSON, count a job the user
-   cancelled as `no_match`, while the failure groups put it under `cancelled`.
-   Related: run/wait completion messages print `Diagnosis: no_match 1` for an
-   ordinary non-zero exit when no diagnosis rule applies, which reads as
-   noise. Affects JSON, MCP, and Web consumers of
-   `runlineage.SummarizeDiagnoses`.
+4. Done: the diagnosis summary skips failures whose cause rotari recorded
+   (blocked, cancelled, timeout), and text summaries (`lineage`, the Web run
+   page) omit `no_match`; JSON keeps it. The run/wait completion message had
+   already dropped its `Diagnosis:` line in favor of failure groups.
 5. Done: the "Retry source" notice is composed once by
    `projectrun.SourceNotice` and names the queue, the latest run, and the
    left-out jobs in plain sentences.

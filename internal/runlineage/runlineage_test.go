@@ -259,3 +259,29 @@ func TestIsCarriedNeedsARecordedResult(t *testing.T) {
 		}
 	}
 }
+
+// Failures rotari records the cause of itself (cancelled, timed out,
+// blocked) are grouped by that cause, not counted as rule diagnoses.
+func TestSummarizeDiagnosesSkipsRecordedCauses(t *testing.T) {
+	failedWith := func(name, status, errorText string, exitCode int) Job {
+		failed := job(name, status, "false")
+		failed.DiagnosisStatus = model.DiagnosisNoMatch
+		failed.Result = model.JobResult{ExitCode: exitCode, Error: errorText}
+		return failed
+	}
+	plain := failedWith("plain", StatusFailed, "", 3)
+	matched := failedWith("matched", StatusFailed, "", 1)
+	matched.Diagnoses, matched.DiagnosisStatus = []string{"OOM"}, model.DiagnosisMatched
+	run := Run{Jobs: []Job{
+		plain,
+		matched,
+		failedWith("cancelled", StatusFailed, model.MarkedCancelledError, 1),
+		failedWith("timeout", StatusFailed, "timed out after 5s", model.TimeoutExitCode),
+		failedWith("blocked", StatusBlocked, "blocked by failed dependency", 1),
+	}}
+	got := SummarizeDiagnoses(run)
+	want := []DiagnosisCount{{Name: "OOM", Count: 1}, {Name: model.DiagnosisNoMatch, Count: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("diagnoses = %+v, want %+v", got, want)
+	}
+}

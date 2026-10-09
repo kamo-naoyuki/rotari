@@ -138,6 +138,9 @@ func TestCancelledJobsReadAsCancelled(t *testing.T) {
 			e.MustRotari("cancel", "-p", run.Project, "--wait")
 
 			var summary struct {
+				Diagnoses []struct {
+					Name string `json:"name"`
+				} `json:"diagnoses"`
 				Failures []struct {
 					Kind string `json:"kind"`
 					Jobs []struct {
@@ -156,6 +159,14 @@ func TestCancelledJobsReadAsCancelled(t *testing.T) {
 				for _, job := range group.Jobs {
 					cancelled = append(cancelled, job.ID)
 				}
+			}
+			// Rules did not analyze a cancelled job, so the diagnosis summary
+			// does not count it, and the text never prints no_match.
+			if len(summary.Diagnoses) != 0 {
+				t.Errorf("diagnoses = %+v, want none for cancelled jobs", summary.Diagnoses)
+			}
+			if text := e.MustRotari("lineage", "-p", run.Project, run.RunID).Stdout; strings.Contains(text, "no_match") {
+				t.Errorf("lineage text prints no_match:\n%s", text)
 			}
 			sort.Strings(cancelled)
 			want := append([]string(nil), run.Jobs...)

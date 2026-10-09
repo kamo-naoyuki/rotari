@@ -432,9 +432,17 @@ func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runline
 	counts := summary.Counts
 	fmt.Fprintf(writer, "%s jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n", cyan("Summary:"),
 		counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
-	if len(summary.Diagnoses) > 0 {
+	// no_match only says that no rule applied; the failure groups below
+	// already list those jobs, so the text omits it while JSON keeps it.
+	diagnoses := make([]runlineage.DiagnosisCount, 0, len(summary.Diagnoses))
+	for _, diagnosis := range summary.Diagnoses {
+		if diagnosis.Name != model.DiagnosisNoMatch {
+			diagnoses = append(diagnoses, diagnosis)
+		}
+	}
+	if len(diagnoses) > 0 {
 		fmt.Fprintln(writer, cyan("Diagnoses:"))
-		for _, diagnosis := range summary.Diagnoses {
+		for _, diagnosis := range diagnoses {
 			fmt.Fprintf(writer, "  %s %d\n", diagnosis.Name, diagnosis.Count)
 		}
 	}

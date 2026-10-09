@@ -456,6 +456,11 @@ func SummarizeDiagnoses(run Run) []DiagnosisCount {
 		if job.Status != StatusFailed && job.Status != StatusBlocked {
 			continue
 		}
+		// A cause rotari recorded itself is the job's failure group; rules
+		// did not analyze it, so it is not a diagnosis or a no-match.
+		if cause, _, _ := classifyFailure(job); recordedCauseSuggestions[cause.kind] != "" {
+			continue
+		}
 		if len(job.Diagnoses) > 0 {
 			for _, diagnosis := range job.Diagnoses {
 				counts[diagnosis]++
