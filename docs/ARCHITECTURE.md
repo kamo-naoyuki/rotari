@@ -365,6 +365,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
 | Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |
+| Failures by cause and the location options of printed next-step commands (`hintLocation`) | `failure_groups.go`, `hint_location.go` |
 
 ## Walkthroughs
 

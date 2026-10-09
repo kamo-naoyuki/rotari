@@ -988,12 +988,10 @@ func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runli
 	fmt.Fprintln(&message, red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
 	// The run is still running, so a retry of its failures cannot start yet.
 	writeFailureGroups(&message, failures, nil)
-	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
-		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 	fmt.Fprintln(&message, cyan("To keep waiting:"))
-	fmt.Fprintf(&message, "  rotari wait %s\n", target)
+	fmt.Fprintf(&message, "  rotari wait %s--run-id %s\n", runHintLocation(paths), executor.ShellQuote(runID))
 	fmt.Fprintln(&message, cyan("To cancel the run:"))
-	fmt.Fprintf(&message, "  rotari cancel --basedir %s --project-name %s\n", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+	fmt.Fprintf(&message, "  rotari cancel %s\n", hintLocation(paths))
 	_, _ = output.stdoutWriter().Write(message.Bytes())
 }
 
@@ -1030,12 +1028,11 @@ func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, boo
 // inspect it and, for an interrupted run, recover it. Each command is on its
 // own line so its shell-quoted arguments can be copied as they are.
 func endedRunHint(paths state.ProjectPaths, runID, condition string, recover bool) string {
-	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
-		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	show := "rotari show " + runHintLocation(paths) + "--run-id " + executor.ShellQuote(runID)
 	if !recover {
-		return fmt.Sprintf("run %s %s. Inspect it:\n  rotari show %s", runID, condition, target)
+		return fmt.Sprintf("run %s %s. Inspect it:\n  %s", runID, condition, show)
 	}
-	return fmt.Sprintf("run %s %s. Inspect it, then recover:\n  rotari show %s\n  rotari unlock %s", runID, condition, target, target)
+	return fmt.Sprintf("run %s %s. Inspect it, then recover:\n  %s\n  rotari unlock %s --run-id %s", runID, condition, show, hintLocation(paths), executor.ShellQuote(runID))
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {

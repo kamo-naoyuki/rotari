@@ -3,6 +3,7 @@ package interfaces
 import (
 	"encoding/json"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -120,6 +121,63 @@ func TestFailureGroupRetryHintsWork(t *testing.T) {
 		if !strings.Contains(preview, "would execute 1 of 3 job(s)") {
 			t.Errorf("hint %v previews more or less than its group's job:\n%s", hint, preview)
 		}
+	}
+}
+
+// TestPrintedHintsNameOnlyANonImplicitBaseDir runs a failing project in the
+// implicit state directory (ROTARI_BASEDIR) and one in another directory.
+// The retry hints of lineage and the failure-summary hint of show name
+// --basedir only for the other directory, and each works as printed.
+func TestPrintedHintsNameOnlyANonImplicitBaseDir(t *testing.T) {
+	covers(t, "CLI-22")
+	e := support.NewEnv(t)
+	other := filepath.Join(e.Root, "other")
+	for _, test := range []struct {
+		name     string
+		location []string
+		wantBase bool
+	}{
+		{name: "implicit", location: nil},
+		{name: "other", location: []string{"--basedir", other}, wantBase: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			project := []string{"-p", "hints-" + test.name}
+			args := func(command string, rest ...string) []string {
+				return append(append(append([]string{command}, test.location...), project...), rest...)
+			}
+			e.MustRotari(args("add", "--job-name", "broken", "--", "sh", "-c", "exit 3")...)
+			e.MustRotari(args("add", "--job-name", "fine", "--", "true")...)
+			e.Rotari(args("run", "--quiet")...)
+			var shown struct {
+				RunID string `json:"run_id"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari(args("show", "--json")...).Stdout), &shown); err != nil {
+				t.Fatal(err)
+			}
+
+			var hints [][]string
+			for _, line := range strings.Split(e.MustRotari(args("lineage", shown.RunID)...).Stdout, "\n") {
+				if hint, ok := strings.CutPrefix(strings.TrimSpace(line), "retry: rotari "); ok {
+					hints = append(hints, shellFields(hint))
+				}
+			}
+			for _, line := range strings.Split(e.MustRotari(args("show", "--run-id", shown.RunID)...).Stdout, "\n") {
+				if hint, ok := strings.CutPrefix(line, "Failure summary: rotari "); ok {
+					hints = append(hints, shellFields(hint))
+				}
+			}
+			if len(hints) != 2 {
+				t.Fatalf("got hints %q, want a lineage retry hint and a show failure summary", hints)
+			}
+			for _, hint := range hints {
+				if got := strings.Contains(strings.Join(hint, " "), "--basedir"); got != test.wantBase {
+					t.Errorf("hint %q names --basedir = %v, want %v", hint, got, test.wantBase)
+				}
+				if out := e.MustRotari(hint...).Stdout; !strings.Contains(out, "broken") {
+					t.Errorf("hint %q does not reach the failed job:\n%s", hint, out)
+				}
+			}
+		})
 	}
 }
 

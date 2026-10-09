@@ -161,6 +161,18 @@ does not promise to detect a lost remote client.
   [`cmd/rotari/info.go`](../cmd/rotari/info.go), with CLI and non-mutation
   coverage in [`cmd/rotari/info_test.go`](../cmd/rotari/info_test.go) and
   [`conformance/03-interfaces/info_test.go`](../conformance/03-interfaces/info_test.go).
+- **CLI-22** A command that rotari prints for the user to run next, such as
+  a `retry:` line of `lineage` or the failure summary of `show`, names
+  `--basedir` only when the project's state directory is not the one a
+  command started in the same place would use: `ROTARI_BASEDIR`, then the
+  configured `basedir`, then the default. A printed command that names a run
+  then needs no location at all. Every printed command works as printed. The
+  rule is implemented once, in
+  [`cmd/rotari/hint_location.go`](../cmd/rotari/hint_location.go)
+  (`hintLocation`, `runHintLocation`), with coverage in
+  [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go)
+  (`TestHintLocationOmitsImplicitBaseDir`) and
+  [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
 - **CLI-1** `check --json` reports the same project state, run identifier,
   queue count, lock, and runnable result as the human-readable `check`
   output.

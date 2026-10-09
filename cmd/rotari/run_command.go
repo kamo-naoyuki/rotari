@@ -499,8 +499,8 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 	if planned.UsedQueueWithSource {
 		fmt.Printf("Retry source: current queue; latest run %s has %d failed or unfinished job(s) not included", planned.SourceRunID, len(planned.OmittedSourceJobs))
 		if len(planned.OmittedSourceJobs) > 0 {
-			fmt.Printf(": %s\nInclude them with: rotari copy --basedir %s --project-name %s --run-id %s --failed --unfinished --append, then retry\n",
-				strings.Join(planned.OmittedSourceJobs, ", "), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(planned.SourceRunID))
+			fmt.Printf(": %s\nInclude them with: rotari copy %s --run-id %s --failed --unfinished --append, then retry\n",
+				strings.Join(planned.OmittedSourceJobs, ", "), hintLocation(paths), executor.ShellQuote(planned.SourceRunID))
 		} else {
 			fmt.Println()
 		}

@@ -833,8 +833,8 @@ func showViewLabel(mode string) string {
 
 func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
 	fmt.Printf("%s\n", yellow(fmt.Sprintf("Run %s appears to have been interrupted.", runID)))
-	fmt.Printf("Recover the queue before modifying or running it:\n  rotari unlock --basedir %s --project-name %s --run-id %s\n\n",
-		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	fmt.Printf("Recover the queue before modifying or running it:\n  rotari unlock %s --run-id %s\n\n",
+		hintLocation(paths), executor.ShellQuote(runID))
 }
 
 func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
@@ -892,8 +892,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	fmt.Printf("%s %s\n", cyan("Output directory:"), runDir)
 	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
 		// The job table can be long; point to the compact summary before it.
-		fmt.Printf("%s rotari lineage --basedir %s --project-name %s %s\n", cyan("Failure summary:"),
-			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+		fmt.Printf("%s rotari lineage %s%s\n", cyan("Failure summary:"), runHintLocation(paths), executor.ShellQuote(runID))
 	}
 	queue, queueErr := state.LoadQueue(paths.QueueFile)
 	if queueErr == nil && len(queue.Commands) > 0 {
@@ -1130,7 +1129,7 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 		fmt.Printf("    rotari change -r %s %s --depends-on <job-name>\n", runID, selector)
 	}
 	fmt.Println("\n" + cyan("Retry:"))
-	fmt.Printf("    rotari retry --basedir %s --project-name %s\n", paths.BaseDir, paths.ProjectName)
+	fmt.Printf("    rotari retry %s\n", hintLocation(paths))
 }
 
 func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector, filter jobfilter.Filter) int {

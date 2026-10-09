@@ -136,7 +136,7 @@ func failureRetryHints(paths state.ProjectPaths, runID string) func(runlineage.F
 	if phase, err := project.RunPhaseOf(paths, runID); err != nil || phase != project.RunPhaseFinished {
 		return nil
 	}
-	target := fmt.Sprintf("rotari retry --basedir %s --project-name %s", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+	target := "rotari retry " + hintLocation(paths)
 	return func(group runlineage.FailureGroup) string {
 		if group.Kind == runlineage.FailureKindDiagnosis {
 			return fmt.Sprintf("%s --filter-diagnosis %s --dry-run", target, executor.ShellQuote(group.Cause))

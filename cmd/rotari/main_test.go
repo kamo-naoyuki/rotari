@@ -730,12 +730,71 @@ func TestFormatProjectRunningErrorIncludesWaitAndCancelHints(t *testing.T) {
 	for _, want := range []string{
 		"project 'demo' is running",
 		"Run: run-1",
-		"rotari wait --basedir /state --project-name demo --run-id run-1",
-		"rotari cancel --basedir /state --project-name demo",
+		"rotari wait --basedir '/state' --project-name 'demo' --run-id 'run-1'",
+		"rotari cancel --basedir '/state' --project-name 'demo'",
 	} {
 		if !strings.Contains(output, want) {
 			t.Errorf("formatProjectRunningError() missing %q; got %q", want, output)
 		}
+	}
+}
+
+// TestHintLocationOmitsImplicitBaseDir checks that printed commands name a
+// state directory only when a command started in the same place would not
+// use it already, whether it comes from ROTARI_BASEDIR, the configuration, or
+// the default.
+func TestHintLocationOmitsImplicitBaseDir(t *testing.T) {
+	oldConfig := cliConfig
+	t.Cleanup(func() { cliConfig = oldConfig })
+	cliConfig = map[string]any{}
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "xdg"))
+	t.Chdir(root)
+	defaultDir := filepath.Join(root, "xdg", "rotari")
+	configured := filepath.Join(root, "configured")
+	fromEnv := filepath.Join(root, "env")
+	other := filepath.Join(root, "other")
+
+	tests := []struct {
+		name     string
+		env      string
+		config   string
+		baseDir  string
+		wantBase bool
+	}{
+		{name: "default", baseDir: defaultDir},
+		{name: "other than default", baseDir: other, wantBase: true},
+		{name: "configured", config: configured, baseDir: configured},
+		{name: "default while configured", config: configured, baseDir: defaultDir, wantBase: true},
+		{name: "environment over configuration", env: fromEnv, config: configured, baseDir: fromEnv},
+		{name: "configured while environment set", env: fromEnv, config: configured, baseDir: configured, wantBase: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.env != "" {
+				t.Setenv(envBaseDir, test.env)
+			} else {
+				t.Setenv(envBaseDir, "")
+				os.Unsetenv(envBaseDir)
+			}
+			cliConfig = map[string]any{}
+			if test.config != "" {
+				cliConfig["basedir"] = test.config
+			}
+			paths := state.ProjectPaths{BaseDir: test.baseDir, ProjectName: "demo"}
+			wantProject := "--project-name 'demo'"
+			wantRun := ""
+			if test.wantBase {
+				wantProject = "--basedir " + executor.ShellQuote(test.baseDir) + " " + wantProject
+				wantRun = wantProject + " "
+			}
+			if got := hintLocation(paths); got != wantProject {
+				t.Errorf("hintLocation() = %q, want %q", got, wantProject)
+			}
+			if got := runHintLocation(paths); got != wantRun {
+				t.Errorf("runHintLocation() = %q, want %q", got, wantRun)
+			}
+		})
 	}
 }
 

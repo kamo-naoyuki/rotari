@@ -160,11 +160,9 @@ func printUsage() {
 }
 
 func formatProjectRunningError(paths state.ProjectPaths, runID string) string {
-	baseDir := paths.BaseDir
-	projectName := paths.ProjectName
-	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait --basedir %s --project-name %s --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s\n",
-		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", projectName)),
-		runID, baseDir, projectName, runID, baseDir, projectName)
+	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait %s--run-id %s\n\nCancel run:\n  rotari cancel %s\n",
+		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", paths.ProjectName)),
+		runID, runHintLocation(paths), executor.ShellQuote(runID), hintLocation(paths))
 }
 
 func runOneJob(runDir string, job model.JobSpec) model.JobResult {
