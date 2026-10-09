@@ -58,11 +58,11 @@ jobs:
             done
           }
 
-          run_example basic.sh "Success: 2"
-          run_example array.sh "Success: 3"
-          run_example matrix.sh "Success: 4"
-          run_example retry.sh "Success: 1"
-          run_example async.sh "Success: 1"
+          run_example basic.sh "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0"
+          run_example array.sh "Job status: success: 3, failed: 0, blocked: 0, cancelled: 0"
+          run_example matrix.sh "Job status: success: 4, failed: 0, blocked: 0, cancelled: 0"
+          run_example retry.sh "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0"
+          run_example async.sh "Job status: success: 1, failed: 0, blocked: 0, cancelled: 0"
           run_example workflow.sh "Exported workflow:" exported.yaml
           run_example workflow-reconcile.sh "Inspect this project later with:" exported.yaml reconciled.yaml
           run_example diagnose-rules.sh "Python import or module missing"
@@ -112,4 +112,4 @@ jobs:
             printf '%s\n' "$output" >&2
             exit "$status"
           fi
-          grep -Fq -- "Success: 2" <<< "$output"
+          grep -Fq -- "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0" <<< "$output"

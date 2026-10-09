@@ -3,15 +3,14 @@ package scripts_test
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Exercise the workflow's shell rather than a copy of its docker exec command.
-// Scheduler startup is mocked; this test checks the non-root client's state
-// directories, not Slurm execution (which requires the container integration).
-func TestSlurmExampleStateDirectories(t *testing.T) {
+func exampleWorkflowScript(t *testing.T, name string) string {
+	t.Helper()
 	data, err := os.ReadFile("../.github/workflows/examples.yml")
 	if err != nil {
 		t.Fatal(err)
@@ -27,15 +26,46 @@ func TestSlurmExampleStateDirectories(t *testing.T) {
 	if err := yaml.Unmarshal(data, &workflow); err != nil {
 		t.Fatal(err)
 	}
-	var script string
 	for _, step := range workflow.Jobs["examples"].Steps {
-		if step.Name == "Run Slurm example in a container" {
-			script = step.Run
+		if step.Name == name && step.Run != "" {
+			return step.Run
 		}
 	}
-	if script == "" {
-		t.Fatal("Slurm example step not found")
+	t.Fatalf("example step %q not found", name)
+	return ""
+}
+
+// Run the actual local workflow against the built binary so its output checks
+// track CLI presentation, including carried successes after retry.
+func TestLocalExampleWorkflow(t *testing.T) {
+	workspace, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
 	}
+	dir := t.TempDir()
+	build := exec.Command("go", "build", "-o", filepath.Join(dir, "rotari"), "./cmd/rotari")
+	build.Dir = workspace
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build rotari: %v\n%s", err, output)
+	}
+	cmd := exec.Command("bash", "-c", exampleWorkflowScript(t, "Run local examples"))
+	cmd.Env = append(os.Environ(),
+		"GITHUB_WORKSPACE="+workspace, "RUNNER_TEMP="+dir,
+		"ROTARI_BASEDIR="+filepath.Join(dir, "state"),
+		"ROTARI_MASTERDIR="+filepath.Join(dir, "master"),
+		"XDG_CONFIG_HOME="+filepath.Join(dir, "config"),
+		"XDG_STATE_HOME="+filepath.Join(dir, "xdg-state"))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("local example workflow: %v\n%s", err, output)
+	}
+}
+
+// Exercise the workflow's shell rather than a copy of its docker exec command.
+// Scheduler startup is mocked; this test checks the non-root client's state
+// directories and current show output, not Slurm execution (which requires the
+// container integration).
+func TestSlurmExampleStateDirectories(t *testing.T) {
+	script := exampleWorkflowScript(t, "Run Slurm example in a container")
 	const mockDocker = `
 docker() {
     if [[ "$1" != exec ]]; then
@@ -62,7 +92,7 @@ docker() {
             echo "Slurm example must keep both state directories on the writable /state volume" >&2
             return 1
         fi
-        echo "Success: 2"
+		echo "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0"
     fi
 }
 `
