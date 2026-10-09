@@ -202,7 +202,12 @@ func TestWaitWithoutSelectorWaitsAllProjectsDespiteProjectEnv(t *testing.T) {
 func TestWaitWithoutSelectorWarnsAboutInterruptedRuns(t *testing.T) {
 	covers(t, "RES-16")
 	e := support.NewEnv(t)
-	e.OrphanRun("broken", "sleep 2")
+	jobID := e.OrphanRun("broken", "sleep 2; exit 7")
+	// The orphaned job outlives its supervisor and records its exit status
+	// later; wait for it so the test directory is not removed while the job
+	// still writes into it. Cleanups run last in, first out, so this runs
+	// before the environment's directory is removed.
+	t.Cleanup(func() { e.JobExitStatus("broken", jobID) })
 	runID := strings.TrimSpace(e.MustRotari("show", "-p", "broken", "--json").Stdout)
 	var shown struct {
 		RunID string `json:"run_id"`
