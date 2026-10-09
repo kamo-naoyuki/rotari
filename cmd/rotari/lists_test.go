@@ -375,3 +375,48 @@ func TestListsRunsTableAlignmentAndHint(t *testing.T) {
 		}
 	}
 }
+
+func TestListsRunsActiveRunWithoutSummaryUsesLockDetails(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		pid  int
+		want string
+	}{
+		{"active", os.Getpid(), "running"},
+		{"interrupted", -1, "interrupted"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseDir := t.TempDir()
+			paths, err := state.ResolveProjectPaths(baseDir, "selected")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-current"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			host, err := os.Hostname()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-current"}); err != nil {
+				t.Fatal(err)
+			}
+			startedAt := time.Date(2026, 10, 8, 10, 0, 0, 0, time.UTC)
+			lock := model.LockInfo{PID: test.pid, RunID: "run-current", RunName: "sweep", Host: host, StartedAt: startedAt.Format(time.RFC3339Nano)}
+			if err := writeJSON(paths.LockFile, lock); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := collectRunRows([]string{baseDir}, "selected")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 {
+				t.Fatalf("rows = %#v", rows)
+			}
+			row := rows[0]
+			if row.Status != test.want || row.Name != "sweep" || row.StartedAt != model.FormatDisplayTimestamp(lock.StartedAt) || row.Order != startedAt.UnixNano() {
+				t.Fatalf("row = %#v, want status %q, name sweep, and the lock start time", row, test.want)
+			}
+		})
+	}
+}

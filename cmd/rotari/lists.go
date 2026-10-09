@@ -231,6 +231,14 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 		if started, err := time.Parse(time.RFC3339Nano, summary.StartedAt); err == nil {
 			row.Order = started.UnixNano()
 		}
+	} else if lock, lockErr := state.LoadLock(paths.LockFile); lockErr == nil && lock.RunID == runID {
+		// An active or interrupted run has no summary yet; its lock records
+		// the name and start time.
+		row.Name = firstNonEmpty(lock.RunName, "-")
+		if started, err := time.Parse(time.RFC3339Nano, lock.StartedAt); err == nil {
+			row.StartedAt = model.FormatDisplayTimestamp(lock.StartedAt)
+			row.Order = started.UnixNano()
+		}
 	}
 	lifecycle, err := runview.RunLifecycleLabel(paths, runID)
 	if err != nil {
