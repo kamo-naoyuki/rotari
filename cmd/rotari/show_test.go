@@ -1108,18 +1108,18 @@ func TestCmdRunsListsRunsSortedByRecency(t *testing.T) {
 	}
 	olderRun := filepath.Join(paths.RunsDir, "run-old")
 	newerRun := filepath.Join(paths.RunsDir, "run-new")
+	newerTime := time.Now().UTC().Add(-time.Minute)
+	olderTime := newerTime.Add(-time.Hour)
 	if err := writeJSON(filepath.Join(olderRun, "summary.json"), model.RunSummary{
-		RunID: "run-old", Status: "finished", ExitCode: 0, StartedAt: "2026-09-16T00:00:00Z", FinishedAt: "2026-09-16T00:00:01Z",
+		RunID: "run-old", Status: "finished", ExitCode: 0, StartedAt: olderTime.Format(time.RFC3339Nano), FinishedAt: olderTime.Add(time.Second).Format(time.RFC3339Nano),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(newerRun, "summary.json"), model.RunSummary{
-		RunID: "run-new", Status: "failed", ExitCode: 1, StartedAt: "2026-09-17T00:00:00Z", FinishedAt: "2026-09-17T00:00:01Z",
+		RunID: "run-new", Status: "failed", ExitCode: 1, StartedAt: newerTime.Format(time.RFC3339Nano), FinishedAt: newerTime.Add(time.Second).Format(time.RFC3339Nano),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	newerTime := time.Now()
-	olderTime := newerTime.Add(-time.Hour)
 	if err := os.Chtimes(olderRun, olderTime, olderTime); err != nil {
 		t.Fatal(err)
 	}
@@ -1133,7 +1133,7 @@ func TestCmdRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default", "--since", "1000h"})
+	code := cmdRuns([]string{"--basedir", baseDir, "--project-name", "default"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

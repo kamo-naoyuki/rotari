@@ -16,13 +16,18 @@ import (
 
 func writeListsRun(t *testing.T, baseDir, projectName, runID string) state.ProjectPaths {
 	t.Helper()
+	return writeListsRunAt(t, baseDir, projectName, runID, time.Date(2026, 10, 8, 10, 0, 1, 0, time.UTC))
+}
+
+func writeListsRunAt(t *testing.T, baseDir, projectName, runID string, finishedAt time.Time) state.ProjectPaths {
+	t.Helper()
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{
 		RunID: runID, RunName: "saved run", Status: "finished", ExitCode: 0,
-		StartedAt: "2026-10-08T10:00:00Z", FinishedAt: "2026-10-08T10:00:01Z",
+		StartedAt: finishedAt.Add(-time.Second).Format(time.RFC3339Nano), FinishedAt: finishedAt.Format(time.RFC3339Nano),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +301,8 @@ func TestListsRunsHintWorksWithRegisteredRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := filepath.Join(t.TempDir(), "state with spaces")
 	projectName, runID := "project with spaces", "20261008-100000-00000001"
-	paths := writeListsRun(t, baseDir, projectName, runID)
+	// Keep the finished run inside the default window regardless of the date.
+	paths := writeListsRunAt(t, baseDir, projectName, runID, time.Now().UTC())
 	if err := registerRun(paths, runID); err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +335,7 @@ func TestListsRunsHintWorksWithRegisteredRun(t *testing.T) {
 		}
 		return
 	}
-	t.Fatal("run list omitted its show hint")
+	t.Fatalf("run list omitted its show hint: %s", output.String())
 }
 
 func TestListsRunsTableAlignmentAndHint(t *testing.T) {
