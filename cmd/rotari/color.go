@@ -89,12 +89,8 @@ var jobLogf = func(format string, a ...any) {
 
 func colorMessage(message string) string {
 	lines := strings.SplitAfter(message, "\n")
-	failedJobOutput := false
 	for i, line := range lines {
 		text := strings.TrimSuffix(line, "\n")
-		if text == "" {
-			failedJobOutput = false
-		}
 		switch {
 		case strings.HasPrefix(text, "=== Run failed ==="):
 			lines[i] = red(text) + newline(line)
@@ -102,21 +98,13 @@ func colorMessage(message string) string {
 			lines[i] = green(text) + newline(line)
 		case strings.HasPrefix(text, "Retrying job:"):
 			lines[i] = colorKeyValueMessage(text, yellow) + newline(line)
-		case strings.HasPrefix(text, "Failed job output:"):
-			failedJobOutput = true
-			lines[i] = red(text) + newline(line)
 		case strings.HasPrefix(text, "=== Run started ==="):
 			lines[i] = cyan(text) + newline(line)
 		case strings.HasPrefix(text, "Inspect"), strings.HasPrefix(text, "Check"), strings.HasPrefix(text, "Cancel"), strings.HasPrefix(text, "Rerun"), strings.HasPrefix(text, "Job running:"):
 			lines[i] = cyan(text) + newline(line)
 		case strings.Contains(text, ":"):
 			labelEnd := strings.IndexByte(text, ':')
-			label := text[:labelEnd+1]
-			if failedJobOutput {
-				lines[i] = red(label) + white(text[labelEnd+1:]) + newline(line)
-			} else {
-				lines[i] = cyan(label) + white(text[labelEnd+1:]) + newline(line)
-			}
+			lines[i] = cyan(text[:labelEnd+1]) + white(text[labelEnd+1:]) + newline(line)
 		}
 	}
 	return strings.Join(lines, "")

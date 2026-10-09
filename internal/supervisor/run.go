@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -110,13 +109,8 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 	if err != nil {
 		return "", 1, err
 	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
-		return "", 1, err
-	}
-	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		return CompletionMessage(paths, runID, summary), exitCode, nil
-	}
+	// The client reads the completion from the run's files, as wait does
+	// (cmd/rotari run_completion.go), so this message only closes the request.
 	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
 }
 

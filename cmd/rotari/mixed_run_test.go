@@ -14,7 +14,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
 func TestExecuteMixedRunPersistsMarkedSuccess(t *testing.T) {
@@ -355,7 +354,7 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	}
 }
 
-func TestCompletionMessageIncludesRunNameAndFailedJobHint(t *testing.T) {
+func TestCompletionMessageGroupsFailuresByCause(t *testing.T) {
 	paths, err := state.ResolveProjectPaths(t.TempDir(), "build")
 	if err != nil {
 		t.Fatal(err)
@@ -363,16 +362,22 @@ func TestCompletionMessageIncludesRunNameAndFailedJobHint(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"false"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	message := supervisor.CompletionMessage(paths, "run-1", model.RunSummary{
+	summary := model.RunSummary{
 		RunID: "run-1", RunName: "nightly", Status: "failed", ExitCode: 1,
 		Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Hosts: []string{"compute-01"}}},
-	})
-	if !strings.Contains(message, "Summary: jobs") {
-		t.Fatalf("completion message lacks lineage summary: %s", message)
 	}
-	for _, want := range []string{"nightly (run-1)", "Failed: 1", "Hosts: compute-01", "rotari show", "rotari retry"} {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), summary); err != nil {
+		t.Fatal(err)
+	}
+	message := formatRunCompletion(paths, "run-1", summary)
+	for _, want := range []string{"nightly (run-1)", "Summary: jobs 1, succeeded 0, failed 1", "Failures by cause:", "1 error (exit 1): job-1", "Inspect run:", "rotari show"} {
 		if !strings.Contains(message, want) {
 			t.Errorf("completion message missing %q: %s", want, message)
+		}
+	}
+	for _, unwanted := range []string{"Failed job output:", "Diagnosis:"} {
+		if strings.Contains(message, unwanted) {
+			t.Errorf("completion message contains %q: %s", unwanted, message)
 		}
 	}
 }

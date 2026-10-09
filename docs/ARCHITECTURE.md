@@ -275,7 +275,7 @@ are checked against this graph by
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the run's recorded results (the summary, or before it the carried results a run records at start) into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, and the artifact candidates an attempt recorded, following carried jobs to their attempt. Shared by CLI and Web. | `job.go` (`RecordedResults`), `attempt.go`, `times.go`, `facts.go`, `artifacts.go` |
 | [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status, a project's runs in start order, the run lifecycle and initiating-client connection projection, the one-run summary, and the failures with no retry left that `wait --until-failure` stops on. Shared by run comparison, history views, CLI status displays, the Web run lineage summary, and the MCP tools. | `run.go` (`LoadRun`, `LineageStatus`), `client.go` (`ClientStatus`, `RunLifecycleLabel`), `order.go` (`RunsByStart`, `Summary`, `FinalFailureGroups`) |
-| [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
+| [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages; the completion message the client prints is built in `cmd/rotari` from the run's files. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `assets/` |
@@ -365,7 +365,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
 | Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |
-| Failures by cause and the location options of printed next-step commands (`hintLocation`) | `failure_groups.go`, `hint_location.go` |
+| Failures by cause, the completion message that `run` and `wait` print (`formatRunCompletion`), and the location options of printed next-step commands (`hintLocation`) | `failure_groups.go`, `run_completion.go`, `hint_location.go` |
 
 ## Walkthroughs
 

@@ -48,15 +48,6 @@ func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 	}
 }
 
-func TestFailedJobHintsUsesJobIDWhenAttemptIDIsMissing(t *testing.T) {
-	hints := failedJobHints("run-1", []model.JobResult{{
-		ID: "job-1", Command: []string{"false"}, ExitCode: 1,
-	}})
-	if !strings.Contains(hints, "Attempt ID: job-1") {
-		t.Fatalf("hints = %q, want fallback attempt ID", hints)
-	}
-}
-
 func TestRunObserverStartedIncludesCommand(t *testing.T) {
 	var got server.Response
 	observer := runObserver(server.Request{}, "run-1", func(response server.Response) {

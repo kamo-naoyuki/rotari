@@ -26,7 +26,7 @@ func TestWaitReturnsCompletedRunExitCode(t *testing.T) {
 	if r.Code != 1 {
 		t.Fatalf("wait exit code = %d, want 1: %s", r.Code, r)
 	}
-	for _, want := range []string{"=== Run failed ===", "Success: 1", "Failed: 1"} {
+	for _, want := range []string{"=== Run failed ===", "succeeded 1, failed 1"} {
 		if !strings.Contains(r.Stdout, want) {
 			t.Fatalf("wait output does not contain %q:\n%s", want, r.Stdout)
 		}
@@ -53,6 +53,57 @@ func TestWaitPrintsSameCompletionMessageAsRun(t *testing.T) {
 	}
 	if wait.Stdout != completion {
 		t.Fatalf("wait completion message differs from run\nrun:  %q\nwait: %q", completion, wait.Stdout)
+	}
+}
+
+// TestCompletionMessageGroupsFailuresByCause checks that the completion
+// message of run, retry, and wait groups a run's failures by cause, as
+// lineage does: a carried failure is marked as carried, a cancelled job is
+// grouped as cancelled with no diagnosis line, and the message does not list
+// each failed job.
+func TestCompletionMessageGroupsFailuresByCause(t *testing.T) {
+	covers(t, "CLI-14")
+	e := support.NewEnv(t)
+	project := "completion-groups"
+	e.MustRotari("add", "-p", project, "--job-name", "broken", "--", "sh", "-c", "exit 3")
+	e.MustRotari("add", "-p", project, "--job-name", "other", "--", "sh", "-c", "exit 4")
+	e.MustRotari("add", "-p", project, "--job-name", "fine", "--", "true")
+	e.Rotari("run", "-p", project, "--quiet")
+	retried := e.Rotari("retry", "-p", project, "--job-name", "broken")
+	start := strings.LastIndex(retried.Stdout, "=== Run failed ===")
+	if retried.Code != 1 || start < 0 {
+		t.Fatalf("retry did not end with a failed run: %s", retried)
+	}
+	completion := retried.Stdout[start:]
+	for _, want := range []string{
+		"Summary: jobs 3, succeeded 1, failed 2",
+		"Carried: 2",
+		"Failures by cause:",
+		"2 (1 carried) error (exit 3,4): broken other",
+		"retry: rotari retry --project-name '" + project + "' --filter-failure-kind 'error' --dry-run",
+		"Inspect run:",
+	} {
+		if !strings.Contains(completion, want) {
+			t.Errorf("completion message lacks %q:\n%s", want, completion)
+		}
+	}
+	for _, unwanted := range []string{"Failed job output:", "Diagnosis:", "--basedir"} {
+		if strings.Contains(completion, unwanted) {
+			t.Errorf("completion message contains %q:\n%s", unwanted, completion)
+		}
+	}
+
+	cancelled := "completion-cancelled"
+	run := e.StartRun(cancelled, 1, true)
+	e.MustRotari("cancel", "-p", cancelled, run.Jobs[0])
+	waited := e.Rotari("wait", "-p", cancelled, "--timeout", "30s")
+	if !strings.Contains(waited.Stdout, "1 cancelled (exit ") {
+		t.Errorf("wait does not group the cancelled job as cancelled:\n%s", waited.Stdout)
+	}
+	for _, unwanted := range []string{"no_match", "Diagnosis:"} {
+		if strings.Contains(waited.Stdout, unwanted) {
+			t.Errorf("wait reports %q for a cancelled job:\n%s", unwanted, waited.Stdout)
+		}
 	}
 }
 

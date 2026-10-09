@@ -211,7 +211,7 @@ the IDs, this table, and those calls disagree.
 | CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
 | CLI-11 | A missing project's error lists local projects and the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs`, `TestMissingTargetDiagnostics` |
 | CLI-12 | `wait --json` reports completed and early-failure runs as structured JSON | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestCLIFlagPairWaitSamples` |
-| CLI-14 | Text `wait` prints the same single, newline-terminated completion message as `run` | conformance | `TestWaitPrintsSameCompletionMessageAsRun` |
+| CLI-14 | Text `wait` prints the same single, newline-terminated completion message as `run`, which groups failures by cause as `lineage` does | conformance | `TestWaitPrintsSameCompletionMessageAsRun`, `TestCompletionMessageGroupsFailuresByCause` |
 | CLI-15 | Single-value CLI options reject duplicate occurrences while repeatable options remain repeatable | conformance | `TestCLIRejectsRepeatedSingleValueOption` |
 | CLI-16 | `show` of one job lists its attempt's artifact candidates, `--artifacts` lists all of them, and `--json` carries them | conformance | `TestShowListsArtifactCandidates` |
 | CLI-17 | Command help survives configuration errors with a warning, without bypassing configuration errors for execution | conformance | `TestCommandHelpSurvivesConfigurationErrors`, `TestConfigurationErrorsStillPreventExecution` |

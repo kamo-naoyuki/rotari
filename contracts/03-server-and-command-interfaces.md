@@ -282,9 +282,12 @@ does not promise to detect a lost remote client.
   configuration. Checked by
   [`conformance/03-interfaces/pairruns/flag_pair_wait_test.go`](../conformance/03-interfaces/pairruns/flag_pair_wait_test.go).
 - **CLI-14** For a completed run, text `wait` prints the same completion
-  message as `run`, including each summary, diagnosis, and origin line exactly
-  once and ending with a newline. Both use
-  [`internal/supervisor/messages.go`](../internal/supervisor/messages.go);
+  message as `run`, including each summary, carried, and origin line exactly
+  once and ending with a newline. For a failed run, the message groups the
+  failed and blocked jobs by cause as `lineage RUN` does, marks carried
+  failures, and does not list each failed job, so it stays short however many
+  jobs fail. Both use
+  [`cmd/rotari/run_completion.go`](../cmd/rotari/run_completion.go);
   checked by [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
 - **CLI-19** Synchronous `run`/`retry` and `wait` enter one post-start follower
   and per-client attachment lifecycle. The startup pipe carries only request

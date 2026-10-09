@@ -26,7 +26,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
 // cmdWait waits concurrently for selected runs and returns the greatest run
@@ -1040,8 +1039,4 @@ func endedRunHint(paths state.ProjectPaths, runID, condition string, recover boo
 		return fmt.Sprintf("run %s %s%s.\nInspect it:\n  %s\n%s Then recover:\n  %s", runID, condition, detail, show, project.UnconfirmedStopWarning, unlock)
 	}
 	return fmt.Sprintf("run %s %s%s. Inspect it, then recover:\n  %s\n  %s", runID, condition, detail, show, unlock)
-}
-
-func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {
-	return colorMessage(supervisor.CompletionMessage(paths, runID, summary))
 }
