@@ -12,6 +12,45 @@ import (
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
+func carriedJobFields(output string, carried bool) []string {
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		// Carried results keep the origin timestamps, so the historical
+		// and carried rows can appear in either order when their times tie.
+		if len(fields) > 2 && fields[0] == "carried" && (fields[2] == "(carried)") == carried {
+			return fields
+		}
+	}
+	return nil
+}
+
+func TestCarriedJobFieldsSelectsRequestedResult(t *testing.T) {
+	executed := "carried success 2026-10-09 13:09:46 UTC 2026-10-09 13:09:46 UTC"
+	carried := "carried success (carried) 2026-10-09 13:09:46 UTC 2026-10-09 13:09:46 UTC"
+	for _, test := range []struct {
+		name   string
+		output string
+	}{
+		{name: "executed_first", output: executed + "\n" + carried},
+		{name: "carried_first", output: carried + "\n" + executed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, want := range []struct {
+				carried bool
+				line    string
+			}{
+				{carried: false, line: executed},
+				{carried: true, line: carried},
+			} {
+				got := strings.Join(carriedJobFields(test.output, want.carried), " ")
+				if got != want.line {
+					t.Errorf("carriedJobFields(carried=%v) = %q, want %q", want.carried, got, want.line)
+				}
+			}
+		})
+	}
+}
+
 // TestCarriedJobsReadAsCarriedDuringTheRun retries a project whose first job
 // succeeded, so the retry carries it while the second job runs, and checks
 // every view of the active run: the carried job reads as its success, not
@@ -24,16 +63,7 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 	e.MustRotari("add", "-p", "p1", "--job-name", "again", "--", "sh", "-c", "test -f "+flag+" && sleep 30")
 	e.Rotari("run", "-p", "p1", "--quiet")
 	jobsBeforeRetry := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s %t %f").Stdout
-	carriedFields := func(output string) []string {
-		for _, line := range strings.Split(output, "\n") {
-			fields := strings.Fields(line)
-			if len(fields) > 0 && fields[0] == "carried" {
-				return fields
-			}
-		}
-		return nil
-	}
-	finishedJobsFields := carriedFields(jobsBeforeRetry)
+	finishedJobsFields := carriedJobFields(jobsBeforeRetry, false)
 	if len(finishedJobsFields) < 8 || finishedJobsFields[1] != "success" {
 		t.Fatalf("jobs before retry = %q, want carried job's success and timestamps", jobsBeforeRetry)
 	}
@@ -63,7 +93,7 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 		},
 		"jobs": func() (string, bool) {
 			out := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s %t %f").Stdout
-			fields := carriedFields(out)
+			fields := carriedJobFields(out, true)
 			return out, len(fields) == len(finishedJobsFields)+1 && fields[1] == "success" && fields[2] == "(carried)" && strings.Join(fields[3:], " ") == strings.Join(finishedJobsFields[2:], " ")
 		},
 	} {
