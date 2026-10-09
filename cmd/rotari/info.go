@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -57,9 +58,10 @@ type infoRun struct {
 }
 
 type infoJobLiveness struct {
-	Alive   int `json:"alive"`
-	Gone    int `json:"gone"`
-	Unknown int `json:"unknown"`
+	Finished int `json:"finished"`
+	Alive    int `json:"alive"`
+	Gone     int `json:"gone"`
+	Unknown  int `json:"unknown"`
 }
 
 func cmdInfo(args []string) int {
@@ -271,10 +273,15 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := &infoJobLiveness{}
+	carried := jobstatus.RecordedResults(runDir, nil)
+	result := &infoJobLiveness{Finished: len(carried)}
 	for _, attemptDir := range attemptDirs {
 		attempt := jobstatus.ReadAttempt(jsonStore(), attemptDir)
 		if attempt.Finished() {
+			var finalResult model.JobResult
+			if jsonStore().ReadJSON(filepath.Join(attemptDir, state.FinalResultFileName), &finalResult) == nil {
+				result.Finished++
+			}
 			continue
 		}
 		if !hostKnown || context.Hostname != hostname || state.ReadAttemptExecutor(attemptDir) != "local" {
@@ -291,7 +298,7 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 			result.Gone++
 		}
 	}
-	if result.Alive+result.Gone+result.Unknown == 0 {
+	if result.Finished+result.Alive+result.Gone+result.Unknown == 0 {
 		return nil, nil
 	}
 	return result, nil
@@ -381,7 +388,7 @@ func printInfoRuns(runs []infoRun) {
 	for _, run := range runs {
 		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, infoRunPhase(run.Phase))
 		if run.Jobs != nil {
-			fmt.Printf(" jobs=%s:%s %s:%s %s:%s", green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
+			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
 		}
 		fmt.Println()
 	}

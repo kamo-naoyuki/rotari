@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
@@ -38,13 +39,26 @@ func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
 	}
 	runDir := filepath.Join(projectDir, "runs", runID)
 	jobDir := filepath.Join(runDir, "job-a")
+	finishedJobDir := filepath.Join(runDir, "job-done")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(finishedJobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"hostname":"`+host+`"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte(`{"id":"job-a","executor":"local"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(finishedJobDir, "command.json"), []byte(`{"id":"job-done","executor":"local"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(finishedJobDir, "status"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(finishedJobDir, state.FinalResultFileName), []byte(`{"id":"job-done","exit_code":0}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	process := exec.Command("sleep", "30")
@@ -73,7 +87,8 @@ func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
 		ActiveRuns []struct {
 			RunID string `json:"run_id"`
 			Jobs  struct {
-				Alive int `json:"alive"`
+				Finished int `json:"finished"`
+				Alive    int `json:"alive"`
 			} `json:"jobs"`
 		} `json:"active_runs"`
 	}
@@ -96,8 +111,8 @@ func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
 	if len(report.RunLocks) != 1 || report.RunLocks[0].State != "stale" || report.RunLocks[0].RunID != runID {
 		t.Fatalf("run locks = %#v, want %s", report.RunLocks, runID)
 	}
-	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].RunID != runID || report.ActiveRuns[0].Jobs.Alive != 1 {
-		t.Fatalf("active runs = %#v, want one live local job in %s", report.ActiveRuns, runID)
+	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].RunID != runID || report.ActiveRuns[0].Jobs.Finished != 1 || report.ActiveRuns[0].Jobs.Alive != 1 {
+		t.Fatalf("active runs = %#v, want one finished and one live local job in %s", report.ActiveRuns, runID)
 	}
 	gotLock, err := os.ReadFile(lockPath)
 	if err != nil {

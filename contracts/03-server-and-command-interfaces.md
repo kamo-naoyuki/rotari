@@ -150,7 +150,9 @@ does not promise to detect a lost remote client.
   visible config files, supervisors, run locks, and active or
   interrupted runs. For unfinished attempts, it best-effort checks the local
   process group for local-executor jobs; remote and other executor processes
-  are unverified, and this is not proof of process identity. It is read-only
+  are unverified, and this is not proof of process identity. Each run's inline
+  job counts include jobs with a recorded final result and carried results as
+  `finished`; terminal attempts awaiting a retry are not final. It is read-only
   and does not remove stale locks. Coordinator liveness is reported only for
   local locks. Human-readable output uses the standard CLI colors only on a
   terminal; JSON and redirected output remain plain. The implementation is in
