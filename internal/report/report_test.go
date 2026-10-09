@@ -140,7 +140,7 @@ func TestFormatRunReportIncludesFailedJobsOnly(t *testing.T) {
 			{ID: "cancelled", Name: "cancelled-job", ExecutionStatus: "cancelled", Result: &model.JobResult{ID: "cancelled", ExitCode: 130, Error: model.MarkedCancelledError}},
 			{ID: "kept", Name: "kept-job", ExecutionStatus: "failed (carried)", Carried: true, Result: &model.JobResult{ID: "kept", ExitCode: 2}},
 			{ID: "success", Name: "success-job", ExecutionStatus: "success", Result: &model.JobResult{ID: "success", ExitCode: 0}},
-			{ID: "waiting", Name: "waiting-job", ExecutionStatus: "not started"},
+			{ID: "waiting", Name: "waiting-job", ExecutionStatus: "pending"},
 		},
 	}
 	paths := state.ProjectPaths{ProjectName: "demo"}
@@ -167,7 +167,7 @@ func TestReportJobStatusMatchesShowLabels(t *testing.T) {
 	}{
 		{web.Job{ExecutionStatus: "waiting (recorded)", SchedulerState: "pending"}, "waiting (recorded)"},
 		{web.Job{ExecutionStatus: "running (recorded)"}, "running (recorded)"},
-		{web.Job{ExecutionStatus: "not started"}, "not started"},
+		{web.Job{ExecutionStatus: "pending"}, "pending"},
 		{web.Job{ExecutionStatus: "cancelled", Result: &model.JobResult{ExitCode: 130}}, "cancelled"},
 		{web.Job{ExecutionStatus: "blocked", Result: &model.JobResult{ExitCode: 1, Error: "blocked by dependency"}}, "blocked"},
 		{web.Job{ExecutionStatus: "failed (carried)", Carried: true, Result: &model.JobResult{ExitCode: 1}}, "failed (carried)"},

@@ -296,7 +296,7 @@ func colorJobsValue(code byte, value string) string {
 	case "failed", "cancelled", "blocked":
 		return red(value)
 	default:
-		if value == "running" || value == "interrupted" || value == "unknown" || value == "incomplete" || value == "not started" || strings.HasSuffix(value, " (recorded)") {
+		if value == "running" || value == "interrupted" || value == "unknown" || value == "incomplete" || value == "pending" || strings.HasSuffix(value, " (recorded)") {
 			return yellow(value)
 		}
 		return value

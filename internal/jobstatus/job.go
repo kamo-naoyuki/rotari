@@ -76,12 +76,14 @@ func DisplayLabel(status string, accepted, carried bool) string {
 	return status
 }
 
-// StatusNotStarted is the display status of a job with no dispatched attempt.
-const StatusNotStarted = "not started"
+// StatusPending is the display status of a job rotari has not dispatched
+// yet, such as one waiting for a dependency. A job queued by a scheduler is
+// "waiting (recorded)" instead.
+const StatusPending = "pending"
 
 // DisplayStatus classifies the latest persisted state for human/API views.
 // Nonterminal executor states are explicitly marked as recorded, not live.
-// A job directory missing from its run is not started; other missing or
+// A job directory missing from its run is pending; other missing or
 // unusable records are unknown.
 func (job Job) DisplayStatus(spec model.JobSpec) string {
 	if job.Blocked() {
@@ -99,7 +101,7 @@ func (job Job) DisplayStatus(spec model.JobSpec) string {
 		return state
 	}
 	if job.Attempt.Undispatched {
-		return StatusNotStarted
+		return StatusPending
 	}
 	return "unknown"
 }

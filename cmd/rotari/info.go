@@ -340,7 +340,7 @@ func infoNotStartedJobs(runDir string, carried map[string]model.JobResult) int {
 		if err != nil {
 			continue
 		}
-		if jobstatus.ReadJob(jsonStore(), jobDir, model.JobResult{}, false).DisplayStatus(job) == jobstatus.StatusNotStarted {
+		if jobstatus.ReadJob(jsonStore(), jobDir, model.JobResult{}, false).DisplayStatus(job) == jobstatus.StatusPending {
 			count++
 		}
 	}

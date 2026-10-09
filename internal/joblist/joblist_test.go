@@ -153,7 +153,7 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"running": "running (recorded)", "waiting": "waiting (recorded)", "unknown": "unknown", "not-started": "not started"}
+	want := map[string]string{"running": "running (recorded)", "waiting": "waiting (recorded)", "unknown": "unknown", "not-started": "pending"}
 	actual := make(map[string]Row, len(rows))
 	for _, row := range rows {
 		actual[row.JobName] = row

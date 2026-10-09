@@ -153,7 +153,7 @@ func TestLoadJobsProjectsRecordedExecutionStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"running (recorded)", "unknown", "not started"}
+	want := []string{"running (recorded)", "unknown", "pending"}
 	for index, status := range want {
 		if jobs[index].ExecutionStatus != status {
 			t.Errorf("job %s execution status = %q, want %q", jobs[index].ID, jobs[index].ExecutionStatus, status)

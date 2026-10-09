@@ -506,15 +506,15 @@ type showJSON struct {
 }
 
 type showJobCounts struct {
-	success    int
-	failed     int
-	blocked    int
-	cancelled  int
-	running    int
-	waiting    int
-	notStarted int
-	suspended  int
-	unknown    int
+	success   int
+	failed    int
+	blocked   int
+	cancelled int
+	running   int
+	waiting   int
+	pending   int
+	suspended int
+	unknown   int
 }
 
 // showJobFilter selects the rows of a run job table.
@@ -1006,8 +1006,8 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			jobCounts.running++
 		case "waiting (recorded)":
 			jobCounts.waiting++
-		case "not started", "not started (carried)":
-			jobCounts.notStarted++
+		case "pending", "pending (carried)":
+			jobCounts.pending++
 		case "suspended (recorded)":
 			jobCounts.suspended++
 		default:
@@ -1039,7 +1039,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			joblist.ShortenText(command, showCommandWidth)})
 	}
 	printShowJobTable(table)
-	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, not started: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.notStarted, jobCounts.suspended, jobCounts.unknown)
+	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, pending: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.pending, jobCounts.suspended, jobCounts.unknown)
 	// Grouping needs the job definitions, which a run without a readable
 	// command snapshot lacks; its table above lists job IDs only.
 	if runQueueErr == nil {

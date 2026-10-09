@@ -276,7 +276,6 @@ function jobStatusClass(status) {
     running: "status-running",
     "running (recorded)": "status-running",
     "waiting (recorded)": "status-pending",
-    "not started": "status-pending",
     "suspended (recorded)": "status-pending",
     success: "status-finished",
     finished: "status-finished",

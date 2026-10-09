@@ -126,7 +126,7 @@ func TestReadJobDisplayStatusWithoutUsableMetadata(t *testing.T) {
 	}
 }
 
-func TestReadJobDisplayStatusNotStarted(t *testing.T) {
+func TestReadJobDisplayStatusPending(t *testing.T) {
 	root := t.TempDir()
 	runDir := filepath.Join(root, "run")
 	if err := os.MkdirAll(filepath.Join(runDir, "started", "attempts"), 0o700); err != nil {
@@ -137,7 +137,7 @@ func TestReadJobDisplayStatusNotStarted(t *testing.T) {
 		jobDir string
 		want   string
 	}{
-		{name: "no job directory in an existing run", jobDir: filepath.Join(runDir, "waiting"), want: StatusNotStarted},
+		{name: "no job directory in an existing run", jobDir: filepath.Join(runDir, "waiting"), want: StatusPending},
 		{name: "missing run directory", jobDir: filepath.Join(root, "missing-run", "job"), want: "unknown"},
 		{name: "missing assigned attempt", jobDir: filepath.Join(runDir, "started", "attempts", "att-1"), want: "unknown"},
 		{name: "job directory without attempts", jobDir: filepath.Join(runDir, "started"), want: "unknown"},
@@ -311,7 +311,7 @@ func TestDisplayLabelAddsAcceptedAndCarried(t *testing.T) {
 		{"failed", false, true, "failed (carried)"},
 		{"failed", true, false, "success (accepted)"},
 		{"success", true, true, "success (accepted) (carried)"},
-		{"not started", false, true, "not started (carried)"},
+		{"pending", false, true, "pending (carried)"},
 	} {
 		if got := DisplayLabel(test.status, test.accepted, test.carried); got != test.want {
 			t.Errorf("DisplayLabel(%q, %t, %t) = %q, want %q", test.status, test.accepted, test.carried, got, test.want)

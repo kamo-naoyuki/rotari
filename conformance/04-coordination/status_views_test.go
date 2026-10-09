@@ -376,7 +376,7 @@ func TestRunResultsCarryJobNames(t *testing.T) {
 }
 
 // TestNotStartedJobsAgreeAcrossViews checks that jobs waiting for a
-// dependency are reported as not started by show, jobs, the Web API, and
+// dependency are reported as pending by show, jobs, the Web API, and
 // counted as pending by info, while the job they wait for is running.
 func TestNotStartedJobsAgreeAcrossViews(t *testing.T) {
 	covers(t, "DUR-5", "CLI-21")
@@ -392,20 +392,20 @@ func TestNotStartedJobsAgreeAcrossViews(t *testing.T) {
 	shown := e.MustRotari("show", "-p", project).Stdout
 	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), project, run.RunID)).Body, project, run.RunID)
 	for name, jobID := range waiting {
-		if row := jobRows[name]; row["STATE"] != "not started" || row["ATTEMPT_ID"] != "-" {
-			t.Errorf("jobs row for %s = %v, want not started without an attempt", name, row)
+		if row := jobRows[name]; row["STATE"] != "pending" || row["ATTEMPT_ID"] != "-" {
+			t.Errorf("jobs row for %s = %v, want pending without an attempt", name, row)
 		}
 		found := false
 		for _, line := range strings.Split(shown, "\n") {
 			if strings.HasPrefix(line, jobID+" ") {
-				found = strings.Contains(line, "not started")
+				found = strings.Contains(line, " pending ")
 			}
 		}
 		if !found {
-			t.Errorf("show does not report %s as not started:\n%s", jobID, shown)
+			t.Errorf("show does not report %s as pending:\n%s", jobID, shown)
 		}
-		if got := webJobs[jobID].ExecutionStatus; got != "not started" {
-			t.Errorf("Web execution status for %s = %q, want not started", jobID, got)
+		if got := webJobs[jobID].ExecutionStatus; got != "pending" {
+			t.Errorf("Web execution status for %s = %q, want pending", jobID, got)
 		}
 	}
 	if row := jobRows["hold1"]; row["STATE"] != "running (recorded)" {

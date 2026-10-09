@@ -55,7 +55,7 @@ const historySearchStatusOptions = {
   job: [
     "running (recorded)",
     "waiting (recorded)",
-    "not started",
+    "pending",
     "suspended (recorded)",
     "unknown",
     "success",

@@ -179,13 +179,13 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		origin := runQueue.OriginOf(job.ID)
 		carried := runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked(), hasSummary)
 		jobState := jobstatus.DisplayLabel(displayStatus, resolved.Accepted(), carried)
-		notStarted := displayStatus == jobstatus.StatusNotStarted
+		pending := displayStatus == jobstatus.StatusPending
 		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, origin, carried)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
 			startedAt, err = parseTimestamp(resolved.Attempt.Wrapper.StartedAt)
 		}
-		if err != nil && summary.StartedAt != "" && !notStarted {
+		if err != nil && summary.StartedAt != "" && !pending {
 			startedAt, err = parseTimestamp(summary.StartedAt)
 		}
 		if err != nil && statusOK {
@@ -213,7 +213,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 				attemptID = result.AttemptID
 			}
 		}
-		if attemptID == "" && !notStarted {
+		if attemptID == "" && !pending {
 			continue
 		}
 		jobName := state.ReadJobName(jobDir)

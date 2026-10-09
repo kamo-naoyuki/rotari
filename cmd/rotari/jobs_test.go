@@ -272,7 +272,7 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 }
 
 func TestJobsColumnShowsDashForJobWithoutAttempt(t *testing.T) {
-	row := joblist.Row{State: "not started", JobID: "job-1", Elapsed: -1}
+	row := joblist.Row{State: "pending", JobID: "job-1", Elapsed: -1}
 	if got := jobsColumnValue('a', row); got != "-" {
 		t.Fatalf("attempt column = %q, want -", got)
 	}

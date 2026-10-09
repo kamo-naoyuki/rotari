@@ -24,8 +24,8 @@ rotari info
 The resolved masterdir, basedir and project, visible config files, running
 supervisors, run locks, and active or interrupted runs. Each run row also
 shows the count of jobs with final results, including carried results, and
-how many of them failed; jobs that have not started or are waiting for a
-retry as `pending`; and a best-effort process check for unfinished local jobs. Remote and scheduler jobs
+how many of them failed; `pending` jobs and jobs waiting for a retry as
+`pending`; and a best-effort process check for unfinished local jobs. Remote and scheduler jobs
 are shown as unverified; `info` does not contact their hosts or schedulers.
 
 ```sh
@@ -63,8 +63,10 @@ while a job still reports `running (recorded)`, or while some jobs already have
 terminal results. Job phases are the latest persisted observations, not live
 executor probes: `running (recorded)` does not prove that the process is still
 alive. `waiting (recorded)` and `suspended (recorded)` have the same limitation.
-A job with no attempt yet, such as one waiting for a dependency, shows
-`not started`. When an attempt's state is missing or cannot be interpreted,
+A job rotari has not dispatched yet, such as one waiting for a dependency,
+shows `pending`; a job a scheduler has accepted but not started shows
+`waiting (recorded)`. When an attempt's state is missing or cannot be
+interpreted,
 Rotari displays `unknown`. Completed jobs show `success`,
 `failed`, `cancelled`, or `blocked`; results carried from another run are marked
 `(carried)`.
@@ -91,8 +93,8 @@ For `jobs` and `runs`, finished entries default to the last day. Unfinished
 attempts of active, interrupted, or incomplete runs, and active or interrupted
 runs, are always included. Their job states are persisted observations: for example,
 `running (recorded)` does not assert that an executor is still alive. Jobs
-of those runs that have not started are listed as `not started`, with `-` for
-the attempt ID.
+of those runs that rotari has not dispatched yet are listed as `pending`, with
+`-` for the attempt ID.
 
 ```sh
 rotari jobs --since 7d

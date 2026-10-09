@@ -153,7 +153,7 @@ does not promise to detect a lost remote client.
   are unverified, and this is not proof of process identity. Each run's inline
   job counts include jobs with a recorded final result and carried results as
   `finished`, and those of them that failed also as `failed`; terminal
-  attempts awaiting a retry and jobs that have not started are counted as
+  attempts awaiting a retry and `pending` jobs, not yet dispatched, are counted as
   `pending`. It is read-only
   and does not remove stale locks. Coordinator liveness is reported only for
   local locks. Human-readable output uses the standard CLI colors only on a
