@@ -317,6 +317,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "logs", Description: "print output logs for all jobs"},
 			cliFlagSpec{Name: "failed-logs", Description: "print output logs for failed jobs"},
 			cliFlagSpec{Name: "stream", Description: "show both streams or select stdout/stderr", ValueName: "STREAM"},
+			cliFlagSpec{Name: "tail", Description: "print only the last N lines of each log, with --logs, --failed-logs, or a job's output", ValueName: "N"},
 			cliFlagSpec{Name: "follow", Description: "follow one selected log stream until the run completes"},
 			cliFlagSpec{Name: "no-pager", Description: "print logs directly instead of using a pager"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},

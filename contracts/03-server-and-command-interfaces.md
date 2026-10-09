@@ -183,6 +183,14 @@ does not promise to detect a lost remote client.
   presentation is `showJobElapsed` in
   [`cmd/rotari/show.go`](../cmd/rotari/show.go). Covered by
   [`conformance/03-interfaces/show_elapsed_test.go`](../conformance/03-interfaces/show_elapsed_test.go).
+- **CLI-24** `show --logs` and `--failed-logs` list a run's jobs in the
+  order the run defines them, executed and carried alike, so the members of a
+  matrix and the tasks of an array stay together; they list only jobs, not
+  other directories of the run. `--tail N` prints only the last N lines of
+  each log there and in a job's own view, and is rejected with any other
+  view. Implemented by `showRunLogs` and `printJobStreams` in
+  [`cmd/rotari/show.go`](../cmd/rotari/show.go); covered by
+  [`conformance/03-interfaces/show_logs_tail_test.go`](../conformance/03-interfaces/show_logs_tail_test.go).
 - **CLI-1** `check --json` reports the same project state, run identifier,
   queue count, lock, and runnable result as the human-readable `check`
   output.

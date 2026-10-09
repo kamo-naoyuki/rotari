@@ -365,6 +365,7 @@ Usage: `rotari show [SELECTOR]`
 | `--logs` | `` | `ROTARI_SHOW_LOGS` | print output logs for all jobs |
 | `--failed-logs` | `` | `ROTARI_SHOW_FAILED_LOGS` | print output logs for failed jobs |
 | `--stream` | `STREAM` | `ROTARI_SHOW_STREAM` | show both streams or select stdout/stderr |
+| `--tail` | `N` | `ROTARI_SHOW_TAIL` | print only the last N lines of each log, with --logs, --failed-logs, or a job's output |
 | `--follow` | `` | `ROTARI_SHOW_FOLLOW` | follow one selected log stream until the run completes |
 | `--no-pager` | `` | `ROTARI_SHOW_NO_PAGER` | print logs directly instead of using a pager |
 | `--json` | `` | `ROTARI_SHOW_JSON` | print machine-readable JSON for a run |

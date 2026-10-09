@@ -198,10 +198,15 @@ select a stream, or explicitly follow output:
 rotari show -p sweep --logs # logs for every job in the selected run
 rotari show -p sweep --failed-logs --stream stderr # failed jobs' separate stderr
 rotari show -p sweep --job-id JOB_ID --stream stdout --follow
+rotari show -p sweep --logs --tail 1 # each job's last line, such as a final metric
 ```
 
 `show --logs --failed` (or `--logs --filter-result failed`) selects the same
 failed jobs as `--failed-logs`, including output carried from an older run.
+Jobs are listed in the order the run defines them, so the members of a matrix
+and the tasks of an array stay together. `--tail N` prints only the last N
+lines of each log, here or for one job, which collects a sweep's final results
+without searching the logs.
 
 When a run is active and output is a terminal, `show JOB_ID` and
 `show ATTEMPT_ID` follow the selected attempt's log automatically. The default

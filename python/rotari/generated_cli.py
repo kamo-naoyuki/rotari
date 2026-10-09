@@ -1362,6 +1362,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "STREAM",
                 },
                 {
+                    "description": "print only the last N lines of each log, "
+                    "with --logs, --failed-logs, or a job's "
+                    "output",
+                    "environment": "ROTARI_SHOW_TAIL",
+                    "name": "tail",
+                    "value_name": "N",
+                },
+                {
                     "description": "follow one selected log stream until the run "
                     "completes",
                     "environment": "ROTARI_SHOW_FOLLOW",
@@ -3901,6 +3909,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari show --stream.",
             "job": False,
             "name": "ROTARI_SHOW_STREAM",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari show --tail.",
+            "job": False,
+            "name": "ROTARI_SHOW_TAIL",
         },
         {
             "array": False,

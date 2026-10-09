@@ -251,6 +251,7 @@ Show details for a project, run, job, or attempt.
 | `logs` | `bool` | print output logs for all jobs |
 | `failed_logs` | `bool` | print output logs for failed jobs |
 | `stream` | `str` | show both streams or select stdout/stderr |
+| `tail` | `str` | print only the last N lines of each log, with --logs, --failed-logs, or a job's output |
 | `follow` | `bool` | follow one selected log stream until the run completes |
 | `no_pager` | `bool` | print logs directly instead of using a pager |
 | `report` | `bool` | print an AI-ready Markdown report |

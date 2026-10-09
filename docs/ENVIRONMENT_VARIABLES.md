@@ -139,6 +139,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_SHOW_LOGS` | yes | no | no | Default for rotari show --logs. |
 | `ROTARI_SHOW_FAILED_LOGS` | yes | no | no | Default for rotari show --failed-logs. |
 | `ROTARI_SHOW_STREAM` | yes | no | no | Default for rotari show --stream. |
+| `ROTARI_SHOW_TAIL` | yes | no | no | Default for rotari show --tail. |
 | `ROTARI_SHOW_FOLLOW` | yes | no | no | Default for rotari show --follow. |
 | `ROTARI_SHOW_NO_PAGER` | yes | no | no | Default for rotari show --no-pager. |
 | `ROTARI_SHOW_JSON` | yes | no | no | Default for rotari show --json. |

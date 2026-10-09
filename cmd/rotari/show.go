@@ -105,6 +105,7 @@ func cmdShow(args []string) int {
 	showFailedLogs := cliBool(fs, "failed-logs", false)
 	followLogs := cliBool(fs, "follow", false)
 	streamOption := cliString(fs, "stream", "both")
+	tailLines := cliInt(fs, "tail", 0)
 	noPager := cliBool(fs, "no-pager", false)
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
@@ -114,6 +115,14 @@ func cmdShow(args []string) int {
 	}
 	if *streamOption != "both" && *streamOption != "stdout" && *streamOption != "stderr" {
 		printError("--stream must be both, stdout, or stderr")
+		return 1
+	}
+	if *tailLines < 0 {
+		printError("--tail must be a positive number of lines")
+		return 1
+	}
+	if cliOptionSet(fs, "tail") && (*followLogs || *jsonOutput || *reportOutput || *artifactsOutput) {
+		printError("--tail cannot be combined with --follow, --json, --report, or --artifacts")
 		return 1
 	}
 	if *followLogs && *streamOption == "both" && cliOptionSet(fs, "stream") {
@@ -276,6 +285,10 @@ func cmdShow(args []string) int {
 			return 1
 		}
 	}
+	if cliOptionSet(fs, "tail") && !*showLogs && !*showFailedLogs && *jobIDOption == "" {
+		printError("--tail requires --logs, --failed-logs, or --job-id")
+		return 1
+	}
 	if cliOptionSet(fs, "stream") && (*reportOutput || (!*showLogs && !*showFailedLogs && !*followLogs && *jobIDOption == "")) {
 		printError("--stream requires a job log, --logs, or --failed-logs view")
 		return 1
@@ -431,7 +444,7 @@ func cmdShow(args []string) int {
 			return followJobLog(os.Stdout, paths, runID, *jobIDOption, attemptID, stream)
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *streamOption)
+			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *tailLines, *streamOption)
 		})
 	}
 	if *followLogs {
@@ -444,7 +457,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showRunLogs(writer, paths, runID, *showFailedLogs || failedOnly, *streamOption)
+			return showRunLogs(writer, paths, runID, *showFailedLogs || failedOnly, *tailLines, *streamOption)
 		})
 	}
 	if *reportOutput {
@@ -1369,10 +1382,10 @@ func loadRunJobSpecs(runDir string) map[string]model.JobSpec {
 }
 
 func showJob(writer io.Writer, paths state.ProjectPaths, runID, jobID string) int {
-	return showJobAttempt(writer, paths, runID, jobID, "")
+	return showJobAttempt(writer, paths, runID, jobID, "", 0)
 }
 
-func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, selectedStreams ...string) int {
+func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, tail int, selectedStreams ...string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -1406,10 +1419,10 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 				// details below keep the original attempt and exit code.
 				fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
 				fmt.Fprintf(writer, "%s manually accepted from run %s attempt %s (no re-execution)\n\n", cyan("Note:"), origin.RunID, origin.AttemptID)
-				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID, selectedStreams...)
+				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID, tail, selectedStreams...)
 			}
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "", selectedStreams...)
+			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "", tail, selectedStreams...)
 		}
 		if !inRun || attemptID != "" {
 			printErrorf(jobNotFoundMessage, jobID, runID)
@@ -1520,7 +1533,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	listing := jobstatus.ListArtifacts(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID, AttemptID: selectedAttemptID})
 	writeArtifactListing(writer, listing, shownArtifacts, "rotari show -j "+selectedAttemptID+" --artifacts")
-	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...))
+	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...), tail)
 	return 0
 }
 
@@ -1535,9 +1548,12 @@ func selectedStreamNames(selected ...string) []string {
 	return []string{stream}
 }
 
-func printJobStreams(writer io.Writer, jobDir string, streams []string) {
+// printJobStreams prints a job's merged output, or each selected stream, and
+// with a positive tail only the last tail lines of each.
+func printJobStreams(writer io.Writer, jobDir string, streams []string, tail int) {
 	if data, err := os.ReadFile(filepath.Join(jobDir, "output")); err == nil {
 		fmt.Fprintf(writer, "%s %s\n", cyan("OUTPUT:"), filepath.Join(jobDir, "output"))
+		data = lastLines(data, tail)
 		fmt.Fprint(writer, string(data))
 		if !strings.HasSuffix(string(data), "\n") {
 			fmt.Fprintln(writer)
@@ -1551,6 +1567,7 @@ func printJobStreams(writer io.Writer, jobDir string, streams []string) {
 		if err != nil || len(data) == 0 {
 			fmt.Fprintf(writer, "(No %s log)\n", stream)
 		} else {
+			data = lastLines(data, tail)
 			fmt.Fprint(writer, string(data))
 			if !strings.HasSuffix(string(data), "\n") {
 				fmt.Fprintln(writer)
@@ -1665,7 +1682,7 @@ func readJSONCommand(path string) string {
 	return strings.Join(job.Command, " ")
 }
 
-func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, failedOnly bool, selectedStreams ...string) int {
+func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, failedOnly bool, tail int, selectedStreams ...string) int {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	entries, err := os.ReadDir(runDir)
 	if err != nil {
@@ -1676,79 +1693,93 @@ func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, faile
 	writeShowTargetHeaderWithMode(writer, paths, "run")
 	fmt.Fprintf(writer, "%s %s\n\n", cyan("Run:"), runID)
 
+	executed := make(map[string]bool, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+		if entry.IsDir() {
+			executed[entry.Name()] = true
 		}
-		jobID := entry.Name()
-		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
-		if err != nil {
-			continue
-		}
-
-		attempt := jobstatus.ReadAttempt(jsonStore(), jobDir)
-		status, statusOK := attempt.ExitCode, attempt.Finished()
-
-		if failedOnly && (!statusOK || status == 0) {
-			continue
-		}
-
-		name := state.ReadJobName(jobDir)
-		if name == "" {
-			name = jobSpecs[jobID].Name
-		}
-		command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
-
-		header := fmt.Sprintf("=== Job: %s", jobID)
-		if name != "" {
-			header += fmt.Sprintf(" (Name: %s)", name)
-		}
-		headerColor := cyan
-		if statusOK {
-			if status == 0 {
-				header += fmt.Sprintf(" [Status: %d (success)]", status)
-				headerColor = green
-			} else {
-				header += fmt.Sprintf(" [Status: %d (failed)]", status)
-				headerColor = red
-			}
-		} else {
-			header += " [Status: running]"
-		}
-		header += " ==="
-		fmt.Fprintln(writer, headerColor(header))
-		if jobSpecs[jobID].WorkingDirectory != "" {
-			fmt.Fprintf(writer, "Working directory: %s\n", jobSpecs[jobID].WorkingDirectory)
-		}
-		fmt.Fprintf(writer, "Command: %s\n", command)
-		printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...))
-		fmt.Fprintln(writer)
 	}
-
-	seen := make(map[string]bool, len(entries))
-	for _, entry := range entries {
-		seen[entry.Name()] = true
-	}
+	// Jobs follow their definition order, as in the run table, so the tasks
+	// of an array and the members of a matrix stay together.
 	queue, queueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
-	if queueErr == nil {
-		for _, command := range queue.Commands {
-			if command.Array == nil {
-				printCarriedForwardOutput(writer, paths, command.ID, command.Name, command.Command, command.WorkingDirectory, command.Origin, seen, failedOnly, selectedStreams...)
-				continue
+	if queueErr != nil || len(queue.Commands) == 0 {
+		// Without the run's definitions, list the directories it executed.
+		for _, entry := range entries {
+			if entry.IsDir() {
+				printExecutedJobLogs(writer, runDir, entry.Name(), jobSpecs[entry.Name()], failedOnly, tail, selectedStreams...)
 			}
+		}
+		return 0
+	}
+	for _, command := range queue.Commands {
+		ids := []string{command.ID}
+		origins := map[string]*model.JobOrigin{command.ID: command.Origin}
+		if command.Array != nil {
+			ids = ids[:0]
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				taskID := fmt.Sprintf("%s-%d", command.ID, task)
-				printCarriedForwardOutput(writer, paths, taskID, command.Name, command.Command, command.WorkingDirectory, command.TaskOrigins[taskID], seen, failedOnly, selectedStreams...)
+				ids = append(ids, taskID)
+				origins[taskID] = command.TaskOrigins[taskID]
 			}
+		}
+		for _, id := range ids {
+			if executed[id] {
+				printExecutedJobLogs(writer, runDir, id, jobSpecs[id], failedOnly, tail, selectedStreams...)
+				continue
+			}
+			printCarriedForwardOutput(writer, paths, id, command.Name, command.Command, command.WorkingDirectory, origins[id], executed, failedOnly, tail, selectedStreams...)
 		}
 	}
 	return 0
 }
 
+// printExecutedJobLogs prints the header and logs of a job the run executed.
+func printExecutedJobLogs(writer io.Writer, runDir, jobID string, spec model.JobSpec, failedOnly bool, tail int, selectedStreams ...string) {
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
+	if err != nil {
+		return
+	}
+	attempt := jobstatus.ReadAttempt(jsonStore(), jobDir)
+	status, statusOK := attempt.ExitCode, attempt.Finished()
+	if failedOnly && (!statusOK || status == 0) {
+		return
+	}
+	name := state.ReadJobName(jobDir)
+	if name == "" {
+		name = spec.Name
+	}
+	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
+
+	header := fmt.Sprintf("=== Job: %s", jobID)
+	if name != "" {
+		header += fmt.Sprintf(" (Name: %s)", name)
+	}
+	headerColor := cyan
+	if statusOK {
+		if status == 0 {
+			header += fmt.Sprintf(" [Status: %d (success)]", status)
+			headerColor = green
+		} else {
+			header += fmt.Sprintf(" [Status: %d (failed)]", status)
+			headerColor = red
+		}
+	} else {
+		header += " [Status: running]"
+	}
+	header += " ==="
+	fmt.Fprintln(writer, headerColor(header))
+	if spec.WorkingDirectory != "" {
+		fmt.Fprintf(writer, "Working directory: %s\n", spec.WorkingDirectory)
+	}
+	fmt.Fprintf(writer, "Command: %s\n", command)
+	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...), tail)
+	fmt.Fprintln(writer)
+}
+
 // printCarriedForwardOutput prints a carried-forward job's output read from
 // its origin run/job, if it was not itself re-executed in this run (i.e. it
 // has no directory of its own here).
-func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, name string, command []string, workingDirectory string, origin *model.JobOrigin, seen map[string]bool, failedOnly bool, selectedStreams ...string) {
+func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, name string, command []string, workingDirectory string, origin *model.JobOrigin, seen map[string]bool, failedOnly bool, tail int, selectedStreams ...string) {
 	if seen[id] || origin == nil {
 		return
 	}
@@ -1788,7 +1819,7 @@ func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, n
 	if err != nil {
 		return
 	}
-	printJobStreams(writer, originDir, selectedStreamNames(selectedStreams...))
+	printJobStreams(writer, originDir, selectedStreamNames(selectedStreams...), tail)
 	fmt.Fprintln(writer)
 }
 
@@ -1993,4 +2024,25 @@ func printShowJobTable(table [][]string) {
 			fmt.Println(line.String())
 		}
 	}
+}
+
+// lastLines returns the last n lines of data, or all of it when n is not
+// positive. A final line without a newline counts as a line.
+func lastLines(data []byte, n int) []byte {
+	if n <= 0 {
+		return data
+	}
+	end := len(data)
+	if end > 0 && data[end-1] == '\n' {
+		end--
+	}
+	for index := end - 1; index >= 0; index-- {
+		if data[index] == '\n' {
+			n--
+			if n == 0 {
+				return data[index+1:]
+			}
+		}
+	}
+	return data
 }
