@@ -936,7 +936,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
+	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-20s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
 	for _, jobID := range jobIDs {
 		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
@@ -1040,15 +1040,17 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 				statusText += " (carried)"
 			}
 		}
+		// Pad before coloring so escape codes do not count toward the width.
+		paddedStatus := fmt.Sprintf("%-20s", statusText)
 		switch {
 		case strings.HasPrefix(statusText, "success"):
-			statusText = green(statusText)
+			statusText = green(paddedStatus)
 		case strings.HasPrefix(statusText, "failed"), statusText == "cancelled":
-			statusText = red(statusText)
+			statusText = red(paddedStatus)
 		default:
-			statusText = yellow(statusText)
+			statusText = yellow(paddedStatus)
 		}
-		fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-24s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
+		fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, not started: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.notStarted, jobCounts.suspended, jobCounts.unknown)
 	// Grouping needs the job definitions, which a run without a readable

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1653,5 +1654,67 @@ func TestCmdShowMatrixAndStageFilterQueueJobs(t *testing.T) {
 	output.Reset()
 	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "prep", "--matrix", "train")) }); code != 1 {
 		t.Fatalf("cmdShow with --stage and --matrix exit code = %d, want 1", code)
+	}
+}
+
+func TestShowRunJobTableAlignsStatusColumn(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "aligned-run"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}, {ID: "job-2", Command: []string{"false"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{{ID: "job-1", ExitCode: 0, Accepted: true}, {ID: "job-2", ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	ansi := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	for _, color := range []bool{false, true} {
+		oldCheck := terminalCheck
+		terminalCheck = func(*os.File) bool { return color }
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		oldStdout := os.Stdout
+		os.Stdout = writer
+		code := showRun(paths, runID, showJobFilter{})
+		_ = writer.Close()
+		os.Stdout = oldStdout
+		terminalCheck = oldCheck
+		output, err := io.ReadAll(reader)
+		if err != nil || code != 0 {
+			t.Fatalf("showRun code=%d err=%v", code, err)
+		}
+		lines := strings.Split(ansi.ReplaceAllString(string(output), ""), "\n")
+		want := -1
+		for _, line := range lines {
+			if strings.HasPrefix(line, "JOB ID ") {
+				want = strings.Index(line, "EXECUTOR")
+			}
+		}
+		if want < 0 {
+			t.Fatalf("no job table header:\n%s", output)
+		}
+		for _, row := range []struct{ jobID, status string }{{"job-1", "success (accepted)"}, {"job-2", "failed"}} {
+			found := false
+			for _, line := range lines {
+				if !strings.HasPrefix(line, row.jobID+" ") {
+					continue
+				}
+				found = true
+				end := strings.Index(line, row.status) + len(row.status)
+				got := end + len(line[end:]) - len(strings.TrimLeft(line[end:], " "))
+				if got != want {
+					t.Errorf("color=%t %s: column after STATUS starts at %d, header EXECUTOR at %d:\n%s", color, row.jobID, got, want, strings.Join(lines, "\n"))
+				}
+			}
+			if !found {
+				t.Fatalf("color=%t: no row for %s:\n%s", color, row.jobID, strings.Join(lines, "\n"))
+			}
+		}
 	}
 }
