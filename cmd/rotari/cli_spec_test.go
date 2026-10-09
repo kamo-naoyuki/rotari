@@ -22,7 +22,7 @@ func TestCliParseColorsFlagErrors(t *testing.T) {
 		}
 		return 1
 	})
-	if !strings.HasPrefix(output, ansiRed+"flag provided but not defined: -matri"+ansiReset+"\n") {
+	if !strings.HasPrefix(output, ansiRed+"unknown option --matri"+ansiReset+"\n") {
 		t.Fatalf("flag error = %q, want a red error line", output)
 	}
 }
@@ -71,5 +71,42 @@ func TestCliSimilarCommand(t *testing.T) {
 	}
 	if got := cliSimilarCommand("completely-unrelated"); got != "" {
 		t.Fatalf("unrelated command suggestion = %q, want none", got)
+	}
+}
+
+// The flag package names every option with one dash and follows an error
+// with every option's description; users see one error line naming the
+// option as they would type it and a pointer to the command's help.
+func TestCliParseFlagErrorsNameOptionsAndPointToHelp(t *testing.T) {
+	oldTerminalCheck := terminalCheck
+	terminalCheck = func(*os.File) bool { return false }
+	t.Cleanup(func() { terminalCheck = oldTerminalCheck })
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--matri"}, "unknown option --matri"},
+		{[]string{"-x"}, "unknown option -x"},
+		{[]string{"--stage"}, "option --stage needs a value"},
+		{[]string{"--local-concurrency", "many"}, `invalid value "many" for option --local-concurrency`},
+		{[]string{"--quiet=maybe"}, `invalid boolean value "maybe" for option --quiet`},
+	} {
+		t.Run(strings.Join(test.args, "_"), func(t *testing.T) {
+			_, output := captureStderr(t, func() int {
+				fs := flag.NewFlagSet("run", flag.ContinueOnError)
+				fs.SetOutput(os.Stderr)
+				cliString(fs, "stage", "")
+				cliInt(fs, "local-concurrency", 1)
+				cliBool(fs, "quiet", false)
+				if err := cliParse(fs, test.args); err == nil {
+					return 0
+				}
+				return 1
+			})
+			lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+			if len(lines) != 2 || !strings.HasPrefix(lines[0], test.want) || lines[1] != "Run 'rotari run --help' to list its options." {
+				t.Fatalf("flag error output = %q, want %q and a help hint", output, test.want)
+			}
+		})
 	}
 }

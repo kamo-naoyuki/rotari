@@ -119,8 +119,8 @@ var positionalCases = []positionalCase{
 	{name: "two runs", args: "lineage {run:sweep-first} {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
 	{name: "runs of two projects", args: "lineage {run:other-first} {run:sweep-second}", fail: true, want: `run "{run:sweep-second}" not found`},
 	{name: "three runs of two projects", args: "lineage {run:sweep-first} {run:sweep-second} {run:other-first}", fail: true, want: `run "{run:other-first}" not found`},
-	{name: "old --all", args: "lineage {run:sweep-second} --all", fail: true, want: "flag provided but not defined: -all"},
-	{name: "old --all", args: "jobs -b {B} --all", fail: true, want: "flag provided but not defined: -all"},
+	{name: "old --all", args: "lineage {run:sweep-second} --all", fail: true, want: "unknown option --all"},
+	{name: "old --all", args: "jobs -b {B} --all", fail: true, want: "unknown option --all"},
 
 	// export: a run or a project, and a file.
 	{name: "run ID", args: "export {run:sweep-first}", want: "- {run:sweep-first}"},

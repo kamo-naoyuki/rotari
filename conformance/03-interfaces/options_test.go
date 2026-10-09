@@ -138,7 +138,7 @@ func assertConfigAndEnvironmentPrecedence(t *testing.T, e *support.Env, configPa
 			}
 			result := commandEnv.Rotari(test.args...)
 			output := result.Stdout + result.Stderr
-			if strings.Contains(output, "failed to load config") || strings.Contains(output, "flag provided but not defined") {
+			if strings.Contains(output, "failed to load config") || strings.Contains(output, "unknown option") {
 				t.Fatalf("command did not load or accept --config: %s", result)
 			}
 			want := "(default \"" + source.want + "\")"

@@ -138,7 +138,7 @@ func (f *pairRegistryFixture) assertServer(t *testing.T, subcommand string, flag
 		unsupported = "basedir"
 	}
 	if pairHasFlag(flags, unsupported) {
-		if r.Code != 1 || r.Stdout != "" || !strings.Contains(r.Stderr, "flag provided but not defined: -"+unsupported) {
+		if r.Code != 1 || r.Stdout != "" || !strings.Contains(r.Stderr, "unknown option --"+unsupported) {
 			t.Fatalf("unsupported subcommand option was not diagnosed: %s", r)
 		}
 		return

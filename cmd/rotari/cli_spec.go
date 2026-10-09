@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -949,10 +950,14 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 			output := parseOutput.String()
 			if err != flag.ErrHelp {
 				if newline := strings.IndexByte(output, '\n'); newline >= 0 {
-					printError(strings.TrimSuffix(output[:newline], "\n"))
-					fmt.Fprint(originalOutput, output[newline+1:])
+					// The flag package follows its error with every option's
+					// description; point to the command's help instead.
+					printError(cliFlagError(output[:newline]))
+					if strings.TrimSpace(output[newline+1:]) != "" {
+						fmt.Fprintf(originalOutput, "Run 'rotari %s --help' to list its options.\n", helpCommandName(fs))
+					}
 				} else if output != "" {
-					printError(strings.TrimSuffix(output, "\n"))
+					printError(cliFlagError(strings.TrimSuffix(output, "\n")))
 				}
 			} else {
 				writeCommandHelp(os.Stdout, helpCommandName(fs), fs)
@@ -971,6 +976,45 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 		args = rest[1:]
 	}
 	return fs.Parse(append([]string{"--"}, positional...))
+}
+
+// cliFlagErrorPatterns rewrites the flag package's errors to name options
+// with the dashes users type: two for long names, one for single letters.
+// Each format receives the option name, then the pattern's other groups.
+var cliFlagErrorPatterns = []struct {
+	pattern *regexp.Regexp
+	format  string
+}{
+	{regexp.MustCompile(`^flag provided but not defined: -(\S+)$`), "unknown option %s"},
+	{regexp.MustCompile(`^flag needs an argument: -(\S+)$`), "option %s needs a value"},
+	{regexp.MustCompile(`^invalid boolean value (?P<value>".*") for -(\S+): (?P<reason>.*)$`), "invalid boolean value %[2]s for option %[1]s: %[3]s"},
+	{regexp.MustCompile(`^invalid value (?P<value>".*") for flag -(\S+): (?P<reason>.*)$`), "invalid value %[2]s for option %[1]s: %[3]s"},
+}
+
+func cliFlagError(message string) string {
+	for _, rule := range cliFlagErrorPatterns {
+		match := rule.pattern.FindStringSubmatch(message)
+		if match == nil {
+			continue
+		}
+		args := []any{}
+		for index, group := range rule.pattern.SubexpNames()[1:] {
+			if group == "" {
+				args = append([]any{cliOptionName(match[index+1])}, args...)
+			} else {
+				args = append(args, match[index+1])
+			}
+		}
+		return fmt.Sprintf(rule.format, args...)
+	}
+	return message
+}
+
+func cliOptionName(name string) string {
+	if len(name) == 1 {
+		return "-" + name
+	}
+	return "--" + name
 }
 
 func parseCLIFlagSet(fs *flag.FlagSet, args []string, stopAtPositional bool) error {
