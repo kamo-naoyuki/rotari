@@ -3,8 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
@@ -13,41 +17,8 @@ import (
 )
 
 func TestCmdInfoReportsContextAndActiveRun(t *testing.T) {
-	baseDir := t.TempDir()
-	masterDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(paths.ProjectDir, "runs", "run-1"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(baseDir, "config.json"), []byte(`{"executor":"local"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	projectConfig := filepath.Join(paths.ProjectDir, "config.json")
-	if err := os.WriteFile(projectConfig, []byte(`{"executor":"local"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
-		t.Fatal(err)
-	}
-
-	var output bytes.Buffer
-	code := captureShowStdout(t, &output, func() int {
-		return run([]string{"info", "--basedir", baseDir, "--project-name", "demo", "--masterdir", masterDir, "--json"})
-	})
-	if code != 0 {
-		t.Fatalf("info exit code = %d, output = %s", code, output.String())
-	}
-	var report infoReport
-	if err := json.Unmarshal(output.Bytes(), &report); err != nil {
-		t.Fatalf("decode info JSON: %v\n%s", err, output.String())
-	}
+	baseDir, masterDir, projectConfig := setupInfoActiveRun(t)
+	report := runInfoJSON(t, "--basedir", baseDir, "--project-name", "demo", "--masterdir", masterDir)
 	if report.MasterDir != masterDir || report.BaseDir != baseDir || report.Project != "demo" {
 		t.Fatalf("resolved context = master %q, basedir %q, project %q", report.MasterDir, report.BaseDir, report.Project)
 	}
@@ -60,6 +31,73 @@ func TestCmdInfoReportsContextAndActiveRun(t *testing.T) {
 	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].RunID != "run-1" {
 		t.Fatalf("active runs = %#v, want run-1", report.ActiveRuns)
 	}
+	if got := report.ActiveRuns[0].Jobs; got == nil || got.Alive != 1 || got.Gone != 0 || got.Unknown != 0 {
+		t.Fatalf("job liveness = %#v, want one live local process group", got)
+	}
+}
+
+func setupInfoActiveRun(t *testing.T) (baseDir, masterDir, projectConfig string) {
+	t.Helper()
+	baseDir, masterDir = t.TempDir(), t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	jobDir := filepath.Join(runDir, "job-a")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeInfoFile(t, filepath.Join(baseDir, "config.json"), `{"executor":"local"}`)
+	projectConfig = filepath.Join(paths.ProjectDir, "config.json")
+	writeInfoFile(t, projectConfig, `{"executor":"local"}`)
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(state.ContextPath(runDir), model.RunContext{Hostname: host}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	process := exec.Command("sleep", "30")
+	process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := process.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = syscall.Kill(-process.Process.Pid, syscall.SIGKILL)
+		_ = process.Wait()
+	})
+	if err := os.WriteFile(filepath.Join(jobDir, "pid"), []byte(fmt.Sprintf("%d\n", process.Process.Pid)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return baseDir, masterDir, projectConfig
+}
+
+func writeInfoFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runInfoJSON(t *testing.T, args ...string) infoReport {
+	t.Helper()
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return run(append([]string{"info"}, append(args, "--json")...)) })
+	if code != 0 {
+		t.Fatalf("info exit code = %d, output = %s", code, output.String())
+	}
+	var report infoReport
+	if err := json.Unmarshal(output.Bytes(), &report); err != nil {
+		t.Fatalf("decode info JSON: %v\n%s", err, output.String())
+	}
+	return report
 }
 
 func containsConfigSource(sources []config.Source, path string) bool {
@@ -110,5 +148,97 @@ func TestCmdInfoShowsAmbiguousProjectsAndDoesNotCleanStaleLock(t *testing.T) {
 	}
 	if _, err := os.Stat(paths.LockFile); err != nil {
 		t.Fatalf("info removed or changed stale lock: %v", err)
+	}
+}
+
+func TestCmdInfoMarksUncreatedProjectWithoutMoreLines(t *testing.T) {
+	baseDir := t.TempDir()
+	masterDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	var text bytes.Buffer
+	code := captureShowStdout(t, &text, func() int {
+		return run([]string{"info", "--basedir", baseDir, "--project-name", "default", "--masterdir", masterDir})
+	})
+	if code != 0 {
+		t.Fatalf("info exit code = %d, output = %s", code, text.String())
+	}
+	if !strings.Contains(text.String(), "Project:   default (not created)") {
+		t.Fatalf("missing uncreated-project marker: %s", text.String())
+	}
+	if lines := strings.Count(text.String(), "\n"); lines > 20 {
+		t.Fatalf("empty info output grew beyond the 20-line glance budget: %d lines\n%s", lines, text.String())
+	}
+
+	var jsonOutput bytes.Buffer
+	code = captureShowStdout(t, &jsonOutput, func() int {
+		return run([]string{"info", "--basedir", baseDir, "--project-name", "default", "--masterdir", masterDir, "--json"})
+	})
+	if code != 0 {
+		t.Fatalf("info --json exit code = %d, output = %s", code, jsonOutput.String())
+	}
+	var report infoReport
+	if err := json.Unmarshal(jsonOutput.Bytes(), &report); err != nil {
+		t.Fatalf("decode info JSON: %v\n%s", err, jsonOutput.String())
+	}
+	if report.ProjectExists {
+		t.Fatalf("project_exists = true for absent project %q", report.Project)
+	}
+}
+
+func TestInfoJobLivenessUnknownAndTerminalAttempts(t *testing.T) {
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, hostname, executor, pid, status string
+		want                                  infoJobLiveness
+	}{
+		{"gone", host, "local", "999999999", "", infoJobLiveness{Gone: 1}},
+		{"missing-pid", host, "local", "", "", infoJobLiveness{Unknown: 1}},
+		{"invalid-pid", host, "local", "-1", "", infoJobLiveness{Unknown: 1}},
+		{"remote", host + "-remote", "local", "999999999", "", infoJobLiveness{Unknown: 1}},
+		{"missing-host", "", "local", "999999999", "", infoJobLiveness{Unknown: 1}},
+		{"scheduler", host, "slurm", "999999999", "", infoJobLiveness{Unknown: 1}},
+		{"finished", host, "local", "999999999", "0", infoJobLiveness{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runDir := t.TempDir()
+			jobDir := filepath.Join(runDir, "job-a")
+			if err := state.WriteJSON(state.ContextPath(runDir), model.RunContext{Hostname: test.hostname}); err != nil {
+				t.Fatal(err)
+			}
+			if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: test.executor}); err != nil {
+				t.Fatal(err)
+			}
+			if test.pid != "" {
+				writeInfoFile(t, filepath.Join(jobDir, "pid"), test.pid)
+			}
+			if test.status != "" {
+				writeInfoFile(t, filepath.Join(jobDir, "status"), test.status)
+			}
+			got, err := infoRunJobLiveness(runDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got == nil {
+				got = &infoJobLiveness{}
+			}
+			if *got != test.want {
+				t.Fatalf("liveness = %+v, want %+v", *got, test.want)
+			}
+		})
+	}
+}
+
+func TestInfoJobCountsStayOnRunLine(t *testing.T) {
+	var output bytes.Buffer
+	captureShowStdout(t, &output, func() int {
+		printInfoRuns([]infoRun{{Project: "demo", RunID: "run-1", Jobs: &infoJobLiveness{Alive: 2, Gone: 1, Unknown: 3}}})
+		return 0
+	})
+	if strings.Count(output.String(), "\n") != 2 || !strings.Contains(output.String(), "jobs=alive:2 gone:1 unknown:3") {
+		t.Fatalf("job counts must stay on the existing run line:\n%s", output.String())
 	}
 }

@@ -84,6 +84,31 @@ func (Local) recordedPID(jobDir string) (int, error) {
 	return pid, nil
 }
 
+// LocalProcessGroupAlive reports whether the process group recorded by a local
+// attempt exists. known is false when the PID record cannot be inspected.
+func LocalProcessGroupAlive(jobDir string) (alive, known bool) {
+	path, err := state.ValidatedStateFile(jobDir, "pid")
+	if err != nil {
+		return false, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 1 {
+		return false, false
+	}
+	err = syscall.Kill(-pid, 0)
+	if err == nil || errors.Is(err, syscall.EPERM) {
+		return true, true
+	}
+	if errors.Is(err, syscall.ESRCH) {
+		return false, true
+	}
+	return false, false
+}
+
 func processAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || err == syscall.EPERM

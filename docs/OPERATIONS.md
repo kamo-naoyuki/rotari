@@ -10,10 +10,11 @@ supervisors, run locks, and active or interrupted runs. Add `--json` for
 machine-readable output. When multiple projects exist and none is selected,
 the command reports the choices instead of guessing.
 
-The run lock reports whether its coordinator PID is alive on this host. It
-does not verify individual job processes: job statuses are recorded results,
-not proof that a process is currently running. Use `jobs` or `show` for job
-details. Run-lock inspection does not remove stale locks.
+An uncreated selected project is marked on the same line as its name. For
+unfinished local-executor attempts, `info` best-effort checks whether the
+recorded process group exists; other executors and remote hosts are
+unverified. This does not prove process identity. The run lock separately
+reports coordinator liveness on this host, and stale locks are never removed.
 
 ## Server management
 

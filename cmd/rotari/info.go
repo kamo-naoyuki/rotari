@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -17,16 +19,16 @@ import (
 )
 
 type infoReport struct {
-	MasterDir       string           `json:"masterdir"`
-	BaseDir         string           `json:"basedir"`
-	Project         string           `json:"project,omitempty"`
-	ProjectChoices  []string         `json:"project_choices,omitempty"`
-	LoadedConfigs   []config.Source  `json:"loaded_config_sources,omitempty"`
-	VisibleConfigs  infoConfigFiles  `json:"visible_config_files"`
-	Supervisors     []infoSupervisor `json:"running_supervisors"`
-	RunLocks        []infoRunLock    `json:"run_locks"`
-	ActiveRuns      []infoRun        `json:"active_runs"`
-	JobLivenessNote string           `json:"job_liveness_note"`
+	MasterDir      string           `json:"masterdir"`
+	BaseDir        string           `json:"basedir"`
+	Project        string           `json:"project,omitempty"`
+	ProjectExists  bool             `json:"project_exists"`
+	ProjectChoices []string         `json:"project_choices,omitempty"`
+	LoadedConfigs  []config.Source  `json:"loaded_config_sources,omitempty"`
+	VisibleConfigs infoConfigFiles  `json:"visible_config_files"`
+	Supervisors    []infoSupervisor `json:"running_supervisors"`
+	RunLocks       []infoRunLock    `json:"run_locks"`
+	ActiveRuns     []infoRun        `json:"active_runs"`
 }
 
 type infoConfigFiles struct {
@@ -52,6 +54,13 @@ type infoRun struct {
 	Project string           `json:"project"`
 	RunID   string           `json:"run_id"`
 	Phase   project.RunPhase `json:"phase"`
+	Jobs    *infoJobLiveness `json:"jobs,omitempty"`
+}
+
+type infoJobLiveness struct {
+	Alive   int `json:"alive"`
+	Gone    int `json:"gone"`
+	Unknown int `json:"unknown"`
 }
 
 func cmdInfo(args []string) int {
@@ -102,14 +111,15 @@ func cmdInfo(args []string) int {
 	if selectedProject == "" {
 		choices = projects
 	}
+	projectExists := containsInfoProject(projects, selectedProject)
 	report := infoReport{
-		MasterDir:       masterDir,
-		BaseDir:         baseDir,
-		Project:         selectedProject,
-		ProjectChoices:  choices,
-		LoadedConfigs:   append([]config.Source(nil), cliFileConfig.Sources...),
-		VisibleConfigs:  infoConfigFiles{Common: common, Projects: projectConfigs},
-		JobLivenessNote: "Individual job process liveness is not checked; job states are recorded results. Coordinator liveness is reported from the run lock.",
+		MasterDir:      masterDir,
+		BaseDir:        baseDir,
+		Project:        selectedProject,
+		ProjectExists:  projectExists,
+		ProjectChoices: choices,
+		LoadedConfigs:  append([]config.Source(nil), cliFileConfig.Sources...),
+		VisibleConfigs: infoConfigFiles{Common: common, Projects: projectConfigs},
 	}
 	if report.Supervisors, err = infoSupervisors(baseDir, projects); err != nil {
 		printErrorf("failed to inspect supervisors: %v", err)
@@ -145,6 +155,11 @@ func infoProjects(baseDir string) ([]string, error) {
 	}
 	sort.Strings(projects)
 	return projects, nil
+}
+
+func containsInfoProject(projects []string, name string) bool {
+	index := sort.SearchStrings(projects, name)
+	return name != "" && index < len(projects) && projects[index] == name
 }
 
 func infoSupervisors(baseDir string, projects []string) ([]infoSupervisor, error) {
@@ -214,18 +229,74 @@ func infoProjectRuns(name string, paths state.ProjectPaths) ([]infoRun, error) {
 	}
 	runs := make([]infoRun, 0)
 	for _, entry := range entries {
-		if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
-			continue
-		}
-		phase, err := project.RunPhaseOf(paths, entry.Name())
+		run, active, err := inspectInfoRun(name, paths, entry)
 		if err != nil {
-			return nil, fmt.Errorf("inspect run %q in project %q: %w", entry.Name(), name, err)
+			return nil, err
 		}
-		if phase == project.RunPhaseRunning || phase == project.RunPhaseInterrupted {
-			runs = append(runs, infoRun{Project: name, RunID: entry.Name(), Phase: phase})
+		if active {
+			runs = append(runs, run)
 		}
 	}
 	return runs, nil
+}
+
+func inspectInfoRun(name string, paths state.ProjectPaths, entry os.DirEntry) (infoRun, bool, error) {
+	if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
+		return infoRun{}, false, nil
+	}
+	phase, err := project.RunPhaseOf(paths, entry.Name())
+	if err != nil {
+		return infoRun{}, false, fmt.Errorf("inspect run %q in project %q: %w", entry.Name(), name, err)
+	}
+	if phase != project.RunPhaseRunning && phase != project.RunPhaseInterrupted {
+		return infoRun{}, false, nil
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, entry.Name())
+	if err != nil {
+		return infoRun{}, false, err
+	}
+	jobs, err := infoRunJobLiveness(runDir)
+	if err != nil {
+		return infoRun{}, false, fmt.Errorf("inspect jobs in run %q for project %q: %w", entry.Name(), name, err)
+	}
+	return infoRun{Project: name, RunID: entry.Name(), Phase: phase, Jobs: jobs}, true, nil
+}
+
+func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
+	context, err := state.LoadContext(jsonStore(), runDir)
+	hostKnown := err == nil && context.Hostname != ""
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+	attemptDirs, err := state.LatestAttemptDirs(runDir)
+	if err != nil {
+		return nil, err
+	}
+	result := &infoJobLiveness{}
+	for _, attemptDir := range attemptDirs {
+		attempt := jobstatus.ReadAttempt(jsonStore(), attemptDir)
+		if attempt.Finished() {
+			continue
+		}
+		if !hostKnown || context.Hostname != hostname || state.ReadAttemptExecutor(attemptDir) != "local" {
+			result.Unknown++
+			continue
+		}
+		alive, known := executor.LocalProcessGroupAlive(attemptDir)
+		switch {
+		case !known:
+			result.Unknown++
+		case alive:
+			result.Alive++
+		default:
+			result.Gone++
+		}
+	}
+	if result.Alive+result.Gone+result.Unknown == 0 {
+		return nil, nil
+	}
+	return result, nil
 }
 
 func printInfo(report infoReport) {
@@ -234,7 +305,6 @@ func printInfo(report infoReport) {
 	printInfoSupervisors(report.Supervisors)
 	printInfoRunLocks(report.RunLocks)
 	printInfoRuns(report.ActiveRuns)
-	fmt.Printf("\nNote: %s\n", report.JobLivenessNote)
 }
 
 func printInfoLocation(report infoReport) {
@@ -245,7 +315,11 @@ func printInfoLocation(report infoReport) {
 			fmt.Printf("  Available: %s\n", strings.Join(report.ProjectChoices, ", "))
 		}
 	} else {
-		fmt.Printf("Project:   %s\n", report.Project)
+		fmt.Printf("Project:   %s", report.Project)
+		if !report.ProjectExists {
+			fmt.Print(" (not created)")
+		}
+		fmt.Println()
 	}
 	fmt.Println()
 }
@@ -310,7 +384,11 @@ func printInfoRuns(runs []infoRun) {
 		fmt.Println(infoNone)
 	}
 	for _, run := range runs {
-		fmt.Printf("  project=%s run=%s phase=%s\n", run.Project, run.RunID, run.Phase)
+		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, run.Phase)
+		if run.Jobs != nil {
+			fmt.Printf(" jobs=alive:%d gone:%d unknown:%d", run.Jobs.Alive, run.Jobs.Gone, run.Jobs.Unknown)
+		}
+		fmt.Println()
 	}
 }
 

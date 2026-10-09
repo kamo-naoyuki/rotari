@@ -146,11 +146,13 @@ does not promise to detect a lost remote client.
 ## CLI presentation
 
 - **CLI-21** `info` reports the resolved master directory, base directory,
-  selected project or available choices, visible and loaded config sources,
-  supervisors, run locks, and active or interrupted runs. It is read-only and
-  does not remove stale locks. Coordinator liveness is reported only for
-  local locks; individual job process liveness is not inferred from recorded
-  job status. The implementation is in
+  selected project (marking it when not yet created) or available choices,
+  visible and loaded config sources, supervisors, run locks, and active or
+  interrupted runs. For unfinished attempts, it best-effort checks the local
+  process group for local-executor jobs; remote and other executor processes
+  are unverified, and this is not proof of process identity. It is read-only
+  and does not remove stale locks. Coordinator liveness is reported only for
+  local locks. The implementation is in
   [`cmd/rotari/info.go`](../cmd/rotari/info.go), with CLI and non-mutation
   coverage in [`cmd/rotari/info_test.go`](../cmd/rotari/info_test.go) and
   [`conformance/03-interfaces/info_test.go`](../conformance/03-interfaces/info_test.go).
