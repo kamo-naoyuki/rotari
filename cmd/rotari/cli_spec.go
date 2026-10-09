@@ -297,6 +297,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
 			cliFlagSpec{Name: "since", Description: "include finished runs in this time window (default 1d), such as 24h or 7d; active or interrupted runs are always included", ValueName: "DURATION"},
+			cliFlagSpec{Name: "json", Description: "print machine-readable JSON"},
 		),
 		Positional: "[PROJECT]",
 	},

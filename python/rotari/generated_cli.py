@@ -1257,6 +1257,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "since",
                     "value_name": "DURATION",
                 },
+                {
+                    "description": "print machine-readable JSON",
+                    "environment": "ROTARI_RUNS_JSON",
+                    "name": "json",
+                },
             ],
             "name": "runs",
             "positional": "[PROJECT]",
@@ -3822,6 +3827,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari runs --since.",
             "job": False,
             "name": "ROTARI_RUNS_SINCE",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari runs --json.",
+            "job": False,
+            "name": "ROTARI_RUNS_JSON",
         },
         {
             "array": False,

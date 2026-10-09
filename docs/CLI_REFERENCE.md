@@ -340,6 +340,7 @@ Usage: `rotari runs [PROJECT]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `--since` | `DURATION` | `ROTARI_RUNS_SINCE` | include finished runs in this time window (default 1d), such as 24h or 7d; active or interrupted runs are always included |
+| `--json` | `` | `ROTARI_RUNS_JSON` | print machine-readable JSON |
 
 ### `rotari show`
 

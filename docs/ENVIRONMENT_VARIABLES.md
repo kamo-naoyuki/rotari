@@ -129,6 +129,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_REMOVE_STAGE` | yes | no | no | Default for rotari remove --stage. |
 | `ROTARI_REMOVE_MATRIX` | yes | no | no | Default for rotari remove --matrix. |
 | `ROTARI_RUNS_SINCE` | yes | no | no | Default for rotari runs --since. |
+| `ROTARI_RUNS_JSON` | yes | no | no | Default for rotari runs --json. |
 | `ROTARI_SHOW_QUEUE` | yes | no | no | Default for rotari show --queue. |
 | `ROTARI_SHOW_FAILED` | yes | no | no | Default for rotari show --failed. |
 | `ROTARI_SHOW_UNFINISHED` | yes | no | no | Default for rotari show --unfinished. |

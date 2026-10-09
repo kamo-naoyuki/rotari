@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -69,6 +70,26 @@ type runListRow struct {
 	Finished   string
 	FinishedAt time.Time
 	Order      int64
+	// The recorded values behind the display columns, for --json.
+	runName      string
+	exitCode     *int
+	startedAt    string
+	finishedAt   string
+	clientStatus model.RunClientStatus
+}
+
+// runListJSON is one run of `runs --json`, named like `show --json`.
+type runListJSON struct {
+	BaseDir      string                `json:"base_dir"`
+	Project      string                `json:"project_name"`
+	RunID        string                `json:"run_id"`
+	RunName      string                `json:"run_name,omitempty"`
+	Lifecycle    string                `json:"lifecycle"`
+	ClientStatus model.RunClientStatus `json:"client_status"`
+	ClientLabel  string                `json:"client_label"`
+	ExitCode     *int                  `json:"exit_code"`
+	StartedAt    string                `json:"started_at,omitempty"`
+	FinishedAt   string                `json:"finished_at,omitempty"`
 }
 
 // cmdRuns lists active and interrupted runs plus recently finished runs across
@@ -80,6 +101,7 @@ func cmdRuns(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	masterdir := cliString(fs, "masterdir", "")
 	since := cliString(fs, "since", joblist.DefaultSinceText)
+	jsonOutput := cliBool(fs, "json", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -114,6 +136,9 @@ func cmdRuns(args []string) int {
 		return 1
 	}
 	rows = filterRunRows(rows, time.Now().Add(-window))
+	if *jsonOutput {
+		return printRunRowsJSON(rows)
+	}
 	if len(rows) == 0 {
 		fmt.Printf("No active or interrupted runs, or runs finished within %s, found in %s.\n", *since, describeRunScope(baseDirs, projectFilter))
 		return 0
@@ -225,6 +250,8 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 		row.Name = firstNonEmpty(summary.RunName, "-")
 		row.Status = firstNonEmpty(summary.Status, model.RunStatus(summary.ExitCode))
 		row.ExitCode = strconv.Itoa(summary.ExitCode)
+		row.runName, row.exitCode = summary.RunName, &summary.ExitCode
+		row.startedAt, row.finishedAt = summary.StartedAt, summary.FinishedAt
 		row.StartedAt = model.FormatDisplayTimestamp(summary.StartedAt)
 		row.Finished = model.FormatDisplayTimestamp(summary.FinishedAt)
 		row.FinishedAt, _ = time.Parse(time.RFC3339Nano, summary.FinishedAt)
@@ -235,6 +262,8 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 		// An active or interrupted run has no summary yet; its lock records
 		// the name and start time.
 		row.Name = firstNonEmpty(lock.RunName, "-")
+		row.runName = lock.RunName
+		row.startedAt = lock.StartedAt
 		if started, err := time.Parse(time.RFC3339Nano, lock.StartedAt); err == nil {
 			row.StartedAt = model.FormatDisplayTimestamp(lock.StartedAt)
 			row.Order = started.UnixNano()
@@ -247,11 +276,29 @@ func readRunRow(paths state.ProjectPaths, projectName string, entry os.DirEntry)
 	row.Status = lifecycle
 	clientStatus, err := runview.ClientStatus(paths, runID)
 	if err != nil {
-		row.Client = "unknown"
-	} else {
-		row.Client = runview.ClientStatusLabel(clientStatus)
+		clientStatus = model.RunClientStatus{State: "unknown"}
 	}
+	row.clientStatus = clientStatus
+	row.Client = runview.ClientStatusLabel(clientStatus)
 	return row, nil
+}
+
+func printRunRowsJSON(rows []runListRow) int {
+	runs := make([]runListJSON, 0, len(rows))
+	for _, row := range rows {
+		runs = append(runs, runListJSON{
+			BaseDir: row.BaseDir, Project: row.Project, RunID: row.RunID, RunName: row.runName,
+			Lifecycle: row.Status, ClientStatus: row.clientStatus, ClientLabel: row.Client,
+			ExitCode: row.exitCode, StartedAt: row.startedAt, FinishedAt: row.finishedAt,
+		})
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(runs); err != nil {
+		printError(err)
+		return 1
+	}
+	return 0
 }
 
 func describeRunScope(baseDirs []string, projectFilter string) string {

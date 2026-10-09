@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -418,5 +419,65 @@ func TestListsRunsActiveRunWithoutSummaryUsesLockDetails(t *testing.T) {
 				t.Fatalf("row = %#v, want status %q, name sweep, and the lock start time", row, test.want)
 			}
 		})
+	}
+}
+
+func TestListsRunsJSON(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	finishedAt := time.Now().Add(-time.Hour).UTC()
+	paths := writeListsRunAt(t, baseDir, "demo", "run-done", finishedAt)
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-done", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientCompleted, Reason: model.RunClientReasonAsync}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-active"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-active"}); err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-active", RunName: "sweep", Host: host, StartedAt: startedAt}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return cmdRuns([]string{"--basedir", baseDir, "--json"}) }); code != 0 {
+		t.Fatalf("runs --json exit = %d: %s", code, output.String())
+	}
+	var runs []struct {
+		BaseDir      string                `json:"base_dir"`
+		Project      string                `json:"project_name"`
+		RunID        string                `json:"run_id"`
+		RunName      string                `json:"run_name"`
+		Lifecycle    string                `json:"lifecycle"`
+		ClientStatus model.RunClientStatus `json:"client_status"`
+		ClientLabel  string                `json:"client_label"`
+		ExitCode     *int                  `json:"exit_code"`
+		StartedAt    string                `json:"started_at"`
+		FinishedAt   string                `json:"finished_at"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &runs); err != nil {
+		t.Fatalf("runs --json is not JSON: %v\n%s", err, output.String())
+	}
+	if len(runs) != 2 {
+		t.Fatalf("runs = %+v", runs)
+	}
+	active, done := runs[0], runs[1]
+	if active.RunID != "run-active" || active.Lifecycle != "running" || active.RunName != "sweep" || active.ExitCode != nil || active.StartedAt != startedAt || active.FinishedAt != "" || active.BaseDir != baseDir || active.Project != "demo" {
+		t.Errorf("active run = %+v", active)
+	}
+	if done.RunID != "run-done" || done.Lifecycle != "finished" || done.ExitCode == nil || *done.ExitCode != 0 || done.FinishedAt != finishedAt.Format(time.RFC3339Nano) ||
+		done.ClientStatus.Mode != model.RunClientModeAsync || done.ClientLabel != "async (completed)" {
+		t.Errorf("finished run = %+v", done)
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdRuns([]string{"--basedir", t.TempDir(), "--json"}) }); code != 0 || strings.TrimSpace(output.String()) != "[]" {
+		t.Fatalf("empty runs --json = %d %q, want []", code, output.String())
 	}
 }
