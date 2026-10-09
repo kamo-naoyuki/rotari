@@ -64,10 +64,12 @@ rather than claiming the job has not started. Completed jobs show `success`,
 `failed`, `cancelled`, or `blocked`; results carried from another run are marked
 `(carried)`.
 
-Client state describes only the initiating run/retry progress client, not
-`wait`, Web, or MCP readers. If the supervisor cannot be verified, the current
-connection is `unknown`; where available, the label retains the last recorded
-detach reason. A finalized client record shows `async (completed)` or
+While a run is active, `CLIENT` is `attached` if any live `run`, `retry`, or
+`wait` session is following it. Otherwise it shows the initiating run/retry
+client's recorded state, such as `detached (async)` or `detached (Ctrl-D)`;
+`wait` sessions and Web or MCP readers never change that record. If the
+supervisor cannot be verified, the current connection is `unknown`; where
+available, the label retains the last recorded detach reason. A finalized client record shows `async (completed)` or
 `sync (completed)` and retains recorded detach/cancel history; this describes
 history, not a live connection. A finished run without a finalized client
 record still shows `unknown`. These classifications are best-effort and do not

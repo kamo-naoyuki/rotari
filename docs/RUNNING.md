@@ -13,9 +13,10 @@ rotari wait sweep
 
 `run --async` starts a detached run and returns while its jobs continue.
 `wait` can monitor detached runs, printing new progress, then the completion
-message and run exit code. If the selected run still has a synchronous `run`
-client attached, `wait` warns and monitors it anyway. Detach it with Ctrl-D to
-include it in implicit selection. If the run has already finished, `wait`
+message and run exit code. If another client, a synchronous `run` or another
+`wait`, is attached to the selected run, `wait` warns and monitors it anyway.
+Implicit selection includes the run only after every such client detaches,
+for example with Ctrl-D. If the run has already finished, `wait`
 prints only the completion message. Runs inherit the caller's working
 directory and environment unless overridden; use `--env=NONE` to suppress
 inherited variables. Job variables and rotari metadata still apply. See
@@ -38,8 +39,8 @@ rotari wait RUN_ID
 rotari wait PROJECT
 ```
 
-For a project, `wait` selects its active run; if the synchronous client is
-still attached, it warns and continues monitoring. If no run is active,
+For a project, `wait` selects its active run; if another client is attached
+to it, it warns and continues monitoring. If no run is active,
 it returns the latest run's result. A positional selector is checked as project
 name, run name, then run ID; use `-r RUN_ID` to select an ID explicitly. With
 no selector or `-p`, it waits for all active detached runs in the basedir,

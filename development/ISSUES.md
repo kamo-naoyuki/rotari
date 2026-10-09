@@ -8,8 +8,6 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Docs disagree on what the run CLIENT column counts** ([docs/INSPECT.md](../docs/INSPECT.md), [docs/RUNNING.md](../docs/RUNNING.md)): INSPECT.md says CLIENT aggregates run/retry and `wait` sessions, then says client state describes only the initiating run/retry client, not `wait`. The implementation shows an async run with only a `wait` attached as `attached`. RUNNING.md describes implicit-wait skipping in terms of a synchronous `run` client only.
-
 - **`jobs` and `info` omit jobs that have not started** ([internal/joblist/joblist.go](../internal/joblist/joblist.go), `collectRun`; [cmd/rotari/info.go](../cmd/rotari/info.go), `infoRunJobLiveness`): rows need an attempt ID, so jobs waiting on dependencies or concurrency are skipped, and `info`'s finished/alive/gone/unknown counts do not add up to the run's job count. A run with one running job and three waiting dependents looks like it has one job left. `info` also re-derives finished-ness from attempt files instead of `jobstatus`; a finished attempt without a final result (for example, one awaiting `run --retry`) is counted in no bucket.
 
 - **Web loader re-implements job display status** ([internal/web/loader.go](../internal/web/loader.go), summary-only jobs in `LoadJobs` and `buildLineageSummary`): it derives `blocked` from the error prefix and calls `model.ResultStatus` instead of `jobstatus.Job.DisplayStatus`, which the CLI uses. The two can drift, for example on cancelled results.
