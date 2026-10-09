@@ -60,6 +60,7 @@ const historySearchStatusOptions = {
     "unknown",
     "success",
     "success (accepted)",
+    "success (accepted) (carried)",
     "success (carried)",
     "failed",
     "failed (carried)",

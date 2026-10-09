@@ -463,3 +463,54 @@ func TestReportLabelsJobsAsShowDoes(t *testing.T) {
 		}
 	}
 }
+
+// TestAcceptedJobLabelAgreesAcrossViews marks a failed job as success, so
+// retry carries it as accepted, and expects show, jobs, the Web API, and the
+// report to label it alike.
+func TestAcceptedJobLabelAgreesAcrossViews(t *testing.T) {
+	covers(t, "DUR-5")
+	e := support.NewEnv(t)
+	project := "accepted-label"
+	bad := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "bad", "--", "false"))
+	e.MustRotari("add", "-p", project, "--job-name", "good", "--", "true")
+	e.Rotari("run", "-p", project, "--quiet")
+	e.MustRotari("copy", "-p", project, "--quiet")
+	e.MustRotari("change", "-p", project, "-j", bad, "--status", "success", "--quiet")
+	e.MustRotari("retry", "-p", project, "--quiet")
+	var shownRun struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, "--json").Stdout), &shownRun); err != nil {
+		t.Fatal(err)
+	}
+	const want = "success (accepted) (carried)"
+
+	labels := map[string]string{}
+	for _, line := range strings.Split(e.MustRotari("show", "-p", project, "-r", shownRun.RunID).Stdout, "\n") {
+		if strings.HasPrefix(line, bad+" ") && strings.Contains(line, want) {
+			labels["show"] = want
+		}
+	}
+	var jobs []struct {
+		RunID string `json:"run_id"`
+		JobID string `json:"job_id"`
+		State string `json:"state"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("jobs", "--basedir", e.Base, project, "--json").Stdout), &jobs); err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range jobs {
+		if job.RunID == shownRun.RunID && job.JobID == bad {
+			labels["jobs"] = job.State
+		}
+	}
+	labels["web"] = loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), project, shownRun.RunID)).Body, project, shownRun.RunID)[bad].ExecutionStatus
+	if strings.Contains(e.MustRotari("show", "-p", project, "-r", shownRun.RunID, "--report").Stdout, "- Job ID: `"+bad+"`\n- Status: "+want+"\n") {
+		labels["report"] = want
+	}
+	for _, view := range []string{"show", "jobs", "web", "report"} {
+		if labels[view] != want {
+			t.Errorf("%s labels the accepted job %q, want %q", view, labels[view], want)
+		}
+	}
+}

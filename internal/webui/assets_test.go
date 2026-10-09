@@ -51,3 +51,17 @@ func TestComposeStaticBootstrapInjectsData(t *testing.T) {
 		t.Fatal("static bootstrap contains an unreplaced data placeholder")
 	}
 }
+
+func TestJobsStateClassTreatsAcceptedSuccessAsSuccess(t *testing.T) {
+	for state, want := range map[string]string{
+		"success":            "success",
+		"success (accepted)": "success",
+		"running (recorded)": "running",
+		"failed":             "failed",
+		"not started":        "unknown",
+	} {
+		if got := jobsStateClass(state); got != want {
+			t.Errorf("jobsStateClass(%q) = %q, want %q", state, got, want)
+		}
+	}
+}

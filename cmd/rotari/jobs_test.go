@@ -60,6 +60,10 @@ func TestFormatJobsRowColorsStateWithoutChangingColumnWidth(t *testing.T) {
 		t.Fatalf("failed row = %q, want visible width-preserving row", colored)
 	}
 
+	// An accepted earlier failure is a success.
+	if got := colorJobsValue('s', "success (accepted)"); got != ansiGreen+"success (accepted)"+ansiReset {
+		t.Errorf("accepted success = %q, want green", got)
+	}
 	for _, status := range []string{"interrupted", "unknown", "waiting (recorded)", "suspended (recorded)"} {
 		if got := colorJobsValue('s', status); got != ansiYellow+status+ansiReset {
 			t.Errorf("colorJobsValue(%q) = %q, want yellow", status, got)

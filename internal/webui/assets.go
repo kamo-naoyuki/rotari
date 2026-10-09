@@ -369,6 +369,8 @@ func jobsStateClass(state string) string {
 	switch state {
 	case "success", "failed", "running":
 		return state
+	case "success (accepted)":
+		return "success"
 	case "running (recorded)":
 		return "running"
 	default:

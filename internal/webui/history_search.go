@@ -326,9 +326,6 @@ func historySearchJobRecord(base webprojection.HistorySearchRecord, job webproje
 	}
 	var exitCode *int
 	if job.Result != nil {
-		if job.Result.Accepted {
-			jobStatus = "success (accepted)"
-		}
 		value := job.Result.ExitCode
 		exitCode = &value
 	}

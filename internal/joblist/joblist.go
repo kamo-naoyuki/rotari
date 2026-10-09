@@ -174,14 +174,12 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		summaryResult, hasSummary := resultByID[job.ID]
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
 		statusOK := resolved.Finished()
-		jobState := resolved.DisplayStatus(model.JobSpec{ID: job.ID, Command: job.Command})
+		displayStatus := resolved.DisplayStatus(model.JobSpec{ID: job.ID, Command: job.Command})
 		latestAttemptID, _ := state.LatestAttemptID(runDir, job.ID)
 		origin := runQueue.OriginOf(job.ID)
 		carried := runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked(), hasSummary)
-		if carried {
-			jobState += " (carried)"
-		}
-		notStarted := jobState == jobstatus.StatusNotStarted
+		jobState := jobstatus.DisplayLabel(displayStatus, resolved.Accepted(), carried)
+		notStarted := displayStatus == jobstatus.StatusNotStarted
 		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, origin, carried)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {

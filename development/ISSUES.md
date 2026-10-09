@@ -8,8 +8,6 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **The accepted label is composed in several places** ([internal/webui/history_search.go](../internal/webui/history_search.go), [internal/webui/assets/web_app_tables.js](../internal/webui/assets/web_app_tables.js), [internal/web/loader.go](../internal/web/loader.go), [internal/joblist/joblist.go](../internal/joblist/joblist.go)): `show` and reports label jobs with `jobstatus.DisplayLabel`, but the Web API `execution_status` and `jobs` omit `(accepted)`, the Web tables add it in JavaScript, and history search adds it while dropping `(carried)`. Moving them to `DisplayLabel` changes the Web API and `jobs` output and history search values, so it needs its own decision.
-
 - **`TestCLIFlagPairCancel/pairs/filter-state+project-name` failed under load** ([conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go](../conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go)): on 2026-10-09, `go test -short ./...` failed with `after 15s: running=0, want 5` while other rotari processes were running on the machine. The package passed when rerun alone. Investigate with full logs on recurrence rather than raising the timeout.
 
 - **CLI usability gaps found in a 2026-10-09 review**: a run cancelled with Ctrl-C is listed as `failed`; `wait` without `-p` ignores `ROTARI_PROJECT_NAME` without saying so.

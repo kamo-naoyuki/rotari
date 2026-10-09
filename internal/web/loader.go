@@ -207,11 +207,8 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			}
 			job.Result = &result
 		}
-		job.ExecutionStatus = resolved.DisplayStatus(jobSpec)
+		job.ExecutionStatus = jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), job.Carried)
 		job.lineageStatus = runview.LineageStatus(resolved)
-		if job.Carried {
-			job.ExecutionStatus += " (carried)"
-		}
 		if job.Result != nil {
 			job.DiagnosisOutdated = diagnose.Outdated(*job.Result)
 		}
@@ -230,7 +227,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		// A result without a job in the command snapshot resolves from the
 		// summary alone.
 		resolved := jobstatus.ResolveJob(jobstatus.Attempt{}, resultCopy, true)
-		displayStatus := resolved.DisplayStatus(model.JobSpec{ID: result.ID, Command: result.Command})
+		displayStatus := jobstatus.DisplayLabel(resolved.DisplayStatus(model.JobSpec{ID: result.ID, Command: result.Command}), resolved.Accepted(), false)
 		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, ExecutionStatus: displayStatus, lineageStatus: runview.LineageStatus(resolved), DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return jobs, nil

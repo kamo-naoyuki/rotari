@@ -291,7 +291,7 @@ func colorJobsValue(code byte, value string) string {
 		return value
 	}
 	switch value {
-	case "success":
+	case "success", "success (accepted)":
 		return green(value)
 	case "failed", "cancelled", "blocked":
 		return red(value)
