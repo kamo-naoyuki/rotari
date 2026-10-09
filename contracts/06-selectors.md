@@ -289,8 +289,9 @@ active run, array tasks one by one, through `jobcontrol.Controller.Select`:
   of stage and matrix, and `--filter-state running|pending` (repeated, OR).
   A job is running once its executor owns it and pending before; a running
   job's duration ends now. `suspend` and `resume` accept only `running`.
-- Job IDs, `--job-name`, and the filters exclude one another, and all exclude
-  `cancel --wait`; a bare run ID may still name the run.
+- Job IDs, `--job-name`, and the filters exclude one another; a bare run ID
+  may still name the run. With any of them, `cancel --wait` waits until each
+  selected job has stopped (CAN-3).
 - `--stage` (or `--filter-stage`) and `--matrix` (or `--filter-matrix`)
   exclude each other, as in `show`, `copy`, and `run`; neither is ignored in
   favor of the other. `jobcontrol.Controller.Select` rejects the combination
@@ -307,7 +308,7 @@ Covered by `TestSelectJobsFiltersUnfinishedJobs` in
 and the job-control tests in
 [cmd/rotari/job_control_test.go](../cmd/rotari/job_control_test.go).
 
-`cancel --wait` takes no job selection. Unlike `show` and `wait`, these
+Unlike `show` and `wait`, these
 commands take no run name or positional project: they act on running jobs, so
 they name them only by IDs and `--project-name`, and a free-form run name could
 not be told apart from a job ID in the same list. Covered by `TestJobControlSelectors`

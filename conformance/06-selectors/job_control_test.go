@@ -56,7 +56,7 @@ var jobControlCases = []jobControlCase{
 	{name: "filter matching no jobs", args: "cancel -b {B} -p sweep --filter-stage missing --yes", err: `no jobs in stage "missing"`},
 	{name: "filter requires yes without a terminal", args: "cancel -b {B} -p sweep --filter-stage single", err: "cancel with filters needs --yes when stdin is not a terminal"},
 	{name: "unknown job name", args: "cancel -b {B} -p sweep --job-name missing", err: `job name "missing" not found`},
-	{name: "filter and wait", args: "cancel -b {B} -p sweep --filter-state running --wait --yes", err: "--wait may not be used with a job selection"},
+	{name: "filter and wait", args: "cancel -b {B} -p sweep --filter-state running --wait --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "job ID", args: "cancel -b {B} -p sweep {job:idle}", jobs: []string{"idle"}},
 	{name: "job ID option", args: "cancel -b {B} -p sweep -j {job:idle}", jobs: []string{"idle"}},
 	{name: "job ID in any project's active run", args: "cancel -b {B} {job:idle}", jobs: []string{"idle"}},
@@ -72,7 +72,7 @@ var jobControlCases = []jobControlCase{
 	{name: "finished run ID", args: "cancel {run:sweep-first}", err: `run "{run:sweep-first}" is not running; the active run of project "sweep" is "{run:live}"`},
 	{name: "run ID of a project without an active run", args: "cancel {run:other-first}", err: `run "{run:other-first}" is not running; project "other" has no active run`},
 	{name: "job IDs both ways", args: "cancel -b {B} -p sweep -j {job:idle} {job:hold}", err: "usage"},
-	{name: "job ID and wait", args: "cancel -b {B} -p sweep --wait {job:idle}", err: "--wait may not be used with a job selection"},
+	{name: "job ID and wait", args: "cancel -b {B} -p sweep --wait {job:idle}", jobs: []string{"idle"}},
 	{name: "latest is not a run", args: "cancel -b {B} -p sweep latest", err: `job "latest" is not found`},
 
 	// suspend

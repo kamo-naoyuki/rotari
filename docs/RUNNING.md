@@ -289,8 +289,10 @@ rotari cancel RUN_ID
 ```
 
 `--job-id/-j` is optional; without it, all running jobs in the selected queue
-are cancelled. Repeat it to select multiple jobs. It cannot be combined with
-`--wait` or a positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`. An array job ID
+are cancelled. Repeat it to select multiple jobs. It cannot be combined with a
+positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`. `--wait` waits until the cancel
+has taken effect: the whole run has stopped or, with a job selection, each
+selected job has stopped while the rest of the run continues. An array job ID
 selects all unfinished tasks. A run or attempt ID must belong to the active
 run; an earlier run's ID is rejected rather than cancelling the current run.
 Without `-p`, a job ID is looked up in every project's active run.

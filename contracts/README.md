@@ -176,7 +176,7 @@ the IDs, this table, and those calls disagree.
 | STATE-4 | Malformed load samples are skipped | conformance | `TestMalformedLoadSamplesAreSkipped` |
 | CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
-| CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
+| CAN-3 | `cancel --wait` returns once the run has finished, or with a job selection once each selected job has stopped, and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes`, `TestCancelJobWaitReturnsOnceTheJobStopped` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
 | CAN-5 | A job stopped by a cancel records a cancelled result, read as the `cancelled` failure kind | conformance | `TestCancelledJobsReadAsCancelled` |
 | CAN-6 | A job cancelled before it starts never starts, on every submission path | conformance | `TestCancelledPendingJobNeverStarts` |

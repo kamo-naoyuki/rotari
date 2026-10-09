@@ -663,16 +663,13 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string, origin *model.L
 		if pathErr != nil {
 			return nil, 0, pathErr
 		}
-		lockState, _, lockErr := state.InspectLock(paths.LockFile, false)
+		// One read: a finishing run removes its lock between two reads.
+		lockState, lock, lockErr := state.InspectLock(paths.LockFile, false)
 		if lockErr != nil {
 			return nil, 0, lockErr
 		}
 		if lockState != state.LockActive && lockState != state.LockRemote {
 			continue
-		}
-		lock, lockErr := state.LoadLock(paths.LockFile)
-		if lockErr != nil {
-			return nil, 0, lockErr
 		}
 		if origin != nil && !waitLaunchedBy(paths, lock.RunID, *origin) {
 			others++

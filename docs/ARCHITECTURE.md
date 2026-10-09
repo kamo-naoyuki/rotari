@@ -484,6 +484,9 @@ CLI and Web UI agree.
    each running job.
 3. The run loop sees the cancelled results and the `cancelling` phase, and
    stops starting or retrying jobs.
+4. With `--wait`, `Cancel` polls until the run lock is released, or for a job
+   selection until each selected job has stopped
+   (`Controller.finishJobCancelMessage`).
 
 ### `rotari mcp`
 

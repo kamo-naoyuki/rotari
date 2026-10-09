@@ -55,11 +55,10 @@ still open. History is in [work-log.md](work-log.md).
 
 ### `wait` and cancel
 
-1. `cancel --wait` with a job selection is rejected (SEL-12); its help and
-   error point to `rotari wait`. Waiting until the selected jobs stop would
-   need a contract change: `cancel -j JOB --wait` would wait for those jobs
-   only, not the run. Listed in ISSUES.md ("Leftovers from the 2026-10-10
-   zero-information agent trial").
+1. Done: `cancel --wait` with a job selection waits until each selected job
+   has stopped, including a local job's whole process group (CAN-3). It
+   exposed that a local job's cancel is recorded before its process exits,
+   now open in ISSUES.md.
 2. `TestSynchronousRunInterruptCancelsAcceptedRun` timed out once on
    2026-10-10 waiting for the run to finalize after Ctrl-C. Thirty repeats on
    2026-10-10 after the `cancelled` change passed. Open in ISSUES.md; investigate

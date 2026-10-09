@@ -132,6 +132,9 @@ func TestReadJobDisplayStatusPending(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(runDir, "started", "attempts"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// A cancel of a job that has not been dispatched writes only this marker.
+	writeFile(t, filepath.Join(runDir, "cancelled-early", "cancelled"), "2026-10-10T00:00:00Z\n")
+	writeFile(t, filepath.Join(runDir, "legacy", "command.json"), "{}")
 	for _, test := range []struct {
 		name   string
 		jobDir string
@@ -140,7 +143,9 @@ func TestReadJobDisplayStatusPending(t *testing.T) {
 		{name: "no job directory in an existing run", jobDir: filepath.Join(runDir, "waiting"), want: StatusPending},
 		{name: "missing run directory", jobDir: filepath.Join(root, "missing-run", "job"), want: "unknown"},
 		{name: "missing assigned attempt", jobDir: filepath.Join(runDir, "started", "attempts", "att-1"), want: "unknown"},
-		{name: "job directory without attempts", jobDir: filepath.Join(runDir, "started"), want: "unknown"},
+		{name: "job directory with attempts but no latest attempt", jobDir: filepath.Join(runDir, "started"), want: "unknown"},
+		{name: "cancelled before dispatch", jobDir: filepath.Join(runDir, "cancelled-early"), want: StatusPending},
+		{name: "legacy job directory with its command", jobDir: filepath.Join(runDir, "legacy"), want: "unknown"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			job := ReadJob(testStore(), test.jobDir, model.JobResult{}, false)

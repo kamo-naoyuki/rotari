@@ -232,9 +232,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "cancel the whole run and wait until it has "
-                    "stopped; not with a job selection, after "
-                    "which rotari wait follows the run",
+                    "description": "wait until the cancel took effect: the whole "
+                    "run has stopped or, with a job selection, "
+                    "each selected job has stopped",
                     "environment": "ROTARI_CANCEL_WAIT",
                     "name": "wait",
                 },

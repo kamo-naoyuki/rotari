@@ -159,8 +159,6 @@ func expectedControl(command string, flags []pairFlag) ([]string, string) {
 		direct && filtered,
 		(hasFlag(flags, "stage") || hasFlag(flags, "filter-stage")) && (hasFlag(flags, "matrix") || hasFlag(flags, "filter-matrix")):
 		return nil, "cannot be combined"
-	case command == "cancel" && hasFlag(flags, "wait") && (direct || filtered):
-		return nil, "--wait may not be used with a job selection"
 	}
 	keys := controlKeys
 	for _, flag := range flags {

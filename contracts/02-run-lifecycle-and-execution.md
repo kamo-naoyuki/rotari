@@ -879,7 +879,14 @@ the request, on the host that owns the run.
   to idle. Cancellation never leaves the run interrupted, so no `unlock` is
   needed before the next `add` or `run`.
 - **CAN-3** `rotari cancel --wait` returns once the cancelled run has finished,
-  and exits 0.
+  and exits 0. With a job selection it returns once each selected job has
+  stopped, without waiting for the rest of the run: its latest attempt has
+  ended and, for a local job, no process of it is left; a job not dispatched
+  yet has stopped once the cancel marks it, since it then never starts. It
+  times out after five minutes. Implemented by
+  `Controller.finishJobCancelMessage` in
+  [internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go);
+  covered by `TestCancelJobWaitReturnsOnceTheJobStopped`.
 - **CAN-4** Cancelling one job (`rotari cancel JOB_ID`, or the Web UI's
   cancel-job) stops only that job. The rest of the run keeps running and
   finishes normally, and the run's `--retry` does not start the cancelled job

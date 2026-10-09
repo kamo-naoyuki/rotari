@@ -156,7 +156,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "cancel the unfinished jobs with this name; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "cancel the unfinished jobs of this stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "cancel the unfinished jobs of this matrix", ValueName: "NAME"},
-			cliFlagSpec{Name: "wait", Description: "cancel the whole run and wait until it has stopped; not with a job selection, after which rotari wait follows the run"},
+			cliFlagSpec{Name: "wait", Description: "wait until the cancel took effect: the whole run has stopped or, with a job selection, each selected job has stopped"},
 			cliFlagSpec{Name: "yes", Description: "cancel the jobs that filters select without asking", CommandLineOnly: true},
 		), jobControlFilterSpecs(cancelStates)...),
 		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",

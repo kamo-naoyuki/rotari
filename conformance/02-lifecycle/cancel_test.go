@@ -354,3 +354,62 @@ func TestWholeRunCancelRecordsCancelledRun(t *testing.T) {
 		})
 	}
 }
+
+// TestCancelJobWaitReturnsOnceTheJobStopped checks that cancel --wait with a
+// job selection returns once each selected job has stopped, not when the
+// run finishes, and at once for a job that has not started.
+func TestCancelJobWaitReturnsOnceTheJobStopped(t *testing.T) {
+	covers(t, "CAN-3")
+	e := support.NewEnv(t)
+	project := "slow-stop"
+	slow := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "slow", "--",
+		"sh", "-c", "trap 'sleep 2; exit 143' TERM; while true; do sleep 0.1; done"))
+	hold := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "hold", "--", "sleep", "300"))
+	e.MustRotari("add", "-p", project, "--job-name", "waiting", "--depends-on", "hold", "--", "true")
+	e.MustRotari("run", "-p", project, "--async", "--quiet")
+	t.Cleanup(func() { _ = e.Rotari("cancel", "-p", project, "--wait") })
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, slow) > 0 && support.JobProcesses(t, e.Root, hold) > 0, "jobs did not start"
+	})
+	var run struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, "--json").Stdout), &run); err != nil || run.RunID == "" {
+		t.Fatalf("show --json has no run ID: %v", err)
+	}
+
+	started := time.Now()
+	r := e.Rotari("cancel", "-p", project, slow, "--wait")
+	if r.Code != 0 || !strings.Contains(r.Stdout, "Cancellation complete") {
+		t.Fatalf("cancel JOB --wait = %s", r)
+	}
+	if elapsed := time.Since(started); elapsed < 1500*time.Millisecond {
+		t.Errorf("cancel --wait returned after %s, before the job could stop", elapsed)
+	}
+	if alive := support.JobProcesses(t, e.Root, slow); alive != 0 {
+		t.Errorf("cancel --wait returned while %d process(es) of the job still ran", alive)
+	}
+	if shown := e.MustRotari("show", "-p", project, "--run-id", run.RunID).Stdout; !jobRowHas(shown, slow, "cancelled") {
+		t.Errorf("slow job is not recorded as cancelled once cancel --wait returned:\n%s", shown)
+	}
+	if support.JobProcesses(t, e.Root, hold) == 0 {
+		t.Errorf("cancelling one job stopped the rest of the run")
+	}
+
+	started = time.Now()
+	if r := e.Rotari("cancel", "-p", project, "--job-name", "waiting", "--wait", "--yes"); r.Code != 0 {
+		t.Fatalf("cancel --job-name waiting --wait = %s", r)
+	}
+	if elapsed := time.Since(started); elapsed > 10*time.Second {
+		t.Errorf("cancel --wait of a pending job waited %s for its dependency", elapsed)
+	}
+}
+
+func jobRowHas(table, jobID, label string) bool {
+	for _, line := range strings.Split(table, "\n") {
+		if strings.HasPrefix(line, jobID+" ") && strings.Contains(line, " "+label+" ") {
+			return true
+		}
+	}
+	return false
+}

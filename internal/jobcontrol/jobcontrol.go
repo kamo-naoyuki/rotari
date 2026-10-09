@@ -191,7 +191,11 @@ func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []str
 		return "", err
 	}
 	if len(jobIDs) > 0 {
-		return controller.CancelJobs(runDir, project, lock.RunID, jobIDs)
+		message, err := controller.CancelJobs(runDir, project, lock.RunID, jobIDs)
+		if err != nil || !wait {
+			return message, err
+		}
+		return controller.finishJobCancelMessage(message, paths, runDir, lock.RunID, jobIDs)
 	}
 	if host, mismatch := runnerHostMismatch(lock); mismatch {
 		return "", fmt.Errorf("run %q is owned by host %q; run cancel from that host", lock.RunID, host)
@@ -595,6 +599,48 @@ func markCancelling(paths state.ProjectPaths) error {
 
 // finishCancelMessage adds an inspection hint to a cancel message and, with
 // wait, waits up to five minutes for the run lock to be released.
+// finishJobCancelMessage waits up to five minutes until every cancelled job
+// has stopped: its latest attempt has ended, and for a local job no process
+// of it is left; or it was never dispatched and the cancel keeps it from
+// starting; or the run has finished. It does not wait for the rest of the run.
+func (controller Controller) finishJobCancelMessage(message string, paths state.ProjectPaths, runDir, runID string, jobIDs []string) (string, error) {
+	deadline := time.Now().Add(5 * time.Minute)
+	for !controller.jobsStopped(paths, runDir, runID, jobIDs) {
+		if time.Now().After(deadline) {
+			return "", errors.New("timed out waiting for the cancelled jobs to stop")
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return finishCancelMessage(message+"\n\nCancellation complete", paths, runID, false)
+}
+
+func (controller Controller) jobsStopped(paths state.ProjectPaths, runDir, runID string, jobIDs []string) bool {
+	if lockState, lock, err := state.InspectLock(paths.LockFile, false); err == nil && (lockState != state.LockActive && lockState != state.LockRemote || lock.RunID != runID) {
+		return true
+	}
+	for _, jobID := range jobIDs {
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
+		if err != nil {
+			return false
+		}
+		job := jobstatus.ReadJob(controller.Store, jobDir, model.JobResult{}, false)
+		if job.Attempt.Undispatched {
+			continue
+		}
+		if !job.Finished() {
+			return false
+		}
+		// A local job's wrapper records the cancel before the command's
+		// process group exits; wait until no process of it is left.
+		if state.ReadAttemptExecutor(jobDir) == "local" {
+			if alive, known := executor.LocalProcessGroupAlive(jobDir); known && alive {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func finishCancelMessage(message string, paths state.ProjectPaths, runID string, wait bool) (string, error) {
 	if wait {
 		deadline := time.Now().Add(5 * time.Minute)
