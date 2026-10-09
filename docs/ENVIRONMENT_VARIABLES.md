@@ -90,6 +90,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_WEB_NOTIFICATIONS` | yes | no | no | --notifications default for web. |
 | `ROTARI_WEBHOOK_URL` | no | no | no | Webhook URL; overrides webhook.url in notifications.toml. |
 | `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |
+| `ROTARI_INFO_JSON` | yes | no | no | Default for rotari info --json. |
 | `ROTARI_CONFIG_LIST` | yes | no | no | Default for rotari config --list. |
 | `ROTARI_CONFIG_FORMAT` | yes | no | no | Default for rotari config --format. |
 | `ROTARI_CONFIG_OUTPUT` | yes | no | no | Default for rotari config --output. |

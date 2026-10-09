@@ -3553,6 +3553,13 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "array": False,
             "cli_default": True,
+            "description": "Default for rotari info --json.",
+            "job": False,
+            "name": "ROTARI_INFO_JSON",
+        },
+        {
+            "array": False,
+            "cli_default": True,
             "description": "Default for rotari config --list.",
             "job": False,
             "name": "ROTARI_CONFIG_LIST",
