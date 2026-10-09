@@ -151,11 +151,19 @@ func dispatch(args []string) int {
 func printUsage() {
 	fmt.Println("rotari: lightweight local job queue")
 	fmt.Println("")
-	fmt.Println("Coding agents: run `rotari guide` first for the recommended workflow and a command index; `rotari COMMAND --help` lists a command's options.")
+	fmt.Println("Coding agents: run `rotari guide` first for the recommended workflow; `rotari COMMAND --help` lists a command's usage and options.")
 	fmt.Println("")
-	fmt.Println("Usage:")
+	fmt.Println("Usage: rotari COMMAND [options] [arguments]")
+	fmt.Println("")
+	fmt.Println("Commands:")
+	// One line per command keeps this short; each command's own --help has
+	// its full usage, which repeated here would cost several times as much.
+	width := 0
 	for _, command := range cliCommandSpecs {
-		fmt.Printf("  %s\n", cliUsage(command.Name))
+		width = max(width, len(command.Name))
+	}
+	for _, command := range cliCommandSpecs {
+		fmt.Printf("  %-*s  %s\n", width, command.Name, command.Description)
 	}
 }
 

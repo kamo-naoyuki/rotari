@@ -1,39 +1,41 @@
 rotari: lightweight local job queue
 
-Coding agents: run `rotari guide` first for the recommended workflow and a command index; `rotari COMMAND --help` lists a command's options.
+Coding agents: run `rotari guide` first for the recommended workflow; `rotari COMMAND --help` lists a command's usage and options.
 
-Usage:
-  rotari info [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [--json]
-  rotari init [BASEDIR [PROJECT]]
-  rotari config [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--list] [--notifications] [--format FORMAT] [--output FILE]
-  rotari check [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--json] [--deep] [--quiet] [PROJECT]
-  rotari reset [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--quiet] [--dry-run] [--if-revision REVISION] [PROJECT]
-  rotari cancel [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--wait] [--yes] [--filter-state STATE] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [JOB_ID|ATTEMPT_ID|RUN_ID ...]
-  rotari suspend [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--yes] [--filter-state STATE] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [JOB_ID|ATTEMPT_ID|RUN_ID ...]
-  rotari resume [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--yes] [--filter-state STATE] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [JOB_ID|ATTEMPT_ID|RUN_ID ...]
-  rotari delete [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--all] [--dry-run] [--if-revision REVISION] [RUN_ID]
-  rotari gc [--config FILE] [--masterdir DIR] [--dry-run] [MASTERDIR]
-  rotari unlock [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [PROJECT]
-  rotari change [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--all] [-e EXECUTOR|--executor EXECUTOR] [--executor-option OPTION] [--clear-executor-options] [--working-directory DIR] [--clear-working-directory] [--env KEY=VALUE] [--clear-env] [--set-job-name NAME] [--depends-on NAME] [--clear-depends-on] [--depends-on-finished NAME] [--clear-depends-on-finished] [--artifact PATH] [--clear-artifacts] [--timeout DURATION] [--clear-timeout] [--retry N] [--clear-retry] [--retry-delay DURATION] [--retry-backoff FACTOR] [--retry-max-delay DURATION] [--status STATUS] [--clear-status] [--quiet] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [--dry-run] [--if-revision REVISION] <command ...>
-  rotari export [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--format FORMAT] [--template] [--output FILE] [TARGET] [FILE]
-  rotari import [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--overwrite] [--json] [--dry-run] [--if-revision REVISION] FILE [PROJECT]
-  rotari remove [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--all] [--quiet] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [--dry-run] [--if-revision REVISION] [JOB_ID ...]
-  rotari basedirs [--masterdir DIR]
-  rotari projects [-b DIR|--basedir DIR] [--masterdir DIR]
-  rotari runs [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [--since DURATION] [--json] [PROJECT]
-  rotari show [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--queue] [-j ID|--job-id ID] [--job-name NAME] [--failed] [--unfinished] [--success] [--stage NAME] [--matrix NAME] [--logs] [--failed-logs] [--stream STREAM] [--follow] [--no-pager] [--json] [--report] [--artifacts] [--filter-result RESULT] [--filter-exit-code N] [--filter-failure-kind KIND] [--filter-diagnosis VALUE] [--filter-changed] [--filter-new] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-finished-after TIME] [--filter-finished-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [SELECTOR]
-  rotari lineage [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--json] [RUN_ID ...]
-  rotari jobs [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [--format FORMAT] [--since DURATION] [--json] [PROJECT]
-  rotari wait [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--disconnect-action ACTION] [-r ID|--run-id ID] [--timeout DURATION] [--until-failure] [--json] [--quiet] [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]
-  rotari add [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-e EXECUTOR|--executor EXECUTOR] [--executor-option OPTION] [--output FILE] [--error FILE] [--artifact PATH] [--log-mode MODE] [--open-mode MODE] [--working-directory DIR] [--env KEY=VALUE] [--job-name NAME] [--stage NAME] [--depends-on NAME] [--depends-on-finished NAME] [--timeout DURATION] [--retry N] [--retry-delay DURATION] [--retry-backoff FACTOR] [--retry-max-delay DURATION] [--array FIRST-LAST|TASK[,TASK...]] [--matrix KEY=VALUE[,VALUE...]] [--matrix-exclude KEY=VALUE[,KEY=VALUE...]] [--quiet] [--dry-run] [--if-revision REVISION] <command ...>
-  rotari copy [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--failed] [--unfinished] [--success] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--append] [--overwrite] [--quiet] [--filter-result RESULT] [--filter-exit-code N] [--filter-failure-kind KIND] [--filter-diagnosis VALUE] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-finished-after TIME] [--filter-finished-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [--dry-run] [--if-revision REVISION] [RUN_ID]
-  rotari run [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--run-name NAME] [--local-concurrency N] [--batch-concurrency N] [--retry N] [--failed] [--unfinished] [--success] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--partial-array] [--async] [--disconnect-action ACTION] [--quiet] [-e EXECUTOR|--executor EXECUTOR] [--env ALL|NONE] [--match-by MODE] [--executor-option OPTION] [--ssh-concurrency N] [--ssh-options OPTION] [--slurm-concurrency N] [--slurm-options OPTION] [--slurm-submit-interval DURATION] [--slurm-submit-retry-limit N] [--pbs-concurrency N] [--pbs-options OPTION] [--pbs-submit-interval DURATION] [--pbs-submit-retry-limit N] [--lsf-concurrency N] [--lsf-options OPTION] [--lsf-submit-interval DURATION] [--lsf-submit-retry-limit N] [--sge-concurrency N] [--sge-options OPTION] [--sge-submit-interval DURATION] [--sge-submit-retry-limit N] [--filter-result RESULT] [--filter-exit-code N] [--filter-failure-kind KIND] [--filter-diagnosis VALUE] [--filter-changed] [--filter-new] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-finished-after TIME] [--filter-finished-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [--dry-run] [--if-revision REVISION] [RUN_ID]
-  rotari retry [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [--run-name NAME] [--local-concurrency N] [--batch-concurrency N] [--retry N] [--failed] [--unfinished] [--success] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--partial-array] [--async] [--disconnect-action ACTION] [--quiet] [-e EXECUTOR|--executor EXECUTOR] [--env ALL|NONE] [--match-by MODE] [--executor-option OPTION] [--ssh-concurrency N] [--ssh-options OPTION] [--slurm-concurrency N] [--slurm-options OPTION] [--slurm-submit-interval DURATION] [--slurm-submit-retry-limit N] [--pbs-concurrency N] [--pbs-options OPTION] [--pbs-submit-interval DURATION] [--pbs-submit-retry-limit N] [--lsf-concurrency N] [--lsf-options OPTION] [--lsf-submit-interval DURATION] [--lsf-submit-retry-limit N] [--sge-concurrency N] [--sge-options OPTION] [--sge-submit-interval DURATION] [--sge-submit-retry-limit N] [--filter-result RESULT] [--filter-exit-code N] [--filter-failure-kind KIND] [--filter-diagnosis VALUE] [--filter-changed] [--filter-new] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-finished-after TIME] [--filter-finished-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [--dry-run] [--if-revision REVISION] [RUN_ID]
-  rotari server <status|list|shutdown> [--config FILE] [-b DIR|--basedir DIR] [--masterdir DIR]
-  rotari web [--config FILE] [-b DIR|--basedir DIR] [--host HOST] [--port PORT] [--static-dir DIR] [--allow-control] [--auth-token TOKEN] [--notifications] [--static-artifact-contents] [--artifact-root DIR]
-  rotari mcp [--config FILE] [--masterdir DIR]
-  rotari completion <bash|zsh|fish|install>
-  rotari schema [--json]
-  rotari guide
-  rotari version
-  rotari env
+Usage: rotari COMMAND [options] [arguments]
+
+Commands:
+  info        show the current Rotari context and active run state
+  init        write cwd workspace location defaults without creating state
+  config      generate a config file template
+  check       check whether a project is ready to run
+  reset       discard the current, not-yet-run queue
+  cancel      cancel the active run or running jobs
+  suspend     suspend running jobs
+  resume      resume suspended jobs
+  delete      delete saved run history
+  gc          find and remove orphan run registry entries
+  unlock      remove a confirmed stale run lock
+  change      change queued jobs, or with --run-id the jobs of that run, which replace the queue first; a command after the options replaces the jobs' command
+  export      export the current queue or saved runs as a workflow manifest
+  import      validate and replace a queue from a workflow manifest
+  remove      remove queued jobs, or with --run-id jobs of that run, which replace the queue first
+  basedirs    list state directories known to the master registry
+  projects    list projects across known state directories
+  runs        list active runs and recently finished runs across known state directories
+  show        show details for a project, run, job, or attempt
+  lineage     list runs, summarize one run, or compare two runs
+  jobs        list running and recently finished jobs across known state directories
+  wait        wait for a run by project, run name, or run ID
+  add         add a command to a queue
+  copy        copy the latest run's jobs into the queue
+  run         execute queued commands, optionally selecting jobs from a run; jobs that depend on a selected job execute too
+  retry       run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too
+  server      manage the background server
+  web         serve the web status UI
+  mcp         serve rotari's tools for agents over MCP on stdio
+  completion  print shell completion script
+  schema      print the CLI schema as JSON
+  guide       print a usage guide for coding agents
+  version     print version
+  env         list ROTARI environment variables

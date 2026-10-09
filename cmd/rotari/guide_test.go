@@ -108,9 +108,30 @@ func TestTopLevelUsagePointsAgentsToGuide(t *testing.T) {
 		if code != wantCode {
 			t.Fatalf("run(%q) exit code = %d, want %d", args, code, wantCode)
 		}
-		if !strings.Contains(output.String(), "run `rotari guide` first") || !strings.Contains(output.String(), "Usage:") {
+		if !strings.Contains(output.String(), "run `rotari guide` first") || !strings.Contains(output.String(), "Commands:") {
 			t.Fatalf("run(%q) usage does not point to the guide:\n%s", args, output.String())
 		}
+	}
+}
+
+// TestTopLevelUsageIndexesCommandsWithoutOptions checks that top-level help
+// is a one-line index of every command and leaves each command's options to
+// its own --help: agents read it first, and the full synopsis of every
+// command cost them several times the guide.
+func TestTopLevelUsageIndexesCommandsWithoutOptions(t *testing.T) {
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return run([]string{"--help"}) }); code != 0 {
+		t.Fatalf("run(--help) exit code = %d", code)
+	}
+	text := output.String()
+	for _, command := range cliCommandSpecs {
+		pattern := regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(command.Name) + ` +` + regexp.QuoteMeta(command.Description) + `$`)
+		if got := len(pattern.FindAllString(text, -1)); got != 1 {
+			t.Errorf("help indexes command %q %d times, want once:\n%s", command.Name, got, text)
+		}
+	}
+	if strings.Contains(text, "--config FILE") {
+		t.Errorf("help lists command options:\n%s", text)
 	}
 }
 
