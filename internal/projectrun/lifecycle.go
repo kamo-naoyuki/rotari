@@ -14,8 +14,6 @@ import (
 type Start struct {
 	RunID   string
 	RunName string
-	// ClientAttached marks a synchronous run whose client is still connected.
-	ClientAttached bool
 	// ClientStatus records the initiating client's mode and initial state.
 	ClientStatus model.RunClientStatus
 	// Snapshot, when non-nil, is already built from a saved run. Begin writes
@@ -62,7 +60,7 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 			runner.errorf("failed to save run client status: %v", err)
 		}
 	}
-	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp(), ClientAttached: start.ClientAttached}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp()}); err != nil {
 		return fmt.Errorf("project %q is already running: %w", paths.ProjectName, err)
 	}
 	if runner.RegisterRun != nil {
@@ -98,16 +96,6 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 		return fmt.Errorf("failed to take the queue: %w", err)
 	}
 	return nil
-}
-
-// SetClientAttached updates whether the run's synchronous client remains
-// attached. A completed run or a replacement lock needs no update.
-func (runner Runner) SetClientAttached(paths state.ProjectPaths, runID string, attached bool) error {
-	status := model.RunClientStatus{State: model.RunClientDetached}
-	if attached {
-		status.State = model.RunClientAttached
-	}
-	return runner.SetRunClientStatus(paths, runID, status)
 }
 
 // SetRunClientStatus records a connection transition for the active run. A
@@ -149,10 +137,6 @@ func (runner Runner) SetRunClientStatus(paths state.ProjectPaths, runID string, 
 		return fmt.Errorf("failed to read run summary: %w", err)
 	}
 	status.UpdatedAt = runner.timestampNano()
-	lock.ClientAttached = status.State == model.RunClientAttached
-	if err := runner.Store.WriteJSON(paths.LockFile, lock); err != nil {
-		return fmt.Errorf("failed to update run lock: %w", err)
-	}
 	if err := state.WriteRunClientStatus(runner.Store, runDir, status); err != nil {
 		return fmt.Errorf("failed to update run client status: %w", err)
 	}

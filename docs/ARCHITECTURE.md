@@ -19,6 +19,7 @@ process a piece of code runs in explains most of the structure.
 flowchart LR
   subgraph clients["user shell"]
     runcli(["rotari run / retry"])
+    waitcli(["rotari wait"])
     direct(["rotari add / copy / change / cancel<br/>show / jobs / export ..."])
     webcli(["rotari web<br/>(HTTP)"])
       mcpcli(["rotari mcp<br/>(stdio MCP)"])
@@ -26,12 +27,13 @@ flowchart LR
   subgraph sup["one per active run of a project"]
     supervisor["supervisor<br/>rotari __server<br/>executes the run's jobs"]
   end
-  files[("&lt;basedir&gt;/projects/&lt;project&gt;/<br/>queue.json, meta.json, runs/...")]
+  files[("&lt;basedir&gt;/projects/&lt;project&gt;/<br/>queue.json, meta.json, runs/..., .rotari-attachments/...")]
    nodes["wrapper scripts on<br/>Slurm / PBS / LSF / SGE / SSH nodes"]
 
   runcli -->|"starts as a child"| supervisor
-  runcli -->|"JSON request over inherited pipes"| supervisor
-  supervisor -->|progress stream| runcli
+  runcli -->|"request / acceptance over startup pipes"| supervisor
+  runcli -->|"session, progress journal, summary"| files
+  waitcli -->|"session, progress journal, summary"| files
   supervisor -->|read / write| files
   direct -->|"read / write under state lock"| files
   webcli -->|"read, edit queue"| files
@@ -50,8 +52,9 @@ flowchart LR
 - **Supervisor.** `rotari __server`, started by `run` and `retry` through
   `startSupervisor` ([cmd/rotari/server.go](../cmd/rotari/server.go)) for
   each run, and stopped when that run ends. The source still calls it the
-  *server*. It serves one run of one project, talks only to its `run`
-  command over pipes inherited as descriptors 3 and 4, and holds a lease
+  *server*. It serves one run of one project. Pipes inherited as descriptors
+  3 and 4 carry only the initial request and acceptance/rejection (including
+  the accepted run ID); they are closed after that handoff. It holds a lease
   (`server.lock`, `server.pid`) in the project directory. Because it is a child of the `run` command, it and
   the run's jobs inherit that command's working directory and environment,
   which is why a supervisor is never reused (RUN-3 in
@@ -80,36 +83,48 @@ supervisor; they differ only in whether the client stays attached.
 
 | | Sync run (`rotari run`) | Async run (`rotari run --async`) |
 | --- | --- | --- |
-| Client | Stays attached and streams progress | Returns after "Run started" |
+| Client | Enters the shared file-backed attachment/follower flow | Returns after the startup acceptance |
 | Process that executes the jobs | The supervisor | The supervisor |
 | PID in `running.lock` | The supervisor | The supervisor |
 | Entry point | `supervisor.Operations.Run` ([internal/supervisor/run.go](../internal/supervisor/run.go)) | `supervisor.Operations.StartRun`, which runs `Runner.Run` in a goroutine |
 
 ```text
-sync:   client ─starts─▶ supervisor: Begin → Run (Execute → Finish) ──▶ result to client
-async:  client ─starts─▶ supervisor: Begin ──▶ "Run started" to client
+sync:   client ─request/accept─▶ supervisor: Begin → Run (Execute → Finish)
+  └─ attachment session ──▶ progress journal / summary / controls
+async:  client ─request/accept─▶ supervisor: Begin ──▶ "Run started" to client
                                      └─ Run (Execute → Finish), then the supervisor exits
 ```
 
 The supervisor is started with `setsid`, detached from the client's terminal
-session, so a run keeps going when an async client returns or a sync client
-detaches with Ctrl-D. Unexpected client disconnects detach by default for both
-`run` and `wait`; `--disconnect-action cancel` or
-`ROTARI_DISCONNECT_ACTION=cancel` restores cancellation on disconnect. Explicit
-Ctrl-C still cancels, Ctrl-D detaches, and Ctrl-Z suspends the client.
+session, so a run keeps going when an async client returns or an attached
+client detaches with Ctrl-D. Synchronous `run`/`retry` and `wait` use the same
+post-start follower and session lifecycle. Each client has its own
+process-held lock and record under `.rotari-attachments/`; attachment state is
+derived from valid sessions, not a count or the legacy run-lock boolean.
+The supervisor checks sessions while the run executes. A same-host client
+death, including `SIGKILL`, releases its lock; Linux process start-time identity
+prevents a reused PID from being mistaken for the original process, and a
+suspended client keeps its lock. A remote host cannot be verified locally, so
+its session is conservatively treated as live. Unexpected disconnects detach
+by default; `--disconnect-action cancel` or
+`ROTARI_DISCONNECT_ACTION=cancel` asks the supervisor to cancel a run after it
+proves the client dead. Explicit Ctrl-C still cancels, Ctrl-D detaches, and
+Ctrl-Z suspends the client.
 
 Both modes use the same progress observer. The supervisor records run-start,
 job-start, retry, failure, and completion-count events in the run's
 `progress.jsonl`, independently of the starting client's quiet setting, and
-also forwards them to an attached synchronous client. Journaling is best-effort
+clients read the journal after startup acceptance. Journaling is best-effort
 and does not determine execution or finalization. A colliding job ID disables
 journaling rather than changing the job's behavior; reader I/O failures warn
 and fall back to result-only waiting. `rotari wait` incrementally
 reads these events while waiting for the authoritative finalized summary and
-uses the same CLI progress renderer; it does not reconnect to the supervisor
-or acquire cancellation authority. JSON wait reads only the result state.
+uses the same CLI progress renderer and cancellation boundary as synchronous
+`run`/`retry`. JSON wait omits text events but still holds an attachment while
+following an active run.
 See [progress observer](../internal/supervisor/run.go),
 [journal I/O](../internal/state/progress.go), and
+[attachment sessions](../internal/attachment/session.go) and the shared
 [wait](../cmd/rotari/wait.go).
 
 Because the filesystem is the shared medium, any process can die and the next
@@ -151,6 +166,7 @@ flowchart TB
     executor
     state
     runregistry
+    attachment
     config
   end
   model["model<br/>(imports nothing from rotari)"]
@@ -180,7 +196,10 @@ flowchart TB
   joblist --> jobstatus
   joblist --> project
   cmd --> supervisor
+  cmd --> attachment
   supervisor --> server
+  supervisor --> attachment
+  runview --> attachment
   supervisor --> projectrun
   supervisor --> jobcontrol
   cmd --> webui
@@ -223,6 +242,7 @@ flowchart TB
   jobstatus --> artifact
   executor --> state
   runregistry --> state
+  attachment --> state
   l1 --> model
   l2 --> model
 ```
@@ -248,12 +268,13 @@ are checked against this graph by
 | [internal/config](../internal/config/) | Scope-aware global/cwd workspace/basedir/project discovery, location-key cycle validation, recursive file-value merging and immutable canonical TOML snapshots; YAML, TOML, JSON parsing. Runtime option meanings stay in `cmd/rotari`. | `layers.go` (`LoadScope`, `Load`, `Merge`, `Loaded.Snapshot`), `config.go` |
 | [internal/notification](../internal/notification/) | `notifications.toml`: its schema, scope lookup, validation, serialization, and the shared job/run event and batch model used by both webhook and browser notifications. Delivery stays in `cmd/rotari` and the Web assets. | `config.go` (`Load`, `Marshal`), `event.go` (`NewBatch`) |
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
+| [internal/attachment](../internal/attachment/) | Per-client run attachments: process-held locks, host and PID-start identity, attachment aggregation, stale-client policy handoff, and initiating-client startup reservations. It does not render CLI output. | `session.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, command snapshot, run lock, registry, running metadata; consumes the queue only for queue-based runs), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, metadata finalization, lock removal). Saved-run snapshots are constructed under the project state lock without editing the next queue. Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `plan.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the run's recorded results (the summary, or before it the carried results a run records at start) into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, and the artifact candidates an attempt recorded, following carried jobs to their attempt. Shared by CLI and Web. | `job.go` (`RecordedResults`), `attempt.go`, `times.go`, `facts.go`, `artifacts.go` |
 | [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status, a project's runs in start order, the run lifecycle and initiating-client connection projection, the one-run summary, and the failures with no retry left that `wait --until-failure` stops on. Shared by run comparison, history views, CLI status displays, and the MCP tools. | `run.go` (`LoadRun`), `client.go` (`ClientStatus`, `RunLifecycleLabel`), `order.go` (`RunsByStart`, `Summary`, `FinalFailureGroups`) |
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
-| [internal/server](../internal/server/) | Supervisor transport: request/response types, the pipe connection between `run` and its supervisor, the lease and liveness check, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
+| [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `assets/` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
@@ -372,9 +393,11 @@ Client side, in [run_command.go](../cmd/rotari/run_command.go):
    so it inherits the command's working directory and environment, and waits
    for its ready message on the inherited pipes. It fails if the project
    already has one.
-3. It sends a `server.Request{Op: OpRun}`. Synchronous runs use
-   `sendRunRequest`, which streams progress and handles Ctrl-C (cancel) and
-   Ctrl-D (detach).
+3. Before a synchronous request it reserves a client session. It sends
+  `server.Request{Op: OpRun}`; the server accepts once the run is committed
+  and returns the run ID. It then closes the startup pipe and enters the same
+  file-backed follower as `wait`. The async path reads its single start
+  response and returns without attaching.
 
 Supervisor side:
 
@@ -389,9 +412,12 @@ Supervisor side:
    writes `context.json` and the queue as `runs/<run-id>/commands.json`, takes
    the run lock (`running.lock`), registers the run, marks `meta.json` as
    running, and empties the queue, keeping its defaults.
-3. `Runner.Run` then executes the run in the supervisor: a synchronous run
-   streams progress to its client, and an async run answers at once and
-   continues in a goroutine. The supervisor stops once the run ends.
+3. `Runner.Run` then executes the run in the supervisor. Both sync and async
+  runs journal progress; a supervisor monitor checks bound client sessions
+  and applies same-host disconnect cancellation when configured. Sync `Run`
+  returns after execution while its startup response has already been sent;
+  async `StartRun` answers once and continues in a goroutine. The supervisor
+  stops once the run ends.
 
 Execution, in `Runner.Execute`
 ([internal/projectrun/execute.go](../internal/projectrun/execute.go)):

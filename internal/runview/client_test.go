@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -51,6 +52,51 @@ func TestClientStatusSeparatesModeReasonAndLiveness(t *testing.T) {
 	status, err = ClientStatus(paths, runID)
 	if err != nil || ClientStatusLabel(status) != "unknown (last detached by Ctrl-D)" {
 		t.Fatalf("interrupted status = %+v, %v; want unknown with last transition", status, err)
+	}
+}
+
+func TestClientStatusIncludesAttachedWaitersForAsyncRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20261009-120000-12345678"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := os.MkdirAll(runDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID, Host: host}); err != nil {
+		t.Fatal(err)
+	}
+	store := state.NewStore(0o700, 0o600)
+	if err := state.WriteRunClientStatus(store, runDir, model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientDetached, Reason: model.RunClientReasonAsync}); err != nil {
+		t.Fatal(err)
+	}
+	if err := attachment.EnableRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	session, err := attachment.Open(paths, runID, "waiter", "detach")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := ClientStatus(paths, runID)
+	if err != nil || ClientStatusLabel(status) != "attached" {
+		t.Fatalf("status with waiter = %+v, %v; want attached", status, err)
+	}
+	if err := session.Close(""); err != nil {
+		t.Fatal(err)
+	}
+	status, err = ClientStatus(paths, runID)
+	if err != nil || ClientStatusLabel(status) != "detached (async)" {
+		t.Fatalf("status after waiter leaves = %+v, %v; want async launch history", status, err)
 	}
 }
 

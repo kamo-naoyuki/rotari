@@ -26,6 +26,7 @@ type Request struct {
 	FileConfig       *model.FileConfigSnapshot `json:"file_config,omitempty"`
 	Async            bool                      `json:"async,omitempty"`
 	DisconnectAction string                    `json:"disconnect_action,omitempty"`
+	ClientSessionID  string                    `json:"client_session_id,omitempty"`
 	Quiet            bool                      `json:"quiet,omitempty"`
 	Executor         string                    `json:"executor,omitempty"`
 	ExecutorOptions  []string                  `json:"executor_options,omitempty"`
@@ -54,12 +55,14 @@ type Response struct {
 	PID       int    `json:"pid,omitempty"`
 	Protocol  int    `json:"protocol,omitempty"`
 	ExitCode  int    `json:"exit_code,omitempty"`
+	Accepted  bool   `json:"accepted,omitempty"`
+	Notice    string `json:"notice,omitempty"`
 	Progress  bool   `json:"progress,omitempty"`
 	JobID     string `json:"job_id,omitempty"`
 	Completed int    `json:"completed,omitempty"`
 	Total     int    `json:"total,omitempty"`
 	Succeeded int    `json:"succeeded,omitempty"`
 	Failed    int    `json:"failed,omitempty"`
-	// RunID is the run an asynchronous run request started.
+	// RunID is the run accepted by either a synchronous or asynchronous request.
 	RunID string `json:"run_id,omitempty"`
 }

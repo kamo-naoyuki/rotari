@@ -7,21 +7,12 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 // ProtocolVersion is reported by Ready. A `run` client talks only to the
 // supervisor it started from its own executable, so the version is for
 // diagnosis rather than negotiation.
-const ProtocolVersion = 11
-
-// DetachControl is the byte a synchronous run client sends before
-// disconnecting to leave the run going in the background.
-const DetachControl byte = 0x04
-
-// CancelControl is sent by a run client for an explicit Ctrl-C cancellation.
-const CancelControl byte = 0x03
+const ProtocolVersion = 12
 
 const (
 	DisconnectActionDetach = "detach"
@@ -46,11 +37,6 @@ type Operations interface {
 	StartRun(request Request, onDone func()) (runID, message string, err error)
 	// Run executes a synchronous run, reporting progress as it goes.
 	Run(request Request, progress func(Response)) (message string, exitCode int, err error)
-	// UpdateRunClientStatus records a synchronous client's connection transition.
-	UpdateRunClientStatus(request Request, status model.RunClientStatus)
-	// CancelRun cancels a synchronous run after explicit Ctrl-C or a disconnect
-	// configured to cancel.
-	CancelRun(request Request)
 }
 
 // Server is the supervisor of one run of one project. It accepts a single run
@@ -223,10 +209,8 @@ func (server *Server) Handle(conn io.ReadWriteCloser) {
 			response = messageResponse(message, err)
 			response.RunID = runID
 		} else {
-			message, exitCode, err, detached := server.runAttached(conn, request, encode)
-			if !detached {
-				defer server.EndRun()
-			}
+			defer server.EndRun()
+			message, exitCode, err := server.runAttached(request, encode)
 			response = messageResponse(message, err)
 			response.ExitCode = exitCode
 		}
@@ -243,91 +227,32 @@ func messageResponse(message string, err error) Response {
 	return Response{OK: true, Message: message}
 }
 
-type clientEvent int
-
-const (
-	clientDisconnected clientEvent = iota
-	clientDetached
-	clientCancelled
-)
-
-// clientTransition returns the persisted state and whether the run should
-// continue after a client event.
-func clientTransition(event clientEvent, disconnectAction string) (model.RunClientStatus, bool) {
-	status := model.RunClientStatus{Mode: model.RunClientModeSync}
-	switch event {
-	case clientDetached:
-		status.State, status.Reason = model.RunClientDetached, model.RunClientReasonCtrlD
-	case clientCancelled:
-		status.State, status.Reason = model.RunClientCancelling, model.RunClientReasonCtrlC
-	case clientDisconnected:
-		if disconnectAction == DisconnectActionCancel {
-			status.State, status.Reason = model.RunClientCancelling, model.RunClientReasonCancel
-		} else {
-			status.State, status.Reason = model.RunClientDetached, model.RunClientReasonEOF
-		}
-	}
-	detach := event == clientDetached || event == clientDisconnected && disconnectAction != DisconnectActionCancel
-	return status, detach
-}
-
-// runAttached runs a synchronous run while watching its client. Ctrl-D and a
-// detach-configured unexpected disconnect leave it going and move EndRun to
-// completion; explicit or configured cancellation waits for the run to finish.
-func (server *Server) runAttached(conn io.Reader, request Request, progress func(Response)) (string, int, error, bool) {
+// runAttached executes the run while using the connection only for startup
+// acceptance. Progress and client control are handled by the filesystem
+// follower after this handoff.
+func (server *Server) runAttached(request Request, progress func(Response)) (string, int, error) {
 	type result struct {
 		message  string
 		exitCode int
 		err      error
 	}
 	done := make(chan result, 1)
-	started := make(chan struct{})
+	accepted := make(chan struct{})
 	var startOnce sync.Once
 	go func() {
 		message, exitCode, err := server.ops.Run(request, func(response Response) {
-			startOnce.Do(func() { close(started) })
-			progress(response)
+			startOnce.Do(func() {
+				progress(Response{OK: true, Accepted: true, RunID: response.RunID, Notice: response.Notice})
+				close(accepted)
+			})
 		})
 		done <- result{message: message, exitCode: exitCode, err: err}
 	}()
-	disconnected := make(chan clientEvent, 1)
-	go func() {
-		var buffer [1]byte
-		n, err := conn.Read(buffer[:])
-		if n > 0 {
-			switch buffer[0] {
-			case DetachControl:
-				disconnected <- clientDetached
-				return
-			case CancelControl:
-				disconnected <- clientCancelled
-				return
-			}
-		}
-		if err != nil && (err == io.EOF || !errors.Is(err, os.ErrDeadlineExceeded)) {
-			disconnected <- clientDisconnected
-		}
-	}()
 	select {
-	case result := <-done:
-		return result.message, result.exitCode, result.err, false
-	case event := <-disconnected:
-		select {
-		case <-started:
-		case result := <-done:
-			return result.message, result.exitCode, result.err, false
-		}
-		status, detach := clientTransition(event, request.DisconnectAction)
-		server.ops.UpdateRunClientStatus(request, status)
-		if detach {
-			go func() {
-				<-done
-				server.EndRun()
-			}()
-			return DetachedMessage, 0, nil, true
-		}
-		server.ops.CancelRun(request)
+	case <-accepted:
 		result := <-done
-		return result.message, result.exitCode, result.err, false
+		return result.message, result.exitCode, result.err
+	case result := <-done:
+		return result.message, result.exitCode, result.err
 	}
 }

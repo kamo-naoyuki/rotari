@@ -125,8 +125,8 @@ func Connect(conn io.ReadWriteCloser, timeout time.Duration) (*Client, error) {
 	return client, nil
 }
 
-// Close closes the connection. For a synchronous run that has not finished,
-// closing without detaching asks the supervisor to cancel it.
+// Close closes the startup connection. After acceptance, closing this
+// connection is normal and does not control or cancel the run.
 func (client *Client) Close() error {
 	return client.conn.Close()
 }
@@ -145,64 +145,21 @@ func (client *Client) Send(request Request) (Response, error) {
 	return response, nil
 }
 
-// RunOutcome says how a synchronous run request ended on the client side.
-type RunOutcome int
-
-const (
-	// RunFinished means the server sent the run's final response.
-	RunFinished RunOutcome = iota
-	// RunDetached means the client detached and the run continues.
-	RunDetached
-	// RunInterrupted means the client disconnected, which asks the server to
-	// cancel the run.
-	RunInterrupted
-)
-
-// StreamRun sends a synchronous run request and passes each progress response
-// to progress until the final response arrives, then closes the connection.
-// A value from detach sends DetachControl; a value from interrupt sends
-// CancelControl so explicit cancellation remains distinct from EOF.
-func (client *Client) StreamRun(request Request, detach <-chan struct{}, interrupt <-chan os.Signal, progress func(Response)) (Response, RunOutcome, error) {
-	defer client.conn.Close()
+// AcceptRun sends a synchronous run request and reads its startup acceptance
+// (or rejection). Subsequent progress and control use the shared filesystem
+// follower, not the startup pipe.
+func (client *Client) AcceptRun(request Request) (Response, error) {
 	if err := json.NewEncoder(client.conn).Encode(request); err != nil {
-		return Response{}, RunFinished, err
+		return Response{}, err
 	}
-	responses := make(chan Response, 1)
-	decodeErrors := make(chan error, 1)
-	go func() {
-		for {
-			var response Response
-			if err := client.decoder.Decode(&response); err != nil {
-				decodeErrors <- err
-				return
-			}
-			responses <- response
-			if !response.Progress {
-				return
-			}
-		}
-	}()
-	for {
-		select {
-		case <-detach:
-			if _, err := client.conn.Write([]byte{DetachControl}); err != nil {
-				return Response{}, RunDetached, err
-			}
-			return Response{OK: true}, RunDetached, nil
-		case <-interrupt:
-			if _, err := client.conn.Write([]byte{CancelControl}); err != nil {
-				return Response{}, RunInterrupted, err
-			}
-			return Response{OK: true, ExitCode: 130}, RunInterrupted, nil
-		case err := <-decodeErrors:
-			return Response{}, RunFinished, err
-		case response := <-responses:
-			if !response.Progress {
-				return response, RunFinished, nil
-			}
-			progress(response)
-		}
+	var response Response
+	if err := client.decoder.Decode(&response); err != nil {
+		return Response{}, err
 	}
+	if response.OK && !response.Accepted {
+		return Response{}, errors.New("server response did not accept a run")
+	}
+	return response, nil
 }
 
 // Start starts command as a supervisor and returns the connection to it once

@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -66,6 +67,7 @@ func cmdWait(args []string) int {
 		}
 		targets = append(targets, target)
 	}
+	implicitSelection := len(targets) == 0 && *queueNameOption == ""
 	if len(targets) == 0 {
 		activeTargets, err := resolveActiveWaitTargets(*basedir, *queueNameOption)
 		if err != nil {
@@ -96,24 +98,97 @@ func cmdWait(args []string) int {
 	if len(waitTargets) == 0 {
 		return 0 // A project that does not exist yet has nothing to wait for.
 	}
-	if err := warnAttachedWaitTargets(waitTargets); err != nil {
-		printError(err)
-		return 1
+	reservations := map[string]*attachment.Session(nil)
+	if implicitSelection {
+		var reserveErr error
+		waitTargets, reservations, reserveErr = reserveImplicitWaitTargets(waitTargets, *disconnectAction)
+		if reserveErr != nil {
+			printError(reserveErr)
+			return 1
+		}
+		if len(waitTargets) == 0 {
+			return 0
+		}
+	}
+	if !implicitSelection {
+		if err := warnAttachedWaitTargets(waitTargets); err != nil {
+			printError(err)
+			return 1
+		}
 	}
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
-	if *disconnectAction == serverinternal.DisconnectActionCancel {
-		// A closed terminal or a terminated waiter is a disconnect; by
-		// default it simply ends wait and leaves the runs going.
-		signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGTERM)
-	}
 	defer signal.Stop(interrupt)
 	detach := make(chan struct{}, 1)
 	if isTerminal(os.Stdin) {
 		go watchClientInput(os.Stdin, detach, interrupt, *disconnectAction)
 	}
-	return waitTargetsWithControl(waitTargets, deadline, *untilFailure, *jsonOutput, *quiet, interrupt, detach)
+	return waitTargetsControlled(waitTargets, deadline, *untilFailure, *jsonOutput, *quiet, interrupt, detach, false, *disconnectAction, reservations).exitCode
+}
+
+func implicitWaitKey(target resolve.Run) string {
+	return target.BaseDir + "\x00" + target.ProjectName + "\x00" + target.RunID
+}
+
+// reserveImplicitWaitTargets rechecks and registers candidates under each
+// project's state lock. Concurrent implicit waiters cannot both reserve one
+// run that was unattached during their initial directory scans.
+func reserveImplicitWaitTargets(candidates []resolve.Run, disconnectAction string) ([]resolve.Run, map[string]*attachment.Session, error) {
+	selected := make([]resolve.Run, 0, len(candidates))
+	reservations := make(map[string]*attachment.Session)
+	for _, target := range candidates {
+		paths, err := state.ResolveProjectPaths(target.BaseDir, target.ProjectName)
+		if err != nil {
+			closeWaitReservations(reservations)
+			return nil, nil, err
+		}
+		release, err := state.AcquireStateLock(paths.StateLockFile)
+		if err != nil {
+			closeWaitReservations(reservations)
+			return nil, nil, err
+		}
+		phase, err := project.RunPhaseOf(paths, target.RunID)
+		if err != nil {
+			release()
+			closeWaitReservations(reservations)
+			return nil, nil, err
+		}
+		if phase == project.RunPhaseRunning {
+			attached, attachErr := attachment.IsAttached(paths, target.RunID)
+			if attachErr != nil {
+				release()
+				closeWaitReservations(reservations)
+				return nil, nil, attachErr
+			}
+			if attached {
+				release()
+				continue
+			}
+			sessionID, idErr := attachment.NewID()
+			if idErr != nil {
+				release()
+				closeWaitReservations(reservations)
+				return nil, nil, idErr
+			}
+			session, openErr := attachment.Open(paths, target.RunID, sessionID, disconnectAction)
+			if openErr != nil {
+				release()
+				closeWaitReservations(reservations)
+				return nil, nil, openErr
+			}
+			reservations[implicitWaitKey(target)] = session
+		}
+		release()
+		selected = append(selected, target)
+	}
+	return selected, reservations, nil
+}
+
+func closeWaitReservations(sessions map[string]*attachment.Session) {
+	for _, session := range sessions {
+		_ = session.Close("")
+	}
 }
 
 func warnAttachedWaitTargets(targets []resolve.Run) error {
@@ -138,13 +213,28 @@ func warnAttachedWaitTarget(target resolve.Run) error {
 	if err != nil {
 		return fmt.Errorf("failed to inspect run %s client: %w", target.RunID, err)
 	}
-	if lock.RunID == target.RunID && lock.ClientAttached {
+	attached, err := attachment.IsAttached(paths, target.RunID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect run %s attachment: %w", target.RunID, err)
+	}
+	if lock.RunID == target.RunID && attached {
 		printWarningf("run %s in project %q is attached to a client; wait will attach to it", target.RunID, target.ProjectName)
 	}
 	return nil
 }
 
+type waitControlOutcome struct {
+	exitCode     int
+	detached     bool
+	interrupted  bool
+	disconnected bool
+}
+
 func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, untilFailure, jsonOutput, quiet bool, interrupt <-chan os.Signal, detach <-chan struct{}) int {
+	return waitTargetsControlled(waitTargets, deadline, untilFailure, jsonOutput, quiet, interrupt, detach, false, serverinternal.DisconnectActionDetach, nil).exitCode
+}
+
+func waitTargetsControlled(waitTargets []resolve.Run, deadline time.Time, untilFailure, jsonOutput, quiet bool, interrupt <-chan os.Signal, detach <-chan struct{}, initial bool, disconnectAction string, reservations map[string]*attachment.Session) waitControlOutcome {
 	stop := make(chan struct{})
 
 	// Multiple runs are monitored concurrently. Their output is serialized at
@@ -169,7 +259,7 @@ func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, until
 		}
 		outputs[index] = output
 		go func(index int, target resolve.Run, output *waitOutput) {
-			result := waitForRunWithOutput(target.BaseDir, target.ProjectName, target.RunID, deadline, untilFailure, jsonOutput, quiet, output, stop)
+			result := followRunWithOutput(target.BaseDir, target.ProjectName, target.RunID, deadline, untilFailure, jsonOutput, quiet, output, stop, initial, disconnectAction, reservations[implicitWaitKey(target)])
 			results <- indexedResult{index: index, result: result}
 		}(index, target, output)
 	}
@@ -191,8 +281,8 @@ func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, until
 			if !quiet && !jsonOutput {
 				fmt.Fprintln(os.Stdout, cyan("Stopped waiting; runs continue in the background."))
 			}
-			return 0
-		case <-interrupt:
+			return waitControlOutcome{detached: true}
+		case receivedSignal := <-interrupt:
 			for index, target := range waitTargets {
 				cancelWaitTarget(target, outputs[index])
 			}
@@ -205,7 +295,8 @@ func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, until
 			if !quiet && !jsonOutput {
 				fmt.Fprintln(os.Stdout, yellow("Cancellation requested; stopping running jobs..."))
 			}
-			return 130
+			disconnected := receivedSignal == syscall.SIGHUP || receivedSignal == syscall.SIGTERM
+			return waitControlOutcome{exitCode: 130, interrupted: true, disconnected: disconnected}
 		}
 		if completed.result.exitCode > exitCode {
 			exitCode = completed.result.exitCode
@@ -214,9 +305,9 @@ func waitTargetsWithControl(waitTargets []resolve.Run, deadline time.Time, until
 	}
 	flushWaitJSON(outputs, jsonOutput)
 	if timedOut {
-		return 1
+		return waitControlOutcome{exitCode: 1}
 	}
-	return exitCode
+	return waitControlOutcome{exitCode: exitCode}
 }
 
 // Completed JSON results survive an explicit detach or cancellation, in
@@ -531,7 +622,11 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if lockErr != nil {
 			return nil, lockErr
 		}
-		if lock.ClientAttached {
+		attached, attachErr := attachment.IsAttached(paths, lock.RunID)
+		if attachErr != nil {
+			return nil, attachErr
+		}
+		if attached {
 			continue
 		}
 		active = append(active, resolve.Run{BaseDir: baseDir, ProjectName: entry.Name(), RunID: lock.RunID})
@@ -579,6 +674,13 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 }
 
 func waitForRunWithOutput(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput, quiet bool, output *waitOutput, stop <-chan struct{}) waitResult {
+	return followRunWithOutput(basedir, queueNameOption, runID, deadline, untilFailure, jsonOutput, quiet, output, stop, false, serverinternal.DisconnectActionDetach, nil)
+}
+
+// followRunWithOutput is the shared post-start attachment operation for sync
+// run/retry and wait. initial starts the cursor at the beginning; wait skips
+// the progress history that predates its attachment.
+func followRunWithOutput(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput, quiet bool, output *waitOutput, stop <-chan struct{}, initial bool, disconnectAction string, existing *attachment.Session) waitResult {
 	baseDir, queueName, runID, err := resolveCLIExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		output.error(err)
@@ -597,12 +699,48 @@ func waitForRunWithOutput(basedir, queueNameOption, runID string, deadline time.
 	// Follow only events emitted after wait attaches. JSON never reads or
 	// renders the text progress stream.
 	phase, phaseErr := project.RunPhaseOf(paths, runID)
-	followProgress := !jsonOutput && phaseErr == nil && phase == project.RunPhaseRunning
+	followProgress := !jsonOutput && (initial || phaseErr == nil && phase == project.RunPhaseRunning)
+	clientSession := existing
+	if !initial && clientSession == nil && phaseErr == nil && phase == project.RunPhaseRunning {
+		release, lockErr := state.AcquireStateLock(paths.StateLockFile)
+		if lockErr != nil {
+			output.errorf("failed to register attachment to run %s: %v", runID, lockErr)
+			return waitResult{exitCode: 1}
+		}
+		lockedPhase, phaseErr := project.RunPhaseOf(paths, runID)
+		if phaseErr == nil && lockedPhase == project.RunPhaseRunning {
+			sessionID, idErr := attachment.NewID()
+			if idErr != nil {
+				release()
+				output.errorf("failed to create wait attachment: %v", idErr)
+				return waitResult{exitCode: 1}
+			}
+			clientSession, err = attachment.Open(paths, runID, sessionID, disconnectAction)
+		}
+		release()
+		if err != nil {
+			output.errorf("failed to register attachment to run %s: %v", runID, err)
+			return waitResult{exitCode: 1}
+		}
+		if phaseErr == nil && lockedPhase != project.RunPhaseRunning {
+			followProgress = false
+		}
+	}
+	if clientSession != nil && !initial {
+		defer func() {
+			if err := clientSession.Close(""); err != nil {
+				output.errorf("warning: failed to release wait attachment: %v", err)
+			}
+		}()
+	}
 	var cursor state.ProgressCursor
 	printer := runProgressPrinter{quiet: quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1, output: output.stdoutWriter()}
+	if initial {
+		printer.controlHint = "Press Ctrl-D to detach; Ctrl-C to cancel."
+	}
 	var attachedSnapshot model.ProgressEvent
 	hasAttachedSnapshot := false
-	if followProgress {
+	if followProgress && !initial {
 		var err error
 		attachedSnapshot, hasAttachedSnapshot, err = cursor.SkipExisting(runDir)
 		if err != nil {
@@ -732,7 +870,7 @@ func readWaitProgress(cursor *state.ProgressCursor, runDir string, printer *runP
 		events, err := cursor.Read(runDir)
 		for _, event := range events {
 			printer.print(serverinternal.Response{
-				OK: event.OK, Message: event.Message, Progress: event.Progress,
+				OK: event.OK, Message: event.Message, Progress: event.Progress, RunID: event.RunID, Notice: event.Notice,
 				JobID: event.JobID, Completed: event.Completed, Total: event.Total,
 				Succeeded: event.Succeeded, Failed: event.Failed,
 			})

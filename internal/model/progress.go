@@ -5,6 +5,8 @@ package model
 // responses (handshakes, control messages, or run completion).
 type ProgressEvent struct {
 	OK        bool   `json:"ok"`
+	RunID     string `json:"run_id,omitempty"`
+	Notice    string `json:"notice,omitempty"`
 	Message   string `json:"message,omitempty"`
 	Progress  bool   `json:"progress,omitempty"`
 	JobID     string `json:"job_id,omitempty"`

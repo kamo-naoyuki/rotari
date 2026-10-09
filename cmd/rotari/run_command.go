@@ -9,7 +9,10 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
@@ -31,6 +34,8 @@ const errJobsWithResultFilter = "--job-id or --job-name cannot be combined with 
 // errJobsWithFilter rejects a job named directly together with a --filter-*
 // condition, for the same reason.
 const errJobsWithFilter = "--job-id or --job-name cannot be combined with --filter-* options"
+
+const terminalDetachByte = 0x04
 
 // runJobs is run, and retry with defaultSelection: the result selection used
 // when neither a result filter nor a job is given.
@@ -257,6 +262,20 @@ func runJobs(args []string, defaultSelection string) int {
 		printErrorf("failed to serialize file configuration: %v", err)
 		return 1
 	}
+	var runSession *attachment.Session
+	if !*async {
+		sessionID, idErr := attachment.NewID()
+		if idErr != nil {
+			printErrorf("failed to create run attachment: %v", idErr)
+			return 1
+		}
+		runSession, err = attachment.OpenPending(paths, sessionID, *disconnectAction)
+		if err != nil {
+			printErrorf("failed to reserve run attachment: %v", err)
+			return 1
+		}
+		defer runSession.Close("")
+	}
 	client, err := startSupervisor(paths)
 	if err != nil {
 		printError(err)
@@ -271,11 +290,14 @@ func runJobs(args []string, defaultSelection string) int {
 		PartialArray: *partialArray, MatchBy: *matchBy,
 		IfRevision: runRevision,
 	}
+	if runSession != nil {
+		request.ClientSessionID = runSession.ID()
+	}
 	var response serverinternal.Response
 	if *async {
 		response, err = client.Send(request)
 	} else {
-		response, err = sendRunRequest(client, request)
+		response, err = sendRunRequest(client, request, paths, runSession)
 	}
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
@@ -286,7 +308,12 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	if !*quiet {
-		fmt.Print(colorMessage(response.Message))
+		if response.Message != "" {
+			fmt.Print(colorMessage(response.Message))
+		}
+		if response.Notice != "" {
+			fmt.Print(response.Notice)
+		}
 	}
 	return response.ExitCode
 }
@@ -324,10 +351,9 @@ func cmdRetry(args []string) int {
 	return runJobs(args, model.ResultSelection(true, true, false))
 }
 
-// sendRunRequest sends a synchronous run request to the supervisor on client
-// and prints its progress until the run finishes or the client detaches or is
-// interrupted.
-func sendRunRequest(client *serverinternal.Client, request serverinternal.Request) (serverinternal.Response, error) {
+// sendRunRequest sends the startup request, then follows the accepted run
+// through the same filesystem attachment path as wait.
+func sendRunRequest(client *serverinternal.Client, request serverinternal.Request, paths state.ProjectPaths, session *attachment.Session) (serverinternal.Response, error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
@@ -335,23 +361,49 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 	if isTerminal(os.Stdin) {
 		go watchClientInput(os.Stdin, detach, signals, request.DisconnectAction)
 	}
-	printer := runProgressPrinter{
-		quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1,
-		controlHint: "Press Ctrl-D to detach; Ctrl-C to cancel.",
-	}
-	response, outcome, err := client.StreamRun(request, detach, signals, printer.print)
+	response, err := client.AcceptRun(request)
 	if err != nil {
 		return serverinternal.Response{}, err
 	}
-	switch outcome {
-	case serverinternal.RunDetached:
-		if !request.Quiet {
-			fmt.Println(cyan(serverinternal.DetachedMessage))
+	_ = client.Close()
+	if !response.OK {
+		if session != nil {
+			if closeErr := session.Close("start-failed"); closeErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to release rejected run attachment: %v\n", closeErr)
+			}
 		}
-	case serverinternal.RunInterrupted:
-		if !request.Quiet {
-			fmt.Println(yellow("Cancellation requested; stopping running jobs..."))
+		return response, nil
+	}
+	if !response.Accepted || response.RunID == "" {
+		return serverinternal.Response{}, fmt.Errorf("server accepted run without a run ID")
+	}
+	notice := response.Notice
+	outcome := waitTargetsControlled(
+		[]resolve.Run{{BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: response.RunID}},
+		time.Time{}, false, false, request.Quiet, signals, detach, true, request.DisconnectAction, nil,
+	)
+	if session != nil {
+		reason := "completed"
+		switch {
+		case outcome.interrupted:
+			reason = model.RunClientReasonCtrlC
+			if outcome.disconnected {
+				reason = model.RunClientReasonCancel
+			}
+		case outcome.detached:
+			reason = model.RunClientReasonCtrlD
 		}
+		if err := session.Close(reason); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to release run attachment: %v\n", err)
+		}
+	}
+	response.ExitCode = outcome.exitCode
+	response.Message = ""
+	response.Notice = notice
+	if outcome.detached {
+		response.Message = serverinternal.DetachedMessage
+	} else if outcome.interrupted {
+		response.Message = "Cancellation requested; stopping running jobs..."
 	}
 	return response, nil
 }
@@ -364,13 +416,13 @@ func watchClientInput(input io.Reader, detach chan<- struct{}, interrupt chan<- 
 	var buffer [256]byte
 	for {
 		n, err := input.Read(buffer[:])
-		if bytes.IndexByte(buffer[:n], serverinternal.DetachControl) >= 0 || errors.Is(err, io.EOF) {
+		if bytes.IndexByte(buffer[:n], terminalDetachByte) >= 0 || errors.Is(err, io.EOF) {
 			detach <- struct{}{}
 			return
 		}
 		if err != nil {
 			if action == serverinternal.DisconnectActionCancel && interrupt != nil {
-				interrupt <- os.Interrupt
+				interrupt <- syscall.SIGHUP
 			} else if detach != nil {
 				detach <- struct{}{}
 			}

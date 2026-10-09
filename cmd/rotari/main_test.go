@@ -2948,8 +2948,9 @@ func TestJobWasExplicitlyCancelledUsesCancellationStateNotExitCode(t *testing.T)
 	}
 }
 
-func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
+func TestSynchronousRunReceivesStartupAcceptance(t *testing.T) {
 	clientConn, conn := net.Pipe()
+	serverDone := make(chan error, 1)
 
 	go func() {
 		defer conn.Close()
@@ -2966,41 +2967,29 @@ func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
 			t.Errorf("request op = %q, want run", request.Op)
 		}
 		encoder := json.NewEncoder(conn)
-		if err := encoder.Encode(serverinternal.Response{Progress: true, Completed: 1, Total: 2, Succeeded: 1, Failed: 0, Message: "progress"}); err != nil {
-			t.Errorf("encode progress: %v", err)
-			return
+		if err := encoder.Encode(serverinternal.Response{OK: true, Accepted: true, RunID: "run-1"}); err != nil {
+			t.Errorf("encode acceptance: %v", err)
 		}
-		if err := encoder.Encode(serverinternal.Response{OK: true, Message: "Run finished", ExitCode: 0}); err != nil {
-			t.Errorf("encode final response: %v", err)
-		}
+		_, _ = io.Copy(io.Discard, conn)
+		serverDone <- nil
 	}()
-
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = w
-	defer func() { os.Stdout = oldStdout }()
 
 	client, err := serverinternal.Connect(clientConn, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := sendRunRequest(client, serverinternal.Request{Op: serverinternal.OpRun})
-	_ = w.Close()
-	output, readErr := io.ReadAll(r)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
+	response, err := client.AcceptRun(serverinternal.Request{Op: serverinternal.OpRun})
 	if err != nil {
-		t.Fatalf("sendRunRequest returned error: %v", err)
+		t.Fatalf("AcceptRun returned error: %v", err)
 	}
-	if !response.OK || response.Message != "Run finished" || response.ExitCode != 0 {
-		t.Fatalf("response = %#v, want OK=true message=Run finished exit_code=0", response)
+	if !response.OK || !response.Accepted || response.RunID != "run-1" {
+		t.Fatalf("response = %#v, want startup acceptance for run-1", response)
 	}
-	if !strings.Contains(string(output), "progress") && !strings.Contains(string(output), "progress:") {
-		t.Fatalf("progress output missing; got %q", string(output))
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -3026,7 +3015,7 @@ func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 		defer close(done)
 		newRotariServer(testProjectPaths(t, baseDir, "default")).Handle(serverConn)
 	}()
-	startAttachedTestRunWithDisconnectAction(t, client, serverinternal.DisconnectActionCancel)
+	accepted := startAttachedTestRunWithDisconnectAction(t, client, serverinternal.DisconnectActionCancel)
 
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
@@ -3051,6 +3040,12 @@ func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 	if err := client.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if !state.ProcessAlive(pid) {
+		t.Fatalf("job process %d was controlled by closing the startup pipe", pid)
+	}
+	if _, err := jobController().Cancel(baseDir, "default", accepted.RunID, nil, false); err != nil {
+		t.Fatalf("cancel accepted run for test cleanup: %v", err)
+	}
 
 	select {
 	case <-done:
@@ -3062,7 +3057,7 @@ func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 	}
 }
 
-func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
+func TestServerSyncRunDoesNotUseStartupPipeForDetach(t *testing.T) {
 	baseDir := t.TempDir()
 	queueDir := filepath.Join(baseDir, "projects", "default")
 	if err := os.MkdirAll(queueDir, 0o755); err != nil {
@@ -3084,7 +3079,7 @@ func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
 		defer close(done)
 		server.Handle(serverConn)
 	}()
-	responses := startAttachedTestRun(t, client)
+	accepted := startAttachedTestRun(t, client)
 
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
@@ -3106,56 +3101,44 @@ func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
 	if pid == 0 {
 		t.Fatal("job did not start")
 	}
-	if _, err := client.Write([]byte{serverinternal.DetachControl}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-done:
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("detach did not return promptly")
-	}
+	_ = client.Close()
 	if !state.ProcessAlive(pid) {
-		t.Fatalf("running job %d was stopped by detach", pid)
-	}
-	if final := <-responses; !final.OK || final.Message != serverinternal.DetachedMessage {
-		t.Fatalf("final response = %#v, want detached message", final)
+		t.Fatalf("closing startup pipe stopped job %d", pid)
 	}
 	deadline = time.Now().Add(5 * time.Second)
 	for server.Busy() && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if server.Busy() || !server.Stopped() {
-		t.Fatal("server did not end the detached run after it completed")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("supervisor did not exit after the run completed")
 	}
+	if server.Busy() || !server.Stopped() {
+		t.Fatal("server did not end the run after completion")
+	}
+	_ = accepted
 }
 
-// startAttachedTestRun sends a synchronous run request for the default
-// project and drains progress, returning the final response.
-func startAttachedTestRun(t *testing.T, client net.Conn) <-chan serverinternal.Response {
+// startAttachedTestRun sends a synchronous run request and reads its startup
+// acceptance. Steady-state progress and control use the shared follower.
+func startAttachedTestRun(t *testing.T, client net.Conn) serverinternal.Response {
 	return startAttachedTestRunWithDisconnectAction(t, client, serverinternal.DisconnectActionDetach)
 }
 
-func startAttachedTestRunWithDisconnectAction(t *testing.T, client net.Conn, action string) <-chan serverinternal.Response {
+func startAttachedTestRunWithDisconnectAction(t *testing.T, client net.Conn, action string) serverinternal.Response {
 	t.Helper()
 	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: serverinternal.OpRun, QueueName: "default", LocalConcurrency: 1, BatchMaxActive: 1, PartialArray: true, DisconnectAction: action}); err != nil {
 		t.Fatal(err)
 	}
-	final := make(chan serverinternal.Response, 1)
-	go func() {
-		decoder := json.NewDecoder(client)
-		for {
-			var response serverinternal.Response
-			if err := decoder.Decode(&response); err != nil {
-				close(final)
-				return
-			}
-			if !response.Progress {
-				final <- response
-				return
-			}
-		}
-	}()
-	return final
+	var response serverinternal.Response
+	if err := json.NewDecoder(client).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.Accepted || response.RunID == "" {
+		t.Fatalf("run startup response = %#v, want acceptance with run ID", response)
+	}
+	return response
 }
 
 func writeExecutable(t *testing.T, dir, name, content string) {

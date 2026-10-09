@@ -9,6 +9,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -242,6 +243,35 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 	}
 	if len(got) != 2 || got[0].ProjectName != "alpha" || got[1].ProjectName != "beta" {
 		t.Fatalf("active targets = %#v, want alpha then beta", got)
+	}
+}
+
+func TestConcurrentImplicitWaitReservationSelectsRunOnce(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), Host: host, RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	target := resolve.Run{BaseDir: baseDir, ProjectName: "demo", RunID: "run-1"}
+	first, firstSessions, err := reserveImplicitWaitTargets([]resolve.Run{target}, serverinternal.DisconnectActionDetach)
+	if err != nil || len(first) != 1 || firstSessions[implicitWaitKey(target)] == nil {
+		t.Fatalf("first implicit reservation = %#v, %#v, %v", first, firstSessions, err)
+	}
+	defer closeWaitReservations(firstSessions)
+	second, secondSessions, err := reserveImplicitWaitTargets([]resolve.Run{target}, serverinternal.DisconnectActionDetach)
+	if err != nil || len(second) != 0 || len(secondSessions) != 0 {
+		closeWaitReservations(secondSessions)
+		t.Fatalf("second implicit reservation = %#v, %#v, %v; want skip already attached run", second, secondSessions, err)
 	}
 }
 

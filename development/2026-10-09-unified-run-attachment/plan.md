@@ -1,7 +1,8 @@
 # Plan: Unified Run and Wait Attachment
 
 Created: 2026-10-09
-Status: Planned; no runtime changes made by this plan
+Status: Implemented for local CLI attachment flow; validation and multi-host
+filesystem testing remain partial
 
 ## Purpose
 
@@ -35,24 +36,42 @@ direction here; its other status and recovery work remains separate.
 - Web and read-only MCP consumers are not attachments merely because they read
   state. Starting a run asynchronously through an API does not attach it.
 
-## Current implementation and gap
+## Implemented architecture
 
-The synchronous client uses `Client.StreamRun` in
-[client.go](../../internal/server/client.go) for pipe progress and control.
-[serve.go](../../internal/server/serve.go) watches that connection and applies
-detach/cancel policy. In contrast,
-[wait.go](../../cmd/rotari/wait.go) follows the progress journal and invokes
-`jobcontrol.Controller.Cancel` for explicit cancellation.
+- The startup pipe now carries the request and one explicit acceptance or
+  rejection. `Accepted` includes the committed `RunID`; after acceptance, pipe
+  close is normal and cannot detach or cancel execution. Sync requests reserve
+  a session before launch and bind it to that run before the acceptance.
+- `run` / `retry` and `wait` enter the same `followRunWithOutput` path. Initial
+  runs read the journal from its beginning; waiters take the existing
+  attach-time progress snapshot and skip older events. Both use the same
+  renderer, cancellation operation, result/phase authority, and terminal
+  controls. Async starts still return without a session.
+- `internal/attachment` stores independent client records and process-held
+  advisory locks in `.rotari-attachments/`. New run locks do not write the
+  legacy `ClientAttached` boolean; aggregate current attachment is derived from
+  sessions, with a fallback only for active runs created before the marker.
+- The supervisor polls every 100 ms. A held lock means live even while the
+  process is stopped. When the lock is free on the local host, Linux
+  `/proc/PID/stat` start time is compared to avoid PID-reuse errors; if process
+  identity is unavailable, liveness is conservative. Remote host identity
+  cannot be verified and remains attached/unknown rather than being declared
+  dead. Stale disconnect-cancel records are retained until cancellation
+  succeeds (or the fixed run has already ended), so a transient cancellation
+  error can be retried.
+- Implicit waiters recheck and reserve candidates under the project state lock.
+  Explicit waiters may join an existing session; releasing one client cannot
+  erase another. Supplying `--project-name` is an explicit target and retains
+  the attached warning; only a genuinely targetless `wait` silently reserves
+  eligible detached candidates. Web and MCP readers remain observers, though shared run-view
+  projections use current CLI attachment state.
+- A bound session whose startup acknowledgement is lost is not retried. Client
+  cleanup releases its process lock but preserves the bound record so the
+  supervisor can apply the configured policy. Unbound reservations are removed
+  on startup failure.
 
-The commands already share the progress renderer and completion formatting,
-but not a client-session lifecycle. `wait` already supports Ctrl-C cancellation
-and Ctrl-D detach; this plan must preserve those behaviors, not add them as if
-they were absent. Its attachment is not currently included in the persisted
-initiating-client state introduced by the related visibility work.
-
-The progress journal is currently best-effort: a write failure or a colliding
-job ID can disable it. Replacing pipe progress makes that limitation affect
-both commands and therefore requires an explicit policy.
+The progress journal remains best-effort and collision-tolerant. Both entry
+points fall back to authoritative summary/phase polling if journal reads fail.
 
 ## Target responsibilities
 
@@ -139,37 +158,57 @@ immediate EOF guarantee of the old steady-state pipe.
   metadata in a collision-safe namespace instead of reserving new job names
   casually. Per-event `fsync` is not automatically required.
 
-## Open design decisions
+## Resolved design decisions and limits
 
-1. Session storage/liveness mechanism, remote-host guarantees, and disconnect
-   detection latency, including how suspended clients remain attached.
-2. Multiple explicit attachments: recommended direction is to allow them,
-   count all live sessions, and let an explicit Ctrl-C cancel the shared run.
-   Implicit `wait` should skip runs with any valid attachment. Specify how
-   concurrent implicit waiters select and register without accidental races.
-3. Representation of current attachment versus launch/detach history in JSON
-   and text, including compatibility with existing run state and uncertain
-   remote sessions.
-4. Startup acceptance/handoff ordering and handling a lost acknowledgement.
-5. Progress-journal failure/collision policy once all clients depend on it.
+1. Session liveness uses per-client `flock` plus host, PID, and Linux process
+  start-time identity, not a heartbeat. The supervisor's scan interval is
+  100 ms; actual detection also includes filesystem and job-control latency.
+  A stopped process keeps its lock. Remote clients and malformed/unreadable
+  session state are uncertainty, never proof of death. Shared/network
+  filesystems with reliable cross-host advisory locks may give stronger
+  behavior, but multi-host lock semantics have not been integration-tested.
+2. Multiple explicit attachments are allowed. The current set is derived from
+  sessions, with no count. Ctrl-D, timeout, and early-failure return release
+  only their own session; Ctrl-C cancels the fixed selected run IDs. Implicit
+  selection uses an under-lock recheck-and-reserve so concurrent waiters do
+  not both claim the same unattached run.
+3. The initiating client status remains launch/detach history. Active aggregate
+  attachment comes from sessions; the run-lock `client_attached` field is no
+  longer written by new runs and is read only for pre-marker compatibility.
+  CLI and Web use the shared run-view projection. Unknown remote liveness is
+  not shown as proved detached.
+4. A sync client reserves identity before launching; the supervisor binds it
+  before acceptance and returns the accepted run ID. Closing the pipe is not
+  a disconnect. A lost/ambiguous acceptance is not retried; a bound stale
+  reservation remains visible to the supervisor.
+5. Progress remains best-effort. Valid job IDs are not reserved; a collision
+  disables the journal, and readers retain result-only fallback. The journal
+  carries the start event's run ID so the startup acceptance can identify the
+  accepted run without making the stream itself the control channel.
+
+Stale session records from a killed supervisor may remain with interrupted run
+history; no session garbage collector is introduced here. A remote client
+whose host cannot be probed may remain conservatively attached indefinitely.
 
 ## Implementation phases
 
-1. **Specify and test sessions.** Resolve the open liveness and handoff
-   decisions. Add failing tests for `async -> wait -> attached`, independent
-   detach with multiple sessions, and implicit selection while another waiter
-   is attached. Preserve existing terminal-control tests.
-2. **Extract the shared attachment boundary.** Move follow/control lifecycle
-   out of command-specific code; route `wait` through it. Add shared status
-   projection and liveness handling with package-test checkpoints.
-3. **Switch synchronous run/retry.** Keep startup pipes, acknowledge run ID,
-   and enter the same attachment operation. Stop steady-state pipe streaming
-   and pipe-based control after a safe handoff. Retain one supervisor per run,
-   project exclusion, cwd/environment inheritance, and async startup errors.
-4. **Remove obsolete paths and document contracts.** Remove duplicate
-   stream/control state, align CLI/Web projections and generated schemas if
-   affected, and update relevant contracts and guides. Do not preserve two
-   runtime attachment implementations as a permanent compatibility layer.
+1. **Specify and test sessions.** Complete: added session independence, async
+  run followed by wait, implicit skip/reservation, suspension, SIGKILL, PID
+  identity, and remote-uncertainty tests.
+2. **Extract the shared attachment boundary.** Complete for session storage,
+  aggregation, projection, and the shared CLI follow/control path. The
+  progress-rendering adapter remains in `cmd/rotari`; internal attachment
+  logic imports no CLI renderer.
+3. **Switch synchronous run/retry.** Complete: startup-only pipe acceptance,
+  pre-reserved session handoff, shared follower, fixed run-ID cancellation,
+  and supervisor-side disconnect monitoring. Async startup remains
+  one-response and does not attach.
+4. **Remove obsolete paths and document contracts.** Complete for steady-state
+  stream/control paths (`StreamRun`, server-side detach/cancel bytes and
+  connection watchers, and the legacy status-update adapter were removed).
+  The Ctrl-D byte remains only as terminal input recognition in the CLI.
+  Architecture, running/inspection/FAQ guides, and CLI-19 contract notes were
+  updated; no generated public schema changed.
 
 ## Validation
 
@@ -181,7 +220,9 @@ immediate EOF guarantee of the old steady-state pipe.
   old run versus replacement run races.
 - Use real subprocess/PTY tests for signals and terminal behavior, including
   SIGKILL, SIGHUP, SIGTERM, and suspension. Channel-injection tests alone are
-  insufficient evidence for disconnect handling.
+  insufficient evidence for disconnect handling. Subprocess tests cover
+  SIGKILL and suspension; a full cross-platform PTY and multi-host matrix is
+  still outstanding.
 - Test refusal/early supervisor death, acknowledgement loss, handoff death,
   journal failure, metadata/job-name collisions, stale sessions, and supported
   remote/shared-filesystem cases without timing-only assertions.
@@ -190,16 +231,29 @@ immediate EOF guarantee of the old steady-state pipe.
 - Add binary/Web conformance for the changed attachment meaning, and update
   contract IDs/status mapping with implementation. Inspect Python/MCP clients
   for any changed public fields or startup response assumptions.
-- Review `docs/ARCHITECTURE.md`, `docs/RUNNING.md`, `docs/INSPECT.md`,
-  `docs/CLI_REFERENCE.md`, `docs/FAQ.md`, and relevant contracts when code lands.
-- Run focused tests first, affected package tests and conformance next, then
-  pre-commit on changed files, `scripts/check.sh --short`, and `scripts/check.sh`.
+- Reviewed/updated `docs/ARCHITECTURE.md`, `docs/RUNNING.md`,
+  `docs/INSPECT.md`, `docs/FAQ.md`, and contracts. `docs/CLI_REFERENCE.md` and
+  generated schemas needed no changes because no public option or response
+  schema was added.
+- Validation run during implementation: focused attachment, server,
+  supervisor, projectrun, runview, and CLI package tests; doclinks/archtest;
+  and full conformance passed. Review then found three issues, each fixed with
+  a regression test shown to fail first: explicit `Session.Close` released its
+  lock before removing its record (a scan could cancel an explicit detach),
+  initiator status updates bypassed the project state lock, and a `wait`
+  session wrote the session-only marker onto pre-marker runs, hiding a legacy
+  sync client's lock-recorded attachment. Pre-commit on changed files,
+  `scripts/check.sh --short`, and `scripts/check.sh` (with race detection)
+  passed; the final full check was rerun after the last fix.
 
-## Non-goals and status
+## Non-goals and remaining validation
 
 - No removal of startup pipes, permanent daemon, new socket service, or
   automatic supervisor restart/recovery is required by this plan.
 - Attachment does not recreate a job terminal or forward job stdin.
-- No implementation, runtime contract change, or claim of passing runtime
-  tests is made by this document. The parallel run-visibility work remains
-  outside this planning change.
+- Startup pipes, the one-supervisor-per-run model, and the existing
+  run-visibility schema are retained. No supervisor restart/recovery or remote
+  liveness service was added. Do not infer successful remote disconnect
+  cancellation from same-host tests.
+- This work does not include the separate supervisor-restart project. Its code
+  and plan must remain untouched.

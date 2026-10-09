@@ -10,19 +10,16 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 type fakeOperations struct {
-	mu             sync.Mutex
-	cancelled      []Request
-	clientStatuses []model.RunClientStatus
-	runStart       chan struct{}
-	runFinish      chan struct{}
-	runEntered     chan struct{}
-	runGate        chan struct{}
-	startErr       error
+	mu         sync.Mutex
+	cancelled  []Request
+	runStart   chan struct{}
+	runFinish  chan struct{}
+	runEntered chan struct{}
+	runGate    chan struct{}
+	startErr   error
 }
 
 func (ops *fakeOperations) StartRun(_ Request, _ func()) (string, string, error) {
@@ -44,21 +41,6 @@ func (ops *fakeOperations) Run(_ Request, progress func(Response)) (string, int,
 		<-ops.runFinish
 	}
 	return "finished", 3, nil
-}
-
-func (ops *fakeOperations) CancelRun(request Request) {
-	ops.mu.Lock()
-	ops.cancelled = append(ops.cancelled, request)
-	ops.mu.Unlock()
-	if ops.runFinish != nil {
-		close(ops.runFinish)
-	}
-}
-
-func (ops *fakeOperations) UpdateRunClientStatus(_ Request, status model.RunClientStatus) {
-	ops.mu.Lock()
-	ops.clientStatuses = append(ops.clientStatuses, status)
-	ops.mu.Unlock()
 }
 
 func roundTrip(t *testing.T, server *Server, request Request) Response {
@@ -137,10 +119,10 @@ func TestServeStopsWithoutRun(t *testing.T) {
 func TestHandleSyncRunStreamsProgressAndEndsRun(t *testing.T) {
 	server := New(&fakeOperations{}, nil)
 	response := roundTrip(t, server, Request{Op: OpRun})
-	if !response.OK || response.Message != "finished" || response.ExitCode != 3 {
+	if !response.OK || !response.Accepted || response.RunID != "" {
 		t.Fatalf("run = %#v", response)
 	}
-	// The run ends after its final response is written.
+	// The test operation emits no RunID; acceptance only confirms Begin/Run entered.
 	waitIdle(server)
 	if server.Busy() || !server.Stopped() {
 		t.Fatal("server did not end its only run")
@@ -161,7 +143,7 @@ func TestHandleRejectsSecondRun(t *testing.T) {
 		decoder := json.NewDecoder(client)
 		for {
 			var response Response
-			if err := decoder.Decode(&response); err != nil || !response.Progress {
+			if err := decoder.Decode(&response); err != nil || !response.Accepted {
 				final <- response
 				return
 			}
@@ -187,7 +169,7 @@ func TestHandleAsyncRunStartFailureEndsRun(t *testing.T) {
 	}
 }
 
-func TestHandleSyncRunDisconnectDetachesByDefault(t *testing.T) {
+func TestHandleSyncStartupPipeCloseDoesNotEndRun(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
 	server := New(ops, nil)
 	client, serverConn := net.Pipe()
@@ -199,31 +181,30 @@ func TestHandleSyncRunDisconnectDetachesByDefault(t *testing.T) {
 	if err := json.NewEncoder(client).Encode(Request{Op: OpRun, QueueName: "demo"}); err != nil {
 		t.Fatal(err)
 	}
-	var progress Response
-	if err := json.NewDecoder(client).Decode(&progress); err != nil || !progress.Progress {
-		t.Fatalf("progress = %#v, %v", progress, err)
+	var accepted Response
+	if err := json.NewDecoder(client).Decode(&accepted); err != nil || !accepted.Accepted {
+		t.Fatalf("acceptance = %#v, %v", accepted, err)
 	}
 	<-ops.runStart
 	_ = client.Close()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("disconnect did not end the request")
-	}
-	if len(ops.cancelled) != 0 {
-		t.Fatalf("disconnect cancelled the run: %#v", ops.cancelled)
-	}
-	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientDetached || ops.clientStatuses[0].Reason != model.RunClientReasonEOF {
-		t.Fatalf("client statuses = %#v, want unexpected disconnect recorded as detached", ops.clientStatuses)
+		t.Fatal("startup pipe close ended the active run")
+	case <-time.After(20 * time.Millisecond):
 	}
 	if !server.Busy() {
-		t.Fatal("detached run is no longer active")
+		t.Fatal("closing the startup pipe ended the run")
 	}
 	close(ops.runFinish)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run did not finish after its execution gate opened")
+	}
 	waitIdle(server)
 }
 
-func TestHandleSyncRunDisconnectCanCancel(t *testing.T) {
+func TestHandleSyncStartupPipeCloseDoesNotApplyDisconnectPolicy(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
 	server := New(ops, nil)
 	client, serverConn := net.Pipe()
@@ -235,29 +216,24 @@ func TestHandleSyncRunDisconnectCanCancel(t *testing.T) {
 	if err := json.NewEncoder(client).Encode(Request{Op: OpRun, QueueName: "demo", DisconnectAction: DisconnectActionCancel}); err != nil {
 		t.Fatal(err)
 	}
-	var progress Response
-	if err := json.NewDecoder(client).Decode(&progress); err != nil || !progress.Progress {
-		t.Fatalf("progress = %#v, %v", progress, err)
+	var accepted Response
+	if err := json.NewDecoder(client).Decode(&accepted); err != nil || !accepted.Accepted {
+		t.Fatalf("acceptance = %#v, %v", accepted, err)
 	}
 	<-ops.runStart
 	_ = client.Close()
+	if !server.Busy() {
+		t.Fatal("closing the startup pipe ended the run")
+	}
+	close(ops.runFinish)
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("run was not cancelled after disconnect")
-	}
-	if len(ops.cancelled) != 1 || ops.cancelled[0].QueueName != "demo" {
-		t.Fatalf("cancelled = %#v, want the disconnected run", ops.cancelled)
-	}
-	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientCancelling || ops.clientStatuses[0].Reason != model.RunClientReasonCancel {
-		t.Fatalf("client statuses = %#v, want disconnect cancellation", ops.clientStatuses)
-	}
-	if server.Busy() {
-		t.Fatal("cancelled run is still active")
+		t.Fatal("run did not finish after its execution gate opened")
 	}
 }
 
-func TestHandleSyncDisconnectWaitsForRunStartBeforeRecordingTransition(t *testing.T) {
+func TestHandleSyncPipeCloseDuringStartupDoesNotControlRun(t *testing.T) {
 	ops := &fakeOperations{runEntered: make(chan struct{}), runGate: make(chan struct{}), runFinish: make(chan struct{})}
 	server := New(ops, nil)
 	client, serverConn := net.Pipe()
@@ -271,31 +247,33 @@ func TestHandleSyncDisconnectWaitsForRunStartBeforeRecordingTransition(t *testin
 	}
 	<-ops.runEntered
 	_ = client.Close()
-	if len(ops.clientStatuses) != 0 {
-		t.Fatalf("client status recorded before run start: %#v", ops.clientStatuses)
-	}
 	close(ops.runGate)
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("disconnect was not handled after run start")
+		t.Fatal("startup pipe close ended the run before execution finished")
+	case <-time.After(20 * time.Millisecond):
 	}
-	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].Reason != model.RunClientReasonEOF {
-		t.Fatalf("client statuses = %#v, want the disconnect recorded after run start", ops.clientStatuses)
-	}
-	if len(ops.cancelled) != 0 || !server.Busy() {
-		t.Fatalf("cancelled = %#v, busy = %v; want detached live run", ops.cancelled, server.Busy())
+	if !server.Busy() {
+		t.Fatal("startup handoff altered run state")
 	}
 	close(ops.runFinish)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run did not finish")
+	}
 	waitIdle(server)
 }
 
-func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
+func TestHandleSyncRunFinishesAfterStartupPipeCloses(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
 	server := New(ops, nil)
 	client, serverConn := net.Pipe()
-	defer client.Close()
-	go server.Handle(serverConn)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.Handle(serverConn)
+	}()
 	if err := json.NewEncoder(client).Encode(Request{Op: OpRun}); err != nil {
 		t.Fatal(err)
 	}
@@ -305,23 +283,19 @@ func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-ops.runStart
-	if _, err := client.Write([]byte{DetachControl}); err != nil {
-		t.Fatal(err)
-	}
-	var final Response
-	if err := decoder.Decode(&final); err != nil || !final.OK || final.Message != DetachedMessage {
-		t.Fatalf("final = %#v, %v, want detached", final, err)
-	}
+	_ = client.Close()
 	if !server.Busy() {
-		t.Fatal("detached run ended before it completed")
+		t.Fatal("closing the startup connection ended the run")
 	}
 	close(ops.runFinish)
-	waitIdle(server)
-	if server.Busy() || !server.Stopped() || len(ops.cancelled) != 0 {
-		t.Fatalf("busy = %v, stopped = %v, cancelled = %#v", server.Busy(), server.Stopped(), ops.cancelled)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run did not complete after startup connection closed")
 	}
-	if len(ops.clientStatuses) != 1 || ops.clientStatuses[0].State != model.RunClientDetached || ops.clientStatuses[0].Reason != model.RunClientReasonCtrlD {
-		t.Fatalf("client statuses = %#v, want one Ctrl-D detach notification", ops.clientStatuses)
+	waitIdle(server)
+	if server.Busy() || !server.Stopped() {
+		t.Fatalf("busy = %v, stopped = %v", server.Busy(), server.Stopped())
 	}
 }
 
@@ -419,7 +393,7 @@ func fakeSupervisor(conn net.Conn) <-chan []byte {
 			return
 		}
 		encoder := json.NewEncoder(conn)
-		_ = encoder.Encode(Response{Progress: true, Message: "started"})
+		_ = encoder.Encode(Response{OK: true, Accepted: true, RunID: "run-1"})
 		if request.RunName == "finish" {
 			_ = encoder.Encode(Response{OK: true, Message: "done", ExitCode: 2})
 			return
@@ -451,35 +425,17 @@ func connectFake(t *testing.T) (*Client, <-chan []byte) {
 	return client, received
 }
 
-func TestStreamRunOutcomes(t *testing.T) {
-	var progress []string
-	collect := func(response Response) { progress = append(progress, response.Message) }
-	client, _ := connectFake(t)
-	response, outcome, err := client.StreamRun(Request{Op: OpRun, RunName: "finish"}, nil, nil, collect)
-	if err != nil || outcome != RunFinished || response.Message != "done" || response.ExitCode != 2 || len(progress) != 1 {
-		t.Fatalf("finish = %#v, %v, %v, progress %#v", response, outcome, err, progress)
-	}
-
+func TestAcceptRunUsesStartupHandshake(t *testing.T) {
 	client, received := connectFake(t)
-	detach := make(chan struct{}, 1)
-	detach <- struct{}{}
-	response, outcome, err = client.StreamRun(Request{Op: OpRun}, detach, nil, collect)
-	if err != nil || outcome != RunDetached || !response.OK {
-		t.Fatalf("detach = %#v, %v, %v", response, outcome, err)
+	response, err := client.AcceptRun(Request{Op: OpRun})
+	if err != nil || !response.OK || !response.Accepted || response.RunID != "run-1" {
+		t.Fatalf("accept = %#v, %v, want accepted run-1", response, err)
 	}
-	if got := <-received; len(got) != 1 || got[0] != DetachControl {
-		t.Fatalf("server received %v, want detach control", got)
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
 	}
-
-	client, received = connectFake(t)
-	interrupt := make(chan os.Signal, 1)
-	interrupt <- os.Interrupt
-	response, outcome, err = client.StreamRun(Request{Op: OpRun}, nil, interrupt, collect)
-	if err != nil || outcome != RunInterrupted || response.ExitCode != 130 {
-		t.Fatalf("interrupt = %#v, %v, %v", response, outcome, err)
-	}
-	if got := <-received; len(got) != 1 || got[0] != CancelControl {
-		t.Fatalf("server received %v on interrupt, want cancel control", got)
+	if got := <-received; len(got) != 0 {
+		t.Fatalf("startup pipe carried a steady-state control byte: %v", got)
 	}
 }
 

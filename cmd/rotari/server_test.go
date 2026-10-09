@@ -235,7 +235,7 @@ func TestWatchClientInput(t *testing.T) {
 	}
 }
 
-func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
+func TestRunStartupRequestPreservesQuietAndReturnsRunID(t *testing.T) {
 	clientConn, conn := net.Pipe()
 	serverDone := make(chan error, 1)
 	go func() {
@@ -253,41 +253,24 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 			serverDone <- fmt.Errorf("request.Quiet = false, want true")
 			return
 		}
-		if err := json.NewEncoder(conn).Encode(serverinternal.Response{Progress: true, Message: "=== Run started ===\n  Project: demo"}); err != nil {
+		if err := json.NewEncoder(conn).Encode(serverinternal.Response{OK: true, Accepted: true, RunID: "run-1"}); err != nil {
 			serverDone <- err
 			return
 		}
-		if err := json.NewEncoder(conn).Encode(serverinternal.Response{OK: true, Message: "=== Run finished ===\n  Project: demo\n  Exit code: 0", ExitCode: 0}); err != nil {
-			serverDone <- err
-			return
-		}
+		_, _ = io.Copy(io.Discard, conn)
 		serverDone <- nil
 	}()
 
-	oldStdout := os.Stdout
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = writer
 	client, err := serverinternal.Connect(clientConn, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := sendRunRequest(client, serverinternal.Request{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
-	os.Stdout = oldStdout
-	if err := writer.Close(); err != nil {
+	response, err := client.AcceptRun(serverinternal.Request{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
+	if err != nil || !response.OK || !response.Accepted || response.RunID != "run-1" {
+		t.Fatalf("startup response = %#v, %v, want accepted run-1", response, err)
+	}
+	if err := client.Close(); err != nil {
 		t.Fatal(err)
-	}
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err != nil || response.ExitCode != 0 || response.Message != "=== Run finished ===\n  Project: demo\n  Exit code: 0" {
-		t.Fatalf("sendRunRequest err=%v response=%#v stdout=%q", err, response, output)
-	}
-	if len(output) != 0 {
-		t.Fatalf("quiet run printed stdout=%q", output)
 	}
 	if err := <-serverDone; err != nil {
 		t.Fatal(err)

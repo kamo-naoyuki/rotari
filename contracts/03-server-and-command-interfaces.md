@@ -100,30 +100,48 @@ Representative implementation and tests:
 
 ## Client connection lifecycle
 
-The server distinguishes explicit cancellation, intentional detach, unexpected
-client disconnect, and run completion as follows:
+The startup pipe carries the run request and one acceptance or rejection. For
+a synchronous `run` / `retry`, acceptance includes the committed run ID and
+transfers client-liveness responsibility to the per-client attachment session;
+the pipe is then closed normally. The pipe does not carry steady-state
+progress or controls. `run --async` returns after the same startup acceptance
+without creating an attached session. `wait` resolves an existing run and
+joins the same follower/session lifecycle without starting or re-executing it.
 
-- An unexpected synchronous-client disconnect detaches by default: the run
-  continues and finalizes normally, and is eligible for implicit `wait`.
-  `--disconnect-action cancel` or `ROTARI_DISCONNECT_ACTION=cancel` changes
-  unexpected disconnects to cancellation; the CLI option takes precedence.
-- Ctrl-C sends an explicit cancellation control and returns immediately with
-  exit code 130, independent of the disconnect policy. The server-side run
-  continues stopping jobs and then finalizes normally.
-- Ctrl-D sends an explicit detach control. The run is left uncancelled and
-  completion cleanup moves to the background waiter, independent of the
-  disconnect policy.
-- Ctrl-Z sends no rotari protocol message. The terminal suspends the client
-  while the server-side run continues; if the client is later closed, that
-  unexpected disconnect follows the selected policy.
-- An async run executes inside its supervisor, like a sync run whose client
-  detached at once: `run --async` returns after `=== Run started ===`, and the
-  supervisor finishes the run in the background. Interrupted-run recovery is
-  reserved for failures that bypass finalization, such as a killed
-  supervisor.
-- Completed sync and async runs decrement the active-run count immediately
-  through `Server.BeginRun`/`Server.EndRun`. When it reaches zero, the server stops without
-  waiting for the idle timeout.
+Each attached client has an independent session record and process-held lock
+under the project's `.rotari-attachments/` directory. Current attachment is
+derived from live sessions, not a mutable count or a single boolean in
+`running.lock`; old locks without the session marker retain their historical
+fallback. The supervisor treats a session as live while its lock is held,
+including while its process is suspended. After a same-host process dies, the
+released lock and recorded process-start identity distinguish death from PID
+reuse. A remote host cannot be verified locally and is treated as unknown/live,
+not proved dead. The supervisor checks for stale sessions while the run is
+executing; the detection interval is 100 ms plus filesystem and cancellation
+latency. If liveness cannot be read or verified, it does not infer a
+disconnect. Thus `--disconnect-action cancel` detects same-host `SIGKILL`, but
+does not promise to detect a lost remote client.
+
+- Ctrl-C requests cancellation of the fixed run ID (all selected active run
+  IDs for multi-run `wait`) and exits with status 130. It is independent of
+  the unexpected-disconnect policy; execution finalizes after jobs stop.
+- Ctrl-D releases only the caller's session and leaves execution uncancelled.
+  Other live clients remain attached. A sync `run` returns to the background;
+  `wait` merely stops following.
+- Unexpected disconnect defaults to detach. `--disconnect-action cancel` or
+  `ROTARI_DISCONNECT_ACTION=cancel` asks the supervisor to cancel after it
+  proves a local client session dead; explicit CLI options take precedence.
+- Ctrl-Z suspends the client while its process-held lock remains held, so it
+  is not mistaken for a disconnect. If it is later terminated, the selected
+  disconnect policy applies.
+- An async run has no attached client until a later client enters via `wait`.
+  Web and MCP reads are not attachments. Completed runs use the saved summary
+  and do not create a live session. Supervisor death still means interruption,
+  not successful completion.
+- The startup request reserves the initiating session before launch and binds
+  it to the run ID before acceptance. If the acknowledgement is lost after
+  binding, the client does not retry; its released lock leaves a record the
+  supervisor can inspect and apply the configured policy to.
 
 ## CLI presentation
 
@@ -240,40 +258,55 @@ client disconnect, and run completion as follows:
   once and ending with a newline. Both use
   [`internal/supervisor/messages.go`](../internal/supervisor/messages.go);
   checked by [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
-- **CLI-19** Text `wait` started while a run is active renders new job-start,
-  retry, final-failure, and progress-count events appended after it attaches
-  with the same printer as synchronous `run`, draining final events before
-  completion. At attach it prints `=== Run attached ===` and a single line
-  with the latest progress-count snapshot; it skips the preceding event history
-  and does not replay events for an already finished run. An absent journal
-  remains compatible with old runs. Partial lines are deferred;
-  malformed complete lines are reported and skipped without losing subsequent
-  events. `wait --quiet` suppresses normal progress and completion, but keeps
-  failure diagnostics, early-failure reports, errors, and timeouts. Quiet uses
-  the ordinary CLI/environment/config precedence. `--json` never emits text
-  progress and still emits its result with `--quiet`. Ctrl-D ends only the wait
-  client and leaves every run running; a terminated wait client (closed
-  terminal, `SIGHUP`, or `SIGTERM`) also leaves the runs running by default,
-  or cancels selected runs with
-  `--disconnect-action cancel` / `ROTARI_DISCONNECT_ACTION=cancel`. Ctrl-C
-  explicitly requests cancellation of every
-  still-active selected run and exits 130. `wait` warns when an explicitly
-  selected active run still has its synchronous client attached, then monitors
-  it normally; an explicit detach makes it eligible for implicit selection.
-  Implicit selection considers only detached runs. With multiple
-  selected runs, Ctrl-D stops waiting for all of them and Ctrl-C cancels all
-  still-active selected runs. Timeout and `--until-failure` do not
-  cancel runs. Multiple selected runs are monitored concurrently with text
-  labels and atomic multiline events; single-run text has no label. Identity
-  colors affect only labels, not status coloring. Quiet suppresses ordinary
-  progress and control hints for any number of runs. JSON stays unlabelled and
-  in selector order, retaining completed results on detach or interruption.
-  Implemented in
-  [`cmd/rotari/wait.go`](../cmd/rotari/wait.go) and the shared printer in
-  [`cmd/rotari/run_command.go`](../cmd/rotari/run_command.go), with cursor and
-  output tests in [`cmd/rotari/wait_progress_test.go`](../cmd/rotari/wait_progress_test.go)
-  and public coverage in
-  [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
+- **CLI-19** Synchronous `run`/`retry` and `wait` enter one post-start follower
+  and per-client attachment lifecycle. The startup pipe carries only request
+  and acceptance/rejection (with the committed run ID); progress and control
+  after acceptance use the run's files and shared job-control operation.
+  Each client owns a separate process-held session lock and record under
+  `.rotari-attachments/`. Aggregate attachment is derived from live sessions;
+  ending one client never detaches another, and implicit waiters atomically
+  reserve an otherwise unattached run under the project state lock. An async
+  run creates no session until `wait` attaches. Web and MCP reads are not
+  attachments.
+
+  Text followers render job-start, retry, final-failure, and progress-count
+  events from `progress.jsonl`, draining final events before completion. `run`
+  reads from the run's beginning; `wait` prints `=== Run attached ===` and the
+  latest progress snapshot, skips older event history, and does not replay
+  progress for an already finished run. An absent journal remains compatible
+  with old runs. Partial lines are deferred; malformed complete lines are
+  reported and skipped without losing later events. Quiet suppresses normal
+  progress and completion but keeps diagnostics, errors, and timeouts. JSON
+  never emits text progress, still holds a session while following an active
+  run, and emits results in selector order. Ctrl-D releases only the caller's
+  session; timeout and `--until-failure` also release only that session without
+  cancelling work. Ctrl-C cancels every still-active selected run and exits
+  130. Explicitly selected active runs may have multiple followers and warn
+  when another session is attached; implicit selection skips any run with a
+  valid session.
+
+  Unexpected disconnect defaults to detach. With
+  `--disconnect-action cancel` / `ROTARI_DISCONNECT_ACTION=cancel`, the
+  supervisor detects a same-host dead process by its released session lock and
+  recorded process-start identity, then requests cancellation of that fixed
+  run ID. A suspended client retains its lock. A remote client's liveness is
+  unknown and is treated as live; cancel-on-disconnect cannot promise to detect
+  a lost remote client. Detection polls every 100 ms plus filesystem and
+  cancellation latency. Startup sessions are reserved before launch and bound
+  before acceptance; a lost acknowledgment is not retried, and a bound stale
+  session remains observable to the supervisor. Implemented in
+  [`cmd/rotari/run_command.go`](../cmd/rotari/run_command.go),
+  [`cmd/rotari/wait.go`](../cmd/rotari/wait.go),
+  [`internal/attachment/session.go`](../internal/attachment/session.go),
+  [`internal/server/client.go`](../internal/server/client.go),
+  [`internal/server/serve.go`](../internal/server/serve.go), and
+  [`internal/supervisor/run.go`](../internal/supervisor/run.go). Package and
+  binary checks include `TestWaitAttachmentIsSharedAndImplicitWaitSkipsIt`,
+  `TestConcurrentImplicitWaitReservationSelectsRunOnce`,
+  `TestSynchronousRunInterruptCancelsAcceptedRun`,
+  `TestSessionLivenessSurvivesSuspendAndDetectsSIGKILL`,
+  `TestRunClientDisconnectDetachesByDefaultAndCanCancel`, and
+  `TestWaitClientDisconnectDetachesByDefaultAndCanCancel`.
 - **CLI-15** A single-value CLI option may be specified only once in an
   invocation; a second occurrence is rejected before command effects. Options
   declared repeatable remain repeatable, including short and long aliases of

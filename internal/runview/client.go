@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -37,6 +38,26 @@ func ClientStatus(paths state.ProjectPaths, runID string) (model.RunClientStatus
 }
 
 func activeClientStatus(paths state.ProjectPaths, runID string, status model.RunClientStatus, statusErr error) (model.RunClientStatus, error) {
+	if attachment.Enabled(paths, runID) {
+		attached, err := attachment.Attached(paths, runID)
+		if err != nil {
+			return model.RunClientStatus{}, err
+		}
+		if attached {
+			status.State = model.RunClientAttached
+		} else if status.State == model.RunClientAttached {
+			// The old record may outlive a killed client. Session scan errs on
+			// uncertainty, so no live sessions means the old claim is stale.
+			status.State = "unknown"
+		}
+		return status, nil
+	}
+	if attached, err := attachment.Attached(paths, runID); err != nil {
+		return model.RunClientStatus{}, err
+	} else if attached {
+		status.State = model.RunClientAttached
+		return status, nil
+	}
 	lockState, lock, err := state.InspectLock(paths.LockFile, false)
 	if err != nil {
 		return model.RunClientStatus{}, err

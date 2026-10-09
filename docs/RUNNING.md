@@ -85,7 +85,7 @@ temporarily paused:
 | Ctrl-C (`SIGINT`) | Cancels the run and its unfinished jobs; exits with status 130. | Cancels every selected active run and its unfinished jobs; exits with status 130. |
 | Ctrl-D (terminal EOF; not a signal) | Stops waiting; the run continues in the background. | Stops waiting; the selected run(s) continue. |
 | Ctrl-Z (`SIGTSTP`) | Pauses the command while the run continues. Use `fg` to resume. | Pauses the command while the run(s) continue. Use `fg` to resume. |
-| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background without cancelling jobs. With `--disconnect-action cancel`, cancels the run and unfinished jobs. | By default, waiting stops without cancelling jobs. With `--disconnect-action cancel`, cancels every selected active run and its unfinished jobs. |
+| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background without cancelling jobs. With `--disconnect-action cancel`, cancels the run and unfinished jobs. | By default, waiting stops without cancelling jobs. With `--disconnect-action cancel`, cancels selected active runs when the supervisor can detect the disconnect. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
@@ -93,10 +93,31 @@ cancelled, and the run starts no more jobs.
 
 A disconnect is not one specific signal: terminal closure may send `SIGHUP`,
 and a tool or user may terminate the client with `SIGTERM` or `SIGKILL`. The
-client handles `SIGHUP` and `SIGTERM` when cancellation is configured, but
-cannot handle `SIGKILL` directly. The configured disconnect action still
-applies: by default jobs continue, while `cancel` requests cancellation of
-unfinished jobs, even if `rotari wait` is killed with `SIGKILL`.
+client does not need to handle those signals: the supervisor observes the
+process-held session lock being released and applies the configured disconnect
+action. This also detects `SIGKILL` when the client and supervisor are on the
+same host. On different hosts, the supervisor cannot verify the wait process's
+liveness and treats it as still connected.
+
+`rotari wait` does not send a cancellation message to the supervisor when it
+disconnects. Instead, while following an active run it records its process and
+disconnect policy in the shared run state; the supervisor detects when that
+local process has exited and applies the policy. This works for `SIGKILL` when
+the wait and supervisor run on the same host.
+
+Synchronous `rotari run` and `rotari retry` use the same attachment records
+after the startup pipe has returned an accepted run ID. Their progress and
+completion come from the run journal and summary, just as for `wait`. Every
+client has an independent session, so Ctrl-D or timeout releases only that
+client; another live `wait` remains attached. An unselected `wait` skips runs
+with any live session, including one established by another `wait` or a
+synchronous `run`.
+
+Attachment records live under the project's `.rotari-attachments/` directory.
+A supervisor treats a remote client's liveness as unknown rather than dead;
+cancel-on-disconnect is therefore guaranteed only when that client process is
+verifiable on the supervisor's host. A suspended local client keeps its
+process-held session lock and remains attached.
 
 A disconnect can be configured to cancel instead of leaving the run active:
 pass `--disconnect-action cancel` to `run` or `wait`, or set

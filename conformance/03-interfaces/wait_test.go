@@ -162,6 +162,76 @@ func TestWaitLiveProgress(t *testing.T) {
 	}
 }
 
+func TestWaitAttachmentIsSharedAndImplicitWaitSkipsIt(t *testing.T) {
+	covers(t, "CLI-19")
+	e := support.NewEnv(t)
+	project := "wait-attachment-shared"
+	gate := filepath.Join(e.Root, "release")
+	t.Cleanup(func() {
+		_ = os.WriteFile(gate, nil, 0o600)
+		_ = e.Rotari("cancel", "-p", project, "--wait")
+	})
+	e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f "+gate+" ]; do sleep 0.05; done")
+	started := e.MustRotari("run", "-p", project, "--async").Stdout
+	runID := ""
+	for _, line := range strings.Split(started, "\n") {
+		if strings.HasPrefix(line, "  Run: ") {
+			runID = strings.TrimPrefix(line, "  Run: ")
+			break
+		}
+	}
+	if runID == "" {
+		t.Fatalf("async output has no run ID: %s", started)
+	}
+
+	cmd := e.Command("wait", "--basedir", e.Base, "--run-id", runID, "--timeout", "10s")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	attached := make(chan struct{}, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "Run attached") {
+				attached <- struct{}{}
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			t.Errorf("read wait output: %v", err)
+		}
+	}()
+	select {
+	case <-attached:
+	case <-time.After(10 * time.Second):
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal("wait did not attach to the active run")
+	}
+
+	// The implicit waiter observes the same live-session set and must not
+	// attach to a run another client is already following.
+	implicit := e.Rotari("wait", "--basedir", e.Base, "--timeout", "50ms")
+	if implicit.Code != 0 || strings.Contains(implicit.Stderr, "timed out") {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("implicit wait did not skip the attached run: %s", implicit)
+	}
+
+	if err := os.WriteFile(gate, nil, 0o600); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("attached wait: %v", err)
+	}
+}
+
 func TestWaitInterruptCancelsRun(t *testing.T) {
 	covers(t, "CLI-19")
 	e := support.NewEnv(t)
@@ -230,6 +300,63 @@ func TestWaitInterruptCancelsRun(t *testing.T) {
 	}
 }
 
+func TestSynchronousRunInterruptCancelsAcceptedRun(t *testing.T) {
+	covers(t, "CLI-19")
+	e := support.NewEnv(t)
+	project := "sync-interrupt-run"
+	gate := filepath.Join(e.Root, "release")
+	t.Cleanup(func() {
+		_ = os.WriteFile(gate, nil, 0o600)
+		_ = e.Rotari("cancel", "-p", project, "--wait")
+	})
+	e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f "+gate+" ]; do sleep 0.05; done")
+	cmd := e.Command("run", "-p", project)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{}, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "=== Run started ===") {
+				started <- struct{}{}
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			t.Errorf("read synchronous run output: %v", err)
+		}
+	}()
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal("synchronous run did not accept and follow its run")
+	}
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err == nil {
+		t.Fatal("Ctrl-C unexpectedly returned success")
+	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 130 {
+		t.Fatalf("Ctrl-C exit = %v, want 130", err)
+	}
+	result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "5s")
+	var summary struct {
+		Status string `json:"status"`
+	}
+	if result.Code == 0 || strings.Contains(result.Stderr, "timed out waiting") || json.Unmarshal([]byte(result.Stdout), &summary) != nil || summary.Status == "running" {
+		t.Fatalf("Ctrl-C did not cancel/finalize the accepted run: %s", result)
+	}
+}
+
 func TestRunClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
 	covers(t, "CLI-19")
 	for _, test := range []struct {
@@ -281,21 +408,29 @@ func TestRunClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
 			}
 			_ = cmd.Wait()
 			support.WaitUntil(t, 5*time.Second, func() (bool, string) {
-				data, err := os.ReadFile(filepath.Join(e.Base, "projects", project, "running.lock"))
+				entries, err := os.ReadDir(filepath.Join(e.Base, "projects", project, ".rotari-attachments"))
 				if errors.Is(err, os.ErrNotExist) {
-					// A cancelled run may already have finished.
-					return test.cancel, "run lock removed"
+					return false, "attachment directory not created"
 				}
 				if err != nil {
 					return false, err.Error()
 				}
-				var lock struct {
-					ClientAttached bool `json:"client_attached"`
+				for _, entry := range entries {
+					if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+						continue
+					}
+					data, readErr := os.ReadFile(filepath.Join(e.Base, "projects", project, ".rotari-attachments", entry.Name()))
+					if readErr != nil {
+						continue
+					}
+					var session struct {
+						RunID string `json:"run_id"`
+					}
+					if json.Unmarshal(data, &session) == nil && session.RunID == runID {
+						return true, string(data)
+					}
 				}
-				if err := json.Unmarshal(data, &lock); err != nil {
-					return false, err.Error()
-				}
-				return !lock.ClientAttached, string(data)
+				return false, "no accepted session for run " + runID
 			})
 
 			if test.cancel {
@@ -366,6 +501,9 @@ func TestWaitClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
 						break
 					}
 				}
+				if err := scanner.Err(); err != nil {
+					t.Errorf("read wait output: %v", err)
+				}
 				_, _ = io.Copy(io.Discard, stdout)
 			}()
 			select {
@@ -387,6 +525,109 @@ func TestWaitClientDisconnectDetachesByDefaultAndCanCancel(t *testing.T) {
 				t.Fatalf("waiter disconnect cancel=%v left run running=%v: %s", test.cancel, stillRunning, result)
 			}
 		})
+	}
+}
+
+func TestWaitJSONDisconnectWithSIGKILLCancelsRun(t *testing.T) {
+	covers(t, "CLI-19")
+	e := support.NewEnv(t)
+	project := "wait-json-sigkill"
+	gate := filepath.Join(e.Root, "release")
+	t.Cleanup(func() {
+		_ = os.WriteFile(gate, nil, 0o600)
+		_ = e.Rotari("cancel", "-p", project, "--wait")
+	})
+	e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f "+gate+" ]; do sleep 0.05; done")
+	started := e.MustRotari("run", "-p", project, "--async").Stdout
+	runID := startedRunID(t, started)
+
+	cmd := e.Command("wait", "--basedir", e.Base, "--run-id", runID, "--json", "--disconnect-action", "cancel", "--timeout", "30s")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waiterExited := false
+	t.Cleanup(func() {
+		if !waiterExited {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	})
+
+	attachmentDir := filepath.Join(e.Base, "projects", project, ".rotari-attachments")
+	waitForDisconnectSession(t, attachmentDir, runID)
+	if err := cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	waiterExited = true
+	waitForDisconnectSessionRemoval(t, attachmentDir)
+
+	result := e.Rotari("wait", "--basedir", e.Base, "--run-id", runID, "--quiet", "--json", "--timeout", "5s")
+	if strings.Contains(result.Stderr, "timed out waiting") {
+		t.Fatalf("SIGKILLed JSON waiter did not cancel the run: %s", result)
+	}
+	assertWaitRunStopped(t, result)
+}
+
+func startedRunID(t *testing.T, output string) string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "  Run: ") {
+			return strings.TrimPrefix(line, "  Run: ")
+		}
+	}
+	t.Fatalf("async output has no run ID: %s", output)
+	return ""
+}
+
+func waitForDisconnectSession(t *testing.T, dir, runID string) {
+	t.Helper()
+	support.WaitUntil(t, 10*time.Second, func() (bool, string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return false, err.Error()
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				return false, err.Error()
+			}
+			if bytes.Contains(data, []byte(`"run_id":"`+runID+`"`)) && bytes.Contains(data, []byte(`"disconnect_action":"cancel"`)) {
+				return true, string(data)
+			}
+		}
+		return false, "JSON wait did not register a cancellation-on-disconnect session"
+	})
+}
+
+func waitForDisconnectSessionRemoval(t *testing.T, dir string) {
+	t.Helper()
+	support.WaitUntil(t, 3*time.Second, func() (bool, string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return false, err.Error()
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+				return false, entry.Name()
+			}
+		}
+		return true, "stale attachment record removed"
+	})
+}
+
+func assertWaitRunStopped(t *testing.T, result support.Result) {
+	t.Helper()
+	var summary struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &summary); err != nil || summary.Status == "running" {
+		t.Fatalf("SIGKILLed JSON waiter left the run active: %v; %s", err, result)
 	}
 }
 

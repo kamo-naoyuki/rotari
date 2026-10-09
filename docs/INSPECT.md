@@ -24,10 +24,11 @@ The four list commands differ in what each row represents:
 | `rotari basedirs` | Known state directories (not job working directories) |
 
 Use these lists to find a project, run, or job, then use `show` for its details.
-The `runs` list shows both run `STATUS` and the initiating client's separate
-`CLIENT` state; a client that started a run with `--async` is labeled
-`detached (async)`, while a synchronous client that pressed Ctrl-D is labeled
-`detached (Ctrl-D)`. Both use detached-first wording while retaining the reason.
+The `runs` list shows run `STATUS` separately from `CLIENT`. `CLIENT` describes
+current aggregate CLI attachment: synchronous `run`/`retry` and `wait` each
+hold an independent session, and the run is attached while any verified live
+session remains. Launch mode and the initiating client's last detach reason
+remain recorded as history; Web and MCP readers do not count as attachments.
 
 ### Reading run and job states
 

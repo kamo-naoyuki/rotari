@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -33,13 +35,67 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 		if onDone != nil {
 			defer onDone()
 		}
-		if _, err := ops.Runner.Run(started.paths, started.options, observer); err != nil {
+		if _, err := ops.runWithAttachmentMonitor(started.paths, started.runID, started.options, observer); err != nil {
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
 	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait -r %s\n\nCheck status:\n  rotari show -r %s\n\nCancel run:\n  rotari cancel -p %s %s\n",
 		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, started.runID, request.QueueName, started.runID)
 	return started.runID, message + sourceNotice(started), nil
+}
+
+// runWithAttachmentMonitor keeps cancellation-on-disconnect enforceable even
+// when a client is killed without running cleanup. Session locks remain held
+// across suspension; an unverifiable remote session is conservatively live.
+func (ops Operations) runWithAttachmentMonitor(paths state.ProjectPaths, runID string, options projectrun.Options, observer projectrun.Observer) (int, error) {
+	stop := make(chan struct{})
+	monitorDone := make(chan struct{})
+	go func() {
+		defer close(monitorDone)
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				live, stale, err := attachment.Scan(paths, runID)
+				_ = live // Unknown liveness remains attached; only proved-stale sessions act.
+				if err != nil {
+					ops.logf("run %s attachment scan failed: %v", runID, err)
+					continue
+				}
+				for _, client := range stale {
+					status := model.RunClientStatus{State: model.RunClientDetached, Reason: model.RunClientReasonEOF}
+					handled := true
+					if client.Disconnect == server.DisconnectActionCancel {
+						status.State, status.Reason = model.RunClientCancelling, model.RunClientReasonCancel
+						if _, cancelErr := ops.Controller.Cancel(paths.BaseDir, paths.ProjectName, runID, nil, false); cancelErr != nil {
+							phase, phaseErr := project.RunPhaseOf(paths, runID)
+							handled = phaseErr == nil && phase != project.RunPhaseRunning
+							if !handled {
+								ops.logf("run %s cancellation after client %s disconnect failed: %v", runID, client.ID, cancelErr)
+							}
+						}
+					}
+					if client.Initiator {
+						if err := ops.Runner.SetRunClientStatus(paths, runID, status); err != nil {
+							ops.logf("run %s client status after disconnect failed: %v", runID, err)
+						}
+					}
+					if handled {
+						if err := attachment.Forget(paths, client.ID); err != nil {
+							ops.logf("run %s failed to acknowledge disconnected client %s: %v", runID, client.ID, err)
+						}
+					}
+				}
+			}
+		}
+	}()
+	exitCode, err := ops.Runner.Run(paths, options, observer)
+	close(stop)
+	<-monitorDone
+	return exitCode, err
 }
 
 // Run executes a run inside the supervisor, reporting progress to the
@@ -50,7 +106,7 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 		return "", 1, err
 	}
 	paths, runID := started.paths, started.runID
-	exitCode, err := ops.Runner.Run(paths, started.options, ops.progressObserver(request, started, progress))
+	exitCode, err := ops.runWithAttachmentMonitor(paths, runID, started.options, ops.progressObserver(request, started, progress))
 	if err != nil {
 		return "", 1, err
 	}
@@ -59,9 +115,9 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 		return "", 1, err
 	}
 	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		return CompletionMessage(paths, runID, summary) + sourceNotice(started), exitCode, nil
+		return CompletionMessage(paths, runID, summary), exitCode, nil
 	}
-	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode) + sourceNotice(started), exitCode, nil
+	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
 }
 
 // startedRun is a run that Begin has recorded and that is ready to execute.
@@ -93,7 +149,15 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	if request.Async {
 		clientStatus = model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientDetached, Reason: model.RunClientReasonAsync}
 	}
-	start := projectrun.Start{RunID: runID, RunName: request.RunName, ClientAttached: !request.Async, ClientStatus: clientStatus, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig}
+	if err := attachment.EnableRun(prepared.paths, runID); err != nil {
+		return startedRun{}, fmt.Errorf("failed to initialize run attachments: %w", err)
+	}
+	if !request.Async && request.ClientSessionID != "" {
+		if err := attachment.Bind(prepared.paths, request.ClientSessionID, runID); err != nil {
+			return startedRun{}, fmt.Errorf("failed to accept client attachment: %w", err)
+		}
+	}
+	start := projectrun.Start{RunID: runID, RunName: request.RunName, ClientStatus: clientStatus, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig}
 	if prepared.snapshotFromSource {
 		start.Snapshot = &prepared.queue
 	}
@@ -286,6 +350,7 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 		if journal != nil {
 			event := model.ProgressEvent{
 				OK: response.OK, Progress: response.Progress, Message: response.Message,
+				RunID: response.RunID, Notice: response.Notice,
 				JobID: response.JobID, Completed: response.Completed, Total: response.Total,
 				Succeeded: response.Succeeded, Failed: response.Failed,
 			}
@@ -298,7 +363,7 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 			progress(response)
 		}
 	}
-	emit(server.Response{Progress: true, Total: started.total, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
+	emit(server.Response{Progress: true, RunID: started.runID, Notice: sourceNotice(started), Total: started.total, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
 	return runObserver(request, started.runID, emit)
 }
 

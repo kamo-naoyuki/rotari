@@ -374,6 +374,12 @@ an unselected `rotari wait`. Use `--disconnect-action cancel` or
 terminal closes. Ctrl-C always explicitly cancels; Ctrl-D always detaches. You
 can also start a run with `rotari run --async`.
 
+`run`/`retry` and `wait` register independent client sessions after resolving
+the run ID; an unselected `wait` skips a run while any session is live. On the
+supervisor's host, a released session lock lets it detect even `SIGKILL` and
+apply the configured policy. A remote wait client's liveness cannot be
+verified locally, so that session is conservatively treated as live.
+
 ### What happens if I press Ctrl-Z during a synchronous run?
 
 Only the client is suspended; the run continues. Use `fg` to resume it. If the

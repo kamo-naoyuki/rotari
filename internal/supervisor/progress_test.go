@@ -127,7 +127,7 @@ func assertProgressTestEvents(t *testing.T, events []server.Response) {
 	if len(events) != 8 {
 		t.Fatalf("events = %d: %+v", len(events), events)
 	}
-	wantStart := server.Response{Progress: true, Total: 2, Message: "=== Run started ===\n  Project: demo\n  Run ID: run-1\n  Submitted: 2\n  Excluded: 0\n  Total: 2"}
+	wantStart := server.Response{Progress: true, RunID: "run-1", Total: 2, Message: "=== Run started ===\n  Project: demo\n  Run ID: run-1\n  Submitted: 2\n  Excluded: 0\n  Total: 2"}
 	if events[0] != wantStart {
 		t.Fatalf("start = %+v, want %+v", events[0], wantStart)
 	}
@@ -138,8 +138,8 @@ func assertProgressTestEvents(t *testing.T, events []server.Response) {
 	if events[4].Message != "Retrying job: attempt=1 job=failure command=[sh -c exit 7]" {
 		t.Fatalf("retry event = %+v", events[4])
 	}
-	for _, event := range events {
-		if !event.Progress || event.RunID != "" || event.PID != 0 {
+	for index, event := range events {
+		if !event.Progress || index > 0 && event.RunID != "" || event.PID != 0 {
 			t.Fatalf("spurious control event: %+v", event)
 		}
 	}

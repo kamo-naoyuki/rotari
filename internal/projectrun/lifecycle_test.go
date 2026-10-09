@@ -55,25 +55,21 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 	}
 }
 
-func TestBeginRecordsAttachedClientAndCanDetachIt(t *testing.T) {
+func TestBeginRecordsClientHistoryWithoutLockAttachmentBoolean(t *testing.T) {
 	runner, paths := testRunner(t)
-	if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true, ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
+	if err := runner.Begin(paths, Start{RunID: "run-1", ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
 		t.Fatal(err)
 	}
 	lock, err := state.LoadLock(paths.LockFile)
-	if err != nil || !lock.ClientAttached {
-		t.Fatalf("lock after Begin = %+v, %v; want attached client", lock, err)
+	if err != nil || lock.ClientAttached {
+		t.Fatalf("lock after Begin = %+v, %v; attachment belongs to sessions, not the lock", lock, err)
 	}
 	status, err := state.LoadRunClientStatus(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
 	if err != nil || status.Mode != model.RunClientModeSync || status.State != model.RunClientAttached {
 		t.Fatalf("status after Begin = %+v, %v; want sync attached", status, err)
 	}
-	if err := runner.SetClientAttached(paths, "run-1", false); err != nil {
+	if err := runner.SetRunClientStatus(paths, "run-1", model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientDetached, Reason: model.RunClientReasonCtrlD}); err != nil {
 		t.Fatal(err)
-	}
-	lock, err = state.LoadLock(paths.LockFile)
-	if err != nil || lock.ClientAttached {
-		t.Fatalf("lock after detach = %+v, %v; want detached client", lock, err)
 	}
 	status, err = state.LoadRunClientStatus(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
 	if err != nil || status.Mode != model.RunClientModeSync || status.State != model.RunClientDetached {
@@ -99,7 +95,7 @@ func TestClientMetadataCannotPreventRunOrDetach(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := runner.Begin(paths, Start{RunID: "run-1", ClientAttached: true, ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
+			if err := runner.Begin(paths, Start{RunID: "run-1", ClientStatus: model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}}); err != nil {
 				t.Fatal(err)
 			}
 			if collision {
@@ -109,8 +105,9 @@ func TestClientMetadataCannotPreventRunOrDetach(t *testing.T) {
 			}
 			_ = runner.SetRunClientStatus(paths, "run-1", model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientDetached, Reason: model.RunClientReasonCtrlD})
 			lock, err := state.LoadLock(paths.LockFile)
-			if err != nil || lock.ClientAttached {
-				t.Fatalf("metadata failure prevented detach: lock=%+v error=%v", lock, err)
+			status, statusErr := state.LoadRunClientStatus(runner.Store, runDir)
+			if err != nil || lock.ClientAttached || statusErr == nil && status.State == model.RunClientAttached {
+				t.Fatalf("metadata failure prevented recording detach: lock=%+v status=%+v errors=%v/%v", lock, status, err, statusErr)
 			}
 		})
 	}
