@@ -72,19 +72,20 @@ rotari wait sweep
 
 If a timeout ends `wait`, only the waiting client stops; the detached run
 continues. Run `rotari wait sweep` again to wait on it later. A synchronous
-`rotari run` killed by a timeout also detaches by default; see below.
+`rotari run` killed by a timeout also continues in the background by default;
+see below.
 
-## Controlling attached clients
+## Controlling runs from the terminal
 
-The controls mostly affect the client the same way; their target and
-attachment effects differ as follows:
+These controls determine whether the work is cancelled, left running, or
+temporarily paused:
 
 | Input / event | Effect |
 | --- | --- |
-| Ctrl-C (`SIGINT`) | Requests cancellation of the active run(s) and all unfinished jobs; exits with status 130. `run` targets its run; `wait` targets every selected active run. |
-| Ctrl-D (terminal EOF; not a signal) | Stops this client; the run(s) and jobs continue. For synchronous `run`, it detaches the initiating client; for `wait`, it only stops monitoring and does not detach a separate `run` client. |
-| Ctrl-Z (`SIGTSTP`) | Suspends this client while the work continues. Use `fg` to resume the client. |
-| Unexpected client exit / disconnect (no single signal) | By default, work continues: a synchronous `run` client detaches, while `wait` stops monitoring. With cancellation configured, `run` cancels its run and `wait` cancels every selected active run, including their unfinished jobs. |
+| Ctrl-C (`SIGINT`) | Cancels the current run and its unfinished jobs; while `wait` monitors multiple runs, cancels every selected active run. The command exits with status 130. |
+| Ctrl-D (terminal EOF; not a signal) | Stops the current command and leaves the work running. A synchronous run continues in the background; `wait` simply stops waiting. |
+| Ctrl-Z (`SIGTSTP`) | Pauses the current command while the work continues. Use `fg` to resume it. |
+| Unexpected client exit / disconnect (no single signal) | By default, a synchronous run continues in the background after its command exits; disconnecting `wait` ends the wait and leaves the run alone. Use `--disconnect-action cancel` to cancel the run and its unfinished jobs on disconnect. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
@@ -93,18 +94,17 @@ cancelled, and the run starts no more jobs.
 A disconnect is not one specific signal: terminal closure may send `SIGHUP`,
 and a tool or user may terminate the client with `SIGTERM` or `SIGKILL`. The
 client handles `SIGHUP` and `SIGTERM` when cancellation is configured, but
-cannot handle `SIGKILL`. The run supervisor also monitors client sessions, so
-it can apply the configured disconnect action after a client is killed,
-including a `wait` client killed with `SIGKILL`.
+cannot handle `SIGKILL`. Even so, a client killed with `SIGKILL` still follows
+the configured disconnect action.
 
-A disconnect can be configured to cancel instead of detach/stop waiting: pass
-`--disconnect-action cancel` to `run` or `wait`, or set
+A disconnect can be configured to cancel instead of leaving the run active:
+pass `--disconnect-action cancel` to `run` or `wait`, or set
 `ROTARI_DISCONNECT_ACTION=cancel`. The CLI option overrides the environment
-variable; the default is `detach`. With this setting, a disconnected `run`
-client cancels its run and unfinished jobs, and a disconnected `wait` cancels
-all selected active runs and their unfinished jobs. The setting does not
-change Ctrl-C, Ctrl-D, or Ctrl-Z. Ctrl-D is an explicit detach input, not a
-signal, and still detaches when cancellation is configured.
+variable; by default, a disconnected client leaves the work running. With this
+setting, a disconnected `run` client cancels its run and unfinished jobs, and
+`wait` cancels all selected active runs and their unfinished jobs. The setting
+does not change Ctrl-C, Ctrl-D, or Ctrl-Z. Ctrl-D explicitly leaves the work
+running, even when cancellation on unexpected disconnect is configured.
 
 After Ctrl-C on synchronous `run`, cleanup continues in the background, so
 starting another run for the same project may briefly fail.
