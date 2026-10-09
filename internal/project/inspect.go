@@ -136,7 +136,7 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
 			paths.ProjectName, runID, detail, operation, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 		if stillRunning {
-			message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
+			message += UnconfirmedStopWarning + "\n"
 		}
 		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s\n",
 			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
@@ -208,6 +208,10 @@ func scanInterruptedRunJobs(runDir string) (interruptedRunJobs, error) {
 	}
 	return jobs, nil
 }
+
+// UnconfirmedStopWarning precedes a recovery command for an interrupted run
+// whose jobs InterruptedRunDetail reports as possibly still running.
+const UnconfirmedStopWarning = "Do not recover until you have independently confirmed those jobs have actually stopped."
 
 // InterruptedRunDetail renders the job-count and phase/timestamp clause shared
 // by EnsureIdle and reset's interrupted-run messages. The returned string is

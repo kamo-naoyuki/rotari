@@ -1032,7 +1032,14 @@ func endedRunHint(paths state.ProjectPaths, runID, condition string, recover boo
 	if !recover {
 		return fmt.Sprintf("run %s %s. Inspect it:\n  %s", runID, condition, show)
 	}
-	return fmt.Sprintf("run %s %s. Inspect it, then recover:\n  %s\n  rotari unlock %s --run-id %s", runID, condition, show, hintLocation(paths), executor.ShellQuote(runID))
+	unlock := "rotari unlock " + hintLocation(paths) + " --run-id " + executor.ShellQuote(runID)
+	// Jobs recorded as unfinished may outlive the supervisor; say so before
+	// offering recovery, as commands refusing an interrupted project do.
+	detail, stillRunning := project.InterruptedRunDetail(paths, runID)
+	if stillRunning {
+		return fmt.Sprintf("run %s %s%s.\nInspect it:\n  %s\n%s Then recover:\n  %s", runID, condition, detail, show, project.UnconfirmedStopWarning, unlock)
+	}
+	return fmt.Sprintf("run %s %s%s. Inspect it, then recover:\n  %s\n  %s", runID, condition, detail, show, unlock)
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -448,5 +449,45 @@ func TestInterruptedRunHintPutsEachCommandOnItsOwnLine(t *testing.T) {
 	}
 	if strings.Contains(message, "'rotari") {
 		t.Errorf("message quotes a command that contains quoted arguments:\n%s", message)
+	}
+}
+
+func TestInterruptedRunHintWarnsWhileJobsMayStillRun(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		file    string
+		content string
+		running bool
+	}{
+		{name: "job still running", file: "status.json", content: `{"phase":"running"}`, running: true},
+		{name: "job finished", file: "status", content: "0\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			paths := writeInterruptedResetProject(t, t.TempDir())
+			attemptDir := filepath.Join(paths.RunsDir, "run-1", "job-a", "attempts", makeAttemptID("run-1", "job-a", 0))
+			if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(attemptDir, test.file), []byte(test.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSON(filepath.Join(attemptDir, "command.json"), model.JobSpec{ID: "job-a", Command: []string{"sleep", "60"}}); err != nil {
+				t.Fatal(err)
+			}
+			message, ok := runEndedWithoutSummary(paths, "run-1")
+			if !ok {
+				t.Fatal("interrupted run was not reported")
+			}
+			warned := strings.Contains(message, project.UnconfirmedStopWarning)
+			if warned != test.running || !strings.Contains(message, "rotari unlock ") {
+				t.Fatalf("message (want warning %t):\n%s", test.running, message)
+			}
+			if test.running {
+				show, warning, unlock := strings.Index(message, "rotari show "), strings.Index(message, project.UnconfirmedStopWarning), strings.Index(message, "rotari unlock ")
+				if !strings.Contains(message, "1 of 1 job(s) appear to still be running") || !(show < warning && warning < unlock) {
+					t.Fatalf("message should name the running jobs and warn between inspect and recover:\n%s", message)
+				}
+			}
+		})
 	}
 }
