@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/conformance/support"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,8 +39,19 @@ func exampleWorkflowScript(t *testing.T, name string) string {
 // Run the actual local workflow against the built binary so its output checks
 // track CLI presentation, including carried successes after retry.
 func TestLocalExampleWorkflow(t *testing.T) {
+	support.TrackBuildInputs(t)
 	workspace, err := filepath.Abs("..")
 	if err != nil {
+		t.Fatal(err)
+	}
+	// The test cache cannot observe files read by bash or the go build child.
+	if err := filepath.WalkDir(filepath.Join(workspace, "examples"), func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		_, err = os.Stat(path)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
