@@ -28,7 +28,10 @@ values. Notifications select one project/basedir/global file without merging.
 - Read summaries before logs. `rotari lineage RUN_ID` prints a run's counts
   and its failures grouped by cause, each with the jobs, an example line, the
   command that shows one job, and a suggested fix. It stays short however
-  many jobs fail; `show` tables and `--failed-logs` grow with the run.
+  many jobs fail; `show` tables and `--failed-logs` grow with the run. To
+  compare what each job printed last, such as a sweep's metrics, use
+  `rotari show -r RUN_ID --logs --tail N --no-pager`; read logs through
+  `show`, not the state directory.
 - Verify before changing state instead of guessing:
   - `rotari check PROJECT` exits 0 only when the queued run can start.
   - `rotari import --dry-run FILE` previews which jobs a manifest executes,
