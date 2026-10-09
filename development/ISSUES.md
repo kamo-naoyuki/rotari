@@ -8,6 +8,12 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Leftovers from the 2026-10-10 zero-information agent trial** ([development/2026-10-02-mcp-agent-interface/agent-trial-2026-10-10-zero-info.md](2026-10-02-mcp-agent-interface/agent-trial-2026-10-10-zero-info.md)):
+  - `lineage`'s `Diagnoses:` section, and its JSON, count a job the user cancelled as `no_match`, while its failures by cause group the job as `cancelled`. Deciding whether the diagnosis summary should skip recorded causes affects the JSON, MCP, and Web consumers of `runlineage.SummarizeDiagnoses`.
+  - The "Retry source" notice is worded in two places, `sourceNotice` in [internal/supervisor/run.go](../internal/supervisor/run.go) and the `retry --dry-run` output in [cmd/rotari/run_command.go](../cmd/rotari/run_command.go). Its wording, "has 0 failed or unfinished job(s) not included", is hard to read, and RUN-14's conformance test pins it.
+  - Hints built outside `cmd/rotari`, in [internal/project/inspect.go](../internal/project/inspect.go) and `sourceNotice`, still name `--basedir`, because they cannot see the CLI configuration that `hintLocation` (CLI-22) reads.
+  - `cancel --wait` with a job selection is still rejected (SEL-12); its help and error now point to `rotari wait`. Waiting for the selected jobs to stop would need a contract change.
+
 - **Synchronous-run interrupt did not finalize within the test deadline** ([conformance/03-interfaces/wait_test.go](../conformance/03-interfaces/wait_test.go), `TestSynchronousRunInterruptCancelsAcceptedRun`): during the 2026-10-10 example CI short check, the post-Ctrl-C `wait --quiet --json --timeout 5s` timed out. An uncached isolated repeat passed. Full logs and the failing exit code were saved; investigate signal/attachment timing on recurrence rather than treating the isolated pass as proof of the cause.
 
 - **`TestCLIFlagPairCancel/pairs/filter-state+project-name` failed under load** ([conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go](../conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go)): on 2026-10-09, `go test -short ./...` failed with `after 15s: running=0, want 5` while other rotari processes were running on the machine. The package passed when rerun alone. Investigate with full logs on recurrence rather than raising the timeout.

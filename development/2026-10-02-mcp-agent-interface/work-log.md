@@ -780,3 +780,48 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - Findings 2 and 6 to 10 of the trial report.
 - `internal/project/inspect.go` and `internal/supervisor/run.go` still print `--basedir` in errors, because they cannot see the CLI configuration.
 - `lineage`'s `Diagnoses:` section still counts a cancelled job as `no_match`.
+
+## 2026-10-10: remaining fixes from the zero-information agent trial
+
+- `b3d7df65` (2026-10-10 03:26:54 +0900): `cancel --wait` help and error.
+- `bc94db72` (2026-10-10 03:34:22 +0900): the array-task selection error names the array job and its task count.
+- `33efb8dd` (2026-10-10 03:45:20 +0900): elapsed and quiet time in `show`, and a run table sized to its contents.
+- `60b215fd` (2026-10-10 04:03:57 +0900): `show --tail`, and `show --logs` in definition order.
+- `c4c8d011` (2026-10-10 04:09:35 +0900): the failed-job progress hint uses the attempt ID.
+- `07a5254e` (2026-10-10 04:09:40 +0900): the first progress count is out of the executed jobs.
+- `62c49b94` (2026-10-10 04:12:20 +0900): the guide points to `show --logs --tail`.
+
+**Change:**
+- `cmd/rotari`:
+  - `show.go` gained `showJobElapsed`, `printShowJobTable`, `printExecutedJobLogs`, `lastLines`, and the `--tail` option.
+  - `job_control.go` and `cli_spec.go` reword `cancel --wait`.
+  - `assets/agent_guide.md` mentions `--tail`.
+- `internal/jobstatus.LastOutputAt` reads the latest write to a job's logs.
+- `internal/model.arrayTaskError` reworded the array-task error.
+- `internal/supervisor/run.go`:
+  - the failed-job hint;
+  - the run-started event's `Total`.
+- New contracts CLI-23 and CLI-24, a sentence in CLI-19, and conformance tests:
+  - `TestShowReportsElapsedAndQuietTime`;
+  - `TestShowLogsTailInDefinitionOrder`;
+  - `TestRetryProgressCountsOnlyExecutedJobs`.
+- `show` in the flag-pair inventory grew to 39 options, with a `tail` sample.
+- The generated CLI reference, environment reference, Python CLI, and schema golden file were regenerated.
+
+**Reason:** findings 2 and 6 to 10 of [agent-trial-2026-10-10-zero-info.md](agent-trial-2026-10-10-zero-info.md), after the user asked to continue.
+
+**Plan impact:**
+- Every finding of the trial is addressed or recorded in ISSUES.md.
+- For finding 8, the SEL-12 rejection was kept; supporting `--wait` for job cancels would be a contract change.
+- The third run used 13, 35, and 24 KB, against 27, 41, and 44 KB in the first.
+
+**Validation:**
+- Each commit's changes were applied to a clean worktree at the previous commit, because another thread was editing the shared tree. `go vet ./...` and `go test ./...`, including `conformance/...`, passed there.
+- The generators' `--check` modes passed for `60b215fd`.
+- These tests failed on the commit before their fix:
+  - `TestRetryProgressCountsOnlyExecutedJobs` printed `0/3` before `07a5254e`.
+  - `TestShowLogsTailInDefinitionOrder` fails before `60b215fd`, at `--tail`.
+- The `configs` listing was reproduced separately with a build of `bc94db72`.
+- `scripts/check.sh` with the race detector was not rerun after these commits.
+
+**Remaining:** the ISSUES.md entry "Leftovers from the 2026-10-10 zero-information agent trial".

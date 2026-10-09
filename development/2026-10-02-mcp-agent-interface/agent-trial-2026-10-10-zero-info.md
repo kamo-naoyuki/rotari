@@ -162,3 +162,43 @@ The remaining findings reappeared:
 - s2 tried `change -j` with an array task first (finding 9).
 - s3 tried `cancel --wait` with a job selection (finding 8), and read the
   wide `show -r` table three times (finding 6).
+
+## Third run, after the remaining fixes
+
+The remaining findings were addressed:
+
+- `33efb8dd`: the `show` run table and `show -j` give each job's elapsed
+  time and, for a running job, how long ago it last wrote output
+  (`12m 03s, quiet 11m 58s`), and the table's columns fit their contents
+  (findings 2 and 6, CLI-23).
+- `60b215fd`: `show --tail N`, and `show --logs` in definition order
+  (finding 7, CLI-24). This also stopped `show --logs` from listing the
+  run's `configs` directory as a running job.
+- `b3d7df65`: `cancel --wait`'s help and error say that it waits for a
+  whole-run cancel and point to `rotari wait` (finding 8). The rejection
+  itself is SEL-12 and was kept.
+- `bc94db72`: selecting an array task names the array job to select and how
+  many tasks that covers (finding 9).
+- `c4c8d011` and `07a5254e`: the failed-job hint uses `show -j ATTEMPT`, and
+  the first progress count is out of the executed jobs (finding 10).
+
+New agents got the same tasks on fixtures built at `07a5254e`. All three
+completed them.
+
+| | s1 | s2 | s3 |
+| --- | --- | --- | --- |
+| first run | 10 calls, 27 KB | 17 calls, 41 KB | 15 calls, 44 KB |
+| second run | 11 calls, 20 KB | 18 calls, 40 KB | 13 calls, 34 KB |
+| third run | 9 calls, 13 KB | 18 calls, 35 KB | 12 calls, 24 KB |
+
+- s3 found the stuck frame from `rotari jobs` and `show`, cancelled it with
+  `cancel -j`, and did not try `cancel --wait`.
+- s2 tried `change -j` with the array task again. The new error led it to the
+  array job in one call.
+- s1 still grepped the run directory for the accuracies, because the guide did
+  not mention `--tail`. `62c49b94` added it to the guide's rule about reading
+  summaries before logs. A further s1 agent, on a fixture built at
+  `62c49b94`, read the results with `show -r RUN --logs --tail 3`, with no
+  search of the state directory.
+
+What remains is recorded in [ISSUES.md](../ISSUES.md).
