@@ -357,7 +357,7 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 			progress(response)
 		}
 	}
-	emit(server.Response{Progress: true, RunID: started.runID, Notice: sourceNotice(started), Total: started.total, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
+	emit(server.Response{Progress: true, RunID: started.runID, Notice: sourceNotice(started), Total: started.submitted, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, started.runID, started.submitted, started.total-started.submitted, started.total)})
 	return runObserver(request, started.runID, emit)
 }
 

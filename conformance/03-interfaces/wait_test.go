@@ -107,6 +107,37 @@ func TestCompletionMessageGroupsFailuresByCause(t *testing.T) {
 	}
 }
 
+// TestRetryProgressCountsOnlyExecutedJobs reruns one of three jobs. Every
+// progress line of the rerun, including the first, counts out of the one job
+// it executes, not the three jobs of the run.
+func TestRetryProgressCountsOnlyExecutedJobs(t *testing.T) {
+	covers(t, "CLI-19")
+	e := support.NewEnv(t)
+	project := "progress-total"
+	e.MustRotari("add", "-p", project, "--job-name", "broken", "--", "sh", "-c", "sleep 2; exit 3")
+	e.MustRotari("add", "-p", project, "--job-name", "fine", "--", "true")
+	e.MustRotari("add", "-p", project, "--job-name", "other", "--", "true")
+	e.Rotari("run", "-p", project, "--quiet")
+	// wait attaches while the rerun job sleeps, so it prints the run's
+	// progress snapshot and then each count.
+	e.MustRotari("retry", "-p", project, "--async", "--quiet")
+	retried := e.Rotari("wait", "-p", project)
+	var counts []string
+	for _, line := range strings.Split(retried.Stdout, "\n") {
+		if strings.HasPrefix(line, "progress: ") {
+			counts = append(counts, strings.Fields(line)[1])
+		}
+	}
+	if len(counts) == 0 {
+		t.Fatalf("wait printed no progress:\n%s", retried.Stdout)
+	}
+	for _, count := range counts {
+		if !strings.HasSuffix(count, "/1") {
+			t.Fatalf("progress counts %q, want each out of the one executed job:\n%s", counts, retried.Stdout)
+		}
+	}
+}
+
 func TestWaitLiveProgress(t *testing.T) {
 	covers(t, "CLI-19")
 	e := support.NewEnv(t)

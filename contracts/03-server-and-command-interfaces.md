@@ -319,7 +319,9 @@ does not promise to detect a lost remote client.
   attachments.
 
   Text followers render job-start, retry, final-failure, and progress-count
-  events from `progress.jsonl`, draining final events before completion. `run`
+  events from `progress.jsonl`, draining final events before completion. Every
+  progress count, including the first, is out of the jobs the run executes, not
+  the results it carries. `run`
   reads from the run's beginning; `wait` prints `=== Run attached ===` and the
   latest progress snapshot, skips older event history, and does not replay
   progress for an already finished run. An absent journal remains compatible
