@@ -76,14 +76,15 @@ continues. Run `rotari wait sweep` again to wait on it later. A synchronous
 
 ## Controlling attached clients
 
-`run` and `wait` share these client controls:
+The controls mostly affect the client the same way; their target and
+attachment effects differ as follows:
 
-| Input / event | Synchronous `run` | `wait` |
-| --- | --- | --- |
-| Ctrl-C (`SIGINT`) | Requests cancellation of the run and all its unfinished jobs; exits with status 130. | Requests cancellation of every selected active run and its unfinished jobs; exits with status 130. |
-| Ctrl-D (terminal EOF; not a signal) | Detaches the client; the run and its jobs continue in the background. | Stops waiting; the runs and their jobs continue. |
-| Ctrl-Z (`SIGTSTP`) | Suspends the client; the run and its jobs continue. Use `fg` to resume the client. | Suspends the client; the runs and their jobs continue. Use `fg` to resume the client. |
-| Unexpected client exit / disconnect (no single signal) | By default, detaches; the run and its jobs continue. | By default, only stops waiting; the runs and their jobs continue. |
+| Input / event | Effect |
+| --- | --- |
+| Ctrl-C (`SIGINT`) | Requests cancellation of the active run(s) and all unfinished jobs; exits with status 130. `run` targets its run; `wait` targets every selected active run. |
+| Ctrl-D (terminal EOF; not a signal) | Stops this client; the run(s) and jobs continue. For synchronous `run`, it detaches the initiating client; for `wait`, it only stops monitoring and does not detach a separate `run` client. |
+| Ctrl-Z (`SIGTSTP`) | Suspends this client while the work continues. Use `fg` to resume the client. |
+| Unexpected client exit / disconnect (no single signal) | By default, work continues: a synchronous `run` client detaches, while `wait` stops monitoring. With cancellation configured, `run` cancels its run and `wait` cancels every selected active run, including their unfinished jobs. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
