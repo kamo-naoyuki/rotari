@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -77,13 +78,28 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 		return 0
 	}
 	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %-24s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT")))
+	table := [][]string{{"BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT"}}
+	for _, project := range projects {
+		table = append(table, []string{project.baseDir, project.name, strconv.Itoa(project.queued), strconv.Itoa(project.runs), project.state, project.lastRun, project.lastResult})
+	}
+	// Columns are as wide as their longest value, so long basedirs keep
+	// later columns aligned.
+	widths := make([]int, len(table[0]))
+	for _, values := range table {
+		for index, value := range values {
+			widths[index] = max(widths[index], len(value))
+		}
+	}
+	plain := make([]byte, len(widths))
+	fmt.Println(cyan(formatJobsRow(table[0], widths, plain)))
+	for _, values := range table[1:] {
+		fmt.Println(formatJobsRow(values, widths, plain))
+	}
 	// Without -b, `show -p` resolves the default state directory, so the
 	// hint names the basedir when a listed project lives elsewhere.
 	defaultBaseDir, _, defaultErr := state.ResolveBaseDir("")
 	otherBaseDir, hasRun := false, false
 	for _, project := range projects {
-		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %-24s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun, project.lastResult)
 		otherBaseDir = otherBaseDir || defaultErr != nil || filepath.Clean(project.baseDir) != filepath.Clean(defaultBaseDir)
 		hasRun = hasRun || project.lastRun != "-"
 	}

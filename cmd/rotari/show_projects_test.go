@@ -176,3 +176,37 @@ func testProjectListHints(t *testing.T, baseDir string, wantBaseDir bool) {
 		t.Fatalf("project list does not show the last run's result:\n%s", text)
 	}
 }
+
+func TestProjectsTableAlignsLongBaseDirs(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	shortBase := filepath.Join(t.TempDir(), "s")
+	longBase := filepath.Join(t.TempDir(), strings.Repeat("long-state-directory-", 3))
+	writeProjectRun(t, shortBase, "20261007-110000-00000001", false)
+	writeProjectRun(t, longBase, "20261007-110001-00000002", true)
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return showProjectsForBaseDirs([]string{shortBase, longBase}) }); code != 0 {
+		t.Fatalf("projects exit = %d: %s", code, output.String())
+	}
+	lines := strings.Split(output.String(), "\n")
+	header := -1
+	for index, line := range lines {
+		if strings.HasPrefix(line, "BASEDIR ") {
+			header = index
+		}
+	}
+	if header < 0 || header+2 >= len(lines) {
+		t.Fatalf("no projects table:\n%s", output.String())
+	}
+	for _, column := range []string{"PROJECT", "LAST RESULT"} {
+		want := strings.Index(lines[header], column)
+		for _, row := range lines[header+1 : header+3] {
+			value := "exp"
+			if column == "LAST RESULT" {
+				value = strings.Fields(row[want:])[0]
+			}
+			if want < 0 || len(row) <= want || !strings.HasPrefix(row[want:], value) || row[want-1] != ' ' {
+				t.Errorf("column %s starts at %d in the header but not in row %q", column, want, row)
+			}
+		}
+	}
+}
