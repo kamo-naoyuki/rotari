@@ -63,6 +63,19 @@ func (job Job) Blocked() bool {
 	return job.Source == SourceSummary && strings.HasPrefix(job.Summary.Error, "blocked")
 }
 
+// DisplayLabel is the label views show for a job: its DisplayStatus, or
+// success (accepted) for an accepted earlier failure, marked when the result
+// was carried from another run.
+func DisplayLabel(status string, accepted, carried bool) string {
+	if accepted {
+		status = "success (accepted)"
+	}
+	if carried {
+		status += " (carried)"
+	}
+	return status
+}
+
 // StatusNotStarted is the display status of a job with no dispatched attempt.
 const StatusNotStarted = "not started"
 

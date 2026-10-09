@@ -37,7 +37,8 @@ Representative implementation and tests:
   before the run writes its summary, its carried result (DUR-7). A summary result still supplies acceptance, blocked state,
   hosts, and diagnoses when an attempt file decides the exit code. `show` of a
   run and of a job, `jobs`, reports, and the Web UI all use it, so they never
-  disagree about a job. The summary result belongs to the latest attempt, so
+  disagree about a job; reports label each job as `show` does
+  (`jobstatus.DisplayLabel`). The summary result belongs to the latest attempt, so
   a selected older attempt (`show ATTEMPT_ID` or the Web UI attempt selector)
   resolves from its own files only and shows its own timestamps.
 - **DUR-6** This does not kill or reconcile leftover jobs during recovery;

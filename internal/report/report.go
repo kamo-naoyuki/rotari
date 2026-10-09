@@ -11,6 +11,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -142,11 +143,11 @@ func formatRunAIReportSelected(paths state.ProjectPaths, run webprojection.Run, 
 		if selected != nil && !selected[job.ID] {
 			continue
 		}
-		status := reportJobStatus(job, run.Running)
-		if failedOnly && status != "failed" && status != "blocked" {
+		status := reportJobStatus(job)
+		if failedOnly && !reportFailed(status) {
 			continue
 		}
-		writeJobAIReport(&builder, paths, run, job, status, status == "failed" || status == "running" || status == "suspended")
+		writeJobAIReport(&builder, paths, run, job, status, reportIncludesLog(status))
 	}
 	fmt.Fprintf(&builder, "\n## Suggested commands\n```sh\nrotari show -r %s --failed-logs\nrotari retry -r %s\n```\n", executor.ShellQuote(run.RunID), executor.ShellQuote(run.RunID))
 	return builder.String()
@@ -156,7 +157,7 @@ func formatJobAIReport(paths state.ProjectPaths, run webprojection.Run, job webp
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari job report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.ProjectName, run.RunID, run.Status, reportValue(run.Context.Hostname))
-	writeJobAIReport(&builder, paths, run, job, reportJobStatus(job, run.Running), true)
+	writeJobAIReport(&builder, paths, run, job, reportJobStatus(job), true)
 	return builder.String()
 }
 
@@ -255,23 +256,33 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 	}
 }
 
-func reportJobStatus(job webprojection.Job, running bool) string {
-	if job.Result == nil {
-		if job.SchedulerState != "" {
-			return job.SchedulerState
-		}
-		if running {
-			return "running"
-		}
-		return "pending"
+// reportJobStatus labels job as show does, from the shared execution status.
+func reportJobStatus(job webprojection.Job) string {
+	status := strings.TrimSuffix(job.ExecutionStatus, " (carried)")
+	if status == "" {
+		status = "unknown"
 	}
-	if strings.HasPrefix(job.Result.Error, "blocked") {
-		return "blocked"
+	return jobstatus.DisplayLabel(status, job.Result != nil && job.Result.Accepted, job.Carried)
+}
+
+// reportFailed reports whether a run report limited to failures includes a
+// job with this label: failed, cancelled, and blocked jobs, carried or not.
+func reportFailed(label string) bool {
+	switch strings.TrimSuffix(label, " (carried)") {
+	case model.StatusFailed, model.StatusCancelled, "blocked":
+		return true
 	}
-	if job.Result.ExitCode == 0 {
-		return "success"
+	return false
+}
+
+// reportIncludesLog reports whether a run report quotes the log of a job
+// with this label: one that failed or may not have finished.
+func reportIncludesLog(label string) bool {
+	switch strings.TrimSuffix(label, " (carried)") {
+	case model.StatusFailed, model.StatusCancelled, "running (recorded)", "suspended (recorded)", "unknown":
+		return true
 	}
-	return "failed"
+	return false
 }
 
 func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {

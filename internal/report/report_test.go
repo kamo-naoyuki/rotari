@@ -136,36 +136,52 @@ func TestFormatRunReportIncludesFailedJobsOnly(t *testing.T) {
 		RunSummary: model.RunSummary{RunID: "run-1", Status: "failed", ExitCode: 1, StartedAt: "start", FinishedAt: "finish"},
 		CWD:        "/work/project",
 		Jobs: []web.Job{
-			{ID: "failed", Name: "failed-job", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "boom"}},
-			{ID: "success", Name: "success-job", Result: &model.JobResult{ID: "success", ExitCode: 0}},
+			{ID: "failed", Name: "failed-job", ExecutionStatus: "failed", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "boom"}},
+			{ID: "cancelled", Name: "cancelled-job", ExecutionStatus: "cancelled", Result: &model.JobResult{ID: "cancelled", ExitCode: 130, Error: model.MarkedCancelledError}},
+			{ID: "kept", Name: "kept-job", ExecutionStatus: "failed (carried)", Carried: true, Result: &model.JobResult{ID: "kept", ExitCode: 2}},
+			{ID: "success", Name: "success-job", ExecutionStatus: "success", Result: &model.JobResult{ID: "success", ExitCode: 0}},
+			{ID: "waiting", Name: "waiting-job", ExecutionStatus: "not started"},
 		},
 	}
 	paths := state.ProjectPaths{ProjectName: "demo"}
 	report := formatRunAIReport(paths, run, true)
-	if !strings.Contains(report, "failed-job") || strings.Contains(report, "success-job") {
+	for _, name := range []string{"failed-job", "cancelled-job", "kept-job"} {
+		if !strings.Contains(report, name) {
+			t.Errorf("failed-only report omits %s:\n%s", name, report)
+		}
+	}
+	if strings.Contains(report, "success-job") || strings.Contains(report, "waiting-job") {
 		t.Fatalf("failed-only report = %s", report)
+	}
+	if !strings.Contains(report, "- Status: cancelled\n") {
+		t.Fatalf("cancelled job is not labeled as show labels it:\n%s", report)
 	}
 }
 
-func TestReportStatusAndValueHelpers(t *testing.T) {
-	if got := reportJobStatus(web.Job{SchedulerState: "pending"}, false); got != "pending" {
-		t.Fatalf("scheduler status = %q", got)
+// Reports label jobs as show does: the shared execution status, accepted
+// results as success (accepted), and carried results marked as carried.
+func TestReportJobStatusMatchesShowLabels(t *testing.T) {
+	for _, test := range []struct {
+		job  web.Job
+		want string
+	}{
+		{web.Job{ExecutionStatus: "waiting (recorded)", SchedulerState: "pending"}, "waiting (recorded)"},
+		{web.Job{ExecutionStatus: "running (recorded)"}, "running (recorded)"},
+		{web.Job{ExecutionStatus: "not started"}, "not started"},
+		{web.Job{ExecutionStatus: "cancelled", Result: &model.JobResult{ExitCode: 130}}, "cancelled"},
+		{web.Job{ExecutionStatus: "blocked", Result: &model.JobResult{ExitCode: 1, Error: "blocked by dependency"}}, "blocked"},
+		{web.Job{ExecutionStatus: "failed (carried)", Carried: true, Result: &model.JobResult{ExitCode: 1}}, "failed (carried)"},
+		{web.Job{ExecutionStatus: "success", Result: &model.JobResult{ExitCode: 0, Accepted: true}}, "success (accepted)"},
+		{web.Job{ExecutionStatus: "success (carried)", Carried: true, Result: &model.JobResult{ExitCode: 0, Accepted: true}}, "success (accepted) (carried)"},
+		{web.Job{}, "unknown"},
+	} {
+		if got := reportJobStatus(test.job); got != test.want {
+			t.Errorf("reportJobStatus(%+v) = %q, want %q", test.job, got, test.want)
+		}
 	}
-	if got := reportJobStatus(web.Job{}, true); got != "running" {
-		t.Fatalf("running status = %q", got)
-	}
-	if got := reportJobStatus(web.Job{}, false); got != "pending" {
-		t.Fatalf("pending status = %q", got)
-	}
-	if got := reportJobStatus(web.Job{Result: &model.JobResult{Error: "blocked by dependency"}}, false); got != "blocked" {
-		t.Fatalf("blocked status = %q", got)
-	}
-	if got := reportJobStatus(web.Job{Result: &model.JobResult{ExitCode: 0}}, false); got != "success" {
-		t.Fatalf("success status = %q", got)
-	}
-	if got := reportJobStatus(web.Job{Result: &model.JobResult{ExitCode: 1}}, false); got != "failed" {
-		t.Fatalf("failed status = %q", got)
-	}
+}
+
+func TestReportValueHelpers(t *testing.T) {
 	if reportValue("") != "-" || reportValue("value") != "value" {
 		t.Fatal("report value helpers returned unexpected results")
 	}

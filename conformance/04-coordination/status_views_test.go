@@ -428,3 +428,38 @@ func TestNotStartedJobsAgreeAcrossViews(t *testing.T) {
 		t.Fatalf("info active runs = %+v, want run %s with two pending jobs and one alive", info.ActiveRuns, run.RunID)
 	}
 }
+
+// TestReportLabelsJobsAsShowDoes checks that show --report labels each job
+// with the label show prints for it, including cancelled and blocked jobs.
+func TestReportLabelsJobsAsShowDoes(t *testing.T) {
+	covers(t, "DUR-5")
+	e := support.NewEnv(t)
+	project := "report-labels"
+	ids := map[string]string{
+		"fails":   support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "fails", "--", "sh", "-c", "exit 3")),
+		"blocked": support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "blocked", "--depends-on", "fails", "--", "true")),
+		"ok":      support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "ok", "--", "true")),
+	}
+	run := e.StartRun(project, 1, true)
+	ids["hold1"] = run.Jobs[0]
+	e.MustRotari("cancel", "-p", project, "-j", ids["hold1"], "--yes")
+	e.Rotari("wait", "-p", project, "--timeout", "30s", "--quiet")
+
+	shown := e.MustRotari("show", "-p", project, "-r", run.RunID).Stdout
+	report := e.MustRotari("show", "-p", project, "-r", run.RunID, "--report").Stdout
+	for name, want := range map[string]string{"fails": "failed", "blocked": "blocked", "ok": "success", "hold1": "cancelled"} {
+		id := ids[name]
+		if !strings.Contains(report, "- Job ID: `"+id+"`\n- Status: "+want+"\n") {
+			t.Errorf("report does not label %s (%s) as %s:\n%s", name, id, want, report)
+		}
+		row := ""
+		for _, line := range strings.Split(shown, "\n") {
+			if strings.HasPrefix(line, id+" ") {
+				row = line
+			}
+		}
+		if !strings.Contains(row, " "+want+" ") {
+			t.Errorf("show row for %s = %q, want label %s", name, row, want)
+		}
+	}
+}

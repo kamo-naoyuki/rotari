@@ -1032,13 +1032,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		submittedAt = model.FormatDisplayTimestamp(submittedAt)
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)
-		statusText := displayStatus
-		if resolved.Accepted() {
-			statusText = "success (accepted)"
-			if carried {
-				statusText += " (carried)"
-			}
-		}
+		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
 		// Pad before coloring so escape codes do not count toward the width.
 		paddedStatus := fmt.Sprintf("%-20s", statusText)
 		switch {

@@ -300,3 +300,21 @@ func TestRecordedResultsPrefersTheSummaryToCarriedResults(t *testing.T) {
 		t.Fatalf("with the summary: %v", got)
 	}
 }
+
+func TestDisplayLabelAddsAcceptedAndCarried(t *testing.T) {
+	for _, test := range []struct {
+		status            string
+		accepted, carried bool
+		want              string
+	}{
+		{"failed", false, false, "failed"},
+		{"failed", false, true, "failed (carried)"},
+		{"failed", true, false, "success (accepted)"},
+		{"success", true, true, "success (accepted) (carried)"},
+		{"not started", false, true, "not started (carried)"},
+	} {
+		if got := DisplayLabel(test.status, test.accepted, test.carried); got != test.want {
+			t.Errorf("DisplayLabel(%q, %t, %t) = %q, want %q", test.status, test.accepted, test.carried, got, test.want)
+		}
+	}
+}
