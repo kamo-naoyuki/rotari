@@ -223,14 +223,16 @@ func TestWaitWithoutSelectorWarnsAboutInterruptedRuns(t *testing.T) {
 	}
 }
 
-func TestWaitWarnsForAttachedRunTargetsAndSkipsThemImplicitly(t *testing.T) {
+func TestWaitWarnsForAttachedRunTargetsAndFollowsThemImplicitly(t *testing.T) {
 	covers(t, "RES-16", "CLI-19")
 	e := support.NewEnv(t)
 	run := e.StartRun("attached", 1, false)
 
+	// The run was started by this process, so wait without selectors follows
+	// it although its synchronous client is attached.
 	implicit := e.Rotari("wait", "--timeout", "50ms")
-	if implicit.Code != 0 || implicit.Stdout != "" || implicit.Stderr != "" {
-		t.Fatalf("wait without selectors should skip attached runs: %s", implicit)
+	if implicit.Code == 0 || !strings.Contains(implicit.Stdout, "Run attached") || !strings.Contains(implicit.Stderr, "timed out waiting for run "+run.RunID) {
+		t.Fatalf("wait without selectors should follow this process's attached run: %s", implicit)
 	}
 
 	for _, args := range [][]string{

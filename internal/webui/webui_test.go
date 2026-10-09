@@ -68,7 +68,7 @@ func testRunner() projectrun.Runner {
 }
 
 func writeRunContext(paths stateinternal.ProjectPaths, runID, cwd string) error {
-	return testRunner().WriteContext(paths, runID, cwd, "")
+	return testRunner().WriteContext(paths, runID, cwd, "", nil)
 }
 
 func finishRunContext(paths stateinternal.ProjectPaths, runID string) error {

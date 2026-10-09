@@ -15,7 +15,10 @@ values. Notifications select one project/basedir/global file without merging.
 
 ## Rules
 
-- Start runs with `rotari run --async`, then block on `rotari wait`. To
+- Start runs with `rotari run --async`, then block on `rotari wait PROJECT`.
+  Name the project or run: like a shell's `wait`, `rotari wait` without one
+  follows only runs started from the same shell, and each tool call usually
+  runs in a new shell. To
   preview a run first, give the same command `--dry-run` in place of
   `--async`, which it cannot be combined with, then start it with
   `--async --if-revision REVISION`. If a tool-call timeout kills a

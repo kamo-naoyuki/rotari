@@ -24,6 +24,9 @@ type Start struct {
 	// ConfigPath is the command config file that the client loaded.
 	ConfigPath string
 	FileConfig *model.FileConfigSnapshot
+	// LaunchOrigin is the process that ran the rotari command starting the
+	// run, when a CLI client started it.
+	LaunchOrigin *model.LaunchOrigin
 }
 
 // Begin records a new run, moves the queue into it, and marks the project
@@ -42,7 +45,7 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 	if err != nil {
 		return err
 	}
-	if err := runner.WriteContext(paths, start.RunID, start.CWD, start.ConfigPath, start.FileConfig); err != nil {
+	if err := runner.WriteContext(paths, start.RunID, start.CWD, start.ConfigPath, start.LaunchOrigin, start.FileConfig); err != nil {
 		return fmt.Errorf("failed to save run context: %w", err)
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, start.RunID)

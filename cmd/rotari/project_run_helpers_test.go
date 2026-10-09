@@ -48,7 +48,7 @@ func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcu
 }
 
 func writeRunContext(paths state.ProjectPaths, runID, cwd string) error {
-	return projectRunner().WriteContext(paths, runID, cwd, config.EffectivePath(paths.BaseDir, paths.ProjectName))
+	return projectRunner().WriteContext(paths, runID, cwd, config.EffectivePath(paths.BaseDir, paths.ProjectName), nil)
 }
 
 func finishRunContext(paths state.ProjectPaths, runID string) error {

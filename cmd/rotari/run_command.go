@@ -292,6 +292,9 @@ func runJobs(args []string, defaultSelection string) int {
 	if runSession != nil {
 		request.ClientSessionID = runSession.ID()
 	}
+	// wait without a selector follows the runs this command's parent started.
+	origin := attachment.CurrentLaunchOrigin()
+	request.LaunchOrigin = &origin
 	var response serverinternal.Response
 	if *async {
 		response, err = client.Send(request)

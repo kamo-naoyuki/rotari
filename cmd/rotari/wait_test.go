@@ -239,7 +239,7 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := resolveActiveWaitTargets(baseDir, "")
+	got, _, err := resolveActiveWaitTargets(baseDir, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,9 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 	}
 }
 
-func TestConcurrentImplicitWaitReservationSelectsRunOnce(t *testing.T) {
+// Waiters reserve independent sessions, so a second implicit wait follows a
+// run another wait already follows instead of skipping it.
+func TestConcurrentImplicitWaitReservationsAreIndependent(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -271,9 +273,9 @@ func TestConcurrentImplicitWaitReservationSelectsRunOnce(t *testing.T) {
 	}
 	defer closeWaitReservations(firstSessions)
 	second, secondSessions, err := reserveImplicitWaitTargets([]resolve.Run{target}, serverinternal.DisconnectActionDetach)
-	if err != nil || len(second) != 0 || len(secondSessions) != 0 {
-		closeWaitReservations(secondSessions)
-		t.Fatalf("second implicit reservation = %#v, %#v, %v; want skip already attached run", second, secondSessions, err)
+	defer closeWaitReservations(secondSessions)
+	if err != nil || len(second) != 1 || secondSessions[implicitWaitKey(target)] == nil || secondSessions[implicitWaitKey(target)] == firstSessions[implicitWaitKey(target)] {
+		t.Fatalf("second implicit reservation = %#v, %#v, %v; want its own session for the same run", second, secondSessions, err)
 	}
 }
 
@@ -385,7 +387,7 @@ func TestResolveActiveWaitTargetsPreservesStaleRunLock(t *testing.T) {
 	if err := writeJSON(paths.LockFile, staleTestRunLock(t, "run-1")); err != nil {
 		t.Fatal(err)
 	}
-	targets, err := resolveActiveWaitTargets(baseDir, "")
+	targets, _, err := resolveActiveWaitTargets(baseDir, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,5 +491,35 @@ func TestInterruptedRunHintWarnsWhileJobsMayStillRun(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestResolveActiveWaitTargetsFollowsTheLaunchingProcess(t *testing.T) {
+	baseDir := t.TempDir()
+	origin := model.LaunchOrigin{Host: "node1", PID: 42, ProcessStart: "100"}
+	for projectName, launched := range map[string]*model.LaunchOrigin{
+		"mine":  &origin,
+		"other": {Host: "node1", PID: 43, ProcessStart: "100"},
+		"web":   nil,
+	} {
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runID := projectName + "-run"
+		if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "context.json"), model.RunContext{LaunchOrigin: launched}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, others, err := resolveActiveWaitTargets(baseDir, "", &origin)
+	if err != nil || len(got) != 1 || got[0].ProjectName != "mine" || others != 2 {
+		t.Fatalf("targets = %#v, others = %d, err = %v; want only mine and two others", got, others, err)
+	}
+	all, others, err := resolveActiveWaitTargets(baseDir, "", nil)
+	if err != nil || len(all) != 3 || others != 0 {
+		t.Fatalf("all targets = %#v, others = %d, err = %v; want every active run", all, others, err)
 	}
 }

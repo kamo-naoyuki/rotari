@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,6 +21,25 @@ const (
 	LockStale  LockState = "stale"
 	LockRemote LockState = "remote"
 )
+
+// ProcessStart is Linux's per-process start-time identity from field 22 of
+// /proc/PID/stat, which tells a process from a later one reusing its PID. An
+// empty value means the platform cannot verify PID reuse.
+func ProcessStart(pid int) string {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return ""
+	}
+	end := strings.LastIndexByte(string(data), ')')
+	if end < 0 {
+		return ""
+	}
+	fields := strings.Fields(string(data)[end+1:])
+	if len(fields) <= 19 {
+		return ""
+	}
+	return fields[19]
+}
 
 func ProcessAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)

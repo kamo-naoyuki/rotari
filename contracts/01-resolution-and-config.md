@@ -142,13 +142,19 @@ Other non-location option defaults remain applicable to aggregate views.
   an interrupted run, or a non-empty idle queue before history, and `export`
   picks a non-empty queue before the latest run; see
   [06-selectors.md](06-selectors.md) for the options that skip the queue.
-- **RES-16** `wait` without a selector scans the resolved basedir's projects and waits
-  concurrently only for active detached runs; attached runs are ignored. Each
-  interrupted run gets a warning on stderr naming it and how to inspect and
-  recover it, without changing the exit code. If no detached runs are active
-  and none is interrupted, it succeeds without output. Explicitly selecting
-  an active attached run, including through its project, warns and then waits
-  on it.
+- **RES-16** `wait` without a selector, like a shell's `wait`, scans the
+  resolved basedir's projects and waits concurrently for the active runs that
+  its own parent process (shell, script, or program) started, as each run's
+  context records the host, PID, and process start time of the process that
+  ran `run` or `retry`. Whether another client is attached does not matter.
+  Runs started elsewhere, including from the Web UI or MCP, are left out;
+  `--all` waits for every active run instead and cannot be combined with a
+  selector or `--project-name`. Each interrupted run of the same scope gets a
+  warning on stderr naming it and how to inspect and recover it, without
+  changing the exit code. If no run of the scope is active, it succeeds; when
+  other active runs exist it says so on stderr and points to `--all`, and
+  otherwise it prints nothing. Explicitly selecting an active attached run,
+  including through its project, warns and then waits on it.
   A positional selector is resolved in this order: `latest`, a project name, a
   run name, then a run ID. A project or run name waits for its active detached
   run, or else returns the result of the latest matching run at once, as a
@@ -158,8 +164,8 @@ Other non-location option defaults remain applicable to aggregate views.
   a name that matches neither a project nor a run is an error. A project
   selected by `--project-name/-p` without a selector follows the same
   active-then-latest rule. A missing explicitly selected project or run is an
-  error. With no selector or `--project-name`, all active detached runs in the
-  resolved basedir are waited on concurrently, ignoring `ROTARI_PROJECT_NAME`.
+  error. With no selector or `--project-name`, the runs chosen as above are
+  waited on concurrently, ignoring `ROTARI_PROJECT_NAME`.
   An explicit `--run-id` bypasses this selector resolution.
   Implementation: [project wait resolution](../cmd/rotari/wait.go).
   Tests: [option and environment resolution](../cmd/rotari/wait_project_test.go)

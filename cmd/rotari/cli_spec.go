@@ -355,6 +355,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "until-failure", Description: "return as soon as a job of the run has failed with no retry left, without waiting for the rest"},
 			cliFlagSpec{Name: "json", Description: "print each completed run as one JSON object"},
 			cliFlagSpec{Name: "quiet", Description: "suppress normal progress and completion output; keep failure diagnostics and JSON results"},
+			cliFlagSpec{Name: "all", Description: "without a selector, wait for every active run in the basedir, not only those started from this shell"},
 		),
 		Positional: "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",
 	},

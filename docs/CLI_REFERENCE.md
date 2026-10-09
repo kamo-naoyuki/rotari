@@ -436,6 +436,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `--until-failure` | `` | `ROTARI_WAIT_UNTIL_FAILURE` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 | `--json` | `` | `ROTARI_WAIT_JSON` | print each completed run as one JSON object |
 | `--quiet` | `` | `ROTARI_WAIT_QUIET` | suppress normal progress and completion output; keep failure diagnostics and JSON results |
+| `--all` | `` | `ROTARI_WAIT_ALL` | without a selector, wait for every active run in the basedir, not only those started from this shell |
 
 ### `rotari add`
 

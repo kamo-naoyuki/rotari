@@ -19,7 +19,7 @@ func TestMergedConfigSnapshotNeverRereadsSources(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "deleted.toml")
 	snapshot := &model.FileConfigSnapshot{Content: "[run]\nretry = 2\n", Sources: []model.ConfigSource{{Scope: "global", Path: source}, {Scope: "workspace", Path: source + "-workspace"}}}
 	runner := Runner{Store: state.NewStore(0o755, 0o644)}
-	if err := runner.WriteContext(paths, "run-1", "/work", "", snapshot); err != nil {
+	if err := runner.WriteContext(paths, "run-1", "/work", "", nil, snapshot); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(paths.RunsDir, "run-1", "configs", "config.toml"))
@@ -30,7 +30,7 @@ func TestMergedConfigSnapshotNeverRereadsSources(t *testing.T) {
 	if err != nil || len(context.ConfigSources) != 2 || len(context.ConfigSnapshotFiles) != 1 {
 		t.Fatalf("context = %#v, %v", context, err)
 	}
-	if err := runner.WriteContext(paths, "empty", "/work", "", &model.FileConfigSnapshot{}); err != nil {
+	if err := runner.WriteContext(paths, "empty", "/work", "", nil, &model.FileConfigSnapshot{}); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(filepath.Join(paths.RunsDir, "empty", "configs", "config.toml")); err != nil || len(data) != 0 {

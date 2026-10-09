@@ -244,7 +244,7 @@ func TestWaitLiveProgress(t *testing.T) {
 	}
 }
 
-func TestWaitAttachmentIsSharedAndImplicitWaitSkipsIt(t *testing.T) {
+func TestWaitAttachmentIsSharedAndImplicitWaitFollowsIt(t *testing.T) {
 	covers(t, "CLI-19")
 	e := support.NewEnv(t)
 	project := "wait-attachment-shared"
@@ -295,13 +295,13 @@ func TestWaitAttachmentIsSharedAndImplicitWaitSkipsIt(t *testing.T) {
 		t.Fatal("wait did not attach to the active run")
 	}
 
-	// The implicit waiter observes the same live-session set and must not
-	// attach to a run another client is already following.
+	// Sessions are independent: an implicit waiter started by the same
+	// process follows the run although another client already follows it.
 	implicit := e.Rotari("wait", "--basedir", e.Base, "--timeout", "50ms")
-	if implicit.Code != 0 || strings.Contains(implicit.Stderr, "timed out") {
+	if implicit.Code == 0 || !strings.Contains(implicit.Stderr, "timed out waiting for run "+runID) {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		t.Fatalf("implicit wait did not skip the attached run: %s", implicit)
+		t.Fatalf("implicit wait did not follow the run another client follows: %s", implicit)
 	}
 
 	if err := os.WriteFile(gate, nil, 0o600); err != nil {

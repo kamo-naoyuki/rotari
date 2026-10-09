@@ -33,9 +33,10 @@ func pairWaitArgs(t *testing.T, f pairFixture, flags []pairFlag) []string {
 }
 
 // withPairWaitTarget names the completed fixture run unless a flag selects
-// it; wait without a target returns at once when no detached run is active.
+// it or --all asks for every active run; wait without a target returns at
+// once when no run is active.
 func withPairWaitTarget(f pairFixture, flags []pairFlag, args []string) []string {
-	if pairHasFlag(flags, "run-id") || pairHasFlag(flags, "project-name") {
+	if pairHasFlag(flags, "run-id") || pairHasFlag(flags, "project-name") || pairHasFlag(flags, "all") {
 		return args
 	}
 	return append(args, f.Run)
@@ -104,6 +105,20 @@ func invokePairWait(t *testing.T, f pairFixture, flags []pairFlag) pairMutationR
 
 func assertPairWaitOutcome(t *testing.T, f pairFixture, flags []pairFlag, result support.Result) {
 	t.Helper()
+	if pairHasFlag(flags, "all") {
+		// --all selects every active run and rejects a selector; the
+		// fixture has no active run, so it returns at once.
+		if pairHasFlag(flags, "run-id") || pairHasFlag(flags, "project-name") {
+			if result.Code != 1 || !strings.Contains(result.Stderr, "--all cannot be combined") {
+				t.Fatalf("wait --all with a selector should be rejected: %s", result)
+			}
+			return
+		}
+		if result.Code != 0 || result.Stdout != "" || result.Stderr != "" {
+			t.Fatalf("wait --all without active runs should return at once: %s", result)
+		}
+		return
+	}
 	if result.Code != 1 || result.Stderr != "" {
 		t.Fatalf("completed failed fixture should return its run exit code without diagnostics: %s", result)
 	}

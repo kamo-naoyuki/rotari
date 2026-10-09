@@ -151,6 +151,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_JOBS_JSON` | yes | no | no | Default for rotari jobs --json. |
 | `ROTARI_WAIT_UNTIL_FAILURE` | yes | no | no | Default for rotari wait --until-failure. |
 | `ROTARI_WAIT_JSON` | yes | no | no | Default for rotari wait --json. |
+| `ROTARI_WAIT_ALL` | yes | no | no | Default for rotari wait --all. |
 | `ROTARI_ADD_WORKING_DIRECTORY` | yes | no | no | Default for rotari add --working-directory. |
 | `ROTARI_ADD_ENV` | yes | no | no | Default for rotari add --env. |
 | `ROTARI_ADD_STAGE` | yes | no | no | Default for rotari add --stage. |

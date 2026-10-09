@@ -12,25 +12,30 @@ rotari wait sweep
 ```
 
 `run --async` starts a detached run and returns while its jobs continue.
-`wait` can monitor detached runs, printing new progress, then the completion
-message and run exit code. If another client, a synchronous `run` or another
-`wait`, is attached to the selected run, `wait` warns and monitors it anyway.
-Implicit selection includes the run only after every such client detaches,
-for example with Ctrl-D. If the run has already finished, `wait`
-prints only the completion message. Runs inherit the caller's working
+`wait` monitors runs, printing new progress, then the completion message and
+run exit code. If another client, a synchronous `run` or another `wait`, is
+attached to a run you name, `wait` warns and monitors it anyway. If the run
+has already finished, `wait` prints only the completion message. Runs inherit the caller's working
 directory and environment unless overridden; use `--env=NONE` to suppress
 inherited variables. Job variables and rotari metadata still apply. See
 [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).
 
-Pass several selectors to wait for those detached runs concurrently, or omit
-selectors to wait for every active detached run in the resolved basedir:
+Pass several selectors to wait for those runs concurrently. Like a shell's
+`wait`, `rotari wait` without a selector waits for the active runs started
+from the same shell, script, or program:
 
 ```sh
 rotari run -p sweep --async
 rotari run -p eval --async
 rotari wait sweep eval
-rotari wait  # waits for all active detached runs
+rotari wait        # waits for the runs this shell started
+rotari wait --all  # waits for every active run in the basedir
 ```
+
+Runs started from another terminal, the Web UI, or MCP are not included; name
+them or use `--all`. Also as with a shell's `wait`, a script whose lines run
+in separate shells, such as a Makefile recipe, should name the project or run
+to wait for.
 
 Pass a run ID/name or project name to wait for it:
 
@@ -43,11 +48,11 @@ For a project, `wait` selects its active run; if another client is attached
 to it, it warns and continues monitoring. If no run is active,
 it returns the latest run's result. A positional selector is checked as project
 name, run name, then run ID; use `-r RUN_ID` to select an ID explicitly. With
-no selector or `-p`, it waits for all active detached runs in the basedir,
-ignoring `ROTARI_PROJECT_NAME`; attached runs are ignored, and if no detached
-runs are active it succeeds silently. An interrupted run, whose supervisor
-stopped before the run finished, is not waited for; `wait` prints a warning
-naming it and keeps its exit code. An explicitly named project or run that
+no selector or `-p`, it waits for this shell's active runs, attached or not,
+ignoring `ROTARI_PROJECT_NAME`. If none is active it succeeds, and if other
+active runs exist it says so and points to `--all`. An interrupted run of the
+same scope, whose supervisor stopped before the run finished, is not waited
+for; `wait` prints a warning naming it and keeps its exit code. An explicitly named project or run that
 does not exist is an error.
 
 Return as soon as a job fails with no retries left:

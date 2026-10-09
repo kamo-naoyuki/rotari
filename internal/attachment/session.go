@@ -89,7 +89,7 @@ func open(paths state.ProjectPaths, info record) (*Session, error) {
 		return nil, fmt.Errorf("determine attachment host: %w", err)
 	}
 	info.Host = host
-	info.ProcessStart = processStart(os.Getpid())
+	info.ProcessStart = state.ProcessStart(os.Getpid())
 	info.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	lockPath := filepath.Join(dir, info.ID+".lock")
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, state.FileMode())
@@ -376,27 +376,9 @@ func processMayBeSame(pid int, start string) bool {
 	if pid <= 0 {
 		return false
 	}
-	current := processStart(pid)
+	current := state.ProcessStart(pid)
 	if start != "" && current != "" {
 		return current == start
 	}
 	return state.ProcessAlive(pid)
-}
-
-// processStart is Linux's per-process start-time identity from field 22 of
-// /proc/PID/stat. An empty value means the platform cannot verify PID reuse.
-func processStart(pid int) string {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if err != nil {
-		return ""
-	}
-	end := strings.LastIndexByte(string(data), ')')
-	if end < 0 {
-		return ""
-	}
-	fields := strings.Fields(string(data)[end+1:])
-	if len(fields) <= 19 {
-		return ""
-	}
-	return fields[19]
 }

@@ -643,9 +643,22 @@ type RunContext struct {
 	ConfigSnapshotFiles []string       `json:"config_snapshot_files,omitempty"`
 	ConfigSnapshotPaths []string       `json:"config_snapshot_paths,omitempty"`
 	Hostname            string         `json:"hostname,omitempty"`
-	StartedLoad         *LoadAverage   `json:"started_load,omitempty"`
-	FinishedLoad        *LoadAverage   `json:"finished_load,omitempty"`
-	LoadSamples         []LoadSample   `json:"load_samples,omitempty"`
+	// LaunchOrigin is the process that ran the rotari command starting the
+	// run, such as a shell or script; wait without a selector follows the
+	// runs its own parent started. Runs started by the Web UI or MCP have
+	// none.
+	LaunchOrigin *LaunchOrigin `json:"launch_origin,omitempty"`
+	StartedLoad  *LoadAverage  `json:"started_load,omitempty"`
+	FinishedLoad *LoadAverage  `json:"finished_load,omitempty"`
+	LoadSamples  []LoadSample  `json:"load_samples,omitempty"`
+}
+
+// LaunchOrigin identifies a process on a host. ProcessStart, when known,
+// tells it from a later process reusing its PID.
+type LaunchOrigin struct {
+	Host         string `json:"host"`
+	PID          int    `json:"pid"`
+	ProcessStart string `json:"process_start,omitempty"`
 }
 
 type LoadAverage struct {

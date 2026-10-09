@@ -22,7 +22,7 @@ func TestResolveWaitProjectOptionsUseActiveOrLatestRun(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv(envProjectName, "")
 			paths, wantID := waitProjectFixture(t, test.active)
-			got, err := resolveActiveWaitTargets(paths.BaseDir, "demo")
+			got, _, err := resolveActiveWaitTargets(paths.BaseDir, "demo", nil)
 			want := resolve.Run{BaseDir: paths.BaseDir, ProjectName: "demo", RunID: wantID}
 			if err != nil || len(got) != 1 || got[0] != want {
 				t.Fatalf("wait targets = %#v, err=%v; want %#v", got, err, want)
@@ -45,7 +45,7 @@ func TestResolveWaitWithoutProjectOptionIgnoresProjectEnvironment(t *testing.T) 
 		}
 	}
 
-	got, err := resolveActiveWaitTargets(baseDir, "")
+	got, _, err := resolveActiveWaitTargets(baseDir, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

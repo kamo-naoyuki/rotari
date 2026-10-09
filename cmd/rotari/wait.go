@@ -42,6 +42,7 @@ func cmdWait(args []string) int {
 	jsonOutput := cliBool(fs, "json", false)
 	quiet := cliBool(fs, "quiet", false)
 	disconnectAction := cliString(fs, "disconnect-action", serverinternal.DisconnectActionDetach)
+	allRuns := cliBool(fs, "all", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -54,6 +55,10 @@ func cmdWait(args []string) int {
 		return 1
 	}
 	selectors := fs.Args()
+	if *allRuns && (len(selectors) > 0 || len(explicitRunIDs) > 0 || cliOptionSet(fs, "project-name")) {
+		printError("--all cannot be combined with a project, run name, or run ID")
+		return 1
+	}
 	targets := make([]resolve.Run, 0, len(explicitRunIDs)+len(selectors))
 	for _, runID := range explicitRunIDs {
 		targets = append(targets, resolve.Run{BaseDir: *basedir, ProjectName: *queueNameOption, RunID: runID})
@@ -68,18 +73,28 @@ func cmdWait(args []string) int {
 	}
 	implicitSelection := len(targets) == 0 && *queueNameOption == ""
 	if len(targets) == 0 {
-		activeTargets, err := resolveActiveWaitTargets(*basedir, *queueNameOption)
+		// Like a shell's wait, wait without a selector follows the runs
+		// its own parent process started; --all follows every active run.
+		var origin *model.LaunchOrigin
+		if implicitSelection && !*allRuns {
+			current := attachment.CurrentLaunchOrigin()
+			origin = &current
+		}
+		activeTargets, others, err := resolveActiveWaitTargets(*basedir, *queueNameOption, origin)
 		if err != nil {
 			printError(err)
 			return 1
 		}
 		if implicitSelection {
-			if err := warnInterruptedWaitRuns(*basedir); err != nil {
+			if err := warnInterruptedWaitRuns(*basedir, origin); err != nil {
 				printError(err)
 				return 1
 			}
 		}
 		if len(activeTargets) == 0 {
+			if others > 0 {
+				printWarningf("no active run was started from this shell; %d other active run(s) exist. Wait for them with 'rotari wait --all', or name a project or run.", others)
+			}
 			return 0
 		}
 		targets = append(targets, activeTargets...)
@@ -136,9 +151,10 @@ func implicitWaitKey(target resolve.Run) string {
 	return target.BaseDir + "\x00" + target.ProjectName + "\x00" + target.RunID
 }
 
-// reserveImplicitWaitTargets rechecks and registers candidates under each
-// project's state lock. Concurrent implicit waiters cannot both reserve one
-// run that was unattached during their initial directory scans.
+// reserveImplicitWaitTargets rechecks under each project's state lock that a
+// candidate is still running and registers this wait's own attachment
+// session for it. Sessions are independent, so several waiters may follow
+// one run.
 func reserveImplicitWaitTargets(candidates []resolve.Run, disconnectAction string) ([]resolve.Run, map[string]*attachment.Session, error) {
 	selected := make([]resolve.Run, 0, len(candidates))
 	reservations := make(map[string]*attachment.Session)
@@ -160,16 +176,6 @@ func reserveImplicitWaitTargets(candidates []resolve.Run, disconnectAction strin
 			return nil, nil, err
 		}
 		if phase == project.RunPhaseRunning {
-			attached, attachErr := attachment.IsAttached(paths, target.RunID)
-			if attachErr != nil {
-				release()
-				closeWaitReservations(reservations)
-				return nil, nil, attachErr
-			}
-			if attached {
-				release()
-				continue
-			}
 			sessionID, idErr := attachment.NewID()
 			if idErr != nil {
 				release()
@@ -614,72 +620,74 @@ func latestRunPerProject(runs []resolve.Run) []resolve.Run {
 	return result
 }
 
-func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run, error) {
+// resolveActiveWaitTargets returns the active run of cliProjectName or,
+// without one, every active run in the basedir; with origin, only the runs
+// that origin launched, counting the others it leaves out.
+func resolveActiveWaitTargets(cliBaseDir, cliProjectName string, origin *model.LaunchOrigin) ([]resolve.Run, int, error) {
 	if cliProjectName != "" {
 		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if err := resolve.RequireProject(baseDir, projectName); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		target, err := resolveProjectWaitTarget(baseDir, projectName)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		return []resolve.Run{target}, nil
+		return []resolve.Run{target}, 0, nil
 	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, 0, nil
 		}
-		return nil, err
+		return nil, 0, err
 	}
 	active := make([]resolve.Run, 0)
+	others := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		paths, pathErr := state.ResolveProjectPaths(baseDir, entry.Name())
 		if pathErr != nil {
-			return nil, pathErr
+			return nil, 0, pathErr
 		}
 		lockState, _, lockErr := state.InspectLock(paths.LockFile, false)
 		if lockErr != nil {
-			return nil, lockErr
+			return nil, 0, lockErr
 		}
 		if lockState != state.LockActive && lockState != state.LockRemote {
 			continue
 		}
 		lock, lockErr := state.LoadLock(paths.LockFile)
 		if lockErr != nil {
-			return nil, lockErr
+			return nil, 0, lockErr
 		}
-		attached, attachErr := attachment.IsAttached(paths, lock.RunID)
-		if attachErr != nil {
-			return nil, attachErr
-		}
-		if attached {
+		if origin != nil && !waitLaunchedBy(paths, lock.RunID, *origin) {
+			others++
 			continue
 		}
 		active = append(active, resolve.Run{BaseDir: baseDir, ProjectName: entry.Name(), RunID: lock.RunID})
 	}
 	sort.Slice(active, func(i, j int) bool { return active[i].ProjectName < active[j].ProjectName })
-	return active, nil
+	return active, others, nil
 }
 
 // warnInterruptedWaitRuns reports runs that implicit wait cannot follow
-// because their supervisor is gone. They do not change wait's exit code.
-func warnInterruptedWaitRuns(cliBaseDir string) error {
+// because their supervisor is gone, limited to origin's runs when given.
+// They do not change wait's exit code.
+func warnInterruptedWaitRuns(cliBaseDir string, origin *model.LaunchOrigin) error {
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return err
@@ -706,11 +714,26 @@ func warnInterruptedWaitRuns(cliBaseDir string) error {
 		if inspection.State != project.Interrupted {
 			continue
 		}
+		if origin != nil && !waitLaunchedBy(paths, inspection.RunID, *origin) {
+			continue
+		}
 		if message, ok := runEndedWithoutSummary(paths, inspection.RunID); ok {
 			printWarningf("warning: %s", message)
 		}
 	}
 	return nil
+}
+
+// waitLaunchedBy reports whether runID of paths was started by origin, as its
+// run context records; runs without a recorded origin, such as those the Web
+// UI or MCP started, were not.
+func waitLaunchedBy(paths state.ProjectPaths, runID string, origin model.LaunchOrigin) bool {
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return false
+	}
+	context, err := state.LoadContext(jsonStore(), runDir)
+	return err == nil && attachment.SameLaunchOrigin(context.LaunchOrigin, origin)
 }
 
 func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {

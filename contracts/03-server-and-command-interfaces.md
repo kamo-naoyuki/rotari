@@ -313,8 +313,9 @@ does not promise to detect a lost remote client.
   after acceptance use the run's files and shared job-control operation.
   Each client owns a separate process-held session lock and record under
   `.rotari-attachments/`. Aggregate attachment is derived from live sessions;
-  ending one client never detaches another, and implicit waiters atomically
-  reserve an otherwise unattached run under the project state lock. An async
+  ending one client never detaches another, and implicit waiters register
+  their own session for each still-running run under the project state lock,
+  so several waiters can follow one run. An async
   run creates no session until `wait` attaches. Web and MCP reads are not
   attachments.
 
@@ -352,8 +353,9 @@ does not promise to detect a lost remote client.
   [`internal/server/client.go`](../internal/server/client.go),
   [`internal/server/serve.go`](../internal/server/serve.go), and
   [`internal/supervisor/run.go`](../internal/supervisor/run.go). Package and
-  binary checks include `TestWaitAttachmentIsSharedAndImplicitWaitSkipsIt`,
-  `TestConcurrentImplicitWaitReservationSelectsRunOnce`,
+  binary checks include `TestWaitAttachmentIsSharedAndImplicitWaitFollowsIt`,
+  `TestConcurrentImplicitWaitReservationsAreIndependent`,
+  `TestWaitWithoutSelectorWaitsForRunsThisProcessStarted`,
   `TestSynchronousRunInterruptCancelsAcceptedRun`,
   `TestSessionLivenessSurvivesSuspendAndDetectsSIGKILL`,
   `TestRunClientDisconnectDetachesByDefaultAndCanCancel`, and

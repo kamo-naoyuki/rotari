@@ -1089,6 +1089,9 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "all"
         }
       ],
       "name": "wait"

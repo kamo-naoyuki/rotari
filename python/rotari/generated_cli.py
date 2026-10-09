@@ -1680,6 +1680,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_WAIT_QUIET",
                     "name": "quiet",
                 },
+                {
+                    "description": "without a selector, wait for every active "
+                    "run in the basedir, not only those started "
+                    "from this shell",
+                    "environment": "ROTARI_WAIT_ALL",
+                    "name": "all",
+                },
             ],
             "name": "wait",
             "positional": "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",
@@ -3993,6 +4000,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari wait --json.",
             "job": False,
             "name": "ROTARI_WAIT_JSON",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari wait --all.",
+            "job": False,
+            "name": "ROTARI_WAIT_ALL",
         },
         {
             "array": False,

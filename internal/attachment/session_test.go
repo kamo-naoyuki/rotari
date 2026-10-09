@@ -402,7 +402,7 @@ func TestBoundSessionSurvivesLostAcceptanceForSupervisorPolicy(t *testing.T) {
 }
 
 func TestProcessStartIdentityDetectsPIDReuse(t *testing.T) {
-	identity := processStart(os.Getpid())
+	identity := state.ProcessStart(os.Getpid())
 	if identity == "" {
 		t.Skip("process start identity is not available on this platform")
 	}

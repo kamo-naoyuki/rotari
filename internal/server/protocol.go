@@ -27,12 +27,14 @@ type Request struct {
 	Async            bool                      `json:"async,omitempty"`
 	DisconnectAction string                    `json:"disconnect_action,omitempty"`
 	ClientSessionID  string                    `json:"client_session_id,omitempty"`
-	Quiet            bool                      `json:"quiet,omitempty"`
-	Executor         string                    `json:"executor,omitempty"`
-	ExecutorOptions  []string                  `json:"executor_options,omitempty"`
-	EnvMode          string                    `json:"env_mode,omitempty"`
-	JobIDs           []string                  `json:"job_ids,omitempty"`
-	Selection        string                    `json:"selection,omitempty"`
+	// LaunchOrigin is the process that ran the requesting rotari command.
+	LaunchOrigin    *model.LaunchOrigin `json:"launch_origin,omitempty"`
+	Quiet           bool                `json:"quiet,omitempty"`
+	Executor        string              `json:"executor,omitempty"`
+	ExecutorOptions []string            `json:"executor_options,omitempty"`
+	EnvMode         string              `json:"env_mode,omitempty"`
+	JobIDs          []string            `json:"job_ids,omitempty"`
+	Selection       string              `json:"selection,omitempty"`
 	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix, and
 	// Filter narrows it further.
 	ScopeStage   string           `json:"scope_stage,omitempty"`

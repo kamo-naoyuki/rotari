@@ -14,10 +14,20 @@ still open. History is in [work-log.md](work-log.md).
 
 ## Decisions
 
-- Implicit `wait` (no selector) keeps skipping runs that another client,
-  including another `wait`, is attached to; like a shell's `wait`, it covers
-  only what it can follow. It warns on stderr about interrupted runs and keeps
-  its exit code (RES-16).
+- Implicit `wait` (no selector), like a shell's `wait`, follows the active
+  runs that its own parent process (shell, script, or program) started,
+  whether or not another client is attached; `--all` follows every active
+  run. Each run's context records the launching process (host, PID, start
+  time). This replaced skipping runs another client was attached to, which
+  let a second script's `wait` return 0 while its run still ran, and treated
+  a synchronous `run` differently from `run --async` plus `wait`, which users
+  should not need to tell apart. Scoping by terminal session was rejected
+  because two scripts started from one terminal share it; scoping by parent
+  process has the same limits as a shell's `wait` (Makefile lines and
+  subshells), and those scripts name the project or run instead. When no run
+  of the scope is active but others are, `wait` says so and points to
+  `--all`. It warns on stderr about interrupted runs of the same scope and
+  keeps its exit code (RES-16, CLI-19).
 - `wait` without `-p` ignoring `ROTARI_PROJECT_NAME` is intended: aggregate
   commands ignore implicit project defaults, as `jobs` and `runs` do.
 - A job rotari has not dispatched is `pending` everywhere, including the

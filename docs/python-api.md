@@ -227,6 +227,7 @@ Wait for a run by project, run name, or run id.
 | `timeout` | `str` | maximum wait duration |
 | `until_failure` | `bool` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 | `quiet` | `bool` | suppress normal progress and completion output; keep failure diagnostics and JSON results |
+| `all` | `bool` | without a selector, wait for every active run in the basedir, not only those started from this shell |
 
 ## `Rotari.show`
 
