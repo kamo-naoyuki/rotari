@@ -146,7 +146,7 @@ func cmdCancel(args []string) int {
 		return 1
 	}
 	if (len(jobIDs) > 0 || selected) && *wait {
-		printError("--wait may not be used with a job selection")
+		printError("--wait may not be used with a job selection; it waits for a whole-run cancel. Cancel the jobs without it, then follow the run with rotari wait")
 		return 1
 	}
 	target, err := resolveCLIJobSelection(*basedir, *queueNameOption, jobIDs)

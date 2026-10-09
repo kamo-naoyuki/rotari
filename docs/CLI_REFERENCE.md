@@ -92,7 +92,7 @@ Usage: `rotari cancel [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `--job-name` | `NAME (repeatable)` | `ROTARI_JOB_NAME` | cancel the unfinished jobs with this name; may be repeated |
 | `--stage` | `STAGE` | `ROTARI_CANCEL_STAGE` | cancel the unfinished jobs of this stage |
 | `--matrix` | `NAME` | `ROTARI_CANCEL_MATRIX` | cancel the unfinished jobs of this matrix |
-| `--wait` | `` | `ROTARI_CANCEL_WAIT` | wait until cancellation is complete |
+| `--wait` | `` | `ROTARI_CANCEL_WAIT` | cancel the whole run and wait until it has stopped; not with a job selection, after which rotari wait follows the run |
 | `--yes` | `` | `CLI only` | cancel the jobs that filters select without asking |
 | `--filter-state` | `STATE (repeatable)` | `CLI only` | select jobs in this state; may be repeated (choices: running, pending) |
 | `--filter-host` | `PATTERN (repeatable)` | `CLI only` | select jobs run on a matching host; may be repeated |

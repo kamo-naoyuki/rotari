@@ -83,3 +83,19 @@ func TestConfirmJobControl(t *testing.T) {
 		t.Fatalf("declined error = %v", err)
 	}
 }
+
+// TestCancelWaitWithSelectionSaysHowToFollowTheRun checks that cancel
+// rejects --wait with a job selection before resolving anything, and that
+// the error says what to run instead.
+func TestCancelWaitWithSelectionSaysHowToFollowTheRun(t *testing.T) {
+	for _, args := range [][]string{
+		{"--wait", "job-1"},
+		{"--wait", "--job-name", "train"},
+		{"--wait", "--filter-state", "running", "--yes"},
+	} {
+		code, stderr := captureStderr(t, func() int { return cmdCancel(args) })
+		if code != 1 || !strings.Contains(stderr, "--wait may not be used with a job selection") || !strings.Contains(stderr, "rotari wait") {
+			t.Errorf("cmdCancel(%q) = %d, stderr %q; want a rejection that points to rotari wait", args, code, stderr)
+		}
+	}
+}
