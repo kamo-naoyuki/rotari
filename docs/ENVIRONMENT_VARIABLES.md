@@ -147,6 +147,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_LINEAGE_JSON` | yes | no | no | Default for rotari lineage --json. |
 | `ROTARI_JOBS_FORMAT` | yes | no | no | Default for rotari jobs --format. |
 | `ROTARI_JOBS_SINCE` | yes | no | no | Default for rotari jobs --since. |
+| `ROTARI_JOBS_JSON` | yes | no | no | Default for rotari jobs --json. |
 | `ROTARI_WAIT_UNTIL_FAILURE` | yes | no | no | Default for rotari wait --until-failure. |
 | `ROTARI_WAIT_JSON` | yes | no | no | Default for rotari wait --json. |
 | `ROTARI_ADD_WORKING_DIRECTORY` | yes | no | no | Default for rotari add --working-directory. |

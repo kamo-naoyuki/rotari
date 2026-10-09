@@ -1037,6 +1037,9 @@
         {
           "name": "since",
           "value_name": "DURATION"
+        },
+        {
+          "name": "json"
         }
       ],
       "name": "jobs"

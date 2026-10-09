@@ -99,9 +99,12 @@ rotari projects --basedir DIR
 
 When `jobs` finds nothing, it names the state directories it searched and the
 time window. To choose its displayed fields, use `--format`; see the
-[CLI reference](CLI_REFERENCE.md#rotari-jobs). `runs --json` prints the same
-runs as a JSON array with each run's `lifecycle`, `client_status`, exit code
-(`null` until the run finishes), and recorded start and finish times.
+[CLI reference](CLI_REFERENCE.md#rotari-jobs). For scripts, `jobs --json` and
+`runs --json` print the same rows as JSON arrays. Each job has its `state`,
+IDs, command, start and finish times, and `elapsed_seconds` (`null` when
+unknown); `--json` cannot be combined with `--format`. Each run has its
+`lifecycle`, `client_status`, exit code (`null` until the run finishes), and
+recorded start and finish times.
 
 The project list shows each project's last run and its result, such as
 `failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the

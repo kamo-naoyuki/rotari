@@ -1597,6 +1597,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "since",
                     "value_name": "DURATION",
                 },
+                {
+                    "description": "print machine-readable JSON; not with --format",
+                    "environment": "ROTARI_JOBS_JSON",
+                    "name": "json",
+                },
             ],
             "name": "jobs",
             "positional": "[PROJECT]",
@@ -3950,6 +3955,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari jobs --since.",
             "job": False,
             "name": "ROTARI_JOBS_SINCE",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari jobs --json.",
+            "job": False,
+            "name": "ROTARI_JOBS_JSON",
         },
         {
             "array": False,

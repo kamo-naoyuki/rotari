@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -270,5 +271,53 @@ func TestJobsColumnShowsDashForJobWithoutAttempt(t *testing.T) {
 	row := joblist.Row{State: "not started", JobID: "job-1", Elapsed: -1}
 	if got := jobsColumnValue('a', row); got != "-" {
 		t.Fatalf("attempt column = %q, want -", got)
+	}
+}
+
+func TestCmdJobsJSON(t *testing.T) {
+	baseDir := t.TempDir()
+	now := time.Now().UTC().Truncate(time.Second)
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "ok-job", now.Add(-3*time.Minute), now.Add(-2*time.Minute), 0)
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000002", "bad-job", now.Add(-2*time.Minute), now.Add(-time.Minute), 1)
+
+	output, code := captureJobsStdout(t, []string{"--basedir", baseDir, "--json", "train"})
+	if code != 0 {
+		t.Fatalf("jobs --json exit = %d: %s", code, output)
+	}
+	var jobs []struct {
+		BaseDir        string   `json:"base_dir"`
+		Project        string   `json:"project_name"`
+		RunID          string   `json:"run_id"`
+		JobID          string   `json:"job_id"`
+		AttemptID      string   `json:"attempt_id"`
+		State          string   `json:"state"`
+		Command        string   `json:"command"`
+		StartedAt      string   `json:"started_at"`
+		FinishedAt     string   `json:"finished_at"`
+		ElapsedSeconds *float64 `json:"elapsed_seconds"`
+	}
+	if err := json.Unmarshal([]byte(output), &jobs); err != nil {
+		t.Fatalf("jobs --json is not JSON: %v\n%s", err, output)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("jobs = %+v", jobs)
+	}
+	bad, ok := jobs[0], jobs[1]
+	if bad.JobID != "bad-job" || bad.State != "failed" || bad.RunID != "20260922-090000-00000002" || bad.Project != "train" || bad.BaseDir != baseDir ||
+		bad.AttemptID != makeAttemptID(bad.RunID, "bad-job", 0) || bad.Command != "true" ||
+		bad.StartedAt != now.Add(-2*time.Minute).Format(time.RFC3339) || bad.FinishedAt != now.Add(-time.Minute).Format(time.RFC3339) ||
+		bad.ElapsedSeconds == nil || *bad.ElapsedSeconds != 60 {
+		t.Errorf("failed job = %+v", bad)
+	}
+	if ok.JobID != "ok-job" || ok.State != "success" {
+		t.Errorf("successful job = %+v", ok)
+	}
+
+	if output, code := captureJobsStdout(t, []string{"--basedir", t.TempDir(), "--json"}); code != 0 || strings.TrimSpace(output) != "[]" {
+		t.Fatalf("empty jobs --json = %d %q, want []", code, output)
+	}
+	_, stderr := captureStderr(t, func() int { return cmdJobs([]string{"--basedir", baseDir, "--json", "--format", "%s"}) })
+	if !strings.Contains(stderr, "--format cannot be combined with --json") {
+		t.Fatalf("jobs --json --format stderr = %q", stderr)
 	}
 }

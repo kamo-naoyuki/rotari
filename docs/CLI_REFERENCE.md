@@ -416,6 +416,7 @@ Usage: `rotari jobs [PROJECT]`
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
+| `--json` | `` | `ROTARI_JOBS_JSON` | print machine-readable JSON; not with --format |
 
 ### `rotari wait`
 

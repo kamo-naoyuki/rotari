@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -33,7 +34,12 @@ func cmdJobs(args []string) int {
 	masterdir := cliString(fs, "masterdir", "")
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", joblist.DefaultSinceText)
+	jsonOutput := cliBool(fs, "json", false)
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *jsonOutput && cliOptionSet(fs, "format") {
+		printError("--format cannot be combined with --json")
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {
@@ -86,6 +92,10 @@ func cmdJobs(args []string) int {
 		printError(err)
 		return 1
 	}
+	joblist.Sort(rows)
+	if *jsonOutput {
+		return printJobsJSON(rows)
+	}
 	if len(rows) == 0 {
 		// Name where rotari looked, so an empty result is not mistaken for
 		// no activity in other state directories.
@@ -99,11 +109,53 @@ func cmdJobs(args []string) int {
 		fmt.Printf("No unfinished or recently finished jobs found in %s (finished within %s).\n", scope, *since)
 		return 0
 	}
-	joblist.Sort(rows)
 	if !cliOptionSet(fs, "format") && configString("format", "") == "" && len(baseDirs) > 1 {
 		columns, _ = parseJobsFormat(basedirJobsFormat)
 	}
 	printJobsTableFormat(rows, columns)
+	return 0
+}
+
+// jobsJSON is one job of `jobs --json`, named like `runs --json`.
+type jobsJSON struct {
+	BaseDir        string   `json:"base_dir"`
+	Project        string   `json:"project_name"`
+	RunID          string   `json:"run_id"`
+	JobID          string   `json:"job_id"`
+	AttemptID      string   `json:"attempt_id,omitempty"`
+	JobName        string   `json:"job_name,omitempty"`
+	State          string   `json:"state"`
+	Command        string   `json:"command"`
+	StartedAt      string   `json:"started_at,omitempty"`
+	FinishedAt     string   `json:"finished_at,omitempty"`
+	ElapsedSeconds *float64 `json:"elapsed_seconds"`
+}
+
+func printJobsJSON(rows []joblist.Row) int {
+	jobs := make([]jobsJSON, 0, len(rows))
+	for _, row := range rows {
+		job := jobsJSON{BaseDir: row.BaseDir, Project: row.Project, RunID: row.RunID, JobID: row.JobID, AttemptID: row.AttemptID, State: row.State, Command: row.FullCommand}
+		if row.JobName != "-" {
+			job.JobName = row.JobName
+		}
+		if !row.StartedAt.IsZero() {
+			job.StartedAt = row.StartedAt.Format(time.RFC3339Nano)
+		}
+		if !row.FinishedAt.IsZero() {
+			job.FinishedAt = row.FinishedAt.Format(time.RFC3339Nano)
+		}
+		if row.Elapsed >= 0 {
+			seconds := row.Elapsed.Seconds()
+			job.ElapsedSeconds = &seconds
+		}
+		jobs = append(jobs, job)
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(jobs); err != nil {
+		printError(err)
+		return 1
+	}
 	return 0
 }
 
