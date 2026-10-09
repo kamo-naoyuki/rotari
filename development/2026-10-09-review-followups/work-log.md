@@ -144,3 +144,36 @@ run as a success.
 on a worktree of the change; thirty repeats of the Ctrl-C conformance tests
 passed afterwards.
 **Remaining:** Items 2 and 3 in [plan.md](plan.md).
+
+## Plan and work log
+
+- `283f8211` 2026-10-10 04:37:15
+
+**Change:** Added this directory's `plan.md` and `work-log.md`.
+**Reason:** The user asked for a note of the decisions and remaining work.
+**Plan impact:** Created the plan.
+**Validation:** `go test ./internal/doclinks` and pre-commit passed.
+**Remaining:** See [plan.md](plan.md).
+
+## Agent-trial leftovers: wording and diagnosis summaries
+
+- `3ccb9528` 2026-10-10 04:39:53 — word the retry source notice once
+- `3751a4ce` 2026-10-10 04:45:39 — keep recorded causes and `no_match` out of
+  diagnosis summaries
+
+**Change:** `projectrun.SourceNotice` now composes the notice that run or
+retry used the non-empty queue, for both the supervisor and
+`retry --dry-run`, naming the queue, the latest run, and the jobs it left out.
+`runlineage.SummarizeDiagnoses` skips failures whose cause rotari recorded
+(blocked, cancelled, timeout), using the failure groups' classification; the
+`lineage` text and the Web run summary omit `no_match`, while JSON keeps it.
+RUN-14's conformance test and CAN-5's contract and test were updated.
+**Reason:** Items 5 and 4 of [plan.md](plan.md), from ISSUES.md's
+zero-information agent trial leftovers; the user chose to skip recorded
+causes and hide `no_match` in text.
+**Plan impact:** Items 4 and 5 done.
+**Validation:** The updated RUN-14 and CAN-5 conformance tests failed on the
+pre-change commit in a temporary worktree and passed after; new unit, CLI
+text, and Node-based JavaScript tests failed before their changes;
+`go test` of the touched packages passed.
+**Remaining:** Plan items 1–3 and 6–8.
