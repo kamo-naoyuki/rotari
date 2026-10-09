@@ -8,6 +8,7 @@ Choose a command by what you want to see:
 
 | Purpose | Commands |
 | --- | --- |
+| Get a quick overview of the current context and active runs | `info` |
 | Find objects in a list | `jobs`, `runs`, `projects`, `basedirs` |
 | Inspect a selected object | `show` |
 | Trace execution history or compare runs | `lineage` |
