@@ -77,59 +77,25 @@ see below.
 
 ## Controlling runs from the terminal
 
-These controls determine whether work is cancelled, left running, or
-temporarily paused:
+Use these controls while `run` or `wait` is attached to a run:
 
-| Input / event | `rotari run` | `rotari wait` |
-| --- | --- | --- |
-| Ctrl-C (`SIGINT`) | Cancels the run and its unfinished jobs; exits with status 130. | Cancels every selected active run and its unfinished jobs; exits with status 130. |
-| Ctrl-D (terminal EOF; not a signal) | Stops waiting; the run continues in the background. | Stops waiting; the selected run(s) continue. |
-| Ctrl-Z (`SIGTSTP`) | Pauses the command while the run continues. Use `fg` to resume. | Pauses the command while the run(s) continue. Use `fg` to resume. |
-| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background without cancelling jobs. With `--disconnect-action cancel`, cancels the run and unfinished jobs. | By default, waiting stops without cancelling jobs. With `--disconnect-action cancel`, cancels selected active runs when the supervisor can detect the disconnect. |
+| Action | What happens |
+| --- | --- |
+| Ctrl-C | Cancels the run and its unfinished jobs. With `wait`, cancels every selected active run. |
+| Ctrl-D | Stops waiting in the terminal; the run continues in the background. |
+| Ctrl-Z | Suspends the terminal command, not the jobs. Use `fg` to resume. |
+| Unexpected exit or disconnect | By default, the run continues. To cancel instead, use `--disconnect-action cancel` or set `ROTARI_DISCONNECT_ACTION=cancel`. |
 
-Cancelling a run also cancels all unfinished jobs: running jobs receive a
-cancellation request through their executor, unsubmitted jobs are marked
-cancelled, and the run starts no more jobs.
+Cancelling a run stops its unfinished jobs and prevents new jobs from starting.
+Ctrl-C exits with status 130. After cancelling synchronous `run`, cleanup may
+continue briefly; starting another run for the same project may be rejected
+until it finishes.
 
-A disconnect is not one specific signal: terminal closure may send `SIGHUP`,
-and a tool or user may terminate the client with `SIGTERM` or `SIGKILL`. The
-client does not need to handle those signals: the supervisor observes the
-process-held session lock being released and applies the configured disconnect
-action. This also detects `SIGKILL` when the client and supervisor are on the
-same host. On different hosts, the supervisor cannot verify the wait process's
-liveness and treats it as still connected.
-
-`rotari wait` does not send a cancellation message to the supervisor when it
-disconnects. Instead, while following an active run it records its process and
-disconnect policy in the shared run state; the supervisor detects when that
-local process has exited and applies the policy. This works for `SIGKILL` when
-the wait and supervisor run on the same host.
-
-Synchronous `rotari run` and `rotari retry` use the same attachment records
-after the startup pipe has returned an accepted run ID. Their progress and
-completion come from the run journal and summary, just as for `wait`. Every
-client has an independent session, so Ctrl-D or timeout releases only that
-client; another live `wait` remains attached. An unselected `wait` skips runs
-with any live session, including one established by another `wait` or a
-synchronous `run`.
-
-Attachment records live under the project's `.rotari-attachments/` directory.
-A supervisor treats a remote client's liveness as unknown rather than dead;
-cancel-on-disconnect is therefore guaranteed only when that client process is
-verifiable on the supervisor's host. A suspended local client keeps its
-process-held session lock and remains attached.
-
-A disconnect can be configured to cancel instead of leaving the run active:
-pass `--disconnect-action cancel` to `run` or `wait`, or set
-`ROTARI_DISCONNECT_ACTION=cancel`. The CLI option overrides the environment
-variable; by default, a disconnected client leaves the work running. With this
-setting, a disconnected `run` client cancels its run and unfinished jobs, and
-`wait` cancels all selected active runs and their unfinished jobs. The setting
-does not change Ctrl-C, Ctrl-D, or Ctrl-Z. Ctrl-D explicitly leaves the work
-running, even when cancellation on unexpected disconnect is configured.
-
-After Ctrl-C on synchronous `run`, cleanup continues in the background, so
-starting another run for the same project may briefly fail.
+Disconnect cancellation can be detected only when the client is on a host
+whose process liveness the supervisor can verify. Ctrl-C always cancels and
+Ctrl-D always leaves work running, regardless of the disconnect setting. For
+multi-client behavior and disconnect detection details, see [Client control
+and job cancellation](FAQ.md#client-control-and-job-cancellation).
 
 ## Array and matrix jobs
 
