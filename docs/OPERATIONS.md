@@ -5,7 +5,7 @@ Server management, run registry maintenance, shared filesystems, and the securit
 ## Quick context
 
 Use `rotari info` for a read-only overview of the resolved master directory,
-base directory and project, visible and loaded configuration files, running
+base directory and project, visible configuration files, running
 supervisors, run locks, and active or interrupted runs. Add `--json` for
 machine-readable output. When multiple projects exist and none is selected,
 the command reports the choices instead of guessing.
@@ -15,6 +15,8 @@ unfinished local-executor attempts, `info` best-effort checks whether the
 recorded process group exists; other executors and remote hosts are
 unverified. This does not prove process identity. The run lock separately
 reports coordinator liveness on this host, and stale locks are never removed.
+Headings and states are colored on a terminal; redirected text and `--json`
+remain uncolored.
 
 ## Server management
 

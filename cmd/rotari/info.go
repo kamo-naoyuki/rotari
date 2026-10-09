@@ -24,7 +24,6 @@ type infoReport struct {
 	Project        string           `json:"project,omitempty"`
 	ProjectExists  bool             `json:"project_exists"`
 	ProjectChoices []string         `json:"project_choices,omitempty"`
-	LoadedConfigs  []config.Source  `json:"loaded_config_sources,omitempty"`
 	VisibleConfigs infoConfigFiles  `json:"visible_config_files"`
 	Supervisors    []infoSupervisor `json:"running_supervisors"`
 	RunLocks       []infoRunLock    `json:"run_locks"`
@@ -118,7 +117,6 @@ func cmdInfo(args []string) int {
 		Project:        selectedProject,
 		ProjectExists:  projectExists,
 		ProjectChoices: choices,
-		LoadedConfigs:  append([]config.Source(nil), cliFileConfig.Sources...),
 		VisibleConfigs: infoConfigFiles{Common: common, Projects: projectConfigs},
 	}
 	if report.Supervisors, err = infoSupervisors(baseDir, projects); err != nil {
@@ -308,16 +306,16 @@ func printInfo(report infoReport) {
 }
 
 func printInfoLocation(report infoReport) {
-	fmt.Printf("Masterdir: %s\nBasedir:   %s\n", report.MasterDir, report.BaseDir)
+	fmt.Printf("%s %s\n%s %s\n", cyan("Masterdir:"), report.MasterDir, cyan("Basedir:  "), report.BaseDir)
 	if report.Project == "" {
-		fmt.Println("Project:   (not selected)")
+		fmt.Printf("%s %s\n", cyan("Project:  "), yellow("(not selected)"))
 		if len(report.ProjectChoices) > 0 {
-			fmt.Printf("  Available: %s\n", strings.Join(report.ProjectChoices, ", "))
+			fmt.Printf("  %s %s\n", cyan("Available:"), strings.Join(report.ProjectChoices, ", "))
 		}
 	} else {
-		fmt.Printf("Project:   %s", report.Project)
+		fmt.Printf("%s %s", cyan("Project:  "), report.Project)
 		if !report.ProjectExists {
-			fmt.Print(" (not created)")
+			fmt.Printf(" %s", yellow("(not created)"))
 		}
 		fmt.Println()
 	}
@@ -325,7 +323,7 @@ func printInfoLocation(report infoReport) {
 }
 
 func printInfoConfigs(report infoReport) {
-	fmt.Println("Config files visible:")
+	fmt.Println(cyan("Config files visible:"))
 	if len(report.VisibleConfigs.Common) == 0 && len(report.VisibleConfigs.Projects) == 0 {
 		fmt.Println("  (none found)")
 	}
@@ -342,18 +340,11 @@ func printInfoConfigs(report infoReport) {
 			fmt.Printf("  %s (%s)\n", path, name)
 		}
 	}
-	fmt.Println("\nLoaded config sources:")
-	if len(report.LoadedConfigs) == 0 {
-		fmt.Println("  (none)")
-	}
-	for _, source := range report.LoadedConfigs {
-		fmt.Printf("  %s: %s\n", source.Scope, source.Path)
-	}
 	fmt.Println()
 }
 
 func printInfoSupervisors(supervisors []infoSupervisor) {
-	fmt.Println("Running supervisors:")
+	fmt.Println(cyan("Running supervisors:"))
 	if len(supervisors) == 0 {
 		fmt.Println(infoNone)
 	}
@@ -364,31 +355,57 @@ func printInfoSupervisors(supervisors []infoSupervisor) {
 }
 
 func printInfoRunLocks(locks []infoRunLock) {
-	fmt.Println("Run locks:")
+	fmt.Println(cyan("Run locks:"))
 	if len(locks) == 0 {
 		fmt.Println(infoNone)
 	}
 	for _, lock := range locks {
-		alive := "unknown"
+		alive := yellow("unknown")
 		if lock.Coordinator != nil {
-			alive = fmt.Sprint(*lock.Coordinator)
+			if *lock.Coordinator {
+				alive = green("true")
+			} else {
+				alive = red("false")
+			}
 		}
-		fmt.Printf("  project=%s run=%s state=%s pid=%d host=%s coordinator_alive=%s\n", lock.Project, lock.RunID, lock.State, lock.PID, lock.Host, alive)
+		fmt.Printf("  project=%s run=%s state=%s pid=%d host=%s coordinator_alive=%s\n", lock.Project, lock.RunID, infoLockState(lock.State), lock.PID, lock.Host, alive)
 	}
 	fmt.Println()
 }
 
 func printInfoRuns(runs []infoRun) {
-	fmt.Println("Active or interrupted runs:")
+	fmt.Println(cyan("Active or interrupted runs:"))
 	if len(runs) == 0 {
 		fmt.Println(infoNone)
 	}
 	for _, run := range runs {
-		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, run.Phase)
+		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, infoRunPhase(run.Phase))
 		if run.Jobs != nil {
-			fmt.Printf(" jobs=alive:%d gone:%d unknown:%d", run.Jobs.Alive, run.Jobs.Gone, run.Jobs.Unknown)
+			fmt.Printf(" jobs=%s:%s %s:%s %s:%s", green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
 		}
 		fmt.Println()
+	}
+}
+
+func infoLockState(lockState state.LockState) string {
+	switch lockState {
+	case state.LockActive:
+		return green(string(lockState))
+	case state.LockStale:
+		return red(string(lockState))
+	default:
+		return yellow(string(lockState))
+	}
+}
+
+func infoRunPhase(phase project.RunPhase) string {
+	switch phase {
+	case project.RunPhaseRunning:
+		return yellow(string(phase))
+	case project.RunPhaseInterrupted:
+		return red(string(phase))
+	default:
+		return green(string(phase))
 	}
 }
 
