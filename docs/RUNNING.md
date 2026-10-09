@@ -85,7 +85,7 @@ temporarily paused:
 | Ctrl-C (`SIGINT`) | Cancels the run and its unfinished jobs; exits with status 130. | Cancels every selected active run and its unfinished jobs; exits with status 130. |
 | Ctrl-D (terminal EOF; not a signal) | Stops waiting; the run continues in the background. | Stops waiting; the selected run(s) continue. |
 | Ctrl-Z (`SIGTSTP`) | Pauses the command while the run continues. Use `fg` to resume. | Pauses the command while the run(s) continue. Use `fg` to resume. |
-| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background. | By default, waiting stops and the run(s) continue. |
+| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background without cancelling jobs. With `--disconnect-action cancel`, cancels the run and unfinished jobs. | By default, waiting stops without cancelling jobs. With `--disconnect-action cancel`, cancels every selected active run and its unfinished jobs. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
@@ -94,8 +94,9 @@ cancelled, and the run starts no more jobs.
 A disconnect is not one specific signal: terminal closure may send `SIGHUP`,
 and a tool or user may terminate the client with `SIGTERM` or `SIGKILL`. The
 client handles `SIGHUP` and `SIGTERM` when cancellation is configured, but
-cannot handle `SIGKILL`. Even so, a client killed with `SIGKILL` still follows
-the configured disconnect action.
+cannot handle `SIGKILL` directly. The configured disconnect action still
+applies: by default jobs continue, while `cancel` requests cancellation of
+unfinished jobs, even if `rotari wait` is killed with `SIGKILL`.
 
 A disconnect can be configured to cancel instead of leaving the run active:
 pass `--disconnect-action cancel` to `run` or `wait`, or set
