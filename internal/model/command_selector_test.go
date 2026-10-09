@@ -26,8 +26,8 @@ func TestSelectCommands(t *testing.T) {
 		{"all", CommandSelector{All: true}, []int{0, 1, 2, 3}, ""},
 		{"one id missing", CommandSelector{IDs: []string{"a", "x"}}, nil, "one or more jobs not found: x"},
 		{"no id found", CommandSelector{IDs: []string{"x"}}, nil, "job not found"},
-		{"array task id", CommandSelector{IDs: []string{"d-2"}}, nil, "d-2 is a task of array job d"},
-		{"array task name", CommandSelector{Name: "eval[1]"}, nil, "eval[1] is a task of array job d"},
+		{"array task id", CommandSelector{IDs: []string{"d-2"}}, nil, "d-2 is a task of array job d; select the array job d instead, which covers all 2 of its tasks"},
+		{"array task name", CommandSelector{Name: "eval[1]"}, nil, "eval[1] is a task of array job d; select the array job d instead, which covers all 2 of its tasks"},
 		{"unknown stage", CommandSelector{Stage: "train"}, nil, `no jobs in stage "train"`},
 		{"unknown matrix", CommandSelector{Matrix: "setup"}, nil, `no matrix named "setup"`},
 	} {

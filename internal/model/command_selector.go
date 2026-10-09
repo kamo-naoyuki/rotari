@@ -137,9 +137,10 @@ func arrayTaskError(commands []QueuedCommand, requested string) error {
 		if command.Array == nil {
 			continue
 		}
-		for _, task := range QueueToJobs([]QueuedCommand{command}) {
+		tasks := QueueToJobs([]QueuedCommand{command})
+		for _, task := range tasks {
 			if task.ID == requested || task.Name == requested {
-				return fmt.Errorf("%s is a task of array job %s; select the array job instead", requested, command.ID)
+				return fmt.Errorf("%s is a task of array job %s; select the array job %s instead, which covers all %d of its tasks", requested, command.ID, command.ID, len(tasks))
 			}
 		}
 	}
