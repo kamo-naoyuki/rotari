@@ -76,21 +76,28 @@ continues. Run `rotari wait sweep` again to wait on it later. A synchronous
 
 ## Controlling attached clients
 
-`run` and `wait` share the same client controls. Ctrl-C explicitly requests
-cancellation (and exits with status 130); for a multi-run `wait`, it requests
-cancellation of every selected active run. Ctrl-D detaches: a synchronous
-`run` continues in the background and becomes eligible for an unselected
-`wait`, while `wait` merely stops waiting and leaves every run alone. Ctrl-Z
-suspends the client; `fg` resumes it, and the work continues meanwhile.
+`run` and `wait` share these client controls:
 
-If the client instead disappears—for example, a tool timeout kills it or its
-terminal closes—both commands detach by default. The run continues, and a
-later unselected `wait` can find it. To cancel on such disconnects instead,
-pass `--disconnect-action cancel` to `run` or `wait`, or set
-`ROTARI_DISCONNECT_ACTION=cancel`; the CLI option overrides the environment
-variable, and the default is `detach`. The setting does not change Ctrl-C,
-Ctrl-D, or Ctrl-Z. A `wait` killed with `SIGKILL` cannot act on it; a killed
-`run` client still can, because its supervisor sees the connection close.
+| Input | Synchronous `run` | `wait` |
+| --- | --- | --- |
+| Ctrl-C | Requests cancellation of the run and all its unfinished jobs; exits with status 130. | Requests cancellation of every selected active run and its unfinished jobs; exits with status 130. |
+| Ctrl-D | Detaches the client; the run and its jobs continue in the background. | Stops waiting; the runs and their jobs continue. |
+| Ctrl-Z | Suspends the client; the run and its jobs continue. Use `fg` to resume the client. | Suspends the client; the runs and their jobs continue. Use `fg` to resume the client. |
+| Client disconnect | By default, detaches; the run and its jobs continue. | By default, only stops waiting; the runs and their jobs continue. |
+
+Cancelling a run also cancels all unfinished jobs: running jobs receive a
+cancellation request through their executor, unsubmitted jobs are marked
+cancelled, and the run starts no more jobs.
+
+A disconnect can be configured to cancel instead of detach/stop waiting: pass
+`--disconnect-action cancel` to `run` or `wait`, or set
+`ROTARI_DISCONNECT_ACTION=cancel`. The CLI option overrides the environment
+variable; the default is `detach`. With this setting, a disconnected `run`
+client cancels its run and unfinished jobs, and a disconnected `wait` cancels
+all selected active runs and their unfinished jobs. The setting does not
+change Ctrl-C, Ctrl-D, or Ctrl-Z. A `wait` killed with `SIGKILL` cannot act on
+the runs; a killed `run` client still can, because its supervisor sees the
+connection close.
 
 After Ctrl-C on synchronous `run`, cleanup continues in the background, so
 starting another run for the same project may briefly fail.
