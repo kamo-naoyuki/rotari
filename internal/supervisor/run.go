@@ -253,13 +253,8 @@ func sourceNotice(started startedRun) string {
 	if !started.usedQueueWithSource {
 		return ""
 	}
-	message := fmt.Sprintf("\nRetry source: current queue; latest run %s has %d failed or unfinished job(s) not included", started.sourceRunID, len(started.omittedSourceJobs))
-	if len(started.omittedSourceJobs) > 0 {
-		message += ": " + strings.Join(started.omittedSourceJobs, ", ")
-		message += fmt.Sprintf("\nInclude them with: rotari copy --basedir %s --project-name %s --run-id %s --failed --unfinished --append, then retry",
-			executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(started.paths.ProjectName), executor.ShellQuote(started.sourceRunID))
-	}
-	return message + "\n"
+	location := fmt.Sprintf("--basedir %s --project-name %s", executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(started.paths.ProjectName))
+	return "\n" + projectrun.SourceNotice(started.sourceRunID, started.omittedSourceJobs, location)
 }
 
 // resolveQueueExecutor returns the run's default executor, requested or the

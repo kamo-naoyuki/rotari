@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/attachment"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -497,13 +496,7 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 		}
 	}
 	if planned.UsedQueueWithSource {
-		fmt.Printf("Retry source: current queue; latest run %s has %d failed or unfinished job(s) not included", planned.SourceRunID, len(planned.OmittedSourceJobs))
-		if len(planned.OmittedSourceJobs) > 0 {
-			fmt.Printf(": %s\nInclude them with: rotari copy %s --run-id %s --failed --unfinished --append, then retry\n",
-				strings.Join(planned.OmittedSourceJobs, ", "), hintLocation(paths), executor.ShellQuote(planned.SourceRunID))
-		} else {
-			fmt.Println()
-		}
+		fmt.Print(projectrun.SourceNotice(planned.SourceRunID, planned.OmittedSourceJobs, hintLocation(paths)))
 	}
 	fmt.Printf("revision=%s\n", revision)
 	return 0

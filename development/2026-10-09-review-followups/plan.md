@@ -66,10 +66,9 @@ still open. History is in [work-log.md](work-log.md).
    ordinary non-zero exit when no diagnosis rule applies, which reads as
    noise. Affects JSON, MCP, and Web consumers of
    `runlineage.SummarizeDiagnoses`.
-5. The "Retry source" notice ("has 0 failed or unfinished job(s) not
-   included") is hard to read and worded in two places (`sourceNotice` in
-   `internal/supervisor/run.go`, `retry --dry-run` in
-   `cmd/rotari/run_command.go`); RUN-14's conformance test pins the text.
+5. Done: the "Retry source" notice is composed once by
+   `projectrun.SourceNotice` and names the queue, the latest run, and the
+   left-out jobs in plain sentences.
 6. Hints built outside `cmd/rotari` (`internal/project/inspect.go`,
    `sourceNotice`) still print `--basedir` even when it is implicit, because
    they cannot see the CLI configuration `hintLocation` (CLI-22) reads.

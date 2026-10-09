@@ -187,14 +187,15 @@ func TestRetryReportsFailedJobsOmittedByNonEmptyQueue(t *testing.T) {
 	latest := readSummary(t, e, "report")
 	e.MustRotari("add", "-p", "report", "--job-name", "next", "--", "true")
 	preview := e.MustRotari("retry", "-p", "report", "--dry-run")
-	for _, want := range []string{latest.RunID, failedA, failedB, "2 failed or unfinished job(s) not included", "--failed --unfinished --append"} {
+	notice := "Retry source: the current queue, not latest run " + latest.RunID + ". These failed or unfinished jobs of that run are not in the queue: "
+	for _, want := range []string{notice, failedA, failedB, "--failed --unfinished --append"} {
 		if !strings.Contains(preview.Stdout, want) {
 			t.Errorf("retry preview missing %q:\n%s", want, preview.Stdout)
 		}
 	}
 	retry := e.MustRotari("retry", "-p", "report")
 	for _, want := range []string{
-		"Retry source: current queue; latest run " + latest.RunID + " has 2 failed or unfinished job(s) not included",
+		notice,
 		failedA,
 		failedB,
 		"--failed --unfinished --append",
