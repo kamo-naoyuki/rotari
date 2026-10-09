@@ -110,3 +110,23 @@ func TestClientStatusLabelsAsyncSeparatelyFromCtrlD(t *testing.T) {
 		t.Fatalf("Ctrl-D label = %q", got)
 	}
 }
+
+func TestRunLifecycleLabelReportsCancelledRuns(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for runID, status := range map[string]string{"run-cancelled": model.StatusCancelled, "run-failed": "failed", "run-finished": "finished"} {
+		exitCode := 1
+		if status == "finished" {
+			exitCode = 0
+		}
+		if err := state.WriteJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Status: status, ExitCode: exitCode}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := RunLifecycleLabel(paths, runID)
+		if err != nil || got != status {
+			t.Errorf("RunLifecycleLabel(%s) = %q, %v; want %q", runID, got, err, status)
+		}
+	}
+}

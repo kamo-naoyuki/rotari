@@ -86,6 +86,11 @@ async function toggleRunNotifications() {
   }
   updateNotifyToggleLabel();
 }
+// runSucceeded mirrors webhook notifications: a run succeeded when its exit
+// code is 0; a failed or cancelled run, or one without an exit code, did not.
+function runSucceeded(run) {
+  return !!run && run.exit_code === 0;
+}
 function collectRunStatuses(appState) {
   const statuses = new Map();
   if (!appState || !appState.projects) return statuses;
@@ -143,7 +148,7 @@ function notificationFieldValues(name, info, job, jobStatus) {
     case "run_name":
       return value(run.run_name);
     case "run_status":
-      return job ? [] : value(info.status === "failed" ? "failed" : "success");
+      return job ? [] : value(runSucceeded(info.run) ? "success" : "failed");
     case "job_id":
       return job ? value(job.id) : [];
     case "job_name":
@@ -254,7 +259,7 @@ function notifyRunEvent(
     failedJobs.length + " job" + (failedJobs.length > 1 ? "s" : "") + " failed";
   let title;
   if (runFinished) {
-    const outcome = info.status === "failed" ? "failed" : "succeeded";
+    const outcome = runSucceeded(info.run) ? "succeeded" : "failed";
     title =
       failedJobs.length > 0
         ? "rotari: run " + outcome + " (" + jobCountText + ")"
@@ -324,10 +329,10 @@ async function checkRunNotifications(previousState, nextState, basedirID) {
       !info.running && ((before && before.running) || !before);
     if (newlyFinished) {
       const settings = settingsByProject.get(info.projectName);
-      const runSucceeded = info.status !== "failed";
+      const succeeded = runSucceeded(info.run);
       if (
-        (runSucceeded && settings.run_success) ||
-        (!runSucceeded && settings.run_failure)
+        (succeeded && settings.run_success) ||
+        (!succeeded && settings.run_failure)
       )
         events.set(runKey, {
           info,

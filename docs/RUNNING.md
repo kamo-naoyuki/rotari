@@ -95,7 +95,10 @@ To check its current status without waiting, use `rotari info`, `rotari jobs`,
 or `rotari runs`.
 
 Cancelling a run stops its unfinished jobs and prevents new jobs from starting.
-Ctrl-C exits with status 130. After cancelling synchronous `run`, cleanup may
+The run is then recorded as `cancelled` with exit code 1, so `wait` and
+scripts that read the exit code treat it as a failure, and notifications
+report it as a failed run. Cancelling only selected jobs leaves the run
+`failed`. Ctrl-C exits with status 130. After cancelling synchronous `run`, cleanup may
 continue briefly; starting another run for the same project may be rejected
 until it finishes.
 

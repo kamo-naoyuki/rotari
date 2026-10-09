@@ -221,7 +221,11 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	})
 	run.FinalizePendingResults(pending, finalResults)
 
-	summary := run.BuildRunSummary(runID, options.RunName, startedAt, jobs, finalResults, nil)
+	// A cancellation of the whole run marks the project cancelling; one of
+	// selected jobs does not.
+	meta, metaErr := state.LoadMeta(paths.MetaFile)
+	cancelled := metaErr == nil && meta.Phase == "cancelling"
+	summary := run.BuildRunSummary(runID, options.RunName, startedAt, jobs, finalResults, cancelled, nil)
 	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
 		return 1, fmt.Errorf("failed to save run summary: %w", err)
 	}

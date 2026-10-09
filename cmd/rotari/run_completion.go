@@ -18,7 +18,10 @@ import (
 // to show and rerun it. It stays short however many jobs fail.
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {
 	title := "=== Run finished ==="
-	if summary.ExitCode != 0 {
+	switch {
+	case summary.Status == model.StatusCancelled:
+		title = "=== Run cancelled ==="
+	case summary.ExitCode != 0:
 		title = "=== Run failed ==="
 	}
 	var header bytes.Buffer

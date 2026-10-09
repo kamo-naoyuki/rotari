@@ -286,3 +286,60 @@ func assertAsyncDetachedClientLabels(t *testing.T, e *support.Env, runID string)
 		}
 	}
 }
+
+// TestWholeRunCancelRecordsCancelledRun checks that a whole-run cancel, from
+// the CLI or the Web UI, records the run as cancelled with exit code 1, which
+// every view shows, while a run whose jobs were cancelled one by one stays
+// failed.
+func TestWholeRunCancelRecordsCancelledRun(t *testing.T) {
+	covers(t, "CAN-8")
+	for _, test := range []struct {
+		name   string
+		cancel func(e *support.Env, run support.ActiveRun)
+		want   string
+	}{
+		{"whole run, CLI", func(e *support.Env, run support.ActiveRun) { e.MustRotari("cancel", "-p", run.Project) }, "cancelled"},
+		{"whole run, Web", func(e *support.Env, run support.ActiveRun) {
+			got := e.HTTPPostJSON(e.StartWeb()+"/api/cancel-run", map[string]any{"project_name": run.Project, "run_id": run.RunID})
+			if got.Status != 200 {
+				t.Fatalf("cancel-run: status %d: %s", got.Status, got.Body)
+			}
+		}, "cancelled"},
+		{"each job", func(e *support.Env, run support.ActiveRun) {
+			for _, job := range run.Jobs {
+				e.MustRotari("cancel", "-p", run.Project, job)
+			}
+		}, "failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			run := e.StartRun("live", 2, true)
+			test.cancel(e, run)
+			waited := e.Rotari("wait", "-p", run.Project, "--timeout", "30s")
+			title := "=== Run " + test.want + " ==="
+			if waited.Code != 1 || !strings.Contains(waited.Stdout, title) {
+				t.Fatalf("wait = exit %d, want 1 and %q: %s", waited.Code, title, waited)
+			}
+			var shown struct {
+				Lifecycle string `json:"lifecycle"`
+				Summary   *struct {
+					Status   string `json:"status"`
+					ExitCode int    `json:"exit_code"`
+				} `json:"summary"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, "--run-id", run.RunID, "--json").Stdout), &shown); err != nil || shown.Summary == nil {
+				t.Fatalf("show --json: %v", err)
+			}
+			if shown.Summary.Status != test.want || shown.Summary.ExitCode != 1 || shown.Lifecycle != test.want {
+				t.Errorf("show --json status %q exit %d lifecycle %q, want %s and exit 1", shown.Summary.Status, shown.Summary.ExitCode, shown.Lifecycle, test.want)
+			}
+			var runs []struct {
+				RunID     string `json:"run_id"`
+				Lifecycle string `json:"lifecycle"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("runs", "--basedir", e.Base, run.Project, "--json").Stdout), &runs); err != nil || len(runs) != 1 || runs[0].Lifecycle != test.want {
+				t.Errorf("runs --json = %+v, %v; want lifecycle %s", runs, err, test.want)
+			}
+		})
+	}
+}

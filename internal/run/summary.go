@@ -6,7 +6,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
-func BuildRunSummary(runID, runName, startedAt string, jobs []model.JobSpec, finalResults map[string]model.JobResult, diagnose func(model.JobResult) model.JobResult) model.RunSummary {
+func BuildRunSummary(runID, runName, startedAt string, jobs []model.JobSpec, finalResults map[string]model.JobResult, cancelled bool, diagnose func(model.JobResult) model.JobResult) model.RunSummary {
 	summary := model.RunSummary{
 		RunID: runID, RunName: runName, Status: "finished", StartedAt: startedAt,
 		FinishedAt: time.Now().UTC().Format(time.RFC3339), Results: make([]model.JobResult, 0, len(jobs)),
@@ -26,5 +26,10 @@ func BuildRunSummary(runID, runName, startedAt string, jobs []model.JobSpec, fin
 		}
 	}
 	summary.Status = model.RunStatus(summary.ExitCode)
+	// A cancelled run keeps exit code 1, so callers that read only the exit
+	// code still see it fail; a run whose jobs all succeeded stays finished.
+	if cancelled && summary.ExitCode != 0 {
+		summary.Status = model.StatusCancelled
+	}
 	return summary
 }

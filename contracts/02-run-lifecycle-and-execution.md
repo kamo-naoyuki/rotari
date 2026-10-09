@@ -908,6 +908,16 @@ the request, on the host that owns the run.
   `Operations.StartRun` in
   [internal/supervisor/run.go](../internal/supervisor/run.go); covered by
   `TestAsyncStartHintsWork`.
+- **CAN-8** A run whose whole-run cancel was requested (from `cancel`, Ctrl-C,
+  a disconnect policy, the Web UI, or MCP) and that did not succeed is
+  recorded with status `cancelled` and exit code 1, so tools that read only
+  the exit code still see it fail. `runs`, `show`, `projects`, reports, the
+  Web UI, and the `run`/`wait` completion message show it as cancelled, and
+  notifications treat it as a failure. Cancelling selected jobs does not
+  make a run cancelled. Recorded by `run.BuildRunSummary` from the project's
+  `cancelling` phase in
+  [internal/projectrun/execute.go](../internal/projectrun/execute.go); covered
+  by `TestWholeRunCancelRecordsCancelledRun`.
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).

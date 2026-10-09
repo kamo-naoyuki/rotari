@@ -55,6 +55,9 @@ remain recorded as history; Web and MCP readers do not count as attachments.
 
 ### Reading run and job states
 
+A finished run is `finished`, `failed`, or `cancelled`; a cancelled run is one
+whose whole-run cancel was requested, and it keeps exit code 1.
+
 Run lifecycle and job execution are independent. A run can be `interrupted`
 while a job still reports `running (recorded)`, or while some jobs already have
 terminal results. Job phases are the latest persisted observations, not live

@@ -306,7 +306,7 @@ func historySearchBaseRecord(entry webBaseDir, projectName string, summary model
 		timestamp = summary.StartedAt
 	}
 	var exitCode *int
-	if summary.FinishedAt != "" || summary.Status == "success" || summary.Status == "failed" {
+	if summary.FinishedAt != "" || summary.Status == "finished" || summary.Status == "failed" || summary.Status == model.StatusCancelled {
 		value := summary.ExitCode
 		exitCode = &value
 	}

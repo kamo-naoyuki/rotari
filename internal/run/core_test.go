@@ -196,12 +196,34 @@ func TestBuildRunSummary(t *testing.T) {
 	jobs := []model.JobSpec{{ID: "ok"}, {ID: "failed"}, {ID: "missing"}}
 	summary := BuildRunSummary("run-1", "nightly", "started", jobs, map[string]model.JobResult{
 		"ok": {ID: "ok", ExitCode: 0}, "failed": {ID: "failed", ExitCode: 2},
-	}, func(result model.JobResult) model.JobResult {
+	}, false, func(result model.JobResult) model.JobResult {
 		result.Error = "diagnosed"
 		return result
 	})
 	if summary.Status != "failed" || summary.ExitCode != 1 || len(summary.Results) != 2 || summary.Results[1].Error != "diagnosed" || summary.Results[0].ID != "ok" {
 		t.Fatalf("summary = %#v", summary)
+	}
+}
+
+// A run whose cancellation was requested is cancelled, keeping exit code 1,
+// unless every job still succeeded.
+func TestBuildRunSummaryRecordsRunCancellation(t *testing.T) {
+	jobs := []model.JobSpec{{ID: "done"}, {ID: "stopped"}}
+	for _, test := range []struct {
+		name      string
+		results   map[string]model.JobResult
+		cancelled bool
+		status    string
+		exitCode  int
+	}{
+		{"cancelled run", map[string]model.JobResult{"done": {ID: "done"}, "stopped": {ID: "stopped", ExitCode: 143, Error: "cancelled"}}, true, model.StatusCancelled, 1},
+		{"cancelled after every job succeeded", map[string]model.JobResult{"done": {ID: "done"}, "stopped": {ID: "stopped"}}, true, "finished", 0},
+		{"failed run", map[string]model.JobResult{"done": {ID: "done"}, "stopped": {ID: "stopped", ExitCode: 143, Error: "cancelled"}}, false, "failed", 1},
+	} {
+		summary := BuildRunSummary("run-1", "", "started", jobs, test.results, test.cancelled, nil)
+		if summary.Status != test.status || summary.ExitCode != test.exitCode {
+			t.Errorf("%s: status %q exit %d, want %q exit %d", test.name, summary.Status, summary.ExitCode, test.status, test.exitCode)
+		}
 	}
 }
 

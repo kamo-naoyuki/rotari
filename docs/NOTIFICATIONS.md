@@ -49,7 +49,9 @@ fields = ["project", "run_id", "run_name", "run_status", "job_name", "attempt_id
 max_jobs = 10
 ```
 
-A job is reported only after its retries end. Job results and a run completion
+A run counts as a success only when its exit code is 0; a failed or cancelled
+run is reported under `run_failure`. A job is reported only after its retries
+end. Job results and a run completion
 detected in the same polling tick are merged into one notification per run.
 The first poll establishes a baseline and never reports existing history.
 `max_jobs` limits how many jobs one notification lists, and the body is

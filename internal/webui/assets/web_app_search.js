@@ -51,7 +51,7 @@ let historySearchDiagnosisOptions = [];
 let historySearchInitialScopesPromise = null;
 
 const historySearchStatusOptions = {
-  run: ["running", "finished", "failed", "unreadable"],
+  run: ["running", "finished", "failed", "cancelled", "unreadable"],
   job: [
     "running (recorded)",
     "waiting (recorded)",

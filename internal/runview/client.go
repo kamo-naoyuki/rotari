@@ -173,6 +173,9 @@ func RunLifecycleLabel(paths state.ProjectPaths, runID string) (string, error) {
 		if summary.ExitCode == 0 {
 			return "finished", nil
 		}
+		if summary.Status == model.StatusCancelled {
+			return model.StatusCancelled, nil
+		}
 		return "failed", nil
 	default:
 		return "incomplete", nil
