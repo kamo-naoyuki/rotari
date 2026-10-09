@@ -23,9 +23,9 @@ rotari info
 
 The resolved masterdir, basedir and project, visible config files, running
 supervisors, run locks, and active or interrupted runs. Each run row also
-shows the count of jobs with final results, including carried results; jobs
-that have not started or are waiting for a retry as `pending`; and a
-best-effort process check for unfinished local jobs. Remote and scheduler jobs
+shows the count of jobs with final results, including carried results, and
+how many of them failed; jobs that have not started or are waiting for a
+retry as `pending`; and a best-effort process check for unfinished local jobs. Remote and scheduler jobs
 are shown as unverified; `info` does not contact their hosts or schedulers.
 
 ```sh

@@ -15,6 +15,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -59,10 +61,12 @@ type infoRun struct {
 
 type infoJobLiveness struct {
 	Finished int `json:"finished"`
-	Pending  int `json:"pending"`
-	Alive    int `json:"alive"`
-	Gone     int `json:"gone"`
-	Unknown  int `json:"unknown"`
+	// Failed counts the finished jobs whose result is a failure.
+	Failed  int `json:"failed"`
+	Pending int `json:"pending"`
+	Alive   int `json:"alive"`
+	Gone    int `json:"gone"`
+	Unknown int `json:"unknown"`
 }
 
 func cmdInfo(args []string) int {
@@ -275,13 +279,16 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 		return nil, err
 	}
 	carried := jobstatus.RecordedResults(runDir, nil)
-	result := &infoJobLiveness{Finished: len(carried)}
+	result := &infoJobLiveness{}
+	for _, carriedResult := range carried {
+		result.countFinished(jobstatus.ResolveJob(jobstatus.Attempt{}, carriedResult, true))
+	}
 	for _, attemptDir := range attemptDirs {
 		attempt := jobstatus.ReadAttempt(jsonStore(), attemptDir)
 		if attempt.Finished() {
 			var finalResult model.JobResult
 			if jsonStore().ReadJSON(filepath.Join(attemptDir, state.FinalResultFileName), &finalResult) == nil {
-				result.Finished++
+				result.countFinished(jobstatus.ResolveJob(attempt, finalResult, true))
 			} else {
 				// A finished attempt without a final result awaits a retry.
 				result.Pending++
@@ -307,6 +314,14 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 		return nil, nil
 	}
 	return result, nil
+}
+
+// countFinished counts a job with a final result, and whether it failed.
+func (liveness *infoJobLiveness) countFinished(job jobstatus.Job) {
+	liveness.Finished++
+	if runview.LineageStatus(job) == runlineage.StatusFailed {
+		liveness.Failed++
+	}
 }
 
 // infoNotStartedJobs counts the run's jobs that have no attempt and no
@@ -416,7 +431,7 @@ func printInfoRuns(runs []infoRun) {
 	for _, run := range runs {
 		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, infoRunPhase(run.Phase))
 		if run.Jobs != nil {
-			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), cyan("pending"), cyan(fmt.Sprint(run.Jobs.Pending)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
+			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), red("failed"), red(fmt.Sprint(run.Jobs.Failed)), cyan("pending"), cyan(fmt.Sprint(run.Jobs.Pending)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
 		}
 		fmt.Println()
 	}

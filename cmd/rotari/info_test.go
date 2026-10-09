@@ -193,6 +193,7 @@ func TestInfoJobLivenessUnknownAndTerminalAttempts(t *testing.T) {
 		{"missing-host", "", "local", "999999999", "", false, infoJobLiveness{Unknown: 1}},
 		{"scheduler", host, "slurm", "999999999", "", false, infoJobLiveness{Unknown: 1}},
 		{"finished", host, "local", "999999999", "0", true, infoJobLiveness{Finished: 1}},
+		{"finished-failed", host, "local", "999999999", "3", true, infoJobLiveness{Finished: 1, Failed: 1}},
 		{"retry-pending", host, "local", "999999999", "1", false, infoJobLiveness{Pending: 1}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -214,7 +215,7 @@ func TestInfoJobLivenessUnknownAndTerminalAttempts(t *testing.T) {
 func TestInfoJobLivenessCountsCarriedResultsAsFinished(t *testing.T) {
 	runDir := t.TempDir()
 	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), model.RunSummary{
-		Results: []model.JobResult{{ID: "kept-1"}, {ID: "kept-2"}},
+		Results: []model.JobResult{{ID: "kept-1"}, {ID: "kept-2", ExitCode: 4}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -222,8 +223,8 @@ func TestInfoJobLivenessCountsCarriedResultsAsFinished(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.Finished != 2 {
-		t.Fatalf("job liveness = %#v, want two finished carried jobs", got)
+	if got == nil || got.Finished != 2 || got.Failed != 1 {
+		t.Fatalf("job liveness = %#v, want two finished carried jobs, one failed", got)
 	}
 }
 
@@ -283,10 +284,10 @@ func writeInfoLivenessFixture(t *testing.T, hostname, executorName, pid, status 
 func TestInfoJobCountsStayOnRunLine(t *testing.T) {
 	var output bytes.Buffer
 	captureShowStdout(t, &output, func() int {
-		printInfoRuns([]infoRun{{Project: "demo", RunID: "run-1", Jobs: &infoJobLiveness{Finished: 4, Pending: 5, Alive: 2, Gone: 1, Unknown: 3}}})
+		printInfoRuns([]infoRun{{Project: "demo", RunID: "run-1", Jobs: &infoJobLiveness{Finished: 4, Failed: 1, Pending: 5, Alive: 2, Gone: 1, Unknown: 3}}})
 		return 0
 	})
-	if strings.Count(output.String(), "\n") != 2 || !strings.Contains(output.String(), "jobs=finished:4 pending:5 alive:2 gone:1 unknown:3") {
+	if strings.Count(output.String(), "\n") != 2 || !strings.Contains(output.String(), "jobs=finished:4 failed:1 pending:5 alive:2 gone:1 unknown:3") {
 		t.Fatalf("job counts must stay on the existing run line:\n%s", output.String())
 	}
 }

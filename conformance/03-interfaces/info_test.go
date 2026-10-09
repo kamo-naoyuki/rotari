@@ -6,8 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -120,5 +122,37 @@ func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
 	}
 	if string(gotLock) != string(lock) {
 		t.Fatalf("info changed stale lock: got %s, want %s", gotLock, lock)
+	}
+}
+
+func TestInfoCountsFailedJobsOfActiveRuns(t *testing.T) {
+	covers(t, "CLI-21")
+	e := support.NewEnv(t)
+	project := "info-failed"
+	for _, code := range []string{"0", "3", "4"} {
+		e.MustRotari("add", "-p", project, "--", "sh", "-c", "exit "+code)
+	}
+	e.StartRun(project, 1, true)
+	var counts struct {
+		Finished int `json:"finished"`
+		Failed   int `json:"failed"`
+	}
+	support.WaitUntil(t, 10*time.Second, func() (bool, string) {
+		out := e.MustRotari("info", "-p", project, "--json").Stdout
+		var report struct {
+			ActiveRuns []struct {
+				Jobs json.RawMessage `json:"jobs"`
+			} `json:"active_runs"`
+		}
+		if json.Unmarshal([]byte(out), &report) != nil || len(report.ActiveRuns) != 1 || json.Unmarshal(report.ActiveRuns[0].Jobs, &counts) != nil {
+			return false, out
+		}
+		return counts.Finished == 3, out
+	})
+	if counts.Failed != 2 {
+		t.Fatalf("info counts = %+v, want two of three finished jobs failed", counts)
+	}
+	if text := e.MustRotari("info", "-p", project).Stdout; !strings.Contains(text, "jobs=finished:3 failed:2 ") {
+		t.Fatalf("info text lacks the failed count:\n%s", text)
 	}
 }
