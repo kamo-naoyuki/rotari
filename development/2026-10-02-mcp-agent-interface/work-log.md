@@ -719,3 +719,27 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - The `show -r` table is wide because of `DEPENDS ON`.
 - Whether to remove `.example-state-agent6/` and `.claude/settings.local.json`, both ignored by git.
+
+## 2026-10-10: zero-information CLI agent trial
+
+- `bebb6f74` (2026-10-10 01:44:07 +0900): [agent-trial-2026-10-10-zero-info.md](agent-trial-2026-10-10-zero-info.md) and [agent-trial-zero-info-fixture.sh](agent-trial-zero-info-fixture.sh).
+
+**Change:**
+- A trial report and a fixture script for three scenarios: a new matrix sweep, an inherited failed run, and a stuck job in a live async run.
+- No code changed.
+
+**Reason:** the user asked for an agent to use rotari with no prior information, and for proposals from what it ran into. The earlier trials told the agent to read `rotari guide` and covered only diagnosis.
+
+**Plan impact:**
+- All three headless `claude -p` agents completed their tasks in 10 to 17 calls with about 27 to 44 KB of output. They found `rotari guide` through the pointer in `rotari --help`.
+- The report ranks ten proposals. The top four are a shorter top-level `--help`, elapsed and last-output time for running jobs, a completion message that summarizes failures and marks carried ones as `lineage` does, and summary lines that count a cancelled job as cancelled.
+- No proposal has been accepted or implemented.
+
+**Validation:**
+- The agents' rotari calls were logged by the fixture's wrapper. Their transcripts were read in full.
+- The cancelled-job display and the `cancel --wait` error source (`cmd/rotari/job_control.go`) were checked by hand.
+- No tests were run, because no code changed.
+
+**Remaining:**
+- The ten proposals in the report.
+- [agent-trial-fixture.sh](agent-trial-fixture.sh) does not set `XDG_CONFIG_HOME`, so its runs read the developer's notification config.
