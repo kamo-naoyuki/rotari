@@ -8,6 +8,10 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Interrupted-run wait fixture failed temporary-directory cleanup** (`TestWaitWithoutSelectorWarnsAboutInterruptedRuns`, `conformance/01-resolution`): during the 2026-10-10 example CI fix, both the full short check and an uncached isolated repeat failed with `TempDir RemoveAll cleanup: unlinkat .../attempts/ATTEMPT: directory not empty`. Full logs were saved and both test commands exited 1. Investigate whether the interrupted job or wrapper is still writing during fixture cleanup; the cause is not established.
+
+- **Synchronous-run interrupt did not finalize within the test deadline** ([conformance/03-interfaces/wait_test.go](../conformance/03-interfaces/wait_test.go), `TestSynchronousRunInterruptCancelsAcceptedRun`): during the 2026-10-10 example CI short check, the post-Ctrl-C `wait --quiet --json --timeout 5s` timed out. An uncached isolated repeat passed. Full logs and the failing exit code were saved; investigate signal/attachment timing on recurrence rather than treating the isolated pass as proof of the cause.
+
 - **`TestCLIFlagPairCancel/pairs/filter-state+project-name` failed under load** ([conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go](../conformance/03-interfaces/pairjobcontrol/job_control_pairs_test.go)): on 2026-10-09, `go test -short ./...` failed with `after 15s: running=0, want 5` while other rotari processes were running on the machine. The package passed when rerun alone. Investigate with full logs on recurrence rather than raising the timeout.
 
 - **CLI usability gaps found in a 2026-10-09 review**: a run cancelled with Ctrl-C is listed as `failed`; `wait` without `-p` ignores `ROTARI_PROJECT_NAME` without saying so.
