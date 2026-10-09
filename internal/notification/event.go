@@ -77,7 +77,9 @@ func (settings ChannelSettings) Includes(event Event) bool {
 		}
 		return settings.JobFailure
 	}
-	if event.RunStatus == model.StatusSuccess {
+	// A run's status text is "finished" or "failed", never "success"; its
+	// exit code is its outcome, and any other run counts as a failure.
+	if event.ExitCode == 0 {
 		return settings.RunSuccess
 	}
 	return settings.RunFailure

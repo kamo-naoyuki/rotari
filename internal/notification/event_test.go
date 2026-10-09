@@ -67,3 +67,26 @@ func TestNewPayloadAddsRunCounts(t *testing.T) {
 		t.Fatalf("run fields = %#v, want %#v", got, want)
 	}
 }
+
+// Run events are chosen by the run's outcome: a run that finished with exit
+// code 0 is a success whatever its recorded status text; any other run,
+// including a cancelled one, is a failure.
+func TestRunEventsAreChosenByOutcome(t *testing.T) {
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	successOnly := ChannelSettings{RunSuccess: true}
+	failureOnly := ChannelSettings{RunFailure: true}
+	for _, test := range []struct {
+		summary model.RunSummary
+		success bool
+	}{
+		{model.RunSummary{RunID: "ok", Status: "finished", ExitCode: 0}, true},
+		{model.RunSummary{RunID: "bad", Status: "failed", ExitCode: 1}, false},
+		{model.RunSummary{RunID: "stopped", Status: "cancelled", ExitCode: 1}, false},
+	} {
+		event := NewRunEvent("demo", test.summary, now)
+		if successOnly.Includes(event) != test.success || failureOnly.Includes(event) == test.success {
+			t.Errorf("run %s (status %q): success channel %t, failure channel %t; want success=%t",
+				test.summary.RunID, test.summary.Status, successOnly.Includes(event), failureOnly.Includes(event), test.success)
+		}
+	}
+}

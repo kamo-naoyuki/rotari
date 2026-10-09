@@ -1055,8 +1055,9 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   webhook settings when it starts and snapshots the file with its other
   configs, so editing the file mid-run does not change that run.
 - `webhook.job_failure`, `webhook.job_success`, `webhook.run_failure`, and
-  `webhook.run_success` select which events are sent; jobs report only their
-  final result, so retried attempts, blocked jobs, and jobs cancelled before
+  `webhook.run_success` select which events are sent; a run is a success when
+  its exit code is 0, and any other run, including a cancelled one, is a
+  failure. Jobs report only their final result, so retried attempts, blocked jobs, and jobs cancelled before
   they start are reported once. Events that occur within ten seconds of the
   first pending event are sent as one `POST`, and a run's completion flushes
   the pending batch immediately. `webhook.fields` selects the reported fields
