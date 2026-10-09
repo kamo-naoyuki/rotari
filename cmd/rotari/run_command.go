@@ -397,14 +397,10 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 			fmt.Fprintf(os.Stderr, "warning: failed to release run attachment: %v\n", err)
 		}
 	}
+	// The follower already printed the detach or cancellation outcome.
 	response.ExitCode = outcome.exitCode
 	response.Message = ""
 	response.Notice = notice
-	if outcome.detached {
-		response.Message = serverinternal.DetachedMessage
-	} else if outcome.interrupted {
-		response.Message = "Cancellation requested; stopping running jobs..."
-	}
 	return response, nil
 }
 

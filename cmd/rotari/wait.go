@@ -279,7 +279,11 @@ func waitTargetsControlled(waitTargets []resolve.Run, deadline time.Time, untilF
 			}
 			flushWaitJSON(outputs, jsonOutput)
 			if !quiet && !jsonOutput {
-				fmt.Fprintln(os.Stdout, cyan("Stopped waiting; runs continue in the background."))
+				message := "Stopped waiting; runs continue in the background."
+				if initial {
+					message = serverinternal.DetachedMessage
+				}
+				fmt.Fprintln(os.Stdout, cyan(message))
 			}
 			return waitControlOutcome{detached: true}
 		case receivedSignal := <-interrupt:
