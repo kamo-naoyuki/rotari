@@ -54,16 +54,7 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		}
 		summaryResult, hasSummary := results[spec.ID]
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
-		status := runlineage.StatusUnfinished
-		switch {
-		case !resolved.Finished():
-		case resolved.Accepted() || resolved.ExitCode == 0:
-			status = runlineage.StatusSuccess
-		case resolved.Blocked():
-			status = runlineage.StatusBlocked
-		default:
-			status = runlineage.StatusFailed
-		}
+		status := LineageStatus(resolved)
 		attemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		origin := origins[spec.ID]
 		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked(), hasSummary)
@@ -86,4 +77,19 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		})
 	}
 	return run, nil
+}
+
+// LineageStatus classifies a resolved job for run lineage summaries, which
+// count cancellations as failures.
+func LineageStatus(job jobstatus.Job) string {
+	switch {
+	case !job.Finished():
+		return runlineage.StatusUnfinished
+	case job.Accepted() || job.ExitCode == 0:
+		return runlineage.StatusSuccess
+	case job.Blocked():
+		return runlineage.StatusBlocked
+	default:
+		return runlineage.StatusFailed
+	}
 }

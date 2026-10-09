@@ -61,6 +61,8 @@ type Job struct {
 	// DiagnosisOutdated reports that Result's saved rule-based analysis was
 	// produced by earlier diagnosis rules.
 	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`
+	// lineageStatus is the job's runview.LineageStatus for the run summary.
+	lineageStatus string
 }
 
 type Attempt struct {

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
@@ -97,17 +96,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 func buildLineageSummary(summary model.RunSummary, jobs []Job) runlineage.RunSummary {
 	run := runlineage.Run{ID: summary.RunID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
 	for _, job := range jobs {
-		status := runlineage.StatusUnfinished
-		if job.Result != nil {
-			if strings.HasPrefix(job.Result.Error, "blocked") {
-				status = runlineage.StatusBlocked
-			} else {
-				status = model.ResultStatus(*job.Result, true)
-			}
-			if status == model.StatusCancelled {
-				status = runlineage.StatusFailed
-			}
-		}
+		status := job.lineageStatus
 		diagnoses := make([]string, 0)
 		diagnosisStatus := ""
 		result := model.JobResult{}
@@ -219,6 +208,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			job.Result = &result
 		}
 		job.ExecutionStatus = resolved.DisplayStatus(jobSpec)
+		job.lineageStatus = runview.LineageStatus(resolved)
 		if job.Carried {
 			job.ExecutionStatus += " (carried)"
 		}
@@ -237,11 +227,11 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			continue
 		}
 		resultCopy := result
-		displayStatus := model.ResultStatus(resultCopy, true)
-		if strings.HasPrefix(resultCopy.Error, "blocked") {
-			displayStatus = "blocked"
-		}
-		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, ExecutionStatus: displayStatus, DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
+		// A result without a job in the command snapshot resolves from the
+		// summary alone.
+		resolved := jobstatus.ResolveJob(jobstatus.Attempt{}, resultCopy, true)
+		displayStatus := resolved.DisplayStatus(model.JobSpec{ID: result.ID, Command: result.Command})
+		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, ExecutionStatus: displayStatus, lineageStatus: runview.LineageStatus(resolved), DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return jobs, nil
 }

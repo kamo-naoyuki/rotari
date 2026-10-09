@@ -8,6 +8,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -28,7 +29,7 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 			return model.RunSummary{}, assertNotFound{}
 		},
 		Jobs: func(runID string, summary model.RunSummary) ([]Job, error) {
-			return []Job{{ID: runID + "-job", Result: &model.JobResult{ID: runID + "-job", ExitCode: 0}}}, nil
+			return []Job{{ID: runID + "-job", Result: &model.JobResult{ID: runID + "-job", ExitCode: 0}, lineageStatus: runlineage.StatusSuccess}}, nil
 		},
 		Context: func(string) (model.RunContext, error) { return model.RunContext{CWD: "/work"}, nil },
 		Samples: func(string) []model.LoadSample { return nil },
@@ -52,8 +53,8 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 
 func TestBuildLineageSummaryCountsBlockedJobsSeparately(t *testing.T) {
 	summary := buildLineageSummary(model.RunSummary{RunID: "run-1"}, []Job{
-		{ID: "failed", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "command failed"}},
-		{ID: "blocked", Result: &model.JobResult{ID: "blocked", ExitCode: 1, Error: "blocked by failed dependency"}},
+		{ID: "failed", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "command failed"}, lineageStatus: runlineage.StatusFailed},
+		{ID: "blocked", Result: &model.JobResult{ID: "blocked", ExitCode: 1, Error: "blocked by failed dependency"}, lineageStatus: runlineage.StatusBlocked},
 	})
 	if summary.Counts.Failed != 1 || summary.Counts.Blocked != 1 {
 		t.Fatalf("counts = %+v, want one failed and one blocked", summary.Counts)
@@ -64,10 +65,10 @@ func TestBuildLineageSummaryGroupsFailuresByCause(t *testing.T) {
 	task := func(number int) *int { return &number }
 	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"}}
 	summary := buildLineageSummary(model.RunSummary{RunID: "run-2"}, []Job{
-		{ID: "tr-1", Name: "train[1]", ArrayTaskID: task(1), Result: &model.JobResult{ID: "tr-1", ExitCode: 1, Diagnoses: oom}},
-		{ID: "tr-2", Name: "train[2]", ArrayTaskID: task(2), Result: &model.JobResult{ID: "tr-2", ExitCode: 0}},
-		{ID: "tr-3", Name: "train[3]", ArrayTaskID: task(3), Carried: true, Result: &model.JobResult{ID: "tr-3", ExitCode: 2, Diagnoses: oom}},
-		{ID: "ev", Name: "eval", Result: &model.JobResult{ID: "ev", ExitCode: 124, Error: "timed out after 5s"}},
+		{ID: "tr-1", Name: "train[1]", ArrayTaskID: task(1), Result: &model.JobResult{ID: "tr-1", ExitCode: 1, Diagnoses: oom}, lineageStatus: runlineage.StatusFailed},
+		{ID: "tr-2", Name: "train[2]", ArrayTaskID: task(2), Result: &model.JobResult{ID: "tr-2", ExitCode: 0}, lineageStatus: runlineage.StatusSuccess},
+		{ID: "tr-3", Name: "train[3]", ArrayTaskID: task(3), Carried: true, Result: &model.JobResult{ID: "tr-3", ExitCode: 2, Diagnoses: oom}, lineageStatus: runlineage.StatusFailed},
+		{ID: "ev", Name: "eval", Result: &model.JobResult{ID: "ev", ExitCode: 124, Error: "timed out after 5s"}, lineageStatus: runlineage.StatusFailed},
 	})
 	if len(summary.Failures) != 2 {
 		t.Fatalf("failures = %+v, want OOM and timeout groups", summary.Failures)
@@ -393,3 +394,29 @@ func TestLoadQueueStateProjectsLifecycleAndClientStatus(t *testing.T) {
 type assertNotFound struct{}
 
 func (assertNotFound) Error() string { return "not found" }
+
+func TestLoadJobsResolvesSummaryOnlyResultsThroughJobstatus(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "20261009-120000-12345678")
+	summary := model.RunSummary{Results: []model.JobResult{
+		{ID: "blocked", Command: []string{"true"}, ExitCode: 1, Error: "blocked by failed dependency"},
+		{ID: "cancelled", Command: []string{"true"}, ExitCode: 130, Error: model.MarkedCancelledError},
+		{ID: "failed", Command: []string{"false"}, ExitCode: 1},
+	}}
+	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{}, summary, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][2]string{
+		"blocked":   {"blocked", runlineage.StatusBlocked},
+		"cancelled": {model.StatusCancelled, runlineage.StatusFailed},
+		"failed":    {model.StatusFailed, runlineage.StatusFailed},
+	}
+	if len(jobs) != len(want) {
+		t.Fatalf("jobs = %+v", jobs)
+	}
+	for _, job := range jobs {
+		if got := [2]string{job.ExecutionStatus, job.lineageStatus}; got != want[job.ID] {
+			t.Errorf("job %s statuses = %v, want %v", job.ID, got, want[job.ID])
+		}
+	}
+}

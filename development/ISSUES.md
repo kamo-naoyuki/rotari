@@ -8,7 +8,7 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Web loader re-implements job display status** ([internal/web/loader.go](../internal/web/loader.go), summary-only jobs in `LoadJobs` and `buildLineageSummary`): it derives `blocked` from the error prefix and calls `model.ResultStatus` instead of `jobstatus.Job.DisplayStatus`, which the CLI uses. The two can drift, for example on cancelled results.
+- **Reports classify job status on their own** ([internal/report/report.go](../internal/report/report.go), `reportJobStatus`): reports derive `blocked` from the error prefix and use their own `pending`/`running`/raw scheduler-state vocabulary instead of `jobstatus.Job.DisplayStatus`, so they can disagree with `show`, `jobs`, and the Web UI, for example reporting a cancelled job as `failed`. Moving them to the shared projection changes report output, so it needs its own decision.
 
 - **Attachment run markers are never removed** ([internal/attachment/run.go](../internal/attachment/run.go)): `.rotari-attachments/<RUN_ID>.enabled` stays after `rotari delete` removes the run. `scanSession` can also recreate a `.lock` file for a session that `Forget` removed concurrently. Both only leak small files.
 
