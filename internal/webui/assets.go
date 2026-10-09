@@ -171,8 +171,13 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	}
 	builder.WriteString(`<section><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="command">Command</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
+		// A job that has not started has no attempt ID yet.
+		notificationID := row.AttemptID
+		if notificationID == "" {
+			notificationID = row.JobID
+		}
 		builder.WriteString(`<tr data-notification-key="`)
-		builder.WriteString(html.EscapeString(row.Project + "/" + row.RunID + "/" + row.AttemptID))
+		builder.WriteString(html.EscapeString(row.Project + "/" + row.RunID + "/" + notificationID))
 		builder.WriteString(`" data-project="`)
 		builder.WriteString(html.EscapeString(row.Project))
 		builder.WriteString(`" data-job="`)
@@ -202,10 +207,14 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		builder.WriteString(html.EscapeString(row.Command))
 		builder.WriteString(`</code>`)
 		writeJobsCopyButton(&builder, row.FullCommand, "command")
-		builder.WriteString(`</td><td><code>`)
-		builder.WriteString(html.EscapeString(row.AttemptID))
-		builder.WriteString(`</code>`)
-		writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
+		if row.AttemptID == "" {
+			builder.WriteString(`</td><td>-`)
+		} else {
+			builder.WriteString(`</td><td><code>`)
+			builder.WriteString(html.EscapeString(row.AttemptID))
+			builder.WriteString(`</code>`)
+			writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
+		}
 		builder.WriteString(`</td><td data-sort-value="`)
 		if !row.StartedAt.IsZero() {
 			builder.WriteString(html.EscapeString(row.StartedAt.Format(time.RFC3339Nano)))

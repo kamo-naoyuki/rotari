@@ -59,6 +59,7 @@ type infoRun struct {
 
 type infoJobLiveness struct {
 	Finished int `json:"finished"`
+	Pending  int `json:"pending"`
 	Alive    int `json:"alive"`
 	Gone     int `json:"gone"`
 	Unknown  int `json:"unknown"`
@@ -281,6 +282,9 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 			var finalResult model.JobResult
 			if jsonStore().ReadJSON(filepath.Join(attemptDir, state.FinalResultFileName), &finalResult) == nil {
 				result.Finished++
+			} else {
+				// A finished attempt without a final result awaits a retry.
+				result.Pending++
 			}
 			continue
 		}
@@ -298,10 +302,34 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 			result.Gone++
 		}
 	}
-	if result.Finished+result.Alive+result.Gone+result.Unknown == 0 {
+	result.Pending += infoNotStartedJobs(runDir, carried)
+	if result.Finished+result.Pending+result.Alive+result.Gone+result.Unknown == 0 {
 		return nil, nil
 	}
 	return result, nil
+}
+
+// infoNotStartedJobs counts the run's jobs that have no attempt and no
+// carried result.
+func infoNotStartedJobs(runDir string, carried map[string]model.JobResult) int {
+	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, job := range model.QueueToJobs(queue.Commands) {
+		if _, ok := carried[job.ID]; ok {
+			continue
+		}
+		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
+		if err != nil {
+			continue
+		}
+		if jobstatus.ReadJob(jsonStore(), jobDir, model.JobResult{}, false).DisplayStatus(job) == jobstatus.StatusNotStarted {
+			count++
+		}
+	}
+	return count
 }
 
 func printInfo(report infoReport) {
@@ -388,7 +416,7 @@ func printInfoRuns(runs []infoRun) {
 	for _, run := range runs {
 		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, infoRunPhase(run.Phase))
 		if run.Jobs != nil {
-			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
+			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), cyan("pending"), cyan(fmt.Sprint(run.Jobs.Pending)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
 		}
 		fmt.Println()
 	}

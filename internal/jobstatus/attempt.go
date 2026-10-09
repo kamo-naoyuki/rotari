@@ -1,6 +1,7 @@
 package jobstatus
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,6 +37,10 @@ type Attempt struct {
 	// even when it has not yet written a status file. False is not evidence
 	// that the job has never started.
 	HasAttempt bool
+	// Undispatched means the job's directory is absent from an existing run
+	// directory. Executors create it before starting a job, so this is
+	// positive evidence that no attempt was dispatched.
+	Undispatched bool
 	// Wrapper is the attempt's `status.json`, valid when HasWrapper is set,
 	// whether or not its phase is terminal.
 	Wrapper        executor.WrapperStatus
@@ -72,6 +77,8 @@ func ReadAttempt(store state.Store, jobDir string) Attempt {
 		if info, err := os.Stat(jobDir); err == nil && info.IsDir() {
 			attempt.HasAttempt = true
 		}
+	} else if undispatched(jobDir) {
+		attempt.Undispatched = true
 	}
 	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
 		attempt.Wrapper, attempt.HasWrapper = executor.LoadWrapperStatus(store, path)
@@ -84,6 +91,19 @@ func ReadAttempt(store state.Store, jobDir string) Attempt {
 		attempt.ExitCode, attempt.Source = exitCode, SourceScheduler
 	}
 	return attempt
+}
+
+// undispatched reports whether jobDir, a job's base directory, is missing
+// while its run directory exists.
+func undispatched(jobDir string) bool {
+	if filepath.Base(filepath.Dir(jobDir)) == "attempts" {
+		return false
+	}
+	if _, err := os.Lstat(jobDir); !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	info, err := os.Stat(filepath.Dir(jobDir))
+	return err == nil && info.IsDir()
 }
 
 // ReadStatusFile reads the attempt's plain `status` exit-code file.

@@ -195,6 +195,9 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 	case 'p':
 		return row.Project
 	case 'a':
+		if row.AttemptID == "" {
+			return "-"
+		}
 		return row.AttemptID
 	case 'n':
 		return row.JobName

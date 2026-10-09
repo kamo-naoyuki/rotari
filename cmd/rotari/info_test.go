@@ -193,7 +193,7 @@ func TestInfoJobLivenessUnknownAndTerminalAttempts(t *testing.T) {
 		{"missing-host", "", "local", "999999999", "", false, infoJobLiveness{Unknown: 1}},
 		{"scheduler", host, "slurm", "999999999", "", false, infoJobLiveness{Unknown: 1}},
 		{"finished", host, "local", "999999999", "0", true, infoJobLiveness{Finished: 1}},
-		{"retry-pending", host, "local", "999999999", "1", false, infoJobLiveness{}},
+		{"retry-pending", host, "local", "999999999", "1", false, infoJobLiveness{Pending: 1}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			runDir := writeInfoLivenessFixture(t, test.hostname, test.executor, test.pid, test.status, test.finalResult)
@@ -227,6 +227,35 @@ func TestInfoJobLivenessCountsCarriedResultsAsFinished(t *testing.T) {
 	}
 }
 
+func TestInfoJobLivenessCountsJobsThatHaveNotStartedAsPending(t *testing.T) {
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := writeInfoLivenessFixture(t, host, "local", "999999999", "", false)
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "job-a", Command: []string{"sleep", "60"}},
+		{ID: "waiting-1", Command: []string{"true"}, DependsOn: []string{"job-a"}},
+		{ID: "waiting-2", Command: []string{"true"}, DependsOn: []string{"job-a"}},
+		{ID: "kept", Command: []string{"true"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), model.RunSummary{
+		Results: []model.JobResult{{ID: "kept"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := infoRunJobLiveness(runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := infoJobLiveness{Finished: 1, Pending: 2, Gone: 1}
+	if got == nil || *got != want {
+		t.Fatalf("job liveness = %+v, want %+v", got, want)
+	}
+}
+
 func writeInfoLivenessFixture(t *testing.T, hostname, executorName, pid, status string, finalResult bool) string {
 	t.Helper()
 	runDir := t.TempDir()
@@ -254,10 +283,10 @@ func writeInfoLivenessFixture(t *testing.T, hostname, executorName, pid, status 
 func TestInfoJobCountsStayOnRunLine(t *testing.T) {
 	var output bytes.Buffer
 	captureShowStdout(t, &output, func() int {
-		printInfoRuns([]infoRun{{Project: "demo", RunID: "run-1", Jobs: &infoJobLiveness{Finished: 4, Alive: 2, Gone: 1, Unknown: 3}}})
+		printInfoRuns([]infoRun{{Project: "demo", RunID: "run-1", Jobs: &infoJobLiveness{Finished: 4, Pending: 5, Alive: 2, Gone: 1, Unknown: 3}}})
 		return 0
 	})
-	if strings.Count(output.String(), "\n") != 2 || !strings.Contains(output.String(), "jobs=finished:4 alive:2 gone:1 unknown:3") {
+	if strings.Count(output.String(), "\n") != 2 || !strings.Contains(output.String(), "jobs=finished:4 pending:5 alive:2 gone:1 unknown:3") {
 		t.Fatalf("job counts must stay on the existing run line:\n%s", output.String())
 	}
 }

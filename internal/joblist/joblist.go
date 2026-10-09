@@ -23,13 +23,15 @@ const (
 	DefaultSinceText = "1d"
 )
 
-// Row is one job attempt in the listing: an unfinished attempt of an active
-// or interrupted run, or a job that finished inside the window.
+// Row is one job in the listing: an unfinished attempt of an active or
+// interrupted run, a job of such a run that has not started (with no
+// AttemptID), or a job that finished inside the window.
 type Row struct {
 	State       string
 	BaseDir     string
 	Project     string
 	RunID       string
+	JobID       string
 	AttemptID   string
 	JobName     string
 	Command     string
@@ -179,12 +181,13 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		if carried {
 			jobState += " (carried)"
 		}
+		notStarted := jobState == jobstatus.StatusNotStarted
 		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, origin, carried)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
 			startedAt, err = parseTimestamp(resolved.Attempt.Wrapper.StartedAt)
 		}
-		if err != nil && summary.StartedAt != "" {
+		if err != nil && summary.StartedAt != "" && !notStarted {
 			startedAt, err = parseTimestamp(summary.StartedAt)
 		}
 		if err != nil && statusOK {
@@ -212,7 +215,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 				attemptID = result.AttemptID
 			}
 		}
-		if attemptID == "" {
+		if attemptID == "" && !notStarted {
 			continue
 		}
 		jobName := state.ReadJobName(jobDir)
@@ -235,7 +238,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		if startedAt.IsZero() {
 			elapsed = -1
 		}
-		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, Elapsed: elapsed})
+		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: job.ID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, Elapsed: elapsed})
 	}
 	return rows, true, false, nil
 }

@@ -315,7 +315,7 @@ vm.runInContext(code, context);
 	const jobStatus = context.historySearchValueControl('job', 'status');
 	const executor = context.historySearchValueControl('job', 'executor');
 	if (!runStatus.startsWith('<select') || !runStatus.includes('Choose status') || !runStatus.includes('failed')) throw new Error('run status is not a dropdown');
-	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked') || !jobStatus.includes('running (recorded)') || !jobStatus.includes('waiting (recorded)') || !jobStatus.includes('suspended (recorded)') || !jobStatus.includes('unknown')) throw new Error('job status dropdown is missing recorded or unknown states');
+	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked') || !jobStatus.includes('running (recorded)') || !jobStatus.includes('waiting (recorded)') || !jobStatus.includes('suspended (recorded)') || !jobStatus.includes('not started') || !jobStatus.includes('unknown')) throw new Error('job status dropdown is missing recorded or unknown states');
 	if (!executor.startsWith('<select') || !executor.includes('Choose executor') || !executor.includes('slurm')) throw new Error('executor is not a dropdown');
 	const pendingDiagnosis = context.historySearchValueControl('job', 'diagnosis');
 	if (!pendingDiagnosis.includes('disabled')) throw new Error('diagnosis dropdown should wait for candidates');

@@ -49,7 +49,8 @@ directory; a job with no job-specific working directory uses its run's
 working directory for job searches. Ignore-case matching is on by default and
 can be disabled. Job status uses the shared persisted execution-status
 projection, so interrupted-run attempts can be searched by recorded states
-such as `running (recorded)`, `waiting (recorded)`, `suspended (recorded)`, or
+such as `running (recorded)`, `waiting (recorded)`, `not started`,
+`suspended (recorded)`, or
 `unknown`, without requiring a live supervisor.
 Fuzzy matching is an independent, opt-in setting for free-text attributes; it
 allows a small edit distance and ignores terms shorter than four characters.

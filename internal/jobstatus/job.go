@@ -63,9 +63,13 @@ func (job Job) Blocked() bool {
 	return job.Source == SourceSummary && strings.HasPrefix(job.Summary.Error, "blocked")
 }
 
+// StatusNotStarted is the display status of a job with no dispatched attempt.
+const StatusNotStarted = "not started"
+
 // DisplayStatus classifies the latest persisted state for human/API views.
 // Nonterminal executor states are explicitly marked as recorded, not live.
-// Missing or unusable records are unknown, not evidence of an unstarted job.
+// A job directory missing from its run is not started; other missing or
+// unusable records are unknown.
 func (job Job) DisplayStatus(spec model.JobSpec) string {
 	if job.Blocked() {
 		return "blocked"
@@ -80,6 +84,9 @@ func (job Job) DisplayStatus(spec model.JobSpec) string {
 	}
 	if state := recordedState(phase, schedulerState); state != "" {
 		return state
+	}
+	if job.Attempt.Undispatched {
+		return StatusNotStarted
 	}
 	return "unknown"
 }

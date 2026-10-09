@@ -374,3 +374,57 @@ func TestRunResultsCarryJobNames(t *testing.T) {
 		t.Fatalf("wait --json result names = %v, want prep, train[1], train[2]", names)
 	}
 }
+
+// TestNotStartedJobsAgreeAcrossViews checks that jobs waiting for a
+// dependency are reported as not started by show, jobs, the Web API, and
+// counted as pending by info, while the job they wait for is running.
+func TestNotStartedJobsAgreeAcrossViews(t *testing.T) {
+	covers(t, "DUR-5", "CLI-21")
+	e := support.NewEnv(t)
+	project := "not-started"
+	waiting := map[string]string{}
+	for _, name := range []string{"after-a", "after-b"} {
+		waiting[name] = support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", name, "--depends-on", "hold1", "--", "true"))
+	}
+	run := e.StartRun(project, 1, true)
+
+	jobRows := parseJobsTable(t, e.MustRotari("jobs", "--basedir", e.Base, project, "--since", "0", "--format", "%n %s %a").Stdout)
+	shown := e.MustRotari("show", "-p", project).Stdout
+	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), project, run.RunID)).Body, project, run.RunID)
+	for name, jobID := range waiting {
+		if row := jobRows[name]; row["STATE"] != "not started" || row["ATTEMPT_ID"] != "-" {
+			t.Errorf("jobs row for %s = %v, want not started without an attempt", name, row)
+		}
+		found := false
+		for _, line := range strings.Split(shown, "\n") {
+			if strings.HasPrefix(line, jobID+" ") {
+				found = strings.Contains(line, "not started")
+			}
+		}
+		if !found {
+			t.Errorf("show does not report %s as not started:\n%s", jobID, shown)
+		}
+		if got := webJobs[jobID].ExecutionStatus; got != "not started" {
+			t.Errorf("Web execution status for %s = %q, want not started", jobID, got)
+		}
+	}
+	if row := jobRows["hold1"]; row["STATE"] != "running (recorded)" {
+		t.Errorf("jobs row for the running job = %v", row)
+	}
+
+	var info struct {
+		ActiveRuns []struct {
+			RunID string `json:"run_id"`
+			Jobs  struct {
+				Pending int `json:"pending"`
+				Alive   int `json:"alive"`
+			} `json:"jobs"`
+		} `json:"active_runs"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("info", "-p", project, "--json").Stdout), &info); err != nil {
+		t.Fatal(err)
+	}
+	if len(info.ActiveRuns) != 1 || info.ActiveRuns[0].RunID != run.RunID || info.ActiveRuns[0].Jobs.Pending != 2 || info.ActiveRuns[0].Jobs.Alive != 1 {
+		t.Fatalf("info active runs = %+v, want run %s with two pending jobs and one alive", info.ActiveRuns, run.RunID)
+	}
+}

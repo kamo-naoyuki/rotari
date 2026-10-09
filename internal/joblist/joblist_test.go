@@ -153,7 +153,7 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"running": "running (recorded)", "waiting": "waiting (recorded)", "unknown": "unknown"}
+	want := map[string]string{"running": "running (recorded)", "waiting": "waiting (recorded)", "unknown": "unknown", "not-started": "not started"}
 	actual := make(map[string]Row, len(rows))
 	for _, row := range rows {
 		actual[row.JobName] = row
@@ -172,6 +172,9 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	}
 	if row := actual["unknown"]; !row.StartedAt.IsZero() || row.Elapsed >= 0 {
 		t.Errorf("unknown attempt without timestamps = %#v, want missing times", row)
+	}
+	if row := actual["not-started"]; row.AttemptID != "" || row.JobID != "not-started" || !row.StartedAt.IsZero() || row.Elapsed >= 0 {
+		t.Errorf("not-started job = %#v, want job ID without attempt or times", row)
 	}
 }
 

@@ -108,7 +108,7 @@ func TestDisplayStatusUsesPersistedAttemptAndResultFacts(t *testing.T) {
 func TestReadJobDisplayStatusWithoutUsableMetadata(t *testing.T) {
 	for _, kind := range []string{"missing", "empty", "malformed", "inaccessible", "unrecognized"} {
 		t.Run(kind, func(t *testing.T) {
-			jobDir := filepath.Join(t.TempDir(), "job")
+			jobDir := filepath.Join(t.TempDir(), "run", "job")
 			if kind != "missing" {
 				if err := os.MkdirAll(jobDir, 0o700); err != nil {
 					t.Fatal(err)
@@ -123,6 +123,38 @@ func TestReadJobDisplayStatusWithoutUsableMetadata(t *testing.T) {
 				t.Fatal("unusable metadata produced a terminal outcome")
 			}
 		})
+	}
+}
+
+func TestReadJobDisplayStatusNotStarted(t *testing.T) {
+	root := t.TempDir()
+	runDir := filepath.Join(root, "run")
+	if err := os.MkdirAll(filepath.Join(runDir, "started", "attempts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		jobDir string
+		want   string
+	}{
+		{name: "no job directory in an existing run", jobDir: filepath.Join(runDir, "waiting"), want: StatusNotStarted},
+		{name: "missing run directory", jobDir: filepath.Join(root, "missing-run", "job"), want: "unknown"},
+		{name: "missing assigned attempt", jobDir: filepath.Join(runDir, "started", "attempts", "att-1"), want: "unknown"},
+		{name: "job directory without attempts", jobDir: filepath.Join(runDir, "started"), want: "unknown"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			job := ReadJob(testStore(), test.jobDir, model.JobResult{}, false)
+			if got := job.DisplayStatus(model.JobSpec{ID: "job"}); got != test.want {
+				t.Fatalf("DisplayStatus() = %q, want %q", got, test.want)
+			}
+			if job.Finished() {
+				t.Fatal("a job without attempts produced a terminal outcome")
+			}
+		})
+	}
+	carried := ReadJob(testStore(), filepath.Join(runDir, "carried"), model.JobResult{ID: "carried", ExitCode: 0}, true)
+	if got := carried.DisplayStatus(model.JobSpec{ID: "carried"}); got != model.StatusSuccess {
+		t.Fatalf("carried DisplayStatus() = %q, want success", got)
 	}
 }
 
