@@ -332,3 +332,28 @@ func TestWaitProgressReadFailureFallback(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiRunWaitPrintsControlHintOnce(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	targets := make([]resolve.Run, 0, 2)
+	for _, projectName := range []string{"demo-a", "demo-b"} {
+		target, _ := activeWaitControlTestRun(t, baseDir, projectName)
+		targets = append(targets, target)
+	}
+	var stdout []byte
+	captureStderr(t, func() int {
+		_, stdout = captureWorkflowStdout(t, func() int {
+			return waitTargetsWithControl(targets, time.Now().Add(300*time.Millisecond), false, false, false, nil, nil)
+		})
+		return 0
+	})
+	text := string(stdout)
+	if got := strings.Count(text, "=== Run attached ==="); got != 2 {
+		t.Fatalf("attached headers = %d, want one per run:\n%s", got, text)
+	}
+	want := "\nPress Ctrl-D to stop waiting; Ctrl-C to cancel all 2 runs.\n"
+	if strings.Count(text, "Press Ctrl-D") != 1 || !strings.Contains(text, want) {
+		t.Fatalf("want the control hint once, untagged, as %q:\n%s", want, text)
+	}
+}

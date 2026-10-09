@@ -253,10 +253,12 @@ func waitTargetsControlled(waitTargets []resolve.Run, deadline time.Time, untilF
 	results := make(chan indexedResult, len(waitTargets))
 	outputs := make([]*waitOutput, len(waitTargets))
 	usedColors := make(map[int]bool)
+	controlHint := newWaitControlHint(len(waitTargets))
 	for index, target := range waitTargets {
 		var bufferedJSON bytes.Buffer
 		output := newWaitOutput(target, len(waitTargets) > 1, &outputMu)
 		output.color = availableWaitColor(output.color, usedColors)
+		output.controlHint = controlHint
 		usedColors[output.color] = true
 		if jsonOutput {
 			output.stdout = &bufferedJSON
@@ -364,6 +366,37 @@ type waitOutput struct {
 	stdoutLabel string
 	stderrLabel string
 	color       int
+	// controlHint is shared by every run one wait follows, so the terminal
+	// controls are explained once.
+	controlHint *waitControlHint
+}
+
+// waitControlHint is the Ctrl-D/Ctrl-C explanation printed when wait first
+// attaches to a run.
+type waitControlHint struct {
+	once sync.Once
+	text string
+}
+
+func newWaitControlHint(runs int) *waitControlHint {
+	if runs > 1 {
+		return &waitControlHint{text: fmt.Sprintf("Press Ctrl-D to stop waiting; Ctrl-C to cancel all %d runs.", runs)}
+	}
+	return &waitControlHint{text: "Press Ctrl-D to stop waiting; Ctrl-C to cancel the run."}
+}
+
+// printControlHint prints the hint once per wait, untagged because it
+// applies to every followed run.
+func (output *waitOutput) printControlHint() {
+	hint := output.controlHint
+	if hint == nil {
+		hint = newWaitControlHint(1)
+	}
+	hint.once.Do(func() {
+		untagged := *output
+		untagged.stdoutLabel = ""
+		_, _ = fmt.Fprintln(untagged.stdoutWriter(), cyan(hint.text))
+	})
 }
 
 var waitIdentityColors = [...]int{33, 63, 69, 99, 105, 129, 135, 141}
@@ -795,7 +828,7 @@ func followRunWithOutput(basedir, queueNameOption, runID string, deadline time.T
 		}
 		if !quiet && !jsonOutput {
 			_, _ = fmt.Fprintln(output.stdoutWriter(), cyan("=== Run attached ==="))
-			_, _ = fmt.Fprintln(output.stdoutWriter(), cyan("Press Ctrl-D to stop waiting; Ctrl-C to cancel the run."))
+			output.printControlHint()
 			if hasAttachedSnapshot {
 				printer.print(serverinternal.Response{
 					Progress: true, Completed: attachedSnapshot.Completed, Total: attachedSnapshot.Total,
