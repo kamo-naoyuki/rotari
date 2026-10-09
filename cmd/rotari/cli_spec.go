@@ -45,7 +45,6 @@ var cliShortFlagNames = map[string]string{
 	"run-id":       "r",
 	"job-id":       "j",
 	"executor":     "e",
-	"format":       "o",
 }
 
 var cliEnvironmentVariables = map[string]string{

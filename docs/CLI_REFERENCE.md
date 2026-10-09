@@ -44,7 +44,7 @@ generate a config file template
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--list` | `` | `ROTARI_CONFIG_LIST` | list existing config files |
 | `--notifications` | `` | `CLI only` | generate notifications.toml instead of command defaults |
-| `-o` / `--format` | `FORMAT` | `ROTARI_CONFIG_FORMAT` | config format: yaml, toml, or json (choices: yaml, toml, json) |
+| `--format` | `FORMAT` | `ROTARI_CONFIG_FORMAT` | config format: yaml, toml, or json (choices: yaml, toml, json) |
 | `--output` | `FILE` | `ROTARI_CONFIG_OUTPUT` | output config file path |
 
 ### `rotari check`
@@ -264,7 +264,7 @@ Usage: `rotari export [TARGET] [FILE]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID to export; may be repeated |
-| `-o` / `--format` | `FORMAT` | `ROTARI_EXPORT_FORMAT` | manifest format: yaml, toml, or json (choices: yaml, toml, json) |
+| `--format` | `FORMAT` | `ROTARI_EXPORT_FORMAT` | manifest format: yaml, toml, or json (choices: yaml, toml, json) |
 | `--template` | `` | `ROTARI_EXPORT_TEMPLATE` | print a starter workflow manifest |
 | `--output` | `FILE` | `CLI only` | write the workflow manifest to a file |
 
@@ -414,7 +414,7 @@ Usage: `rotari jobs [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
-| `-o` / `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
+| `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
 
 ### `rotari wait`

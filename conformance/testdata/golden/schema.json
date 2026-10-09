@@ -49,7 +49,6 @@
         },
         {
           "name": "format",
-          "short": "o",
           "value_name": "FORMAT",
           "values": [
             "yaml",
@@ -652,7 +651,6 @@
         },
         {
           "name": "format",
-          "short": "o",
           "value_name": "FORMAT",
           "values": [
             "yaml",
@@ -1034,7 +1032,6 @@
         },
         {
           "name": "format",
-          "short": "o",
           "value_name": "FORMAT"
         },
         {

@@ -704,7 +704,7 @@ func TestImportedGroupStatusKeepsUnlistedLeafResults(t *testing.T) {
 		"sh", "-c", `echo task$ROTARI_ARRAY_TASK_ID >> "$0"; [ "$ROTARI_ARRAY_TASK_ID" = 1 ]`, logPath)
 	e.Rotari("run", "-p", "groups", "--quiet")
 	manifestPath := filepath.Join(e.Root, "groups.json")
-	e.MustRotari("export", "-p", "groups", "-o", "json", "--output", manifestPath)
+	e.MustRotari("export", "-p", "groups", "--format", "json", "--output", manifestPath)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		t.Fatal(err)
@@ -763,7 +763,7 @@ func TestImportedArrayWideningExecutesNewTasks(t *testing.T) {
 		"sh", "-c", `echo task$ROTARI_ARRAY_TASK_ID >> "$0"; [ "$ROTARI_ARRAY_TASK_ID" != 2 ]`, logPath)
 	e.Rotari("run", "-p", "widen", "--quiet")
 	manifestPath := filepath.Join(e.Root, "widen.json")
-	e.MustRotari("export", "-p", "widen", "-o", "json", "--output", manifestPath)
+	e.MustRotari("export", "-p", "widen", "--format", "json", "--output", manifestPath)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		t.Fatal(err)

@@ -81,7 +81,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "config format: yaml, toml, or json",
                     "environment": "ROTARI_CONFIG_FORMAT",
                     "name": "format",
-                    "short": "o",
                     "value_name": "FORMAT",
                     "values": ["yaml", "toml", "json"],
                 },
@@ -999,7 +998,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "manifest format: yaml, toml, or json",
                     "environment": "ROTARI_EXPORT_FORMAT",
                     "name": "format",
-                    "short": "o",
                     "value_name": "FORMAT",
                     "values": ["yaml", "toml", "json"],
                 },
@@ -1589,7 +1587,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "%e (%f is finished time)",
                     "environment": "ROTARI_JOBS_FORMAT",
                     "name": "format",
-                    "short": "o",
                     "value_name": "FORMAT",
                 },
                 {

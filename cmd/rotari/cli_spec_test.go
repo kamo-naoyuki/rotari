@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -108,5 +109,20 @@ func TestCliParseFlagErrorsNameOptionsAndPointToHelp(t *testing.T) {
 				t.Fatalf("flag error output = %q, want %q and a help hint", output, test.want)
 			}
 		})
+	}
+}
+
+// Short options are kept to the target selectors used across commands;
+// output options such as --format have none.
+func TestShortOptionsAreOnlyTargetSelectors(t *testing.T) {
+	want := map[string]string{"basedir": "b", "project-name": "p", "run-id": "r", "job-id": "j", "executor": "e"}
+	if !reflect.DeepEqual(cliShortFlagNames, want) {
+		t.Fatalf("short options = %v, want %v", cliShortFlagNames, want)
+	}
+	for _, command := range []string{"jobs", "config", "export"} {
+		_, output := captureStderr(t, func() int { return run([]string{command, "-o", "json"}) })
+		if !strings.Contains(output, "unknown option -o") {
+			t.Errorf("%s -o output = %q, want unknown option -o", command, output)
+		}
 	}
 }
