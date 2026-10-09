@@ -209,3 +209,35 @@ touched packages, the Python tests, `scripts/check.sh --short`, and
 `scripts/check.sh` on a worktree of the commit passed.
 **Remaining:** None for this decision. Runs started before this change have
 no recorded origin, so only `--all` or a selector waits for them.
+
+## `cancel --wait` with a job selection
+
+- `9e16f485` 2026-10-10 08:19:32
+
+**Change:** `jobcontrol.Controller.Cancel` waits, with a job selection and
+`--wait`, until each selected job has stopped (`finishJobCancelMessage`):
+its latest attempt has ended and, for a local job, its process group is gone;
+a job not dispatched yet counts once the cancel marks it. The CLI no longer
+rejects the combination. `jobstatus` reads a job directory holding only the
+cancel marker as pending. CAN-3, SEL-12, the `--wait` help, RUNNING.md, and
+ARCHITECTURE.md were updated; tests that pinned the rejection now expect the
+selected jobs to be cancelled.
+**Reason:** Plan item 1: nothing could block until a cancelled job had
+stopped. The new conformance test showed that a local job's wrapper records
+`cancelled` before a command that traps SIGTERM exits, so the wait also
+checks the process group; the broader issue is open in ISSUES.md. A job
+cancelled before dispatch showed `unknown`, which the jobstatus change fixes.
+**Plan impact:** Item 1 done.
+**Validation:** `TestCancelJobWaitReturnsOnceTheJobStopped` failed before the
+change; `go test` of the touched packages, the flag-pair and selector suites,
+and `scripts/check.sh` on a worktree of the commit passed. During
+`scripts/check.sh --short`, `TestSynchronousRunInterruptCancelsAcceptedRun`
+timed out once under repository-wide load (recorded in ISSUES.md); it passed
+20 isolated repeats and three full package runs.
+**Remaining:** The commit also swept in another thread's uncommitted
+single-lock-read change to `resolveActiveWaitTargets` in `cmd/rotari/wait.go`,
+because the files were staged from `git status`. The change is correct and
+passed the full check, so it was kept rather than rewriting history. Two
+seconds after the commit the index was found reset to the previous commit's
+content for the committed paths, apparently by another thread's tooling;
+`git reset HEAD -- <paths>` restored it without touching the working tree.
