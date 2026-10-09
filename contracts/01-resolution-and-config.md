@@ -143,8 +143,10 @@ Other non-location option defaults remain applicable to aggregate views.
   picks a non-empty queue before the latest run; see
   [06-selectors.md](06-selectors.md) for the options that skip the queue.
 - **RES-16** `wait` without a selector scans the resolved basedir's projects and waits
-  concurrently only for active detached runs; attached runs are ignored, and if
-  no detached runs are active it succeeds without output. Explicitly selecting
+  concurrently only for active detached runs; attached runs are ignored. Each
+  interrupted run gets a warning on stderr naming it and how to inspect and
+  recover it, without changing the exit code. If no detached runs are active
+  and none is interrupted, it succeeds without output. Explicitly selecting
   an active attached run, including through its project, warns and then waits
   on it.
   A positional selector is resolved in this order: `latest`, a project name, a

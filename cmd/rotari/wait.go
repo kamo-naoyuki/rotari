@@ -74,6 +74,12 @@ func cmdWait(args []string) int {
 			printError(err)
 			return 1
 		}
+		if implicitSelection {
+			if err := warnInterruptedWaitRuns(*basedir); err != nil {
+				printError(err)
+				return 1
+			}
+		}
 		if len(activeTargets) == 0 {
 			return 0
 		}
@@ -637,6 +643,42 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 	}
 	sort.Slice(active, func(i, j int) bool { return active[i].ProjectName < active[j].ProjectName })
 	return active, nil
+}
+
+// warnInterruptedWaitRuns reports runs that implicit wait cannot follow
+// because their supervisor is gone. They do not change wait's exit code.
+func warnInterruptedWaitRuns(cliBaseDir string) error {
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, entry.Name())
+		if err != nil {
+			return err
+		}
+		inspection, err := project.Inspect(paths, false)
+		if err != nil {
+			return err
+		}
+		if inspection.State != project.Interrupted {
+			continue
+		}
+		if message, ok := runEndedWithoutSummary(paths, inspection.RunID); ok {
+			printWarningf("warning: %s", message)
+		}
+	}
+	return nil
 }
 
 func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {

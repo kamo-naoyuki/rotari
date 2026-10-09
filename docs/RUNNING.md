@@ -44,7 +44,9 @@ it returns the latest run's result. A positional selector is checked as project
 name, run name, then run ID; use `-r RUN_ID` to select an ID explicitly. With
 no selector or `-p`, it waits for all active detached runs in the basedir,
 ignoring `ROTARI_PROJECT_NAME`; attached runs are ignored, and if no detached
-runs are active it succeeds silently. An explicitly named project or run that
+runs are active it succeeds silently. An interrupted run, whose supervisor
+stopped before the run finished, is not waited for; `wait` prints a warning
+naming it and keeps its exit code. An explicitly named project or run that
 does not exist is an error.
 
 Return as soon as a job fails with no retries left:

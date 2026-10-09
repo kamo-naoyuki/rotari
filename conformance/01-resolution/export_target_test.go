@@ -199,6 +199,25 @@ func TestWaitWithoutSelectorWaitsAllProjectsDespiteProjectEnv(t *testing.T) {
 	}
 }
 
+func TestWaitWithoutSelectorWarnsAboutInterruptedRuns(t *testing.T) {
+	covers(t, "RES-16")
+	e := support.NewEnv(t)
+	e.OrphanRun("broken", "sleep 2")
+	runID := strings.TrimSpace(e.MustRotari("show", "-p", "broken", "--json").Stdout)
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(runID), &shown); err != nil || shown.RunID == "" {
+		t.Fatalf("show --json has no run ID: %s, %v", runID, err)
+	}
+	for _, args := range [][]string{{"wait"}, {"wait", "--quiet"}, {"wait", "--json"}} {
+		r := e.Rotari(args...)
+		if r.Code != 0 || r.Stdout != "" || !strings.Contains(r.Stderr, "warning:") || !strings.Contains(r.Stderr, shown.RunID) || !strings.Contains(r.Stderr, "interrupted") || !strings.Contains(r.Stderr, "rotari unlock") {
+			t.Errorf("wait(%q) = %s; want exit 0 with an interrupted-run warning naming %s", args, r, shown.RunID)
+		}
+	}
+}
+
 func TestWaitWarnsForAttachedRunTargetsAndSkipsThemImplicitly(t *testing.T) {
 	covers(t, "RES-16", "CLI-19")
 	e := support.NewEnv(t)
