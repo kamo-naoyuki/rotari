@@ -238,12 +238,10 @@ func colorJobsValue(code byte, value string) string {
 	switch value {
 	case "success":
 		return green(value)
-	case "failed":
+	case "failed", "cancelled", "blocked":
 		return red(value)
-	case "running":
-		return yellow(value)
 	default:
-		if strings.HasPrefix(value, "running (") {
+		if value == "running" || value == "interrupted" || value == "unknown" || value == "incomplete" || value == "not started" || strings.HasSuffix(value, " (recorded)") {
 			return yellow(value)
 		}
 		return value

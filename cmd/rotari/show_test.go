@@ -1001,6 +1001,24 @@ func TestShowQueueJobColorsLabelsInTTYMode(t *testing.T) {
 	}
 }
 
+func TestShowColorsInterruptedAndUnknownStatusesYellow(t *testing.T) {
+	oldCheck := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	defer func() { terminalCheck = oldCheck }()
+
+	for _, status := range []string{"interrupted", "unknown", "running (recorded)", "waiting (recorded)", "suspended (recorded)"} {
+		if got := colorRunLifecycle(status); got != ansiYellow+status+ansiReset {
+			t.Errorf("colorRunLifecycle(%q) = %q, want yellow", status, got)
+		}
+		if got := colorJobStatus(status); got != ansiYellow+status+ansiReset {
+			t.Errorf("colorJobStatus(%q) = %q, want yellow", status, got)
+		}
+	}
+	if got := colorClientStatus("unknown (last detached by disconnect)"); got != ansiYellow+"unknown (last detached by disconnect)"+ansiReset {
+		t.Errorf("colorClientStatus(unknown) = %q, want yellow", got)
+	}
+}
+
 func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")

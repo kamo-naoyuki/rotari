@@ -885,7 +885,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	if clientErr != nil {
 		clientStatus = model.RunClientStatus{State: "unknown"}
 	}
-	fmt.Printf("%s %s\n%s %s\n", cyan("Lifecycle:"), lifecycle, cyan("Client:"), runview.ClientStatusLabel(clientStatus))
+	fmt.Printf("%s %s\n%s %s\n", cyan("Lifecycle:"), colorRunLifecycle(lifecycle), cyan("Client:"), colorClientStatus(runview.ClientStatusLabel(clientStatus)))
 	if summaryOK {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
@@ -1438,7 +1438,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if clientErr != nil {
 		clientStatus = model.RunClientStatus{State: "unknown"}
 	}
-	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Lifecycle:"), lifecycle, cyan("Client:"), runview.ClientStatusLabel(clientStatus))
+	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Lifecycle:"), colorRunLifecycle(lifecycle), cyan("Client:"), colorClientStatus(runview.ClientStatusLabel(clientStatus)))
 	latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
@@ -1503,7 +1503,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(finishedAt))
 	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
 	resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, summaryResult, hasSummary)
-	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), resolved.DisplayStatus(jobSpecs[jobID]))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), colorJobStatus(resolved.DisplayStatus(jobSpecs[jobID])))
 	if resolved.HasSummary {
 		hosts := strings.Join(resolved.Summary.Hosts, ",")
 		if hosts == "" {
@@ -1611,6 +1611,35 @@ func exitCodeStatusText(exitCode int, text string) string {
 		return green(text)
 	}
 	return red(text)
+}
+
+func colorRunLifecycle(status string) string {
+	switch status {
+	case "finished":
+		return green(status)
+	case "failed":
+		return red(status)
+	default:
+		return yellow(status)
+	}
+}
+
+func colorClientStatus(status string) string {
+	if strings.HasPrefix(status, "unknown") {
+		return yellow(status)
+	}
+	return status
+}
+
+func colorJobStatus(status string) string {
+	switch {
+	case strings.HasPrefix(status, "success"):
+		return green(status)
+	case strings.HasPrefix(status, "failed"), status == "cancelled", strings.HasPrefix(status, "blocked"):
+		return red(status)
+	default:
+		return yellow(status)
+	}
 }
 
 func writeJobDiagnoses(writer io.Writer, result model.JobResult) {
