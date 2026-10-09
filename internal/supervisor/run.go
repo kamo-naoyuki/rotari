@@ -374,13 +374,15 @@ func runObserver(request server.Request, runID string, progress func(server.Resp
 				if request.Retry > 0 {
 					failureTitle = "Job failed after retry:"
 				}
-				attemptID := result.AttemptID
+				// An attempt ID locates its run, as in the "Job running" hint;
+				// a bare job ID needs the run.
+				attemptID, show := result.AttemptID, "rotari show -j "+result.AttemptID
 				if attemptID == "" {
-					attemptID = result.ID
+					attemptID, show = result.ID, fmt.Sprintf("rotari show --run-id %s --job-id %s", runID, result.ID)
 				}
-				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s",
+				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Command: %s\n  Show output:\n    %s",
 					failureTitle,
-					result.ID, attemptID, strings.Join(result.Command, " "), runID, attemptID)
+					result.ID, attemptID, strings.Join(result.Command, " "), show)
 			} else if strings.HasPrefix(result.Error, "retry:") {
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}

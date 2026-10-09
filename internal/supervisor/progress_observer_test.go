@@ -30,7 +30,7 @@ func TestProgressObserverPreservesResultResponses(t *testing.T) {
 		{
 			name:    "failure with attempt",
 			result:  model.JobResult{ID: "job", AttemptID: "attempt", Command: []string{"exit", "7"}, ExitCode: 7, Error: "final-failure"},
-			message: "Job failed:\n  ID: job\n  Attempt ID: attempt\n  Command: exit 7\n  Show output:\n    rotari show --run-id run-1 --job-id attempt",
+			message: "Job failed:\n  ID: job\n  Attempt ID: attempt\n  Command: exit 7\n  Show output:\n    rotari show -j attempt",
 		},
 		{
 			name: "failure after retry without attempt", retry: 1,
