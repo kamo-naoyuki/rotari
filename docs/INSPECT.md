@@ -94,7 +94,7 @@ attempts of active, interrupted, or incomplete runs, and active or interrupted
 runs, are always included. Their job states are persisted observations: for example,
 `running (recorded)` does not assert that an executor is still alive. Jobs
 of those runs that rotari has not dispatched yet are listed as `pending`, with
-`-` for the attempt ID.
+`-` for the attempt ID, right after the newest row of their run.
 
 ```sh
 rotari jobs --since 7d

@@ -70,10 +70,29 @@ func sortTime(row Row) time.Time {
 }
 
 // Sort orders rows by finish time, or start time for unfinished jobs,
-// newest first.
+// newest first. A row without either, such as a pending job, is listed right
+// after the newest row of its run, so a run's jobs stay together.
 func Sort(rows []Row) {
+	runKey := func(row Row) string { return row.BaseDir + "\x00" + row.Project + "\x00" + row.RunID }
+	newest := make(map[string]time.Time)
+	for _, row := range rows {
+		if at := sortTime(row); at.After(newest[runKey(row)]) {
+			newest[runKey(row)] = at
+		}
+	}
 	sort.SliceStable(rows, func(left, right int) bool {
-		return sortTime(rows[left]).After(sortTime(rows[right]))
+		leftAt, rightAt := sortTime(rows[left]), sortTime(rows[right])
+		leftOwn, rightOwn := !leftAt.IsZero(), !rightAt.IsZero()
+		if !leftOwn {
+			leftAt = newest[runKey(rows[left])]
+		}
+		if !rightOwn {
+			rightAt = newest[runKey(rows[right])]
+		}
+		if !leftAt.Equal(rightAt) {
+			return leftAt.After(rightAt)
+		}
+		return leftOwn && !rightOwn
 	})
 }
 

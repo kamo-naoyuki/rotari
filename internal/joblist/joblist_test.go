@@ -357,3 +357,26 @@ func TestParseSinceAcceptsDurationsAndDays(t *testing.T) {
 		}
 	}
 }
+
+// A pending job has no time of its own; it is listed right after the newest
+// row of its run instead of after every other run's jobs.
+func TestSortListsPendingJobsWithTheirRun(t *testing.T) {
+	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	rows := []Row{
+		{RunID: "old", JobID: "old-pending", State: "pending"},
+		{RunID: "new", JobID: "new-done", State: "success", StartedAt: now.Add(-2 * time.Minute), FinishedAt: now.Add(-time.Minute)},
+		{RunID: "old", JobID: "old-running", State: "running (recorded)", StartedAt: now.Add(-time.Hour)},
+		{RunID: "new", JobID: "new-pending", State: "pending"},
+		{RunID: "old", Project: "other", JobID: "other-pending", State: "pending"},
+		{RunID: "old", JobID: "old-done", State: "failed", StartedAt: now.Add(-3 * time.Hour), FinishedAt: now.Add(-2 * time.Hour)},
+	}
+	Sort(rows)
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.JobID)
+	}
+	want := []string{"new-done", "new-pending", "old-running", "old-pending", "old-done", "other-pending"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("order = %v, want %v", got, want)
+	}
+}
