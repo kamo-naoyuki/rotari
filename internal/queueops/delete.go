@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -72,6 +73,9 @@ func (editor Editor) deleteHistory(paths state.ProjectPaths, runID string, dryRu
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 	for _, deleted := range deletedRunIDs {
+		if err := attachment.ForgetRun(paths, deleted); err != nil {
+			return "", fmt.Errorf("failed to remove run %q attachment state: %w", deleted, err)
+		}
 		if err := editor.UnregisterRun(deleted); err != nil {
 			return "", fmt.Errorf("failed to remove run registry entry %q: %w", deleted, err)
 		}
@@ -124,6 +128,9 @@ func (editor Editor) deleteRun(paths state.ProjectPaths, runID string, dryRun bo
 	meta.UpdatedAt = nowRFC3339()
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return err
+	}
+	if err := attachment.ForgetRun(paths, runID); err != nil {
+		return fmt.Errorf("failed to remove run %q attachment state: %w", runID, err)
 	}
 	return editor.UnregisterRun(runID)
 }

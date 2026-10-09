@@ -181,6 +181,7 @@ flowchart TB
   queueops --> executor
   queueops --> state
   queueops --> jobstatus
+  queueops --> attachment
   cmd --> report
    cmd --> mcpadapter
    mcpadapter --> report
@@ -269,7 +270,7 @@ are checked against this graph by
 | [internal/config](../internal/config/) | Scope-aware global/cwd workspace/basedir/project discovery, location-key cycle validation, recursive file-value merging and immutable canonical TOML snapshots; YAML, TOML, JSON parsing. Runtime option meanings stay in `cmd/rotari`. | `layers.go` (`LoadScope`, `Load`, `Merge`, `Loaded.Snapshot`), `config.go` |
 | [internal/notification](../internal/notification/) | `notifications.toml`: its schema, scope lookup, validation, serialization, and the shared job/run event and batch model used by both webhook and browser notifications. Delivery stays in `cmd/rotari` and the Web assets. | `config.go` (`Load`, `Marshal`), `event.go` (`NewBatch`) |
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
-| [internal/attachment](../internal/attachment/) | Per-client run attachments: process-held locks, host and PID-start identity, attachment aggregation, stale-client policy handoff, and initiating-client startup reservations. It does not render CLI output. | `session.go` |
+| [internal/attachment](../internal/attachment/) | Per-client run attachments: process-held locks, host and PID-start identity, attachment aggregation, stale-client policy handoff, initiating-client startup reservations, and removal of a deleted run's attachment state (`ForgetRun`, called by `delete`). It does not render CLI output. | `session.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, command snapshot, run lock, registry, running metadata; consumes the queue only for queue-based runs), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, metadata finalization, lock removal). Saved-run snapshots are constructed under the project state lock without editing the next queue. Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `plan.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the run's recorded results (the summary, or before it the carried results a run records at start) into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, and the artifact candidates an attempt recorded, following carried jobs to their attempt. Shared by CLI and Web. | `job.go` (`RecordedResults`), `attempt.go`, `times.go`, `facts.go`, `artifacts.go` |

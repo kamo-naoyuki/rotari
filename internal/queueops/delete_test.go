@@ -182,3 +182,63 @@ func TestDeleteHistoryRejectsInvalidProject(t *testing.T) {
 		t.Fatal("DeleteRun accepted a project name with a separator")
 	}
 }
+
+// writeAttachmentState leaves what a finished run's clients leave behind:
+// its session-attachment marker and a session record kept for the
+// supervisor after its client exited.
+func writeAttachmentState(t *testing.T, paths state.ProjectPaths, runID string) {
+	t.Helper()
+	dir := filepath.Join(paths.ProjectDir, ".rotari-attachments")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{
+		runID + ".enabled":          "",
+		"client-" + runID + ".json": `{"id":"client-` + runID + `","run_id":"` + runID + `","pid":999999999,"host":"gone-host","initiator":true}`,
+		"client-" + runID + ".lock": "",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func attachmentFiles(t *testing.T, paths state.ProjectPaths) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(paths.ProjectDir, ".rotari-attachments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+	return names
+}
+
+func TestDeleteRemovesRunAttachmentState(t *testing.T) {
+	t.Run("one run", func(t *testing.T) {
+		baseDir, paths, editor, _ := deleteFixture(t, "run-a", "run-b")
+		writeAttachmentState(t, paths, "run-a")
+		writeAttachmentState(t, paths, "run-b")
+		if _, err := editor.DeleteHistory(baseDir, "default", "run-a"); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"client-run-b.json", "client-run-b.lock", "run-b.enabled"}
+		if got := attachmentFiles(t, paths); !reflect.DeepEqual(got, want) {
+			t.Fatalf("attachment files = %v, want %v", got, want)
+		}
+	})
+	t.Run("all runs", func(t *testing.T) {
+		baseDir, paths, editor, _ := deleteFixture(t, "run-a", "run-b")
+		writeAttachmentState(t, paths, "run-a")
+		writeAttachmentState(t, paths, "run-b")
+		if _, err := editor.DeleteHistory(baseDir, "default", ""); err != nil {
+			t.Fatal(err)
+		}
+		if got := attachmentFiles(t, paths); len(got) != 0 {
+			t.Fatalf("attachment files = %v, want none", got)
+		}
+	})
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -741,5 +742,49 @@ func TestResetRejectsRemovedRecoveryOptions(t *testing.T) {
 		if r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "unlock") {
 			t.Errorf("removed reset recovery option did not name unlock: %s", r)
 		}
+	}
+}
+
+func TestDeleteRemovesRunAttachmentState(t *testing.T) {
+	covers(t, "DUR-9")
+	e := support.NewEnv(t)
+	project := "attachment-cleanup"
+	dir := filepath.Join(e.Base, "projects", project, ".rotari-attachments")
+	runIDs := make([]string, 0, 3)
+	for range 3 {
+		e.MustRotari("add", "-p", project, "--", "true")
+		e.MustRotari("run", "-p", project, "--quiet")
+		var shown struct {
+			RunID string `json:"run_id"`
+		}
+		if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, "--json").Stdout), &shown); err != nil {
+			t.Fatal(err)
+		}
+		runIDs = append(runIDs, shown.RunID)
+		e.MustRotari("reset", "-p", project)
+	}
+	markers := func() []string {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		return names
+	}
+	for _, runID := range runIDs {
+		if !slices.Contains(markers(), runID+".enabled") {
+			t.Fatalf("run %s has no attachment marker: %v", runID, markers())
+		}
+	}
+	e.MustRotari("delete", "-p", project, "-r", runIDs[0])
+	if got := markers(); slices.Contains(got, runIDs[0]+".enabled") || !slices.Contains(got, runIDs[1]+".enabled") {
+		t.Fatalf("after deleting %s, attachment files = %v", runIDs[0], got)
+	}
+	e.MustRotari("delete", "-p", project, "--all")
+	if got := markers(); len(got) != 0 {
+		t.Fatalf("after delete --all, attachment files = %v, want none", got)
 	}
 }

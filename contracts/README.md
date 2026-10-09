@@ -153,6 +153,7 @@ the IDs, this table, and those calls disagree.
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | DUR-7 | A run records its carried results at start, and every view and job control reads carried jobs from them during the run | conformance | `TestCarriedJobsReadAsCarriedDuringTheRun` |
 | DUR-8 | Run lifecycle, best-effort job execution state, and initiating-client connection history are separate shared display dimensions | conformance | `TestCLIAndWebAgreeOnJobResults`, `TestJobOutlivesKilledSupervisor`, `TestAsyncStartHintsWork` |
+| DUR-9 | `delete` removes the deleted runs' client-attachment state and leaves other runs' alone | conformance | `TestDeleteRemovesRunAttachmentState` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
 | SAFE-2 | A running project rejects `run`, `retry`, and `delete`, so no second run or in-run retry starts; queue edits still target the next run | conformance | `TestRunningProjectRejectsSecondRunAndDelete`, `TestResetClearsQueueBesideActiveRun` |
 | SAFE-3 | An interrupted project rejects `run` and `delete`, naming the run and how to inspect, recover, and rerun it | conformance | `TestInterruptedProjectNeedsRecovery` |

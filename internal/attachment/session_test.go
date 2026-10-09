@@ -413,3 +413,73 @@ func TestProcessStartIdentityDetectsPIDReuse(t *testing.T) {
 		t.Fatal("matching process start time was treated as a reused PID")
 	}
 }
+
+func TestScanDoesNotCreateLockFiles(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(paths.ProjectDir, directoryName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A record whose lock was already removed, as a concurrent Forget leaves
+	// it between its two removals.
+	if err := writeRecord(dir, record{ID: "forgotten", RunID: "run-1", PID: 999999999, Host: "gone-host"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Scan(paths, "run-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "forgotten.lock")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Scan created a lock file for a forgotten session: %v", err)
+	}
+}
+
+func TestForgetRunRemovesOnlyThatRunsState(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runID := range []string{"run-1", "run-2"} {
+		if err := EnableRun(paths, runID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := filepath.Join(paths.ProjectDir, directoryName)
+	for _, info := range []record{
+		{ID: "stale-1", RunID: "run-1", PID: 999999999, Host: "gone-host", Initiator: true},
+		{ID: "stale-2", RunID: "run-2", PID: 999999999, Host: "gone-host"},
+	} {
+		if err := writeRecord(dir, info); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, info.ID+".lock"), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	live, err := Open(paths, "run-1", "live-1", "detach")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close("")
+
+	if err := ForgetRun(paths, "run-1"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		got = append(got, entry.Name())
+	}
+	want := []string{"live-1.json", "live-1.lock", "run-2.enabled", "stale-2.json", "stale-2.lock"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("attachment files = %v, want %v", got, want)
+	}
+	if err := ForgetRun(paths, "../run-2"); err == nil {
+		t.Fatal("ForgetRun accepted an unsafe run ID")
+	}
+}

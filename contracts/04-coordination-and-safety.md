@@ -75,6 +75,14 @@ Representative implementation and tests:
   [conformance/04-coordination](../conformance/04-coordination/), and detached
   labels in `TestAsyncStartHintsWork` in
   [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
+- **DUR-9** `delete` of one run or of every run also removes the deleted
+  runs' client-attachment state from the project directory: the run's
+  session-attachment marker and session records no live client holds. It
+  leaves other runs' attachment state alone. Implemented by
+  `attachment.ForgetRun` in [internal/attachment](../internal/attachment/session.go),
+  called from [internal/queueops/delete.go](../internal/queueops/delete.go);
+  checked by `TestDeleteRemovesRunAttachmentState` in
+  [conformance/04-coordination](../conformance/04-coordination/).
 
 Implementation and tests: the wrapper is built in
 [`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with

@@ -210,14 +210,8 @@ func Scan(paths state.ProjectPaths, runID string) (live, stale []Info, err error
 }
 
 func scanSession(dir, id, localHost string) (*Info, error) {
-	lock, lockErr := os.OpenFile(filepath.Join(dir, id+".lock"), os.O_CREATE|os.O_RDWR, state.FileMode())
-	if lockErr == nil {
-		defer lock.Close()
-		lockErr = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if lockErr == nil {
-			defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
-		}
-	}
+	held, release := probeLock(dir, id)
+	defer release()
 	info, err := readRecord(filepath.Join(dir, id+".json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -225,8 +219,66 @@ func scanSession(dir, id, localHost string) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read attachment session %s: %w", id, err)
 	}
-	client := toInfo(info, lockErr != nil || info.Host != localHost || processMayBeSame(info.PID, info.ProcessStart))
+	client := toInfo(info, held || info.Host != localHost || processMayBeSame(info.PID, info.ProcessStart))
 	return &client, nil
+}
+
+// probeLock reports whether another process may hold the session's lock,
+// holding it itself until release. It never creates the lock file, so a
+// scan racing Forget cannot leave one behind; a missing lock is not held.
+func probeLock(dir, id string) (held bool, release func()) {
+	lock, err := os.OpenFile(filepath.Join(dir, id+".lock"), os.O_RDWR, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, func() {}
+	}
+	if err != nil {
+		return true, func() {}
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = lock.Close()
+		return true, func() {}
+	}
+	return false, func() {
+		_ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		_ = lock.Close()
+	}
+}
+
+// ForgetRun removes a deleted run's attachment marker and the session
+// records bound to it whose locks are not held. A live client's session is
+// left for that client to close.
+func ForgetRun(paths state.ProjectPaths, runID string) error {
+	if !state.IsValidPathElement(runID) {
+		return fmt.Errorf("invalid run ID %q", runID)
+	}
+	dir := filepath.Join(paths.ProjectDir, directoryName)
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var forgetErr error
+	for _, entry := range entries {
+		id, isRecord := strings.CutSuffix(entry.Name(), ".json")
+		if entry.IsDir() || !isRecord || !state.IsValidPathElement(id) {
+			continue
+		}
+		info, err := readRecord(filepath.Join(dir, entry.Name()))
+		if err != nil || info.RunID != runID {
+			continue
+		}
+		held, release := probeLock(dir, id)
+		release()
+		if !held {
+			forgetErr = errors.Join(forgetErr, Forget(paths, id))
+		}
+	}
+	if err := os.Remove(filepath.Join(dir, runID+".enabled")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		forgetErr = errors.Join(forgetErr, err)
+	}
+	return forgetErr
 }
 
 // Close releases the session and removes its record. An empty reason is used
