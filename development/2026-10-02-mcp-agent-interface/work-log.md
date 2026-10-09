@@ -822,6 +822,6 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
   - `TestRetryProgressCountsOnlyExecutedJobs` printed `0/3` before `07a5254e`.
   - `TestShowLogsTailInDefinitionOrder` fails before `60b215fd`, at `--tail`.
 - The `configs` listing was reproduced separately with a build of `bc94db72`.
-- `scripts/check.sh` with the race detector was not rerun after these commits.
+- After `812bb165`, `scripts/check.sh` with the race detector passed in a clean worktree.
 
 **Remaining:** the ISSUES.md entry "Leftovers from the 2026-10-10 zero-information agent trial".
