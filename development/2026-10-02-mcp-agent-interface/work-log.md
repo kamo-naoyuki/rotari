@@ -743,3 +743,40 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - The ten proposals in the report.
 - [agent-trial-fixture.sh](agent-trial-fixture.sh) does not set `XDG_CONFIG_HOME`, so its runs read the developer's notification config.
+
+## 2026-10-10: fixes from the zero-information agent trial
+
+- `25e6dd82` (2026-10-10 02:00:25 +0900): printed commands name `--basedir` only when it is not implicit.
+- `6fec04d1` (2026-10-10 02:12:14 +0900): the completion message groups failures by cause.
+- `d262d620` (2026-10-10 02:16:55 +0900): top-level help is a one-line command index.
+
+**Change:**
+- `25e6dd82`:
+  - `cmd/rotari/hint_location.go` (`hintLocation`, `runHintLocation`) decides once whether a printed command needs `--basedir`, from `ROTARI_BASEDIR`, the configured basedir, and the default.
+  - The hints in `lineage`, `show`, `wait`, `run`, and the running-project error use it.
+  - Hints that name a run drop the location when it is implicit.
+  - New contract CLI-22, with `TestHintLocationOmitsImplicitBaseDir` and the conformance test `TestPrintedHintsNameOnlyANonImplicitBaseDir`.
+- `6fec04d1`:
+  - The completion message moved from `internal/supervisor/messages.go` to `cmd/rotari/run_completion.go`. The supervisor's copy was never read: the client hangs up after acceptance and prints the message through the follower that `wait` uses.
+  - The message prints the summary, a `Carried:` line, the origins, the failures by cause from `writeFailureGroups` with `failureRetryHints`, and `Inspect run:`.
+  - It drops the `Success:`/`Failed:` lines, the `Diagnosis:` lines, and the per-job blocks.
+  - CLI-14 was updated, with the conformance test `TestCompletionMessageGroupsFailuresByCause`.
+- `d262d620`: `printUsage` lists each command's name and description. `TestTopLevelUsageIndexesCommandsWithoutOptions` was added, and the help golden file was regenerated.
+
+**Reason:** findings 1, 3, 4, and 5 of [agent-trial-2026-10-10-zero-info.md](agent-trial-2026-10-10-zero-info.md), which the user chose to implement.
+
+**Plan impact:**
+- In the second run, `--help` plus `guide` fell from 18 KB to 10 KB, and s1 and s3 used 20 to 25 percent less output.
+- s2 used the saving to read command help before changing state.
+- Findings 2 and 6 to 10 remain open.
+
+**Validation:**
+- `TestCompletionMessageGroupsFailuresByCause` failed on `25e6dd82`, the commit before the fix, for every condition it checks. This was run in a temporary worktree.
+- Before each commit, `go test ./cmd/rotari` and `scripts/check.sh --short` passed, and so did `go test ./conformance/...` for `25e6dd82` and `6fec04d1`. For `d262d620`, the conformance golden test was run before the commit, and after it the full `scripts/check.sh`, with the race detector, and `go test ./conformance/...` passed.
+- `6fec04d1` was tested in a separate worktree while another thread's uncommitted test in `cmd/rotari/wait_test.go` did not compile.
+- Three new headless agents completed the trial again, as recorded in the trial report.
+
+**Remaining:**
+- Findings 2 and 6 to 10 of the trial report.
+- `internal/project/inspect.go` and `internal/supervisor/run.go` still print `--basedir` in errors, because they cannot see the CLI configuration.
+- `lineage`'s `Diagnoses:` section still counts a cancelled job as `no_match`.

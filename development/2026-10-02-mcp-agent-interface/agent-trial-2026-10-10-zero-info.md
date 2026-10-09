@@ -126,3 +126,39 @@ fixture runs read the developer's real
 failed fixture run. [agent-trial-fixture.sh](agent-trial-fixture.sh) has the
 same gap. The new fixture script sets `XDG_CONFIG_HOME` for every rotari
 call.
+
+## Second run, after the fixes
+
+Four findings were fixed:
+
+- `25e6dd82`: printed commands name `--basedir` only when the state directory
+  is not the implicit one (finding 5, CLI-22).
+- `6fec04d1`: the completion message of `run`, `retry`, and `wait` groups
+  failures by cause as `lineage` does, marks carried failures, and no longer
+  reports a cancelled job as `no_match` (findings 3 and 4, CLI-14).
+- `d262d620`: top-level `--help` is a one-line index of the commands, 2.4 KB
+  instead of 10.4 KB (finding 1).
+
+New agents got the same three tasks on fresh fixtures, built at `d262d620`.
+All three completed them again.
+
+| | s1 first | s1 second | s2 first | s2 second | s3 first | s3 second |
+| --- | --- | --- | --- | --- | --- | --- |
+| rotari calls | 10 | 11 | 17 | 18 | 15 | 13 |
+| output | 27 KB | 20 KB | 41 KB | 40 KB | 44 KB | 34 KB |
+
+- `rotari --help` with `rotari guide` fell from 18 KB to 10 KB.
+- The s2 agent spent the saving on `change --help` and `retry --help`
+  (9.6 KB) before changing anything, which the first agent had not read.
+- s2's `wait` after its retry printed 2.5 KB instead of 3.0 KB, and the
+  carried failures were marked as carried.
+- In s3, `wait` grouped frame[5] as "1 cancelled" with no diagnosis line.
+
+The remaining findings reappeared:
+
+- s1 found the accuracies by grepping the run directory under the state
+  directory, outside rotari, after looking for a log option in `show --help`
+  (finding 7).
+- s2 tried `change -j` with an array task first (finding 9).
+- s3 tried `cancel --wait` with a job selection (finding 8), and read the
+  wide `show -r` table three times (finding 6).
