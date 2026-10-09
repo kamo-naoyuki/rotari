@@ -177,3 +177,35 @@ pre-change commit in a temporary worktree and passed after; new unit, CLI
 text, and Node-based JavaScript tests failed before their changes;
 `go test` of the touched packages passed.
 **Remaining:** Plan items 1–3 and 6–8.
+
+## Implicit wait follows its own shell's runs
+
+- `11b67bc5` 2026-10-10 05:18:17
+
+**Change:** `run` and `retry` send the launching process (host, parent PID,
+its start time) to the supervisor, which records it in the run context as
+`launch_origin`. `wait` without a selector follows the active runs that its
+own parent process started, attached or not, and registers an independent
+session for each; `--all` follows every active run and rejects selectors.
+When no run of the scope is active but others are, it says so on stderr and
+points to `--all`; interrupted-run warnings use the same scope. Process start
+times moved to `state.ProcessStart`, shared with attachment sessions; the
+origin helpers are `attachment.CurrentLaunchOrigin` and `SameLaunchOrigin`.
+RES-16, CLI-19, RUNNING.md, the implicit-location design note, the agent
+guide (name the project, since each tool call is a new shell), and the
+generated CLI reference, Python CLI, and schema golden were updated.
+**Reason:** With two scripts waiting at once, the second implicit `wait` saw
+the first one's attachment, skipped the run, and returned 0 while it ran.
+The user did not want a synchronous `run` treated differently from
+`run --async` plus `wait`, rejected terminal-session scoping because two
+scripts in one terminal share a session, and chose parent-process scoping,
+noting that Makefile recipes name the project or run anyway.
+**Plan impact:** Replaced the earlier decision that implicit `wait` skips
+attached runs; see [plan.md](plan.md).
+**Validation:** `TestWaitWithoutSelectorWaitsForRunsThisProcessStarted`
+failed before the change. Tests that pinned the old skipping were rewritten
+for the new contract; the flag-pair harness learned `--all`. `go test` of the
+touched packages, the Python tests, `scripts/check.sh --short`, and
+`scripts/check.sh` on a worktree of the commit passed.
+**Remaining:** None for this decision. Runs started before this change have
+no recorded origin, so only `--all` or a selector waits for them.
