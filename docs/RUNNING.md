@@ -77,15 +77,15 @@ see below.
 
 ## Controlling runs from the terminal
 
-These controls determine whether the work is cancelled, left running, or
+These controls determine whether work is cancelled, left running, or
 temporarily paused:
 
-| Input / event | Effect |
-| --- | --- |
-| Ctrl-C (`SIGINT`) | Cancels the current run and its unfinished jobs; while `wait` monitors multiple runs, cancels every selected active run. The command exits with status 130. |
-| Ctrl-D (terminal EOF; not a signal) | Stops the current command and leaves the work running. A synchronous run continues in the background; `wait` simply stops waiting. |
-| Ctrl-Z (`SIGTSTP`) | Pauses the current command while the work continues. Use `fg` to resume it. |
-| Unexpected client exit / disconnect (no single signal) | By default, a synchronous run continues in the background after its command exits; disconnecting `wait` ends the wait and leaves the run alone. Use `--disconnect-action cancel` to cancel the run and its unfinished jobs on disconnect. |
+| Input / event | `rotari run` | `rotari wait` |
+| --- | --- | --- |
+| Ctrl-C (`SIGINT`) | Cancels the run and its unfinished jobs; exits with status 130. | Cancels every selected active run and its unfinished jobs; exits with status 130. |
+| Ctrl-D (terminal EOF; not a signal) | Stops waiting; the run continues in the background. | Stops waiting; the selected run(s) continue. |
+| Ctrl-Z (`SIGTSTP`) | Pauses the command while the run continues. Use `fg` to resume. | Pauses the command while the run(s) continue. Use `fg` to resume. |
+| Unexpected client exit / disconnect (no single signal) | By default, the run continues in the background. | By default, waiting stops and the run(s) continue. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
