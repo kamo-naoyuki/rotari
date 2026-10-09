@@ -354,6 +354,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
 | Wiring the run lifecycle (`projectRunner`) and its failure diagnosis | `project_run.go`, `diagnosis.go` |
 | Supervisor process wiring and its server registry | `server.go`, `registry.go` |
+| Read-only context, configuration, supervisor, and run overview (`info`) | [info.go](../cmd/rotari/info.go) |
 | `basedirs`, `projects`, and `runs` command flags and dispatch | [lists.go](../cmd/rotari/lists.go) |
 | Project discovery and list rendering (`showProjectsForBaseDirs`) | [projects.go](../cmd/rotari/projects.go) |
 | Registered basedir list rendering | [basedirs.go](../cmd/rotari/basedirs.go) |

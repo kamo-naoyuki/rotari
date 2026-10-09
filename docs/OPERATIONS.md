@@ -2,6 +2,19 @@
 
 Server management, run registry maintenance, shared filesystems, and the security model.
 
+## Quick context
+
+Use `rotari info` for a read-only overview of the resolved master directory,
+base directory and project, visible and loaded configuration files, running
+supervisors, run locks, and active or interrupted runs. Add `--json` for
+machine-readable output. When multiple projects exist and none is selected,
+the command reports the choices instead of guessing.
+
+The run lock reports whether its coordinator PID is alive on this host. It
+does not verify individual job processes: job statuses are recorded results,
+not proof that a process is currently running. Use `jobs` or `show` for job
+details. Run-lock inspection does not remove stale locks.
+
 ## Server management
 
 `run` and `retry` start a supervisor for each run, and it stops after the run

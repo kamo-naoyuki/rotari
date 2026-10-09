@@ -16,6 +16,18 @@ replaces automatic discovery with that file. See
 
 ## Commands
 
+### `rotari info`
+
+show the current Rotari context and active run state
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `CLI only` | config file to use |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+| `--json` | `` | `ROTARI_INFO_JSON` | print machine-readable JSON |
+
 ### `rotari init`
 
 write cwd workspace location defaults without creating state
@@ -391,8 +403,7 @@ Usage: `rotari lineage [RUN_ID ...]`
 
 ### `rotari jobs`
 
-list unfinished jobs of active, interrupted, or incomplete runs, and recently
-finished jobs across known state directories
+list running and recently finished jobs across known state directories
 
 Usage: `rotari jobs [PROJECT]`
 

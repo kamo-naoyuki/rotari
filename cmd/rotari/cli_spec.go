@@ -108,6 +108,14 @@ func commonCLIFlags() []cliFlagSpec {
 
 var cliCommandSpecs = []cliCommandSpec{
 	{
+		Name:        "info",
+		Description: "show the current Rotari context and active run state",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
+			cliFlagSpec{Name: "json", Description: "print machine-readable JSON"},
+		),
+	},
+	{
 		Name:        "init",
 		Description: "write cwd workspace location defaults without creating state",
 		Positional:  "[BASEDIR [PROJECT]]",

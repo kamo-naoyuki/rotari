@@ -72,6 +72,8 @@ func dispatch(args []string) int {
 		return cmdConfig(args[1:])
 	case "check":
 		return cmdCheck(args[1:])
+	case "info":
+		return cmdInfo(args[1:])
 	case "reset":
 		return cmdReset(args[1:])
 	case "cancel":

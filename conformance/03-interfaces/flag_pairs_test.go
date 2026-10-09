@@ -23,6 +23,7 @@ var pairInventory = map[string]struct {
 	"init":       {0, "e3b0c44298fc1c14"},
 	"config":     {6, "cf7bcb9626d67065"},
 	"check":      {6, "bc250836712a03be"},
+	"info":       {5, "0c5bb2ced81140c9"},
 	"reset":      {6, "0f2241eed8e6f8d4"},
 	"cancel":     {20, "65aeaf4b54d48db3"},
 	"suspend":    {19, "4b2e628041f2b2eb"},

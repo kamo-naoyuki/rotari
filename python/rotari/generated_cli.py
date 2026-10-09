@@ -7,6 +7,43 @@ from typing import Any
 CLI_SCHEMA: dict[str, Any] = {
     "commands": [
         {
+            "description": "show the current Rotari context and active run state",
+            "flags": [
+                {
+                    "command_line_only": True,
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "master registry directory",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "print machine-readable JSON",
+                    "environment": "ROTARI_INFO_JSON",
+                    "name": "json",
+                },
+            ],
+            "name": "info",
+        },
+        {
             "description": "write cwd workspace location defaults without creating "
             "state",
             "name": "init",
