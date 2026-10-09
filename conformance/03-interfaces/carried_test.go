@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +23,20 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 	e.MustRotari("add", "-p", "p1", "--job-name", "carried", "--", "true")
 	e.MustRotari("add", "-p", "p1", "--job-name", "again", "--", "sh", "-c", "test -f "+flag+" && sleep 30")
 	e.Rotari("run", "-p", "p1", "--quiet")
+	jobsBeforeRetry := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s %t %f").Stdout
+	carriedFields := func(output string) []string {
+		for _, line := range strings.Split(output, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) > 0 && fields[0] == "carried" {
+				return fields
+			}
+		}
+		return nil
+	}
+	finishedJobsFields := carriedFields(jobsBeforeRetry)
+	if len(finishedJobsFields) < 8 || finishedJobsFields[1] != "success" {
+		t.Fatalf("jobs before retry = %q, want carried job's success and timestamps", jobsBeforeRetry)
+	}
 	if err := os.WriteFile(flag, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +62,9 @@ func TestCarriedJobsReadAsCarriedDuringTheRun(t *testing.T) {
 			return out, strings.Contains(out, "succeeded 1") && strings.Contains(out, "unfinished 1")
 		},
 		"jobs": func() (string, bool) {
-			out := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s").Stdout
-			return out, regexp.MustCompile(`(?m)^carried\s+success$`).MatchString(out) && !regexp.MustCompile(`(?m)^carried\s+running$`).MatchString(out)
+			out := e.MustRotari("jobs", "--basedir", e.Base, "p1", "--format", "%n %s %t %f").Stdout
+			fields := carriedFields(out)
+			return out, len(fields) == len(finishedJobsFields)+1 && fields[1] == "success" && fields[2] == "(carried)" && strings.Join(fields[3:], " ") == strings.Join(finishedJobsFields[2:], " ")
 		},
 	} {
 		if out, ok := check(); !ok {

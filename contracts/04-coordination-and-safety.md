@@ -48,12 +48,15 @@ Representative implementation and tests:
   `model.RunSummary` holding only those results). Until the run writes
   `summary.json`, readers take a carried job's result from it, so `show`,
   `lineage`, `jobs`, the Web API, and the MCP tools read a carried job as its
-  carried result rather than as running, and job control (`cancel`,
+  carried result rather than as running. The recent-jobs listing also marks
+  that result as `(carried)` and uses the origin attempt's timestamps. Job
+  control (`cancel`,
   `suspend`, `resume`, their previews and filters) does not reach it; a
   cancel naming a carried job fails. A job with an origin but no recorded
   result is one the run will still execute. Written in
   [internal/projectrun/execute.go](../internal/projectrun/execute.go), read
-  through `jobstatus.RecordedResults` and `runlineage.IsCarried`; checked by
+  through `jobstatus.RecordedResults` and `runlineage.IsCarried`; recent jobs
+  use [internal/joblist/joblist.go](../internal/joblist/joblist.go); checked by
   `TestCarriedJobsReadAsCarriedDuringTheRun` in
   [conformance/03-interfaces/carried_test.go](../conformance/03-interfaces/carried_test.go).
 - **DUR-8** Run lifecycle, best-effort per-job execution state, and the initiating

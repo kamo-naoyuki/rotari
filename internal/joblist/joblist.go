@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -172,7 +173,13 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
 		statusOK := resolved.Finished()
 		jobState := resolved.DisplayStatus(model.JobSpec{ID: job.ID, Command: job.Command})
-		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil, false)
+		latestAttemptID, _ := state.LatestAttemptID(runDir, job.ID)
+		origin := runQueue.OriginOf(job.ID)
+		carried := runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked(), hasSummary)
+		if carried {
+			jobState += " (carried)"
+		}
+		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, origin, carried)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
 			startedAt, err = parseTimestamp(resolved.Attempt.Wrapper.StartedAt)
@@ -199,7 +206,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 				continue
 			}
 		}
-		attemptID, _ := state.LatestAttemptID(runDir, job.ID)
+		attemptID := latestAttemptID
 		if attemptID == "" {
 			if result, ok := resultByID[job.ID]; ok {
 				attemptID = result.AttemptID

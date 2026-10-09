@@ -175,6 +175,50 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	}
 }
 
+func TestCollectRunUsesCarriedStatusAndOriginTimestamps(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	started := now.Add(-2 * time.Hour)
+	finished := now.Add(-time.Hour)
+	sourceRunID := "20261009-090000-11111111"
+	runID := "20261009-100000-22222222"
+	jobID := "carried-job"
+	writeTestJobsRun(t, baseDir, "demo", sourceRunID, jobID, started, finished, 0)
+	attemptID := state.MakeAttemptID(sourceRunID, jobID, 0)
+	origin := &model.JobOrigin{RunID: sourceRunID, JobID: jobID, AttemptID: attemptID}
+	runDir := filepath.Join(paths.RunsDir, runID)
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Name: jobID, Command: []string{"true"}, Origin: origin}}}
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	carried := model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: 0}}}
+	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), carried); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, _, _, err := collectRun(testStore(), paths, runID, now, now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("collectRun() returned %d rows, want carried job: %#v", len(rows), rows)
+	}
+	row := rows[0]
+	if row.State != "success (carried)" {
+		t.Errorf("row state = %q, want success (carried)", row.State)
+	}
+	if row.AttemptID != attemptID {
+		t.Errorf("row attempt ID = %q, want origin attempt %q", row.AttemptID, attemptID)
+	}
+	if !row.StartedAt.Equal(started) || !row.FinishedAt.Equal(finished) {
+		t.Errorf("row timestamps = %v, %v; want origin times %v, %v", row.StartedAt, row.FinishedAt, started, finished)
+	}
+}
+
 func writeTestInterruptedAttempt(t *testing.T, runDir, jobID, status string, submittedAt time.Time, wrapperStartedAt string) {
 	t.Helper()
 	attemptID := state.MakeAttemptID(filepath.Base(runDir), jobID, 0)
