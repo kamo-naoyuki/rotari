@@ -15,7 +15,7 @@ Choose a command by what you want to see:
 
 ## Overview: info
 
-Start with `rotari info` for a compact snapshot of the current context: 
+Start with `rotari info` for a compact snapshot of the current context:
 
 ```sh
 rotari info
