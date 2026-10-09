@@ -86,6 +86,10 @@ Use these controls while `run` or `wait` is attached to a run:
 | Ctrl-Z | Suspends the terminal command, not the jobs. Use `fg` to resume. |
 | Unexpected exit or disconnect | By default, the run continues. To cancel instead, use `--disconnect-action cancel` or set `ROTARI_DISCONNECT_ACTION=cancel`. |
 
+After Ctrl-D or a disconnect, reconnect with `rotari wait PROJECT` or
+`rotari wait RUN_ID`. To check status without waiting, use `rotari info`,
+`rotari jobs`, or `rotari runs`.
+
 Cancelling a run stops its unfinished jobs and prevents new jobs from starting.
 Ctrl-C exits with status 130. After cancelling synchronous `run`, cleanup may
 continue briefly; starting another run for the same project may be rejected
