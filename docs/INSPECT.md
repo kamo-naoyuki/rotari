@@ -12,6 +12,17 @@ Choose a command by what you want to see:
 | Inspect a selected object | `show` |
 | Trace execution history or compare runs | `lineage` |
 
+## Overview: info
+
+Start with `rotari info` for a compact snapshot of the current context: the
+resolved masterdir, basedir and project, visible config files, running
+supervisors, run locks, and active or interrupted runs. Each run row also
+shows the count of jobs with final results, including carried results, plus a
+best-effort process check for unfinished local jobs. Remote and scheduler jobs
+are shown as unverified; `info` does not contact their hosts or schedulers. Add
+`--json` for structured output. Use the lists below to find other jobs, runs,
+projects, or state directories, and `show` to inspect details.
+
 ## Lists: jobs, runs, projects, basedirs
 
 The four list commands differ in what each row represents:
