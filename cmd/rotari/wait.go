@@ -843,9 +843,7 @@ func followRunWithOutput(basedir, queueNameOption, runID string, deadline time.T
 				continue
 			}
 			if phase == project.RunPhaseInterrupted {
-				output.errorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
-					runID, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID),
-					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+				output.errorf("%s", endedRunHint(paths, runID, "was interrupted after writing its summary", true))
 				return waitResult{exitCode: 1}
 			}
 			// Final events can arrive between the poll above and finalization.
@@ -973,12 +971,10 @@ func runEndedWithInvalidSummary(paths state.ProjectPaths, runID string) (string,
 	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
-	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
-		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 	if phase == project.RunPhaseInterrupted {
-		return fmt.Sprintf("run %s was interrupted without a valid summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
+		return endedRunHint(paths, runID, "was interrupted without a valid summary", true), true
 	}
-	return fmt.Sprintf("run %s is not active and has no valid summary; inspect it with 'rotari show %s'", runID, target), true
+	return endedRunHint(paths, runID, "is not active and has no valid summary", false), true
 }
 
 // runEndedWithoutSummary reports whether runID is no longer active although it
@@ -991,12 +987,22 @@ func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, boo
 	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
+	if phase == project.RunPhaseInterrupted {
+		return endedRunHint(paths, runID, "was interrupted before it wrote a summary", true), true
+	}
+	return endedRunHint(paths, runID, "is not active and has no summary", false), true
+}
+
+// endedRunHint describes a run wait cannot follow and lists the commands to
+// inspect it and, for an interrupted run, recover it. Each command is on its
+// own line so its shell-quoted arguments can be copied as they are.
+func endedRunHint(paths state.ProjectPaths, runID, condition string, recover bool) string {
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if phase == project.RunPhaseInterrupted {
-		return fmt.Sprintf("run %s was interrupted before it wrote a summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
+	if !recover {
+		return fmt.Sprintf("run %s %s. Inspect it:\n  rotari show %s", runID, condition, target)
 	}
-	return fmt.Sprintf("run %s is not active and has no summary; inspect it with 'rotari show %s'", runID, target), true
+	return fmt.Sprintf("run %s %s. Inspect it, then recover:\n  rotari show %s\n  rotari unlock %s", runID, condition, target, target)
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {

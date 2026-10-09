@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -429,5 +430,23 @@ func TestCmdWaitKeepsWaitingForActiveRunWithoutSummary(t *testing.T) {
 	}
 	if code != 1 || !strings.Contains(string(output), "timed out waiting for run run-1") {
 		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+}
+
+func TestInterruptedRunHintPutsEachCommandOnItsOwnLine(t *testing.T) {
+	baseDir := filepath.Join(t.TempDir(), "state dir")
+	paths := writeInterruptedResetProject(t, baseDir)
+	message, ok := runEndedWithoutSummary(paths, "run-1")
+	if !ok {
+		t.Fatal("interrupted run was not reported")
+	}
+	target := "--basedir " + executor.ShellQuote(paths.BaseDir) + " --project-name " + executor.ShellQuote("demo") + " --run-id " + executor.ShellQuote("run-1")
+	for _, want := range []string{"\n  rotari show " + target + "\n", "\n  rotari unlock " + target} {
+		if !strings.Contains(message+"\n", want) {
+			t.Errorf("message lacks command line %q:\n%s", want, message)
+		}
+	}
+	if strings.Contains(message, "'rotari") {
+		t.Errorf("message quotes a command that contains quoted arguments:\n%s", message)
 	}
 }
