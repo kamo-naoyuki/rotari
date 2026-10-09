@@ -78,16 +78,23 @@ continues. Run `rotari wait sweep` again to wait on it later. A synchronous
 
 `run` and `wait` share these client controls:
 
-| Input | Synchronous `run` | `wait` |
+| Input / event | Synchronous `run` | `wait` |
 | --- | --- | --- |
-| Ctrl-C | Requests cancellation of the run and all its unfinished jobs; exits with status 130. | Requests cancellation of every selected active run and its unfinished jobs; exits with status 130. |
-| Ctrl-D | Detaches the client; the run and its jobs continue in the background. | Stops waiting; the runs and their jobs continue. |
-| Ctrl-Z | Suspends the client; the run and its jobs continue. Use `fg` to resume the client. | Suspends the client; the runs and their jobs continue. Use `fg` to resume the client. |
-| Client disconnect | By default, detaches; the run and its jobs continue. | By default, only stops waiting; the runs and their jobs continue. |
+| Ctrl-C (`SIGINT`) | Requests cancellation of the run and all its unfinished jobs; exits with status 130. | Requests cancellation of every selected active run and its unfinished jobs; exits with status 130. |
+| Ctrl-D (terminal EOF; not a signal) | Detaches the client; the run and its jobs continue in the background. | Stops waiting; the runs and their jobs continue. |
+| Ctrl-Z (`SIGTSTP`) | Suspends the client; the run and its jobs continue. Use `fg` to resume the client. | Suspends the client; the runs and their jobs continue. Use `fg` to resume the client. |
+| Unexpected client exit / disconnect (no single signal) | By default, detaches; the run and its jobs continue. | By default, only stops waiting; the runs and their jobs continue. |
 
 Cancelling a run also cancels all unfinished jobs: running jobs receive a
 cancellation request through their executor, unsubmitted jobs are marked
 cancelled, and the run starts no more jobs.
+
+A disconnect is not one specific signal: terminal closure may send `SIGHUP`,
+and a tool or user may terminate the client with `SIGTERM` or `SIGKILL`. The
+client handles `SIGHUP` and `SIGTERM` when cancellation is configured, but
+cannot handle `SIGKILL`. The run supervisor also monitors client sessions, so
+it can apply the configured disconnect action after a client is killed,
+including a `wait` client killed with `SIGKILL`.
 
 A disconnect can be configured to cancel instead of detach/stop waiting: pass
 `--disconnect-action cancel` to `run` or `wait`, or set
@@ -95,9 +102,8 @@ A disconnect can be configured to cancel instead of detach/stop waiting: pass
 variable; the default is `detach`. With this setting, a disconnected `run`
 client cancels its run and unfinished jobs, and a disconnected `wait` cancels
 all selected active runs and their unfinished jobs. The setting does not
-change Ctrl-C, Ctrl-D, or Ctrl-Z. A `wait` killed with `SIGKILL` cannot act on
-the runs; a killed `run` client still can, because its supervisor sees the
-connection close.
+change Ctrl-C, Ctrl-D, or Ctrl-Z. Ctrl-D is an explicit detach input, not a
+signal, and still detaches when cancellation is configured.
 
 After Ctrl-C on synchronous `run`, cleanup continues in the background, so
 starting another run for the same project may briefly fail.
