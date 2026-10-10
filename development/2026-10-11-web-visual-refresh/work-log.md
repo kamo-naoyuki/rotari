@@ -30,3 +30,36 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** documentation only; no tests run.
 
 **Remaining:** Phases 0–4; choosing the font faces with the Phase 1 mockup.
+
+## Language
+
+- `9e7202a8` (2026-10-11 02:50:21 +0900): language decision.
+
+**Change:** [plan.md](plan.md) gains the "Language" decision and a Phase 2 note.
+
+**Reason:** the user asked whether the Web UI should move to TypeScript.
+
+**Plan impact:** assets stay plain JavaScript embedded as they are, so `go build` alone builds a complete binary and no generated JS is committed; JSDoc types checked by `tsc --checkJs --noEmit` in CI, starting with the files Phase 2 rewrites. CI already installs Node and npm dependencies.
+
+**Validation:** documentation only; no tests run.
+
+**Remaining:** adding `typescript` and the check in Phase 2.
+
+## Phase 0: screenshot baseline
+
+- `50fa9860` (2026-10-11 02:59:01 +0900): a run note and a failing array in the static web demo.
+- `b165bf90` (2026-10-11 02:59:02 +0900): `scripts/screenshot-web.sh` and `scripts/screenshot-web.mjs`.
+- `196a7004` (2026-10-11 02:59:02 +0900): plan update.
+
+**Change:**
+- `scripts/generate-static-web.sh` adds `--note` to the demo's retry run and a `shards` project whose six-task array fails with exit codes 2 and 137, so array and failure-cause views have distinct failures. The demo is also what the Pages workflow publishes.
+- `scripts/screenshot-web.sh OUTPUT_DIR` runs that demo build, finds Chrome, and calls `scripts/screenshot-web.mjs`, which drives Chrome over the DevTools protocol (Node 22's built-in WebSocket, no new dependency): exact viewports (1400×900, 390×844 mobile), emulated `prefers-color-scheme`, full-page captures up to 8000px, one browser context per capture, and an `index.html` naming pages without run IDs so before/after sets line up.
+- `scripts/README.md` lists the script. [plan.md](plan.md) describes Phase 0, adds the phone-width findings, and withdraws the "dark band at the bottom" finding.
+
+**Reason:** Phase 0 of the plan: a way to review each phase's visual change.
+
+**Plan impact:** the first attempt used `chrome --screenshot --window-size`; measuring `innerHeight` showed the viewport is 87px shorter than the window, so the bottom of each image lies outside the page. That explained the dark band and a repeated header in tall captures, so the plan's band finding was an artifact and was removed. The new captures found real phone-width problems instead: a mostly empty 350px top bar, a cut sidebar heading, and header buttons that make the home and project pages 497px wide on a 390px viewport. Not covered yet: an active run and opened modals/sections.
+
+**Validation:** `scripts/screenshot-web.sh` ran to completion three times (the last after formatting the helper with the repository's Prettier): 12 pages, 48 screenshots, exit 0; sample captures inspected (run page with the failing array at desktop, project page at phone width). `bash -n`, `node --check`, and `pre-commit run` on the changed files (shfmt, whitespace) passed. No Go tests run: no Go code changed.
+
+**Remaining:** Phase 1 mockup (tokens, status pill, light theme, font choice).
