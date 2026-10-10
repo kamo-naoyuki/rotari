@@ -165,3 +165,20 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** new `TestRunReportRecordsSourcesNotesAndJobTable` (varying and shared variables, a variable set on one job only, notes on the run, the current attempt, and an older attempt, logs split over stdout and stderr, a pipe and backticks, a long line, a job without a log), `TestReportTableCodeQuotesAnyText`, `TestRenderMarkdownRendersReportsAndEscapesText` (raw HTML and `javascript:` links stay text), and the rendered-view checks added to `TestStaticWebReportRedactionToggle`; screenshots of trial 2's run in headless Chrome; `go test ./conformance/...` and `scripts/check.sh` with the race detector passed.
 
 **Remaining:** the user's review of the rendered report; the job Notes modal still shows notes as plain text.
+
+## Results gathered by the agent; no first log line
+
+- `0b3d0c7e` (2026-10-10 23:05:07 +0900): the report's job table drops the first-log-line column.
+- `d79c77a3` (2026-10-10 23:05:56 +0900): the agent guide asks for a Markdown table of results in the concluding run note.
+
+**Change:**
+- `writeReportJobTable` keeps the last log line only (`reportLastLine`); `docs/INSPECT.md` says results belong in a note, which may hold Markdown.
+- The guide's notes rule asks the agent to gather the results it read (metrics, output files) into a Markdown table, one row per job name, passed as one argument such as `"$(cat results.md)"`, and says the run report renders it.
+
+**Reason:** the user noted that a log line is a result only for programs like the trial's `train.py`, and suggested the agent gather results into the Markdown.
+
+**Plan impact:** recorded in [plan.md](plan.md), Phase 3; a declared results file for rotari to tabulate waits for a trial to ask for it.
+
+**Validation:** `TestRunReportRecordsSourcesNotesAndJobTable` updated to the new columns; the guide tests; a results-table note added by hand to trial 2's run renders as a table in the report; `scripts/check.sh` with the race detector passed.
+
+**Remaining:** the run page header still lists run notes as plain text, so a Markdown note shows raw there; whether to drop that list now that the report renders notes is the user's call. Whether agents follow the new guide rule needs a trial.
