@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Proposed; decisions made, Phase 0 not started
+**Status:** Phase 0 done; Phase 1 next
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -15,8 +15,8 @@ controls.
 ## What the UI looks like today
 
 Checked at `01652576` with a static export of a small state (two projects,
-three runs, one failing array), screenshotted with headless Chrome at
-1400×1000.
+three runs, failing jobs), screenshotted with headless Chrome at 1400×1000,
+and again with the Phase 0 script (the demo export, desktop and phone).
 
 - **Header.** Every page is titled "rotari Web" (the jobs page "rotari Job
   activity"), not after what it shows. The subtitle is the raw absolute state
@@ -37,8 +37,11 @@ three runs, one failing array), screenshotted with headless Chrome at
 - **Hidden visuals.** On the run page, Run statistics, Job timeline, Load
   average, and Output word cloud are all collapsed, so the page's charts are
   not visible until opened.
-- **Page edges.** The background and sidebar stop short of the window, leaving
-  a dark band at the bottom of a page shorter than the window.
+- **Phone width.** At 390px the sidebar becomes a top bar about 350px tall,
+  mostly empty, with its "Registered basedirs" heading cut off. The header
+  buttons do not wrap, so the home and project pages are 497px wide and
+  scroll sideways. Wide tables are cut at the right edge of their panel at
+  every width.
 - **Sidebar.** Basedir paths are truncated from the end
   (`/tmp/claude-22156/-…`), hiding the part that tells basedirs apart.
 - **Type.** No font is set beyond `ui-sans-serif, system-ui`, so Linux
@@ -111,11 +114,22 @@ Activity page) and implemented only after the user accepts it.
 
 ### Phase 0: screenshot baseline
 
-A development script builds a fixed fixture state (plain job, failing array,
-carried results, an active run, notes, artifacts), exports it with
-`rotari web --static-dir`, and screenshots each page with headless Chrome at
-desktop and phone widths. Run before and after each phase to compare. It is
-a review aid, not a test: CI does not depend on a browser.
+`scripts/screenshot-web.sh OUTPUT_DIR` builds the Web demo state with
+`scripts/generate-static-web.sh` (carried results, a matrix sweep, artifacts,
+and now a run note and an array failing with two different exit codes),
+exports it, and captures every page in full over the Chrome DevTools protocol
+(`scripts/screenshot-web.mjs`) at 1400px and 390px, in light and dark, with an
+`index.html` to compare them. Run before and after each phase (the "before"
+side in a worktree). It is a review aid, not a test: CI does not depend on a
+browser.
+
+`chrome --screenshot --window-size` was not used: in headless Chrome the
+viewport is 87px shorter than the window, so the bottom of each image is
+outside the page. The first survey's "dark band at the bottom" came from
+that and was not a page bug.
+
+Not covered yet: an active run (a static export of one needs a job left
+running during the export) and opened modals and sections.
 
 ### Phase 1: tokens and status component
 
