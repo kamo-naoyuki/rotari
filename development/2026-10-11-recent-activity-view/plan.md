@@ -147,8 +147,9 @@ bookmarked and the browser's back button works.
   the project list, always beside the project's name. The eight projects with
   the most running time in the displayed month get them, in that order, and
   the rest share grey. The assignment is computed from all runs, so the actor
-  filter does not repaint projects. The page follows the Web UI's existing
-  dark theme.
+  filter does not repaint projects. The page uses the Web UI's tokens, so it
+  gets the light and dark themes of the
+  [visual refresh](../2026-10-11-web-visual-refresh/plan.md).
 
 A sample-data mockup of this design was published as a private artifact on
 2026-10-11: <https://claude.ai/artifact/TbRCZbvZyNZLKdtwZjSyva>.
