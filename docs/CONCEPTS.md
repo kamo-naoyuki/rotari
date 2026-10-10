@@ -99,10 +99,9 @@ forward; an unfiltered `run` executes all queued jobs.
 A fingerprint describes the command, explicit job environment and working
 directory, matrix values, and array task number. It is not a hash of scripts,
 data, inherited environment, or source revision, and it is not an artifact
-cache or file freshness check. See [Two ways to reuse earlier
-results](RECOVERING.md#two-ways-to-reuse-earlier-results) and the
-[fingerprint walkthrough](RECOVERING.md#matching-a-new-queue-to-an-earlier-run)
-before relying on automatic matching.
+cache or file freshness check. See [Rerunning a job-generating
+script](RECOVERING.md#rerunning-a-job-generating-script) before relying on
+automatic matching.
 
 ### Workflow and execution environment
 

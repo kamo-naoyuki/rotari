@@ -239,10 +239,9 @@ earlier results even though the new jobs have new IDs. The default
 
 Use `retry` or `run --failed --unfinished` to carry matched successes forward
 and execute failures and new work. An unfiltered `run` executes the whole
-queue; matching alone does not skip jobs. See [Two ways to reuse earlier
-results](RECOVERING.md#two-ways-to-reuse-earlier-results) for the comparison
-and [Matching a new queue](RECOVERING.md#matching-a-new-queue-to-an-earlier-run)
-for an example, matching inputs, and repeated-command rules.
+queue; matching alone does not skip jobs. See [Rerunning a job-generating
+script](RECOVERING.md#rerunning-a-job-generating-script) for when this helps,
+an example, matching inputs, and repeated-command rules.
 
 ### Does changing a script or dataset invalidate a fingerprint?
 
