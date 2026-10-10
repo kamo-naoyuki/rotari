@@ -32,8 +32,13 @@ values. Notifications select one project/basedir/global file without merging.
   run or retry with `--note "why this run"`, such as what you changed and
   what you expect. When you have read the results, add what they showed:
   `rotari note RUN_ID "what you concluded"`, or `rotari note ATTEMPT_ID
-  "..."` for one job. `rotari lineage -p PROJECT` lists each run's first
-  note and whether its code changed.
+  "..."` for one job. In the concluding run note, gather the results you
+  read (metrics, output files) into a Markdown table with one row per job
+  name, passed as one argument such as `"$(cat results.md)"`: rotari cannot
+  tell which log line or file is a result. The run report (`show RUN_ID
+  --report`, the Web `Report` button) renders notes as Markdown beside its
+  own table of jobs. `rotari lineage -p PROJECT` lists each run's first note
+  and whether its code changed.
 - Read summaries before logs. `rotari lineage RUN_ID` prints a run's counts
   and its failures grouped by cause, each with the jobs, an example line, the
   command that shows one job, and a suggested fix. It stays short however
