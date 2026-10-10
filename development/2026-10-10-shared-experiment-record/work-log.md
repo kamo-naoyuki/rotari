@@ -196,3 +196,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `TestRunNotes` now checks that `/api/report` puts the run's notes under `## Notes` before the job table and the job's note in its section; `scripts/check.sh` with the race detector passed.
 
 **Remaining:** a trial to see whether agents write the results table.
+
+## Browser notifications for already finished jobs
+
+- `acdb4e19` (2026-10-11 01:35:01 +0900): notifications only for runs and jobs that ended while the page watched, and a fixed settings lookup.
+
+**Change:** `checkRunNotifications` in `web_app_notifications.js` treats a run or job missing from the previous poll as new only when its run was running in that poll, or its run ID sorts after every run that poll had in the project (a run that started and finished between polls). A finished run's settings are looked up with `notificationSettingsKey`, as they are stored. The desktop notification contract and `docs/NOTIFICATIONS.md` say so.
+
+**Reason:** the user asked whether a notification can arrive after a job had already finished; reading the code showed two bugs: opening an old run notified about its failed jobs, and every run completion threw a TypeError, dropping that poll's notifications. The user asked to fix them.
+
+**Plan impact:** none; unrelated to the plan's questions.
+
+**Validation:** new `TestBrowserNotificationsReportOnlyWhatHappenedSinceThePreviousPoll` (a watched run finishing, a job failing in a watched run, a run starting and finishing between polls, an opened old run, an older run loaded by a project page) failed before the fix with the TypeError and an "rotari: 2 jobs failed" notification for the opened run, and passes after it; `scripts/check.sh` with the race detector passed. No conformance row: the behavior is in the browser, which conformance does not drive.
+
+**Remaining:** none.
