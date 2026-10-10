@@ -42,21 +42,28 @@ type RunTime struct {
 // finish times; a zero time is unknown. Every view of a job's run time,
 // `show` and `jobs` alike, measures through it.
 func MeasureRunTime(jobDir string, submitted, finished time.Time, done bool, now time.Time) RunTime {
-	unknown := RunTime{Elapsed: -1, Quiet: -1}
-	if submitted.IsZero() {
-		return unknown
+	elapsed := Elapsed(submitted, finished, done, now)
+	if elapsed < 0 || done {
+		return RunTime{Elapsed: elapsed, Quiet: -1}
 	}
-	if done {
-		if finished.IsZero() {
-			return unknown
-		}
-		return RunTime{Elapsed: finished.Sub(submitted), Quiet: -1}
-	}
-	runTime := RunTime{Elapsed: now.Sub(submitted), Running: true, Quiet: -1}
+	runTime := RunTime{Elapsed: elapsed, Running: true, Quiet: -1}
 	if lastOutput, ok := LastOutputAt(jobDir); ok {
 		runTime.Quiet = max(now.Sub(lastOutput), 0)
 	}
 	return runTime
+}
+
+// Elapsed is how long a job has run: from its submission to its finish, or
+// to now while it runs. It is negative when either end is unknown (a zero
+// time).
+func Elapsed(submitted, finished time.Time, done bool, now time.Time) time.Duration {
+	if submitted.IsZero() || (done && finished.IsZero()) {
+		return -1
+	}
+	if done {
+		return finished.Sub(submitted)
+	}
+	return now.Sub(submitted)
 }
 
 // LastOutputAt returns when the attempt in jobDir last wrote to its output

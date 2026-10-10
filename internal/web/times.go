@@ -1,8 +1,27 @@
 package web
 
-import "github.com/kamo-naoyuki/rotari/internal/model"
+import (
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+)
+
+// jobElapsed formats how long a job ran from its raw submission and finish
+// times, by the rule `show` and `jobs` measure with; "" when unknown.
+func jobElapsed(submittedAt, finishedAt string, done bool, now time.Time) string {
+	submitted, _ := time.Parse(time.RFC3339Nano, submittedAt)
+	finished, _ := time.Parse(time.RFC3339Nano, finishedAt)
+	elapsed := jobstatus.Elapsed(submitted, finished, done, now)
+	if elapsed < 0 {
+		return ""
+	}
+	return joblist.FormatElapsed(elapsed)
+}
 
 func FormatQueueDisplayTimes(state *QueueState) {
+	now := time.Now()
 	state.RunnerStartedAt = model.FormatDisplayTimestamp(state.RunnerStartedAt)
 	for index := range state.Queue.Commands {
 		origin := state.Queue.Commands[index].Origin
@@ -18,6 +37,7 @@ func FormatQueueDisplayTimes(state *QueueState) {
 		run.FinishedAt = model.FormatDisplayTimestamp(run.FinishedAt)
 		for jobIndex := range run.Jobs {
 			job := &run.Jobs[jobIndex]
+			job.Elapsed = jobElapsed(job.SubmittedAt, job.FinishedAt, job.Result != nil, now)
 			job.SubmittedAt = model.FormatDisplayTimestamp(job.SubmittedAt)
 			job.FinishedAt = model.FormatDisplayTimestamp(job.FinishedAt)
 			if job.Origin != nil {
@@ -26,6 +46,7 @@ func FormatQueueDisplayTimes(state *QueueState) {
 			}
 			for attemptIndex := range job.Attempts {
 				attempt := &job.Attempts[attemptIndex]
+				attempt.Elapsed = jobElapsed(attempt.SubmittedAt, attempt.FinishedAt, attempt.Result != nil, now)
 				attempt.SubmittedAt = model.FormatDisplayTimestamp(attempt.SubmittedAt)
 				attempt.FinishedAt = model.FormatDisplayTimestamp(attempt.FinishedAt)
 			}

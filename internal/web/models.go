@@ -65,11 +65,14 @@ type Job struct {
 	// Environment is the job's own NAME=VALUE environment, matrix values
 	// included, for the run report. The Web API leaves it out: values given
 	// with --env may be secrets.
-	Environment    []string `json:"-"`
-	SubmittedAt    string   `json:"submitted_at,omitempty"`
-	FinishedAt     string   `json:"finished_at,omitempty"`
-	SchedulerState string   `json:"scheduler_state,omitempty"`
-	Final          bool     `json:"final,omitempty"`
+	Environment []string `json:"-"`
+	SubmittedAt string   `json:"submitted_at,omitempty"`
+	FinishedAt  string   `json:"finished_at,omitempty"`
+	// Elapsed is how long the job ran, as `rotari jobs` shows it ("3m 05s");
+	// set with the display times.
+	Elapsed        string `json:"elapsed,omitempty"`
+	SchedulerState string `json:"scheduler_state,omitempty"`
+	Final          bool   `json:"final,omitempty"`
 	// DiagnosisOutdated reports that Result's saved rule-based analysis was
 	// produced by earlier diagnosis rules.
 	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`
@@ -87,6 +90,7 @@ type Attempt struct {
 	ExecutionStatus string           `json:"execution_status"`
 	SubmittedAt     string           `json:"submitted_at,omitempty"`
 	FinishedAt      string           `json:"finished_at,omitempty"`
+	Elapsed         string           `json:"elapsed,omitempty"`
 	SchedulerState  string           `json:"scheduler_state,omitempty"`
 }
 
