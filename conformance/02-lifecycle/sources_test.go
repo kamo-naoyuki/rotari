@@ -108,17 +108,17 @@ func TestRunRecordsTheSourceItExecuted(t *testing.T) {
 
 	short := func(id string) string { return id[:12] }
 	runView := e.MustRotari("show", "-r", secondRun, "--no-pager").Stdout
-	if !strings.Contains(runView, "Source: git "+short(secondCommit)+" in "+fixed) {
+	if !strings.Contains(runView, "Source: git "+short(secondCommit)+" (clean) in "+fixed) {
 		t.Fatalf("show for the retry does not name its source:\n%s", runView)
 	}
 	jobView := e.MustRotari("show", "-r", secondRun, "-j", fixedJob, "--no-pager").Stdout
-	if !strings.Contains(jobView, "Source: git "+short(secondCommit)+" in "+fixed) {
+	if !strings.Contains(jobView, "Source: git "+short(secondCommit)+" (clean) in "+fixed) {
 		t.Fatalf("show -j does not name the job's source:\n%s", jobView)
 	}
 	comparison := e.MustRotari("lineage", firstRun, secondRun).Stdout
 	for _, want := range []string{
-		"Source: changed git " + short(firstCommit) + " -> git " + short(secondCommit) + " in " + fixed,
-		"Source: unknown git " + short(carriedCommit) + " -> not recorded in " + carried,
+		"Source: changed git " + short(firstCommit) + " (clean) -> git " + short(secondCommit) + " (clean) in " + fixed,
+		"Source: unknown git " + short(carriedCommit) + " (clean) -> not recorded in " + carried,
 	} {
 		if !strings.Contains(comparison, want) {
 			t.Fatalf("lineage comparison lacks %q:\n%s", want, comparison)
@@ -136,7 +136,7 @@ func TestRunRecordsTheSourceItExecuted(t *testing.T) {
 	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
 		t.Fatal(err)
 	}
-	if len(detail.Sources) != 1 || detail.Sources[0].CommitID != secondCommit || len(detail.SourceLabels) != 1 || detail.SourceLabels[0] != "git "+short(secondCommit)+" in "+fixed {
+	if len(detail.Sources) != 1 || detail.Sources[0].CommitID != secondCommit || len(detail.SourceLabels) != 1 || detail.SourceLabels[0] != "git "+short(secondCommit)+" (clean) in "+fixed {
 		t.Fatalf("Web run sources = %+v, labels %q", detail.Sources, detail.SourceLabels)
 	}
 }
@@ -163,7 +163,7 @@ func TestRunRecordsUncommittedGitChanges(t *testing.T) {
 		t.Fatalf("sources = %+v, want %s dirty", sources, commit)
 	}
 	comparison := e.MustRotari("lineage", older, newer).Stdout
-	want := "Source: unknown git " + commit[:12] + " -> git " + commit[:12] + " (uncommitted changes) in " + repo
+	want := "Source: unknown git " + commit[:12] + " (clean) -> git " + commit[:12] + " (uncommitted changes) in " + repo
 	if !strings.Contains(comparison, want) {
 		t.Fatalf("lineage comparison lacks %q:\n%s", want, comparison)
 	}

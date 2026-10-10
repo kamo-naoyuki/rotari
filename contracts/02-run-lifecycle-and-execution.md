@@ -201,7 +201,8 @@
   snapshotting its working copy, which adds one jj operation; the run records
   the working-copy commit ID, which covers edits nobody committed, and its
   change ID. A git repository records `HEAD` and whether tracked files had
-  uncommitted changes. A directory in no repository is not recorded, and a
+  uncommitted changes, which views show as `(uncommitted changes)` or
+  `(clean)`. A directory in no repository is not recorded, and a
   failed read records why. Carried jobs add nothing, because they did not run
   in this run. `show` for a run and `lineage RUN` list the sources, `show -j`
   gives the job's own, and `lineage RUN_A RUN_B` compares each repository as

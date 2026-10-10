@@ -405,7 +405,8 @@ records the change ID. A directory outside any repository records nothing.
 
 `show` for a run and `lineage RUN_ID` print one `Source:` line per
 repository, such as `Source: git 89281f8c3a1b (uncommitted changes) in
-/home/me/project`; `show -j` prints the job's. `lineage RUN_A RUN_B` says
+/home/me/project`, or `(clean)` when tracked files matched the commit;
+`show -j` prints the job's. `lineage RUN_A RUN_B` says
 whether each repository's code `changed`, is `unchanged`, or is `unknown`:
 one run did not record it (its jobs there were carried, or the run predates
 source recording), its revision could not be read, or a git working tree had

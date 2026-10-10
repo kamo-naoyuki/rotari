@@ -62,8 +62,10 @@ func shortRevision(id string) string {
 }
 
 // FormatSourceRevision describes a revision for display, such as
-// "git 89281f8c3a1b (uncommitted changes)" or
-// "jj 1a2b3c4d5e6f (change kxqzmwuotpls)".
+// "git 89281f8c3a1b (clean)", "git 89281f8c3a1b (uncommitted changes)", or
+// "jj 1a2b3c4d5e6f (change kxqzmwuotpls)". A git revision always says
+// whether the tree was clean, so its absence is never read as unrecorded; a
+// jj commit ID already covers the working copy.
 func FormatSourceRevision(revision SourceRevision) string {
 	if revision.Error != "" {
 		return revision.VCS + " unknown (" + revision.Error + ")"
@@ -74,6 +76,8 @@ func FormatSourceRevision(revision SourceRevision) string {
 	}
 	if revision.Dirty {
 		text += " (uncommitted changes)"
+	} else if revision.VCS == "git" {
+		text += " (clean)"
 	}
 	return text
 }
