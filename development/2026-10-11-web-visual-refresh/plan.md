@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phases 0 and 1 done; Phase 2 next
+**Status:** Phases 0–2 done; Phase 3 next
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -173,6 +173,47 @@ classes, and delete the post-render patches and inline styles they replace.
 This fixes the mislabelled Started column. The rewritten files get JSDoc
 types and join the `tsc --checkJs` check. Every page must look the same as
 after Phase 1 except for that fix; the Phase 0 screenshots check it.
+
+Done. How it was kept safe: `scripts/web-structure.sh` records every page's
+title, toolbars, headings, and tables, static and live, for one state
+directory, and `scripts/screenshot-web.sh` captures a given state, also with
+run page sections open. Each step was compared with the previous commit on
+one demo state; both stayed identical except where noted.
+
+- The projects overview, a project's runs, the run page's jobs, and the
+  queue are rendered whole, with a first Actions cell from `actionsCell`
+  whose buttons carry their arguments in `data-` attributes. The patches
+  that appended, relabelled, moved, merged, restyled, and reordered columns
+  and buttons are deleted, so nothing renames a column by its text any
+  more.
+- The run page's four sections are drawn whole by `renderRunGraphics`; eight
+  steps that restyled them after each render are gone. Layout moved to the
+  stylesheet; only data-driven sizes and colours are inline.
+- Dead code removed: five `addJobTimeline` and one `renderJobTimelineScratch`
+  definition, four functions without callers, two empty render steps, and
+  a step with nothing left to change. `web_app_charts.js` went from 1523
+  to 544 lines.
+- `web_app_charts.js` is type-checked (`npm run typecheck`, TypeScript 5.9.3
+  as a dev dependency, run by CI and `scripts/check.sh`).
+
+Found and fixed on the way:
+
+- The mislabelled Started column came from static pages opened from disk:
+  their path ends in `index.html`, which `routeParts` kept, so the overview
+  and project pages were not recognised. Static project pages also lacked
+  the latest-run mark and the runtime panel. Now every static page matches
+  its live page (WEB-9); the static queue table therefore also shows its
+  editors, which the export refuses with the read-only 403 as it does on
+  run pages.
+- The statistics bar was never visible: collapsing cleared its flex layout.
+
+Left for later phases, which redesign these parts anyway: the run page
+toolbar (built by `enhancePage` and reworked by `syncRunControls`,
+`addDeleteRunButton`, `renameCopyButtons`, `addAIButtons`, and
+`arrangeRunControls`, twice), the run's detail lines (`addRunHostLine`,
+`addExecutionGuide`, `removeLegacyOutputBox`, `labelEquivalentCommand`), the
+project runtime panel, and the config buttons. `web_sidebar_styles.css`
+still holds the shared status pill; its rename waits for Phase 3's shell.
 
 ### Phase 3: page shell
 

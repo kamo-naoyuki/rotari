@@ -113,3 +113,36 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `go test ./internal/webui` and `scripts/check.sh --short` passed before each commit; pre-commit (prettier, gofmt, whitespace) passed on the changed files. The new theme, parity, and static-font tests were each shown to fail on a deliberately broken implementation (no early theme apply; JS not stripping "..."; a non-relative font path) and to pass when restored. `scripts/screenshot-web.sh` was run after each step and the light and dark captures of the run, project, home, and jobs pages inspected. After the last commit, the full `scripts/check.sh` (vet, tests, and the race detector) passed with exit 0; Go reused cached results for packages this phase did not change.
 
 **Remaining:** Phases 2–4.
+
+## Phase 2: renderers own their markup
+
+- `9a6bb457` (2026-10-11 06:09:38 +0900): `scripts/web-structure.sh`, the shared `web-browser.mjs`, and `DEMO_WORK_DIR` for the demo script.
+- `69defa98` (2026-10-11 06:27:47 +0900): `screenshot-web.sh` captures a given state and binary.
+- `88da16f0` (2026-10-11 06:27:49 +0900): overview and project run tables rendered whole; static pages opened from disk routed like live pages (WEB-9).
+- `7b240408` (2026-10-11 06:36:48 +0900): run page jobs table rendered whole.
+- `b111f9ad` (2026-10-11 06:47:24 +0900): queue table rendered whole; generic table patches deleted.
+- `d0f5d0f2` (2026-10-11 06:52:19 +0900): dead script functions removed.
+- `a1b1500b` (2026-10-11 07:12:40 +0900): screenshots of run pages with sections open.
+- `59820cca` (2026-10-11 07:12:42 +0900): run page sections drawn whole by `renderRunGraphics`.
+- `ac1dec75` (2026-10-11 07:18:41 +0900): `npm run typecheck` (TypeScript 5.9.3) for `web_app_charts.js`, in CI and `scripts/check.sh`.
+- `aa1e0766` (2026-10-11 07:24:19 +0900): empty and no-op render steps removed.
+- `27ce4ba1` (2026-10-11 07:25:40 +0900): transitional `final` class dropped.
+
+**Change:**
+- `web_app_core.js`: `actionsCell`, `pathButton`, `deleteRunButton`, `showJobReport`; `renderOverview`, `renderQueue`, `renderRun`, and new `renderQueueCommands` emit their tables whole (Actions first, Status and Hosts columns, latest-run mark, queue editors). `web_static_bootstrap.js`: `routeParts` drops a trailing `index.html`.
+- Deleted patches: `addQueueOverviewPathActions`, `markLatestRun`, `addPathTableActions`, `addRunJobStatusColumn`, `addRunHostsColumn`, `addRunningOutputButtons`, `normalizeJobActionHeaders`, both `mergeActionColumns`, `labelJobActionHeaders`, `clarifyLogControls`, `styleActionColumns`, `mergeLogButtonIntoActions`, `moveActionColumnsLeft`, `orderJobActions`, `markJobHeaders`, `fixQueueSourceColumns`, `ensureQueueWorkingDirectoryColumn`, `addQueueEditors`, `rowCell`, the section patches (`collapseRunGraphics`, `spaceGraphicLegends`, `simplifyRunStatistics`, `fixTimelineBarWidths`, `syncTimelineBar`, `alignTimelineHeading`, `alignGraphicHeadings`, `fixTimelineLegendColors`, `fixRunStatisticsColors`), dead definitions, and empty steps. `addRunJobSelection` no longer needs the header checkbox; `matrixRowActions` finds `td.actions`.
+- `web_app_charts.js` rebuilt around `runGraphicSection` and `renderRunGraphics`; section, action-cell, and pagination layout moved to `web_styles.css`.
+- Tooling: `scripts/web-structure.{sh,mjs}`, `scripts/web-browser.mjs`, `screenshot-web.sh` state/binary arguments and open-section captures, `generate-static-web.sh` `DEMO_WORK_DIR`; `package.json` `typecheck`, `internal/webui/tsconfig.json`, `assets/web_globals.d.ts`, a CI step, and a `scripts/check.sh` step.
+- Tests: new conformance `TestStaticExportPagesShowWhatLivePagesShow` (WEB-9, `partial`). Tests that pinned removed code now check the renderers: `run_status_test.go` finds cells by column name; `TestWebSeparatesLogsFromActions`, `TestWebQueueWorkingDirectoryUsesSeparateEditableColumn`, `TestWebHTMLContainsFinalProjectHooks`, `TestWebProvidesCopyAndAIReports`, `TestWebHostsColumnIsSortable`, the attempt-selection test's log-button lookup, the timeline harness, and the config-modal render step (`render()` instead of `styleActionColumns()`).
+- Docs: `contracts/05-web-assets-and-static-export.md` (Phase 1 assets, status table, renderer rule, WEB-9, static stylesheets, type check), `contracts/README.md` (WEB-9 row), `development/ISSUES.md` (the Started column item resolved with its cause), `scripts/README.md`.
+
+**Reason:** Phase 2 of the plan: one place decides each table and section, so later visual work changes markup and CSS instead of patch chains.
+
+**Plan impact:** Phase 2 done (plan section lists what it found and what is left for Phases 3–4). Static pages now match live pages, including the editors on the queue table. The statistics bar is visible for the first time.
+
+**Validation:**
+- Each step: `scripts/web-structure.sh` on one shared demo state, diffed against the previous commit's output (identical except the intended static-page fixes in `88da16f0`), and `scripts/screenshot-web.sh` on that state compared image by image (identical except the word cloud's generation time, plus the intended changes in `88da16f0` and the statistics bar in `59820cca`). Static and live structure compared page by page after `88da16f0`: equal except the live overview's "—" queued counts before a project loads and live-only controls.
+- `TestStaticExportPagesShowWhatLivePagesShow` failed on `9a6bb457` in a temporary worktree for the four reported reasons and passes after.
+- `go test ./internal/webui ./cmd/rotari`, `go test ./conformance/05-web`, `TestContractStatus`, `internal/doclinks`, `npm run typecheck`, pre-commit, and `scripts/check.sh --short` passed before the commits. After `27ce4ba1`, the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0.
+
+**Remaining:** the run page toolbar, run detail lines, runtime panel, and config buttons are still assembled after rendering; Phases 3–4 rebuild them. More scripts to mark `// @ts-check` as they are rewritten.
