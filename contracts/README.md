@@ -225,6 +225,7 @@ the IDs, this table, and those calls disagree.
 | CLI-22 | Printed commands name `--basedir` only when the state directory is not the one a command started in the same place would use, and work as printed | conformance | `TestPrintedHintsNameOnlyANonImplicitBaseDir`, `TestRefusalAndSourceHintsNameOnlyANonImplicitBaseDir` |
 | CLI-23 | `show` and `jobs` report each job's elapsed time, and for a running job how long ago it last wrote output | conformance | `TestShowReportsElapsedAndQuietTime` |
 | CLI-24 | `show --logs` lists a run's jobs in definition order and only its jobs, and `--tail N` prints the last N lines of each log | conformance | `TestShowLogsTailInDefinitionOrder` |
+| CLI-25 | `add` and a command-replacing `change` warn about arguments such as `$LR` that no shell will expand, but not about `sh -c` scripts | conformance | `TestAddWarnsAboutUnexpandedVariables` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |

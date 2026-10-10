@@ -115,7 +115,9 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := guard.editor().ChangeWithFilter(baseDir, queueName, *runID, selector, filter, queueops.Mutation{
+	editor := guard.editor()
+	editor.Warn = func(message string) { printWarningf("%s", message) }
+	message, err := editor.ChangeWithFilter(baseDir, queueName, *runID, selector, filter, queueops.Mutation{
 		Executor: *executor, ExecutorOptions: executorOptions, ClearExecutorOptions: *clearExecutorOptions,
 		Environment: environment, ClearEnvironment: *clearEnvironment,
 		WorkingDirectory: *workingDirectory, ClearWorkingDirectory: *clearWorkingDirectory, SetJobName: *setJobName,

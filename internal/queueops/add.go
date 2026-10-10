@@ -58,6 +58,7 @@ func (editor Editor) Add(baseDir, projectName string, commands []model.QueuedCom
 			if err != nil {
 				return err
 			}
+			warnings = append(warnings, unexpandedVariableWarning(commands)...)
 		}
 		queue.Commands = append(queue.Commands, commands...)
 		return nil

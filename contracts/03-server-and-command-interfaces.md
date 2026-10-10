@@ -430,6 +430,16 @@ does not promise to detect a lost remote client.
   [`cmd/rotari/add_warning_test.go`](../cmd/rotari/add_warning_test.go) and
   binary coverage in
   [`conformance/03-interfaces/add_warning_test.go`](../conformance/03-interfaces/add_warning_test.go).
+- **CLI-25** rotari starts a job's command without a shell, so an argument
+  such as `$LR` or `${LR}` reaches the command as written. A successful
+  `add`, and a `change` that replaces the command, warn once on stderr,
+  naming each such argument and showing how to read the variable or run the
+  command through `sh -c`; the jobs are still added or changed. A command a
+  shell runs with `-c` (`sh`, `bash`, `dash`, `zsh`, or `ksh`) is not warned
+  about, since its shell expands the script. The rule is
+  `model.UnexpandedVariables`, used by `queueops`; covered by
+  `TestAddWarnsAboutUnexpandedVariables` in
+  [`conformance/03-interfaces/add_warning_test.go`](../conformance/03-interfaces/add_warning_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

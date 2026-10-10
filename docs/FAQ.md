@@ -324,6 +324,9 @@ explicitly to expand it, for example:
 rotari add --matrix VALUE=1,3 sh -c 'echo hello > $VALUE.log'
 ```
 
+`add`, and `change` with a new command, warn when an argument of a command
+that no shell runs refers to a variable such as `$KEY` or `${KEY}`.
+
 ### Why did `copy` reuse the same job ID instead of generating a new one?
 
 A new ID is assigned only when the original would collide in the destination. Otherwise the ID and copied dependency relationships are preserved.

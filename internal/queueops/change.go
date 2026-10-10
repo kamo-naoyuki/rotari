@@ -143,6 +143,11 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 	if restored != "" {
 		lines = append([]string{restored}, lines...)
 	}
+	if editor.Warn != nil && len(mutation.Command) > 0 {
+		for _, warning := range unexpandedVariableWarning([]model.QueuedCommand{{Command: mutation.Command}}) {
+			editor.Warn(warning)
+		}
+	}
 	return strings.Join(lines, "\n"), nil
 }
 

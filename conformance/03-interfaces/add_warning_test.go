@@ -108,3 +108,31 @@ func assertFingerprintQueue(t *testing.T, path string, before []byte, unchanged 
 		t.Fatalf("queue has %d commands, want %d", len(queue.Commands), want)
 	}
 }
+
+// TestAddWarnsAboutUnexpandedVariables adds a matrix whose arguments name
+// its variables without a shell, a matrix that runs them through sh -c, and
+// changes a job to a command with a variable. The jobs are added either way;
+// only the commands without a shell are warned about, once.
+func TestAddWarnsAboutUnexpandedVariables(t *testing.T) {
+	covers(t, "CLI-25")
+	e := support.NewEnv(t)
+	bare := e.MustRotari("add", "-p", "vars", "--job-name", "bare", "--matrix", "LR=0.1,0.01", "--", "python3", "train.py", "--lr", "$LR", "--seed", "${SEED}")
+	if strings.Count(bare.Stderr, "warning: rotari starts commands without a shell") != 1 || !strings.Contains(bare.Stderr, `"$LR", "${SEED}" reach the command as written`) {
+		t.Fatalf("add with unexpanded variables did not warn once about both:\n%s", bare.Stderr)
+	}
+	shell := e.MustRotari("add", "-p", "vars", "--job-name", "shell", "--matrix", "LR=0.1,0.01", "--", "sh", "-c", `python3 train.py --lr "$LR"`)
+	if shell.Stderr != "" {
+		t.Fatalf("add through sh -c warned:\n%s", shell.Stderr)
+	}
+	changed := e.MustRotari("change", "-p", "vars", "--job-name", "shell-LR0.1", "--", "python3", "eval.py", "--lr=$LR")
+	if !strings.Contains(changed.Stderr, `"--lr=$LR" reach the command as written`) {
+		t.Fatalf("change to a command with a variable did not warn:\n%s", changed.Stderr)
+	}
+	var queue struct {
+		Commands []struct{} `json:"commands"`
+	}
+	data, err := os.ReadFile(filepath.Join(e.Base, "projects", "vars", "queue.json"))
+	if err != nil || json.Unmarshal(data, &queue) != nil || len(queue.Commands) != 4 {
+		t.Fatalf("queue after the warned adds = %s, %v; want all 4 jobs", data, err)
+	}
+}

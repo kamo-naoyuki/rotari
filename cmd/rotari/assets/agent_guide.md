@@ -1,6 +1,6 @@
 # rotari guide for coding agents
 
-rotari queues shell commands per project, runs them as a batch (a run), and
+rotari queues commands per project, runs them as a batch (a run), and
 keeps each run's results so failed jobs can be fixed and rerun while
 successful results are carried forward.
 
@@ -77,6 +77,11 @@ values. Notifications select one project/basedir/global file without merging.
   separate them with `--`: every argument after the command's first word goes
   to the job, so `add python train.py --timeout 30` passes `--timeout 30` to
   the script. Other commands accept options anywhere.
+- Commands run without a shell, so `$LR` in an argument reaches the program
+  as the two characters `$` and `LR`, and `add` warns about it. Matrix values
+  and `--env` reach the job as environment variables: read them in the
+  program, or run the command through a shell,
+  `add --matrix LR=0.1,0.01 -- sh -c 'python train.py --lr "$LR"'`.
 
 ## Typical loop
 
