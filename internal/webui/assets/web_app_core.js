@@ -1520,7 +1520,7 @@ function renderRun(q, runID) {
           '" onclick="showNotes(this)">Notes (' +
           noteLabels.length +
           ")</button>"
-        : "";
+        : ' <button class="view-notes" disabled title="No notes on this job; add one with rotari note ATTEMPT_ID TEXT">Notes</button>';
       const output = result
         ? '<button class="view-log" onclick="log(\'' +
           esc(q.project_name) +

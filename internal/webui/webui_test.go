@@ -1012,9 +1012,9 @@ setTimeout(() => {
 }
 
 // TestWebRunPageShowsJobNotesButton gives one task two notes, one of them on
-// an earlier attempt, another task none, and the run a note of its own. Only
-// the noted task's row has a Notes button, and it opens that task's notes,
-// naming the earlier attempt, without the run's note.
+// an earlier attempt, another task none, and the run a note of its own. The
+// noted task's Notes button opens that task's notes, naming the earlier
+// attempt, without the run's note; the other task's button is disabled.
 func TestWebRunPageShowsJobNotesButton(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1088,7 +1088,8 @@ setTimeout(() => {
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
   const document = dom.window.document;
   const button = id => document.querySelector('tr[data-job-id="' + id + '"] .view-notes');
-  if (button('tr-2')) { console.error('a task without notes has a Notes button'); process.exit(2); }
+  const empty = button('tr-2');
+  if (!empty || !empty.disabled || empty.textContent !== 'Notes') { console.error('task 2 Notes button is missing or enabled: ' + (empty && empty.outerHTML)); process.exit(2); }
   const notes = button('tr-1');
   if (!notes || notes.textContent !== 'Notes (2)') { console.error('task 1 Notes button: ' + (notes && notes.textContent)); process.exit(3); }
   notes.click();

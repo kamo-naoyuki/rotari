@@ -390,8 +390,9 @@ rotari note ATTEMPT_ID "NaN at step 12: the learning rate, not a bug"
 the note without recording it. A note on an attempt belongs to that job.
 Notes are only ever added; they never change a run's results. `show` for a
 run lists its notes, `show -j` the job's, and `lineage RUN_ID` and
-`lineage RUN_A RUN_B` each run's. On the Web run page, a job with notes has a
-`Notes` button beside `Output` and `Artifacts`. The run history,
+`lineage RUN_A RUN_B` each run's. On the Web run page, each job has a `Notes`
+button beside `Output` and `Artifacts`, showing the number of its notes, and
+disabled when it has none. The run history,
 `lineage -p PROJECT`, shows
 each run's first note in its `NOTE` column, and in its `CODE` column whether
 the code changed since the run before (see below).
