@@ -1,0 +1,169 @@
+/*
+ * Design tokens shared by every Web UI page and the static export.
+ * Components use only these; no stylesheet or script sets a literal colour.
+ * Light values are on :root. The dark values apply when the OS prefers dark
+ * and the viewer has not chosen light, or when the viewer chose dark
+ * (data-theme on <html>, set by the theme choice).
+ */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef2f6;
+  --surface-sunken: #f7f9fb;
+  --line: #d9e0e8;
+  --line-soft: #e8edf2;
+  --text: #17202a;
+  --text-2: #4d5b6a;
+  --muted: #6b7887;
+  --accent: #d4513c;
+  --accent-text: #b8412e;
+  --accent-soft: rgba(212, 81, 60, 0.1);
+  --link: #1f63c4;
+  --link-hover: #174c99;
+  --focus: #1f63c4;
+  --code-bg: #f0f3f7;
+  --code-text: #1f2a36;
+  --overlay: rgba(23, 32, 42, 0.45);
+  --shadow: 0 1px 2px rgba(23, 32, 42, 0.06);
+  --shadow-pop: 0 12px 32px rgba(23, 32, 42, 0.18);
+  --highlight: rgba(31, 99, 196, 0.08);
+  --match: rgba(143, 98, 0, 0.14);
+
+  /* Status colours are reserved for status. */
+  --s-ok: #1a7f4b;
+  --s-ok-bg: #e3f4ea;
+  --s-bad: #c42b2b;
+  --s-bad-bg: #fbe6e5;
+  --s-warn: #8f6200;
+  --s-warn-bg: #fbf0d6;
+  --s-run: #1f63c4;
+  --s-run-bg: #e3edfb;
+  --s-off: #5f6b78;
+  --s-off-bg: #eceff3;
+
+  /* Categorical series for charts that are not about status. */
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --c4: #eda100;
+  --c5: #6250d6;
+
+  /* The logo's ink follows the theme; its red dot does not. */
+  --logo-ink: #262626;
+  --logo-fade: 0.45;
+  --logo-ring: #8a8a8a;
+  --logo-red: #e5484d;
+  --logo-dot: #ffffff;
+  /* Behind artifact images, so transparent images read the same in both themes. */
+  --image-bg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b1118;
+    --surface: #111a24;
+    --surface-2: #182432;
+    --surface-sunken: #0d151e;
+    --line: #263442;
+    --line-soft: #1c2834;
+    --text: #e7edf4;
+    --text-2: #b7c4d1;
+    --muted: #91a0b1;
+    --accent: #f08b70;
+    --accent-text: #ffa88f;
+    --accent-soft: rgba(240, 139, 112, 0.12);
+    --link: #a8c8e5;
+    --link-hover: #d0e5f6;
+    --focus: #f08b70;
+    --code-bg: #0a1118;
+    --code-text: #ced9e3;
+    --overlay: rgba(0, 0, 0, 0.72);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+    --highlight: rgba(184, 217, 242, 0.08);
+    --match: rgba(243, 201, 105, 0.18);
+    --s-ok: #56d6a0;
+    --s-ok-bg: #12301f;
+    --s-bad: #ff777f;
+    --s-bad-bg: #3a1a1c;
+    --s-warn: #f4c66b;
+    --s-warn-bg: #352a10;
+    --s-run: #8cc0ff;
+    --s-run-bg: #15294a;
+    --s-off: #9aa7b4;
+    --s-off-bg: #1f2933;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --c4: #c98500;
+    --c5: #9085e9;
+    --logo-ink: #f2f2f2;
+    --logo-fade: 0.55;
+    --logo-ring: transparent;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1118;
+  --surface: #111a24;
+  --surface-2: #182432;
+  --surface-sunken: #0d151e;
+  --line: #263442;
+  --line-soft: #1c2834;
+  --text: #e7edf4;
+  --text-2: #b7c4d1;
+  --muted: #91a0b1;
+  --accent: #f08b70;
+  --accent-text: #ffa88f;
+  --accent-soft: rgba(240, 139, 112, 0.12);
+  --link: #a8c8e5;
+  --link-hover: #d0e5f6;
+  --focus: #f08b70;
+  --code-bg: #0a1118;
+  --code-text: #ced9e3;
+  --overlay: rgba(0, 0, 0, 0.72);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --highlight: rgba(184, 217, 242, 0.08);
+  --match: rgba(243, 201, 105, 0.18);
+  --s-ok: #56d6a0;
+  --s-ok-bg: #12301f;
+  --s-bad: #ff777f;
+  --s-bad-bg: #3a1a1c;
+  --s-warn: #f4c66b;
+  --s-warn-bg: #352a10;
+  --s-run: #8cc0ff;
+  --s-run-bg: #15294a;
+  --s-off: #9aa7b4;
+  --s-off-bg: #1f2933;
+  --c1: #3987e5;
+  --c2: #d95926;
+  --c3: #199e70;
+  --c4: #c98500;
+  --c5: #9085e9;
+  --logo-ink: #f2f2f2;
+  --logo-fade: 0.55;
+  --logo-ring: transparent;
+}
+
+/* Images drawn for one theme, such as the logo, show only in that theme. */
+[data-theme-icon="dark"] {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-theme-icon="light"] {
+    display: none;
+  }
+  :root:not([data-theme="light"]) [data-theme-icon="dark"] {
+    display: revert;
+  }
+}
+:root[data-theme="dark"] [data-theme-icon="light"] {
+  display: none;
+}
+:root[data-theme="dark"] [data-theme-icon="dark"] {
+  display: revert;
+}

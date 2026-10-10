@@ -60,6 +60,9 @@ var jobsTemplateHTML string
 //go:embed assets/web_info_styles.css
 var webInfoStylesCSS string
 
+//go:embed assets/web_tokens.css
+var webTokensCSS string
+
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
@@ -124,7 +127,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
-	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
+	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webTokensCSS+"\n"+webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	searchPath := strings.TrimRight(homePath, "/") + "/search/"
@@ -405,6 +408,9 @@ func faviconLinks() string {
 }
 
 // brandIcon renders the favicon artwork inline; the web UI always uses the dark theme, so only that variant is needed.
+// brandIcon embeds both favicons; web_tokens.css shows the one that matches
+// the page's theme.
 func brandIcon() string {
-	return `<img class="brand-icon" alt="" src="` + faviconDataURL(webFaviconDarkSVG) + `">`
+	return `<img class="brand-icon" alt="" src="` + faviconDataURL(webFaviconLightSVG) + `" data-theme-icon="light">` +
+		`<img class="brand-icon" alt="" src="` + faviconDataURL(webFaviconDarkSVG) + `" data-theme-icon="dark">`
 }

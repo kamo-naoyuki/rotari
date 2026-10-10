@@ -18,14 +18,14 @@
   overflow-anchor: none;
   resize: none;
   padding: 26px 14px 22px;
-  border-right: 1px solid rgba(83, 105, 125, 0.22);
-  background: rgba(11, 17, 24, 0.76);
+  border-right: 1px solid var(--line-soft);
+  background: var(--surface);
   backdrop-filter: blur(18px);
 }
 
 .sidebar-section-heading {
   margin: 0 8px 5px;
-  color: #8293a5;
+  color: var(--muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.11em;
@@ -50,22 +50,22 @@
 }
 
 .sidebar-config-controls > #notify-toggle.notifications-on {
-  border-color: rgba(240, 139, 112, 0.72);
-  background: rgba(240, 139, 112, 0.18);
-  color: #ffa88f;
-  box-shadow: 0 0 14px rgba(240, 139, 112, 0.16);
+  border-color: color-mix(in oklab, var(--accent) 72%, transparent);
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  color: var(--accent-text);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--accent) 16%, transparent);
 }
 
 .sidebar-config-controls > #notify-toggle.notifications-on:hover {
-  border-color: rgba(240, 139, 112, 0.92);
-  background: rgba(240, 139, 112, 0.26);
+  border-color: color-mix(in oklab, var(--accent) 92%, transparent);
+  background: color-mix(in oklab, var(--accent) 26%, transparent);
 }
 
 .sidebar-config-controls > .sidebar-config-action {
   padding: 7px 12px;
-  border: 1px solid #314152;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #15212d;
+  background: var(--surface);
   color: var(--text);
   font-size: 12px;
   font-weight: 590;
@@ -73,8 +73,8 @@
 }
 
 .sidebar-config-controls > .sidebar-config-action:hover {
-  border-color: #526b80;
-  background: #1c2b39;
+  border-color: var(--muted);
+  background: var(--surface-2);
 }
 
 .sidebar-search-link {
@@ -84,23 +84,23 @@
   box-sizing: border-box;
   margin: -8px 4px 16px;
   padding: 8px 12px;
-  border: 1px solid #314152;
+  border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
-  background: #15212d;
+  background: var(--surface);
   font-size: 12px;
   font-weight: 590;
   text-decoration: none;
 }
 
 .sidebar-search-link:hover {
-  border-color: #526b80;
-  background: #1c2b39;
+  border-color: var(--muted);
+  background: var(--surface-2);
 }
 
 .sidebar-section-note {
   margin: -5px 8px 7px;
-  color: #718295;
+  color: var(--muted);
   font-size: 10px;
   line-height: 1.35;
 }
@@ -113,7 +113,7 @@
   column-gap: 11px;
   margin: 0 4px 27px;
   padding: 4px 7px 13px;
-  border-bottom: 1px solid rgba(83, 105, 125, 0.2);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--text);
   text-decoration: none;
 }
@@ -124,17 +124,15 @@
   width: 36px;
   height: 36px;
   place-items: center;
-  border: 1px solid rgba(240, 139, 112, 0.45);
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
   border-radius: 11px;
   background: linear-gradient(
     145deg,
-    rgba(240, 139, 112, 0.2),
-    rgba(240, 139, 112, 0.07)
+    color-mix(in oklab, var(--accent) 20%, transparent),
+    color-mix(in oklab, var(--accent) 7%, transparent)
   );
   line-height: 1;
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.08),
-    0 5px 18px rgba(240, 139, 112, 0.08);
+  box-shadow: 0 5px 18px color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 .brand-mark .brand-icon {
@@ -152,7 +150,7 @@
 
 .brand-caption {
   align-self: start;
-  color: #7f91a3;
+  color: var(--muted);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -172,7 +170,7 @@
   padding: 9px 11px;
   border: 1px solid transparent;
   border-radius: 8px;
-  color: #aebbc9;
+  color: var(--text-2);
   font-size: 13px;
   font-weight: 560;
 }
@@ -180,13 +178,13 @@
 .sidebar-link:hover,
 .sidebar-project-row:hover,
 .sidebar-run:hover {
-  background: rgba(137, 164, 188, 0.08);
+  background: var(--highlight);
 }
 
 .sidebar-link.active {
-  border-color: rgba(240, 139, 112, 0.16);
-  background: rgba(240, 139, 112, 0.1);
-  color: #ffa88f;
+  border-color: color-mix(in oklab, var(--accent) 16%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  color: var(--accent-text);
 }
 
 .sidebar-project {
@@ -234,9 +232,9 @@
   z-index: 10;
   display: none;
   padding: 4px 7px;
-  border: 1px solid rgba(137, 164, 188, 0.35);
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: #182733;
+  background: var(--surface-2);
   color: var(--text);
   font-size: 11px;
   line-height: 1.2;
@@ -301,7 +299,7 @@
 }
 
 .sidebar-project-link.active {
-  color: #ffa88f;
+  color: var(--accent-text);
 }
 
 .sidebar-projects,
@@ -311,7 +309,7 @@
   gap: 2px;
   margin-left: 10px;
   padding-left: 10px;
-  border-left: 1px solid rgba(83, 105, 125, 0.36);
+  border-left: 1px solid var(--line);
 }
 
 .basedir-contents {
@@ -337,15 +335,17 @@
 }
 
 .sidebar-run.active {
-  border-color: rgba(137, 164, 188, 0.14);
-  background: rgba(137, 164, 188, 0.1);
+  border-color: var(--line-soft);
+  background: var(--highlight);
   color: var(--text);
 }
 
 .brand-icon {
   width: 0.85em;
   height: 0.85em;
-  filter: drop-shadow(0 3px 10px rgba(240, 139, 112, 0.18));
+  filter: drop-shadow(
+    0 3px 10px color-mix(in oklab, var(--accent) 18%, transparent)
+  );
 }
 
 @media (max-width: 760px) {
@@ -365,7 +365,7 @@
     gap: 8px;
     padding: 10px 18px;
     border-right: 0;
-    border-bottom: 1px solid rgba(83, 105, 125, 0.28);
+    border-bottom: 1px solid var(--line);
   }
 
   .sidebar-brand {
@@ -375,7 +375,7 @@
     margin: 0 8px 0 0;
     padding: 0 10px 0 0;
     border: 0;
-    border-right: 1px solid rgba(83, 105, 125, 0.28);
+    border-right: 1px solid var(--line);
   }
 
   .brand-mark {
@@ -454,7 +454,7 @@ main.web-main .sidebar-resizer {
 .sidebar-resizer:hover::after,
 .sidebar-resizer:focus-visible::after,
 .sidebar-resizer.dragging::after {
-  background: rgba(240, 139, 112, 0.78);
+  background: color-mix(in oklab, var(--accent) 78%, transparent);
 }
 
 .basedir-path {

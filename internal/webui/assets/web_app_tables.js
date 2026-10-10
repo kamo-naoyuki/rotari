@@ -1,13 +1,13 @@
 function applyStatusColors() {
-  const colors = {
-    pending: "#f3c969",
-    unfinished: "#f3c969",
-    running: "#f3c969",
-    success: "#63d297",
-    finished: "#63d297",
-    failed: "#ff7c7c",
-    blocked: "#ff9f68",
-  };
+  const colors = statusColorMap([
+    "pending",
+    "unfinished",
+    "running",
+    "success",
+    "finished",
+    "failed",
+    "blocked",
+  ]);
   document.querySelectorAll(".status-value").forEach((element) => {
     const value = element.textContent.trim().toLowerCase();
     if (colors[value]) element.style.color = colors[value];

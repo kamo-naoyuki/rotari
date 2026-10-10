@@ -1767,6 +1767,52 @@ func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
 	}
 }
 
+// Colours are defined once, in web_tokens.css, with a light and a dark value;
+// a literal in a stylesheet or script would show one theme's colour in the
+// other.
+func TestStylesAndScriptsTakeColoursFromTokens(t *testing.T) {
+	literal := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(`)
+	for name, stylesheet := range map[string]string{
+		"web_styles.css":           webStylesCSS,
+		"web_sidebar_styles.css":   webSidebarStylesCSS,
+		"web_info_styles.css":      webInfoStylesCSS,
+		"web_app_core.js":          webAppCoreJS,
+		"web_app_actions.js":       webAppActionsJS,
+		"web_app_logs.js":          webAppLogsJS,
+		"web_app_markdown.js":      webAppMarkdownJS,
+		"web_app_artifacts.js":     webAppArtifactsJS,
+		"web_app_tables.js":        webAppTablesJS,
+		"web_app_charts.js":        webAppChartsJS,
+		"web_app_matrix.js":        webAppMatrixJS,
+		"web_app_notifications.js": webAppNotificationsJS,
+		"web_app_search.js":        webAppSearchJS,
+		"web_app_bootstrap.js":     webAppBootstrapJS,
+	} {
+		for number, line := range strings.Split(stylesheet, "\n") {
+			if literal.MatchString(line) {
+				t.Errorf("%s:%d sets a colour literal instead of a token: %s", name, number+1, strings.TrimSpace(line))
+			}
+		}
+	}
+	for _, theme := range []string{"@media (prefers-color-scheme: dark)", `:root:not([data-theme="light"])`, `:root[data-theme="dark"]`} {
+		if !strings.Contains(webTokensCSS, theme) {
+			t.Errorf("web_tokens.css has no dark values under %s", theme)
+		}
+	}
+	request := httptest.NewRequest(http.MethodGet, "/web_tokens.css", nil)
+	response := httptest.NewRecorder()
+	Handler(testOptions(t.TempDir(), false)).ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/css; charset=utf-8" || response.Body.String() != webTokensCSS {
+		t.Fatalf("GET /web_tokens.css = %d (%q), want the token stylesheet", response.Code, response.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(composeWebHTML(nil, true, ""), `<link rel="stylesheet" href="/web_tokens.css" />`) {
+		t.Error("web page does not link the token stylesheet")
+	}
+	if jobs := jobsHTML("/", nil, nil, joblist.DefaultSinceText, true, true); !strings.Contains(jobs, "--bg:") {
+		t.Error("Job activity page does not include the tokens")
+	}
+}
+
 func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/web_sidebar_styles.css", nil)
 	response := httptest.NewRecorder()
@@ -2613,6 +2659,12 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 		if readErr != nil {
 			t.Fatalf("static web page is missing: %v", readErr)
 		}
+		if !strings.Contains(string(pageData), `href="web_tokens.css"`) || strings.Contains(string(pageData), `href="/web_tokens.css"`) {
+			t.Fatalf("static web page %s does not use the relative design token stylesheet path", page)
+		}
+		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_tokens.css")); statErr != nil {
+			t.Fatalf("static design token stylesheet beside %s is missing: %v", page, statErr)
+		}
 		if !strings.Contains(string(pageData), `href="web_styles.css"`) || strings.Contains(string(pageData), `href="/web_styles.css"`) {
 			t.Fatalf("static web page %s does not use a relative stylesheet path", page)
 		}
@@ -2626,7 +2678,10 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 			t.Fatalf("static sidebar stylesheet beside %s is missing: %v", page, statErr)
 		}
 	}
-	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "--bg:") {
+	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_tokens.css")); readErr != nil || !strings.Contains(string(stylesheet), "--bg:") {
+		t.Fatalf("static design token stylesheet is missing or invalid: %v", readErr)
+	}
+	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "var(--bg)") {
 		t.Fatalf("static web stylesheet is missing or invalid: %v", readErr)
 	}
 	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_sidebar_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), ".sidebar-brand {") {

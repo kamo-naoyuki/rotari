@@ -30,9 +30,8 @@ function addRunHeatmap() {
   if (!run || !app || app.querySelector(".run-heatmap")) return;
   const section = document.createElement("section");
   section.className = "run-heatmap";
-  section.style.background =
-    "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -58,13 +57,13 @@ function addRunHeatmap() {
   grid.style.display = "grid";
   grid.style.gridTemplateColumns = "repeat(auto-fit,minmax(120px,1fr))";
   grid.style.gap = "8px";
-  const colors = {
-    success: ["#1d6b52", "#b4f0c8"],
-    failed: ["#8f3b47", "#ffd2d2"],
-    blocked: ["#87502d", "#ffe1b0"],
-    running: ["#80651e", "#fff0ae"],
-    pending: ["#3a4a57", "#cbd9e4"],
-  };
+  const colors = statusTintMap([
+    "success",
+    "failed",
+    "blocked",
+    "running",
+    "pending",
+  ]);
   ["success", "failed", "blocked", "running", "pending"].forEach((status) => {
     const item = document.createElement("span");
     item.style.color = colors[status][1];
@@ -165,18 +164,17 @@ function addRunStatistics() {
   const successRate = completed
     ? Math.round((counts.success / completed) * 100)
     : 0;
-  const colors = {
-    success: ["#1d6b52", "#b4f0c8"],
-    failed: ["#8f3b47", "#ffd2d2"],
-    blocked: ["#87502d", "#ffe1b0"],
-    running: ["#80651e", "#fff0ae"],
-    pending: ["#3a4a57", "#cbd9e4"],
-  };
+  const colors = statusTintMap([
+    "success",
+    "failed",
+    "blocked",
+    "running",
+    "pending",
+  ]);
   const section = document.createElement("section");
   section.className = "run-statistics";
-  section.style.background =
-    "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "12px 18px";
   section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
@@ -205,7 +203,7 @@ function addRunStatistics() {
     ["Pending", counts.pending],
   ].forEach(([label, value]) => {
     const metric = document.createElement("div");
-    metric.style.borderLeft = "3px solid #385160";
+    metric.style.borderLeft = "3px solid var(--line)";
     metric.style.paddingLeft = "10px";
     const valueElement = document.createElement("strong");
     valueElement.textContent = value;
@@ -263,9 +261,8 @@ function addRunEnvironment() {
   if (!run || !app || app.querySelector(".run-environment")) return;
   const section = document.createElement("section");
   section.className = "run-environment";
-  section.style.background =
-    "linear-gradient(135deg,rgba(25,45,49,.95),rgba(24,33,43,.92))";
-  section.style.border = "1px solid #3d5f62";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "12px 18px";
   section.style.margin = "10px 0 12px";
   section.innerHTML =
@@ -318,9 +315,8 @@ function addJobTimeline() {
   const label = (value) => new Date(value).toLocaleTimeString();
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   section.innerHTML =
@@ -328,21 +324,37 @@ function addJobTimeline() {
     esc(label(start)) +
     " - " +
     esc(label(end)) +
-    '</span></div><svg viewBox="0 0 580 210" role="img" aria-label="job count timeline" style="width:100%;height:auto;margin-top:10px;display:block"><g stroke="#2d3a47" stroke-width="1"><line x1="40" y1="170" x2="540" y2="170"/><line x1="40" y1="40" x2="40" y2="170"/></g><g fill="#94a3b3" font-size="11"><text x="8" y="44">' +
+    '</span></div><svg viewBox="0 0 580 210" role="img" aria-label="job count timeline" style="width:100%;height:auto;margin-top:10px;display:block"><g stroke="var(--line)" stroke-width="1"><line x1="40" y1="170" x2="540" y2="170"/><line x1="40" y1="40" x2="40" y2="170"/></g><g fill="var(--muted)" font-size="11"><text x="8" y="44">' +
     max +
     '</text><text x="16" y="174">0</text><text x="40" y="194">' +
     esc(label(start)) +
     '</text><text x="460" y="194">' +
     esc(label(end)) +
-    '</text></g><polyline fill="none" stroke="#94a3b3" stroke-width="3" points="' +
+    '</text></g><polyline fill="none" stroke="' +
+    statusColor("pending") +
+    '" stroke-width="3" points="' +
     line("pending") +
-    '"/><polyline fill="none" stroke="#f3c969" stroke-width="3" points="' +
+    '"/><polyline fill="none" stroke="' +
+    statusColor("running") +
+    '" stroke-width="3" points="' +
     line("running") +
-    '"/><polyline fill="none" stroke="#63d297" stroke-width="3" points="' +
+    '"/><polyline fill="none" stroke="' +
+    statusColor("success") +
+    '" stroke-width="3" points="' +
     line("success") +
-    '"/><polyline fill="none" stroke="#ff7c7c" stroke-width="3" points="' +
+    '"/><polyline fill="none" stroke="' +
+    statusColor("failed") +
+    '" stroke-width="3" points="' +
     line("failed") +
-    '"/></svg><div class="summary" style="gap:16px"><span style="color:#94a3b3">pending</span><span style="color:#f3c969">running</span><span style="color:#63d297">success</span><span style="color:#ff7c7c">failed</span></div>';
+    '"/></svg><div class="summary" style="gap:16px"><span style="color:' +
+    statusColor("pending") +
+    '">pending</span><span style="color:' +
+    statusColor("running") +
+    '">running</span><span style="color:' +
+    statusColor("success") +
+    '">success</span><span style="color:' +
+    statusColor("failed") +
+    '">failed</span></div>';
   const env = app.querySelector(".run-environment");
   if (env) env.after(section);
   else app.prepend(section);
@@ -360,7 +372,13 @@ function renderOutputWordCloud(details, cloud) {
     content.textContent = "No output words found.";
   } else {
     const maxCount = Math.max(...terms.map((term) => term.count), 1);
-    const colors = ["#f3c969", "#63d297", "#7dc4ff", "#ff9f68", "#d6a8ff"];
+    const colors = [
+      "var(--c1)",
+      "var(--c2)",
+      "var(--c3)",
+      "var(--c4)",
+      "var(--c5)",
+    ];
     terms.forEach((term, index) => {
       const word = document.createElement("span");
       word.textContent = term.word;
@@ -426,9 +444,8 @@ function addOutputWordCloud() {
   section.className = "output-word-cloud";
   section.dataset.wordCloudProject = queue.project_name;
   section.dataset.wordCloudRun = runID;
-  section.style.background =
-    "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "12px 18px";
   section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
@@ -501,18 +518,17 @@ function addJobTimeline() {
     counts[status]++;
   });
   const total = Math.max(1, (run.jobs || []).length);
-  const colors = {
-    success: "#63d297",
-    failed: "#ff7c7c",
-    blocked: "#ff9f68",
-    running: "#f3c969",
-    pending: "#94a3b3",
-  };
+  const colors = statusColorMap([
+    "success",
+    "failed",
+    "blocked",
+    "running",
+    "pending",
+  ]);
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -575,18 +591,12 @@ function addJobTimeline() {
   if (!run || !app || app.querySelector(".job-timeline")) return;
   const points = (run.timeline || []).filter((point) => point.at);
   if (!points.length) return;
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   const keys = ["pending", "running", "success", "failed"];
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -662,19 +672,13 @@ function addJobTimeline() {
   const points = ((run && run.timeline) || []).filter((point) => point.at);
   if (!run || !app || app.querySelector(".job-timeline") || !points.length)
     return;
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   const keys = ["pending", "running", "success", "failed"];
   const total = Math.max(1, (run.jobs || []).length);
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -809,19 +813,13 @@ function addJobTimeline() {
   const points = ((run && run.timeline) || []).filter((point) => point.at);
   if (!run || !app || app.querySelector(".job-timeline") || !points.length)
     return;
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   const keys = ["pending", "running", "success", "failed"];
   const total = Math.max(1, (run.jobs || []).length);
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -926,7 +924,7 @@ function spaceGraphicLegends() {
       legend.querySelectorAll("span").forEach((item) => {
         const failed = item.textContent.trim().startsWith("failed");
         if (failed) {
-          item.style.color = "#ff7c7c";
+          item.style.color = statusColor("failed");
         }
         item.style.display = "inline-flex";
         item.style.whiteSpace = "nowrap";
@@ -956,18 +954,12 @@ function renderJobTimelineScratch() {
   if (!run || !app || app.querySelector(".job-timeline")) return;
   const points = run.timeline || [];
   const keys = ["pending", "running", "success", "failed"];
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   const total = Math.max(1, (run.jobs || []).length);
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   const heading = document.createElement("div");
@@ -1088,12 +1080,7 @@ function renderJobTimelineScratch() {
     return index === 0 ? "start · " + label : label;
   });
   const keys = ["pending", "running", "success", "failed"];
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   const total = Math.max(1, (run.jobs || []).length);
   const width = Math.max(560, points.length * 100 + 70),
     height = 260,
@@ -1105,9 +1092,8 @@ function renderJobTimelineScratch() {
     plotHeight = height - top - bottom;
   const section = document.createElement("section");
   section.className = "job-timeline";
-  section.style.background =
-    "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
-  section.style.border = "1px solid #385160";
+  section.style.background = "var(--surface)";
+  section.style.border = "1px solid var(--line)";
   section.style.padding = "12px 18px";
   section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
@@ -1135,7 +1121,7 @@ function renderJobTimelineScratch() {
   svg.style.display = "block";
   svg.style.width = width + "px";
   svg.style.height = height + "px";
-  const line = (x1, y1, x2, y2, color = "#2d3a47", dash = "") => {
+  const line = (x1, y1, x2, y2, color = "var(--line)", dash = "") => {
     const element = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "line",
@@ -1158,7 +1144,7 @@ function renderJobTimelineScratch() {
     );
     element.setAttribute("x", x);
     element.setAttribute("y", y);
-    element.setAttribute("fill", "#94a3b3");
+    element.setAttribute("fill", "var(--muted)");
     element.setAttribute("font-size", "11");
     element.setAttribute("text-anchor", anchor);
     element.textContent = value;
@@ -1166,11 +1152,11 @@ function renderJobTimelineScratch() {
   };
   [0, 50, 100].forEach((percent) => {
     const y = top + plotHeight - (percent / 100) * plotHeight;
-    line(left, y, width - right, y, "#2d3a47", percent ? "4 4" : "");
+    line(left, y, width - right, y, "var(--line)", percent ? "4 4" : "");
     text(left - 7, y + 4, percent + "%");
   });
-  line(left, top, left, top + plotHeight, "#94a3b3");
-  line(left, top + plotHeight, width - right, top + plotHeight, "#94a3b3");
+  line(left, top, left, top + plotHeight, "var(--muted)");
+  line(left, top + plotHeight, width - right, top + plotHeight, "var(--muted)");
   points.forEach((point, index) => {
     const x = left + ((index + 0.5) / Math.max(points.length, 1)) * plotWidth;
     let y = top + plotHeight;
@@ -1192,14 +1178,14 @@ function renderJobTimelineScratch() {
       rect.setAttribute("title", key + ": " + count);
       svg.append(rect);
     });
-    line(x, top + plotHeight, x, top + plotHeight + 4, "#94a3b3");
+    line(x, top + plotHeight, x, top + plotHeight + 4, "var(--muted)");
     text(x, height - 24, point.at ? timeLabels[index] : "-", "middle");
   });
   text(width / 2, height - 4, "time", "middle");
   const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
   yLabel.setAttribute("x", "12");
   yLabel.setAttribute("y", height / 2);
-  yLabel.setAttribute("fill", "#94a3b3");
+  yLabel.setAttribute("fill", "var(--muted)");
   yLabel.setAttribute("font-size", "11");
   yLabel.setAttribute("text-anchor", "middle");
   yLabel.setAttribute("transform", "rotate(-90 12 " + height / 2 + ")");
@@ -1285,12 +1271,7 @@ function alignGraphicHeadings() {
     });
 }
 function fixTimelineLegendColors() {
-  const colors = {
-    pending: "#94a3b3",
-    running: "#f3c969",
-    success: "#63d297",
-    failed: "#ff7c7c",
-  };
+  const colors = statusColorMap(["pending", "running", "success", "failed"]);
   document.querySelectorAll(".job-timeline span").forEach((item) => {
     const key = item.textContent.trim();
     if (colors[key]) {
@@ -1300,12 +1281,12 @@ function fixTimelineLegendColors() {
   });
 }
 function fixRunStatisticsColors() {
-  const colors = {
-    succeeded: "#63d297",
-    failed: "#ff7c7c",
-    "in progress": "#f3c969",
-    pending: "#94a3b3",
-  };
+  const colors = statusColorMap([
+    "succeeded",
+    "failed",
+    "in progress",
+    "pending",
+  ]);
   document.querySelectorAll(".run-statistics strong").forEach((value) => {
     const metric = value.parentElement;
     const label = metric ? metric.textContent.toLowerCase() : "";
@@ -1356,7 +1337,7 @@ function addLoadTimeline() {
   );
   const x = (index) => left + ((times[index] - start) / span) * plotWidth;
   const y = (value) => top + plotHeight - (value / maximum) * plotHeight;
-  const colors = { one: "#63d297", five: "#f3c969", fifteen: "#70b7ff" };
+  const colors = { one: "var(--c1)", five: "var(--c2)", fifteen: "var(--c3)" };
   const labels = { one: "1 min", five: "5 min", fifteen: "15 min" };
   const wrap = document.createElement("div");
   wrap.className = "load-timeline";
@@ -1396,12 +1377,12 @@ function addLoadTimeline() {
       y1: py,
       x2: width - right,
       y2: py,
-      stroke: "#344451",
+      stroke: "var(--line)",
       "stroke-width": 1,
     });
     add(
       "text",
-      { x: 4, y: py + 4, fill: "#94a3b3", "font-size": 11 },
+      { x: 4, y: py + 4, fill: "var(--muted)", "font-size": 11 },
       value.toFixed(1),
     );
   });
@@ -1423,7 +1404,7 @@ function addLoadTimeline() {
   const format = (value) => new Date(value).toLocaleTimeString();
   add(
     "text",
-    { x: left, y: height - 12, fill: "#94a3b3", "font-size": 11 },
+    { x: left, y: height - 12, fill: "var(--muted)", "font-size": 11 },
     format(start),
   );
   add(
@@ -1431,7 +1412,7 @@ function addLoadTimeline() {
     {
       x: width - right,
       y: height - 12,
-      fill: "#94a3b3",
+      fill: "var(--muted)",
       "font-size": 11,
       "text-anchor": "end",
     },

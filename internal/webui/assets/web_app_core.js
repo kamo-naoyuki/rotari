@@ -7,6 +7,42 @@ const mountedBasedirID = (() => {
 const sidebarScrollKey =
   "rotari-sidebar-scroll:" +
   (registeredBasedirs.find((item) => item.current)?.id || mountedBasedirID);
+// Status colours come from the status tokens in web_tokens.css. Every view
+// that colours a status goes through statusTone, so a status reads the same
+// everywhere and in both themes.
+const statusTones = {
+  success: "ok",
+  finished: "ok",
+  succeeded: "ok",
+  failed: "bad",
+  unreadable: "bad",
+  running: "run",
+  "in progress": "run",
+  blocked: "warn",
+  interrupted: "warn",
+  pending: "off",
+  unfinished: "off",
+  cancelled: "off",
+};
+function statusTone(status) {
+  return statusTones[String(status).trim().toLowerCase()] || "off";
+}
+function statusColor(status) {
+  return "var(--s-" + statusTone(status) + ")";
+}
+// statusColorMap and statusTintMap build a view's colour table for its
+// status keys: a colour, or a [background, foreground] pair.
+function statusColorMap(keys) {
+  return Object.fromEntries(keys.map((key) => [key, statusColor(key)]));
+}
+function statusTintMap(keys) {
+  return Object.fromEntries(
+    keys.map((key) => [
+      key,
+      ["var(--s-" + statusTone(key) + "-bg)", statusColor(key)],
+    ]),
+  );
+}
 function basedirURL(id, path) {
   const entry = registeredBasedirs.find((item) => item.id === id);
   const prefix = entry?.current ? "" : "/_basedir/" + id;
