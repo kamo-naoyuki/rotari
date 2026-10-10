@@ -192,6 +192,12 @@ configuration first. If agent-gathered results prove unreliable, a job could
 write a declared results file for rotari to tabulate; that needs the job's
 cooperation and waits for a trial to ask for it.
 
+[Trial 3](trial-2026-10-11-reconstruction-3.md) confirmed it: both agents,
+including the one told only that rotari is installed, wrote a results table
+in their concluding notes, every number matching the logs, and both readers
+used it. Its open finding is that both agents ran uncommitted edits, so the
+code of their later runs is again inferred.
+
 ## Decisions
 
 - **Record the commit ID, not file hashes or diffs.** A hash or a diff of the

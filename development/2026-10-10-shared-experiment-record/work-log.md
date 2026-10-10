@@ -210,3 +210,18 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** new `TestBrowserNotificationsReportOnlyWhatHappenedSinceThePreviousPoll` (a watched run finishing, a job failing in a watched run, a run starting and finishing between polls, an opened old run, an older run loaded by a project page) failed before the fix with the TypeError and an "rotari: 2 jobs failed" notification for the opened run, and passes after it; `scripts/check.sh` with the race detector passed. No conformance row: the behavior is in the browser, which conformance does not drive.
 
 **Remaining:** none.
+
+## Trial 3 and carried logs in the report
+
+- `26a9eb22` (2026-10-11 02:05:51 +0900): a run report reads each job's log from the attempt that produced its result (WEB-8).
+- This entry's commit: [trial 3's report](trial-2026-10-11-reconstruction-3.md) and its summary in [plan.md](plan.md).
+
+**Change:** `jobstatus.ResultAttemptDir` exposes `locateAttempt`; `readReportLog` uses it instead of `web.Job.AttemptDir`, which `LoadJobs` sets to the retry's own directory even for a carried job. WEB-8 and its Contract status row are new; [ISSUES.md](../ISSUES.md) lists the other places that follow carries on their own.
+
+**Reason:** the user asked for a trial of the results-table guidance. Both agents wrote results tables; the trial's retry runs showed `-` for carried jobs in the job table.
+
+**Plan impact:** Phase 3's guidance is confirmed. Trial 3's open findings: uncommitted code (the user's decision on how to close it) and cross-project comparison.
+
+**Validation:** `TestRunReportReadsCarriedJobLogsFromTheirOrigin` and conformance `TestRunReportReadsCarriedJobLogs` (CLI and Web API) failed before the fix with `-` for the carried rows and pass after it; `scripts/check.sh` with the race detector and `go test ./conformance/...` passed. Trial cost: $0.44 and $0.40 for the experiments, $0.63 and $0.58 for the reconstructions.
+
+**Remaining:** trial 3 findings 3 and 4.
