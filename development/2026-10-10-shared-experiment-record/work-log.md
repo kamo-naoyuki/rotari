@@ -148,3 +148,20 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `TestWebRunPageShowsJobNotesButton` checks the disabled button; `TestRunNotes` now expects the run's labels to hold its two run notes only and failed against the previous loader with the job note among them; `go test ./conformance/...` and `scripts/check.sh` with the race detector passed.
 
 **Remaining:** run notes placement on the Web (the user's decision); the browser-notification issues found while answering a question (notifications for jobs first seen when an old run is opened, and a settings lookup by the wrong key), not yet fixed or recorded.
+
+## One run report for people and agents (Phase 3, first cut)
+
+- `7c68174b` (2026-10-10 22:57:14 +0900): the run report gains sources, notes, and a job table, and the Web renders it as Markdown.
+
+**Change:**
+- `internal/report`: a run report lists the run's sources and its run notes, then a `## Jobs` table (job, array task, the environment variables whose values differ between the listed jobs, status, exit code, first and last log line), then each job's section with that job's notes; a job report gains the sources and the job's notes. `loadRun` reads `sources.json` and `notes.jsonl`. `web.Job.Environment` (left out of the Web API JSON, since `--env` values may be secrets) carries each job's environment.
+- Web: `web_app_markdown.js` renders the report: headings, paragraphs, lists, quotes, fenced code, tables, code spans, emphasis, and http(s) links, escaping everything else. The report modal shows it rendered by default, with `Show Markdown` for the source; Copy still copies the Markdown. No dependency was added.
+- `--report`'s description, `docs/INSPECT.md`, the Web report contract, and `internal/report/doc.go` describe the report as the run's record instead of an AI-ready report.
+
+**Reason:** the user found notes alone unreadable for people and asked for one report rather than a second one; decisions 1-4 and the first log line are in [plan.md](plan.md), Phase 3. The user asked to implement it to see the UI.
+
+**Plan impact:** Phase 3's first cut. Long first lines are cut at 160 characters and the table scrolls sideways in the modal; whether that is readable is for the user to judge.
+
+**Validation:** new `TestRunReportRecordsSourcesNotesAndJobTable` (varying and shared variables, a variable set on one job only, notes on the run, the current attempt, and an older attempt, logs split over stdout and stderr, a pipe and backticks, a long line, a job without a log), `TestReportTableCodeQuotesAnyText`, `TestRenderMarkdownRendersReportsAndEscapesText` (raw HTML and `javascript:` links stay text), and the rendered-view checks added to `TestStaticWebReportRedactionToggle`; screenshots of trial 2's run in headless Chrome; `go test ./conformance/...` and `scripts/check.sh` with the race detector passed.
+
+**Remaining:** the user's review of the rendered report; the job Notes modal still shows notes as plain text.
