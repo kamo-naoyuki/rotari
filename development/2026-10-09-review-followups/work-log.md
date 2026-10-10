@@ -265,3 +265,35 @@ both cases after; `go test ./conformance/...` and the touched packages
 passed; `scripts/check.sh` passed on a worktree of the commit. The commit
 staged only its own twelve paths, and the index matched HEAD afterwards.
 **Remaining:** None.
+
+## A cancel is recorded only after the command exits
+
+- `08120c58` 2026-10-10 15:54:38
+
+**Change:** The status wrapper's `on_signal` (`internal/executor/wrapper.go`),
+shared by local, SSH, and scheduler wrappers, forwards SIGTERM, waits for the
+command, and writes `cancelled` only after it exits; after
+`timeoutGraceSeconds` a grace timer records the cancel and kills the process
+group. The forked job resets TERM and checks a `status.json.stopping` marker
+before exec, and the trap takes the job's PID from `$!` when the signal
+arrived during the fork. The grace timer and the timeout watchdog name their
+sleep by `$!`. CAN-1, RUNNING.md, and ISSUES.md (moved to Resolved) were
+updated.
+**Reason:** The ISSUES.md item found while implementing `cancel JOB --wait`:
+the wrapper recorded `cancelled` while a command that traps SIGTERM still
+ran, and a command ignoring SIGTERM was never stopped.
+**Plan impact:** None beyond the issue.
+**Validation:** `TestLocalCancelWaitsForCommandToExit`,
+`TestLocalCancelKillsCommandIgnoringTerm`, and
+`TestCancelledJobsStopBeforeTheyAreRecorded` failed before the change (the
+last verified on the pre-change commit after giving the command a marker
+`JobProcesses` can see). Waiting exposed hidden races: under CPU load
+`TestLocalJobCancelStopsCommandBeforeForegroundExec` took the 30-second
+grace in 4 of 8 runs (the existing test only timed the wrapper, so the
+orphaned command had gone unnoticed), and a stress script reproducing
+`TestCLIFlagPairCancel`'s fixture timed out 2 of 32 times on an orphan timer
+sleep. After the fixes, under load: 15–20 repeats of each executor cancel
+and timeout test, 48 stress iterations without a timeout, the pair suite,
+two `scripts/check.sh --short` runs, and `scripts/check.sh` on a worktree
+of the commit passed.
+**Remaining:** None.
