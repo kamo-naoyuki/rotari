@@ -100,6 +100,9 @@ To check its current status without waiting, use `rotari info`, `rotari jobs`,
 or `rotari runs`.
 
 Cancelling a run stops its unfinished jobs and prevents new jobs from starting.
+A cancelled job receives SIGTERM and may clean up before it exits; rotari
+records it cancelled once it has exited, or after 30 seconds, when it kills
+what is left.
 The run is then recorded as `cancelled` with exit code 1, so `wait` and
 scripts that read the exit code treat it as a failure, and notifications
 report it as a failed run. Cancelling only selected jobs leaves the run

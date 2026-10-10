@@ -174,7 +174,7 @@ the IDs, this table, and those calls disagree.
 | STATE-2 | State without `state_version` reads as version 1 | conformance | `TestUnversionedStateIsVersionOne` |
 | STATE-3 | Reading history never rewrites it | conformance | `TestReadingHistoryDoesNotRewriteIt` |
 | STATE-4 | Malformed load samples are skipped | conformance | `TestMalformedLoadSamplesAreSkipped` |
-| CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |
+| CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun`, `TestCancelledJobsStopBeforeTheyAreRecorded` |
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished, or with a job selection once each selected job has stopped, and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes`, `TestCancelJobWaitReturnsOnceTheJobStopped` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |

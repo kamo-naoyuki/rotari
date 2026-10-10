@@ -370,6 +370,16 @@ func TestLocalJobCancelStopsCommandBeforeForegroundExec(t *testing.T) {
 		if elapsed > 500*time.Millisecond {
 			t.Fatalf("killed job took %s; cancellation was deferred until after the delayed child started", elapsed)
 		}
+		// A signal that reached the command while it was still the
+		// wrapper's forked copy must not leave it running.
+		deadline := time.Now().Add(5 * time.Second)
+		for syscall.Kill(-cmd.Process.Pid, 0) == nil {
+			if time.Now().After(deadline) {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				t.Fatalf("iteration %d: the command outlived the cancel", i)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -456,5 +466,98 @@ func TestLocalJobTimeoutWorksWithoutUsablePs(t *testing.T) {
 	result, _, _, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
 	if result.ExitCode != TimeoutExitCode || elapsed > 10*time.Second {
 		t.Fatalf("result = %+v after %s; want the timeout enforced", result, elapsed)
+	}
+}
+
+// startCancelTestWrapper starts the local wrapper around the command that
+// command returns for the job directory, in its own process group, and
+// returns it with that directory.
+func startCancelTestWrapper(t *testing.T, command func(jobDir string) string) (*exec.Cmd, string) {
+	t.Helper()
+	jobDir := filepath.Join(t.TempDir(), "job")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript([]string{"sh", "-c", command(jobDir)}, jobDir, nil, "", "")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("/bin/sh", wrapperPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); _ = cmd.Wait() })
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if data, err := os.ReadFile(filepath.Join(jobDir, "status.json")); err == nil && strings.Contains(string(data), `"phase":"running"`) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("wrapper did not record the running phase")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+	return cmd, jobDir
+}
+
+// A cancel records the job cancelled only after its command has exited, so
+// a command that cleans up on SIGTERM is not reported stopped while it runs.
+func TestLocalCancelWaitsForCommandToExit(t *testing.T) {
+	cmd, jobDir := startCancelTestWrapper(t, func(jobDir string) string {
+		return `trap 'sleep 1; : > ` + ShellQuote(filepath.Join(jobDir, "cleaned")) + `; exit 143' TERM; while true; do sleep 0.1; done`
+	})
+	cleaned := filepath.Join(jobDir, "cleaned")
+	start := time.Now()
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	if elapsed := time.Since(start); elapsed < 900*time.Millisecond {
+		t.Fatalf("wrapper exited after %s, before the command finished its cleanup", elapsed)
+	}
+	status, err := os.ReadFile(filepath.Join(jobDir, "status.json"))
+	if err != nil || !strings.Contains(string(status), `"phase":"cancelled"`) || !strings.Contains(string(status), `"exit_code":143`) {
+		t.Fatalf("status.json = %s, %v; want a cancelled exit", status, err)
+	}
+	if _, err := os.Stat(cleaned); err != nil {
+		t.Fatalf("command had not finished its cleanup when the wrapper recorded the cancel: %v", err)
+	}
+	// Nothing of the job, including the wrapper's grace timer, is left.
+	deadline := time.Now().Add(2 * time.Second)
+	for syscall.Kill(-cmd.Process.Pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("processes of the cancelled job are still running after the wrapper exited")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// A command that ignores SIGTERM is killed after the grace period, and the
+// cancel is still recorded.
+func TestLocalCancelKillsCommandIgnoringTerm(t *testing.T) {
+	old := timeoutGraceSeconds
+	timeoutGraceSeconds = 1
+	t.Cleanup(func() { timeoutGraceSeconds = old })
+	cmd, jobDir := startCancelTestWrapper(t, func(string) string { return `trap '' TERM; while true; do sleep 0.1; done` })
+	start := time.Now()
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("job ignoring SIGTERM was not killed after the grace period: %s", elapsed)
+	}
+	status, err := os.ReadFile(filepath.Join(jobDir, "status.json"))
+	if err != nil || !strings.Contains(string(status), `"phase":"cancelled"`) {
+		t.Fatalf("status.json = %s, %v; want a cancelled phase", status, err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for syscall.Kill(-cmd.Process.Pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("processes of the cancelled job are still running")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

@@ -873,7 +873,15 @@ the request, on the host that owns the run.
   selection or only the run ID, or the Web UI's cancel-run) stops every job of
   the run that is running, and no job of the run starts afterwards. A job that
   ends between the request and the signal is already stopped, so it does not
-  fail the cancel.
+  fail the cancel. A cancelled job's wrapper sends SIGTERM to its command and
+  records the job cancelled only once the command has exited, so a command
+  may clean up first; a command still running 30 seconds later is recorded
+  cancelled and its process group killed. A whole-run `cancel --wait` therefore
+  returns with no process of the run's jobs left. Implemented by the status
+  wrapper's `on_signal` in [internal/executor/wrapper.go](../internal/executor/wrapper.go);
+  covered by `TestLocalCancelWaitsForCommandToExit`,
+  `TestLocalCancelKillsCommandIgnoringTerm`, and
+  `TestCancelledJobsStopBeforeTheyAreRecorded`.
 - **CAN-2** A cancelled run still finishes: it writes its summary, every job
   has a recorded result, the running lock is removed, and the project returns
   to idle. Cancellation never leaves the run interrupted, so no `unlock` is

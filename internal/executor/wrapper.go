@@ -133,7 +133,7 @@ func statusWrapperBody(commandLine string, timeoutSeconds int) string {
 		// Signalling the process group is only safe when the wrapper leads
 		// it; otherwise the timeout is reported as not enforced.
 		watchdog = "if [ -z \"$group_leader\" ]; then\n    echo \"rotari: timeout not enforced: the job wrapper could not get its own process group\" >&2\nelse\n" + watchdogShell(timeoutSeconds,
-			": > \"$timed_out_marker\"\n    trap '' TERM\n    kill -TERM 0\n    trap 'kill \"$sleep_pid\" 2>/dev/null; exit 0' TERM",
+			": > \"$timed_out_marker\"\n    trap '' TERM\n    kill -TERM 0\n    trap '[ \"${!:-}\" = \"$timer_previous\" ] || kill \"$!\" 2>/dev/null; exit 0' TERM",
 			"if kill -0 $$ 2>/dev/null; then\n        write_status finished "+fmt.Sprint(TimeoutExitCode)+" \""+message+"\"\n        kill -KILL 0\n    fi") + "fi\n"
 	}
 	return `hostname=$(hostname 2>/dev/null || true)
@@ -156,14 +156,54 @@ write_status() {
 write_status running 0
 timed_out_marker="${status_path}.timed_out"
 cancelled_marker="${status_path%/*}/cancelled"
+stopping_marker="${status_path}.stopping"
 on_signal() {
 	signal=$1
     if [ -f "$timed_out_marker" ]; then
         echo "rotari: job ` + message + `" >&2
 		return 0
     fi
+    # A cancel may signal the wrapper more than once; handle it once.
+    if [ -n "${cancelling:-}" ]; then
+        return 0
+    fi
+    cancelling=1
+    # Tell a command still being started to stop before it signals it; see
+    # the job start below.
+    : > "$stopping_marker" 2>/dev/null || true
+    # Traps run between commands, so a signal that arrived while the job was
+    # being forked runs this before job_pid is set; $! already names it.
+    if [ -z "${job_pid:-}" ] && [ -n "${job_forking:-}" ] && [ "${!:-}" != "$job_previous_pid" ]; then
+        job_pid=$!
+    fi
     if [ -n "${job_pid:-}" ] && kill -0 "$job_pid" 2>/dev/null; then
         kill -TERM "$job_pid" 2>/dev/null || true
+        # Record the cancel only once the command has exited, so a command
+        # that cleans up on SIGTERM is not reported stopped while it runs.
+        # After the grace period, record it and kill what is left.
+        # The wrapper stops it with USR1; further cancel signals do not.
+        # Its sleep inherits the ignored TERM, so the trap stops it with KILL,
+        # naming it by $!, which names it as soon as it is forked; $! still
+        # names an earlier process until then.
+        (
+            trap '' TERM INT QUIT
+            timer_previous=${!:-}
+            trap '[ "${!:-}" = "$timer_previous" ] || kill -KILL "$!" 2>/dev/null; exit 0' USR1
+            sleep ` + fmt.Sprint(timeoutGraceSeconds) + ` &
+            wait "$!"
+            write_status cancelled "$signal"
+            if [ -n "$group_leader" ]; then
+                kill -KILL 0
+            else
+                kill -KILL "$job_pid" 2>/dev/null
+            fi
+        ) </dev/null >/dev/null 2>&1 &
+        cancel_killer=$!
+        while kill -0 "$job_pid" 2>/dev/null; do
+            wait "$job_pid" 2>/dev/null
+        done
+        kill -USR1 "$cancel_killer" 2>/dev/null
+        wait "$cancel_killer" 2>/dev/null
     fi
 	finish_logs || true
 	write_status cancelled "$signal"
@@ -178,7 +218,12 @@ if [ -f "$cancelled_marker" ]; then
     on_signal 143
 fi
 job_pid=
-` + commandLine + ` &
+job_previous_pid=${!:-}
+job_forking=1
+# Until it execs the command, the forked job runs this shell's TERM trap,
+# which would swallow a cancel signal. It resets TERM first and does not
+# start the command if a cancel has begun meanwhile.
+( trap - TERM; [ -f "$stopping_marker" ] && exit 143; exec ` + commandLine + ` ) &
 job_pid=$!
 if [ -f "$cancelled_marker" ]; then
     on_signal 143
@@ -207,15 +252,18 @@ exit "$code"
 // escalate. Terminating the watchdog, as the wrapper does when the command
 // finishes first, stops it at either sleep. It sets watchdog_pid.
 func watchdogShell(seconds int, onTimeout, escalate string) string {
+	// The trap names the running sleep by $!, which changes as soon as a
+	// sleep is forked, so a TERM between a fork and the next command still
+	// stops it.
 	return fmt.Sprintf(`(
-    trap 'kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+    timer_previous=${!:-}
+    trap '[ "${!:-}" = "$timer_previous" ] || kill "$!" 2>/dev/null; exit 0' TERM
     sleep %d &
-    sleep_pid=$!
-    wait "$sleep_pid"
+    wait "$!"
     %s
+    timer_previous=${!:-}
     sleep %d &
-    sleep_pid=$!
-    wait "$sleep_pid"
+    wait "$!"
     %s
 ) </dev/null >/dev/null 2>&1 &
 watchdog_pid=$!

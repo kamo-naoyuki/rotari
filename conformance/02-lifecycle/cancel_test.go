@@ -362,8 +362,9 @@ func TestCancelJobWaitReturnsOnceTheJobStopped(t *testing.T) {
 	covers(t, "CAN-3")
 	e := support.NewEnv(t)
 	project := "slow-stop"
+	marker := "slow-stop-command"
 	slow := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "slow", "--",
-		"sh", "-c", "trap 'sleep 2; exit 143' TERM; while true; do sleep 0.1; done"))
+		"sh", "-c", ": "+filepath.Join(e.Root, marker, "command")+"; trap 'sleep 2; exit 143' TERM; while true; do sleep 0.1; done"))
 	hold := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "hold", "--", "sleep", "300"))
 	e.MustRotari("add", "-p", project, "--job-name", "waiting", "--depends-on", "hold", "--", "true")
 	e.MustRotari("run", "-p", project, "--async", "--quiet")
@@ -386,7 +387,7 @@ func TestCancelJobWaitReturnsOnceTheJobStopped(t *testing.T) {
 	if elapsed := time.Since(started); elapsed < 1500*time.Millisecond {
 		t.Errorf("cancel --wait returned after %s, before the job could stop", elapsed)
 	}
-	if alive := support.JobProcesses(t, e.Root, slow); alive != 0 {
+	if alive := support.JobProcesses(t, e.Root, marker) + support.JobProcesses(t, e.Root, slow); alive != 0 {
 		t.Errorf("cancel --wait returned while %d process(es) of the job still ran", alive)
 	}
 	if shown := e.MustRotari("show", "-p", project, "--run-id", run.RunID).Stdout; !jobRowHas(shown, slow, "cancelled") {
@@ -412,4 +413,33 @@ func jobRowHas(table, jobID, label string) bool {
 		}
 	}
 	return false
+}
+
+// TestCancelledJobsStopBeforeTheyAreRecorded checks that a job a cancel
+// stops is recorded cancelled only after its command has exited, so a
+// whole-run cancel --wait returns with no process of it left even when the
+// command cleans up on SIGTERM.
+func TestCancelledJobsStopBeforeTheyAreRecorded(t *testing.T) {
+	covers(t, "CAN-1")
+	e := support.NewEnv(t)
+	project := "cleanup"
+	// The command names a path under the test root and a marker, so
+	// JobProcesses counts the command itself, not only its wrapper.
+	marker := "cleanup-command"
+	slow := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "slow", "--",
+		"sh", "-c", ": "+filepath.Join(e.Root, marker, "command")+"; trap 'sleep 2; exit 143' TERM; while true; do sleep 0.1; done"))
+	e.MustRotari("run", "-p", project, "--async", "--quiet")
+	t.Cleanup(func() { _ = e.Rotari("cancel", "-p", project, "--wait") })
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, marker) > 0, "slow job did not start"
+	})
+	if r := e.Rotari("cancel", "-p", project, "--wait"); r.Code != 0 {
+		t.Fatalf("cancel --wait = %s", r)
+	}
+	if alive := support.JobProcesses(t, e.Root, marker) + support.JobProcesses(t, e.Root, slow); alive != 0 {
+		t.Errorf("cancel --wait returned while %d process(es) of the cancelled job still ran", alive)
+	}
+	if shown := e.MustRotari("show", "-p", project).Stdout; !jobRowHas(shown, slow, "cancelled") {
+		t.Errorf("the job is not recorded cancelled:\n%s", shown)
+	}
 }
