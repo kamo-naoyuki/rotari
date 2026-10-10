@@ -57,3 +57,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** the mockup's script passed `node --check`; it was not opened in a browser by the agent. The user reviewed the published page and accepted the look.
 
 **Remaining:** Phases 1–3.
+
+## Themes from the visual refresh
+
+- `41122c7b` (2026-10-11 02:47:13 +0900): themes.
+
+**Change:** [plan.md](plan.md)'s "Colours" now says the page uses the Web UI's tokens and both themes.
+
+**Reason:** the user chose a light theme in the [Web visual refresh](../2026-10-11-web-visual-refresh/plan.md) plan.
+
+**Plan impact:** the Activity page depends on that plan's Phase 1 tokens; its colours must work on both backgrounds.
+
+**Validation:** documentation only; no tests run.
+
+**Remaining:** Phases 1–3.
