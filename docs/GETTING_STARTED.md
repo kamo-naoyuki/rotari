@@ -129,6 +129,10 @@ ambiguous, it points to `rotari projects`.
 Use `rotari run --async` when the run should continue in the background. To
 inspect failed logs and retry only failed or unfinished work:
 
+Some options have a short form: `-p` is equivalent to `--project-name`. This
+guide uses either form; see the [CLI reference](CLI_REFERENCE.md) for the
+options available to each command.
+
 ```sh
 # Show logs for failed jobs in the selected project.
 rotari show -p sweep --failed-logs
