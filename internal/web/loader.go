@@ -104,7 +104,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			Lifecycle: lifecycle, ClientStatus: clientStatus,
 			ClientLabel: runview.ClientStatusLabel(clientStatus),
 			CWD:         context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
-			Sources: sources, SourceLabels: sourceLabels(sources), Notes: notes, NoteLabels: noteLabels(notes, jobs),
+			Sources: sources, SourceLabels: sourceLabels(sources), Notes: notes, NoteLabels: runNoteLabels(notes),
 		})
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
@@ -302,14 +302,12 @@ func sourceLabels(sources []model.SourceRevision) []string {
 	return labels
 }
 
-func noteLabels(notes []model.RunNote, jobs []Job) []string {
-	names := make(map[string]string, len(jobs))
-	for _, job := range jobs {
-		names[job.ID] = job.Name
-	}
-	labels := make([]string, 0, len(notes))
-	for _, note := range notes {
-		labels = append(labels, model.FormatRunNote(note, names[note.JobID]))
+// runNoteLabels describes the notes on the run itself. Notes on a job are
+// left to that job's NoteLabels, behind its Notes button.
+func runNoteLabels(notes []model.RunNote) []string {
+	var labels []string
+	for _, note := range model.RunNotesFor(notes, "") {
+		labels = append(labels, model.FormatRunNote(note, ""))
 	}
 	return labels
 }

@@ -98,8 +98,10 @@ func TestRunNotes(t *testing.T) {
 	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
 		t.Fatal(err)
 	}
+	// The run's labels, shown at the top of the run page, leave the job's
+	// note to that job.
 	if len(detail.Notes) != 3 || detail.Notes[0].Text != "first sweep" || detail.Notes[1].AttemptID != attempt || detail.Notes[1].Text != "exit 1 is expected" ||
-		len(detail.NoteLabels) != 3 || !strings.HasSuffix(detail.NoteLabels[1], " [train[1]] exit 1 is expected") {
+		len(detail.NoteLabels) != 2 || !strings.HasSuffix(detail.NoteLabels[0], " first sweep") || !strings.HasSuffix(detail.NoteLabels[1], " both tasks fail on purpose") {
 		t.Fatalf("Web run notes = %+v, labels %q", detail.Notes, detail.NoteLabels)
 	}
 	// Each job carries its own notes, for the run page's Notes button.

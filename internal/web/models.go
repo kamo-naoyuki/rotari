@@ -28,8 +28,9 @@ type Run struct {
 	// each as model.SourceLabel describes it for `show`.
 	Sources      []model.SourceRevision `json:"sources,omitempty"`
 	SourceLabels []string               `json:"source_labels,omitempty"`
-	// Notes are the run's notes, oldest first, and NoteLabels each as
-	// model.FormatRunNote describes it, naming a job note's job.
+	// Notes are the run's notes, oldest first, including those on its jobs.
+	// NoteLabels describe only the notes on the run itself, each as
+	// model.FormatRunNote does; a job's notes are in its Job.NoteLabels.
 	Notes      []model.RunNote `json:"notes,omitempty"`
 	NoteLabels []string        `json:"note_labels,omitempty"`
 	Timeline   []TimelinePoint `json:"timeline,omitempty"`

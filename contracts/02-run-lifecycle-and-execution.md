@@ -232,7 +232,8 @@
   summary and comparison carry the notes; MCP redacts paths in them. The Web
   API also gives each job its own notes, which the run page shows behind a
   job's `Notes` button beside `Output` and `Artifacts`, disabled for a job
-  without notes. Adding
+  without notes; the run page's header lists only the notes on the run
+  itself. Adding
   is `queueops.AddNote` in
   [`internal/queueops/note.go`](../internal/queueops/note.go). Covered by
   [`conformance/02-lifecycle/notes_test.go`](../conformance/02-lifecycle/notes_test.go).
