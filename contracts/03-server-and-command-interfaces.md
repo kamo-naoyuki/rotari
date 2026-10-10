@@ -167,12 +167,20 @@ does not promise to detect a lost remote client.
   command started in the same place would use: `ROTARI_BASEDIR`, then the
   configured `basedir`, then the default. A printed command that names a run
   then needs no location at all. Every printed command works as printed. The
-  rule is implemented once, in
+  same holds for commands built outside `cmd/rotari`: the recovery commands
+  of a command that refuses an interrupted project (`project.EnsureIdle`,
+  `project.RerunCommand`), which use the renderer a CLI process installs with
+  `project.SetCommandLocation`, and the supervisor's retry source notice,
+  which uses the location the client sends in its request. The Web UI, MCP,
+  and the supervisor itself keep naming `--basedir`, since their readers'
+  environment is unknown. The rule is implemented once, in
   [`cmd/rotari/hint_location.go`](../cmd/rotari/hint_location.go)
   (`hintLocation`, `runHintLocation`), with coverage in
   [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go)
-  (`TestHintLocationOmitsImplicitBaseDir`) and
-  [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
+  (`TestHintLocationOmitsImplicitBaseDir`),
+  [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go),
+  and `TestRefusalAndSourceHintsNameOnlyANonImplicitBaseDir` in
+  [`conformance/03-interfaces/refusal_hints_test.go`](../conformance/03-interfaces/refusal_hints_test.go).
 - **CLI-23** The job table of `show` for a run, and `show -j`, report each
   job's elapsed time: from submission to its finish, or for a running job
   until now, followed by how long ago the job last wrote to its logs

@@ -89,7 +89,7 @@ func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T)
 		`1 of 2 job(s) appear to still be running`,
 		"this run was still executing, with no cancellation requested, as of its last recorded update at 2026-09-19T10:32:00Z",
 		"Do not recover until you have independently confirmed those jobs have actually stopped.",
-		"Inspect before deciding: rotari show",
+		"Inspect it:\n  rotari show",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("error = %q, want it to contain %q", msg, want)

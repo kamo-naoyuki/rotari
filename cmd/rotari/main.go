@@ -11,6 +11,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -63,6 +64,11 @@ func dispatch(args []string) int {
 	if args[0] == "--version" || args[0] == "version" {
 		printVersion()
 		return 0
+	}
+	// A CLI command prints commands for the user who ran it, so it omits an
+	// implicit --basedir (CLI-22). Servers print for readers elsewhere.
+	if args[0] != "__server" && args[0] != "web" && args[0] != "mcp" {
+		project.SetCommandLocation(hintLocation)
 	}
 
 	switch args[0] {

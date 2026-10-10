@@ -76,9 +76,10 @@ still open. History is in [work-log.md](work-log.md).
 5. Done: the "Retry source" notice is composed once by
    `projectrun.SourceNotice` and names the queue, the latest run, and the
    left-out jobs in plain sentences.
-6. Hints built outside `cmd/rotari` (`internal/project/inspect.go`,
-   `sourceNotice`) still print `--basedir` even when it is implicit, because
-   they cannot see the CLI configuration `hintLocation` (CLI-22) reads.
+6. Done: hints built outside `cmd/rotari` follow CLI-22. `project` prints
+   recovery commands through a location renderer that CLI commands install
+   (`SetCommandLocation`), and the CLI sends its rendering to the supervisor
+   for the retry source notice. Refusal messages use one command per line.
 
 ### Not started elsewhere
 

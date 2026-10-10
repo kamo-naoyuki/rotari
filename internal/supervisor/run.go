@@ -125,6 +125,9 @@ type startedRun struct {
 	sourceRunID         string
 	usedQueueWithSource bool
 	omittedSourceJobs   []string
+	// hintLocation renders the location options of printed commands as the
+	// requesting CLI would; empty names --basedir.
+	hintLocation string
 	// A valid job ID may occupy the optional journal's path.
 	progressJobIDCollision bool
 }
@@ -173,6 +176,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 		submitted: len(prepared.plan.Execute), total: len(jobs),
 		sourceRunID: prepared.sourceRunID, usedQueueWithSource: prepared.usedQueueWithSource,
 		omittedSourceJobs:      prepared.omittedSourceJobs,
+		hintLocation:           request.HintLocation,
 		progressJobIDCollision: progressJobIDCollision,
 	}, nil
 }
@@ -253,7 +257,10 @@ func sourceNotice(started startedRun) string {
 	if !started.usedQueueWithSource {
 		return ""
 	}
-	location := fmt.Sprintf("--basedir %s --project-name %s", executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(started.paths.ProjectName))
+	location := started.hintLocation
+	if location == "" {
+		location = project.ExplicitCommandLocation(started.paths)
+	}
 	return "\n" + projectrun.SourceNotice(started.sourceRunID, started.omittedSourceJobs, location)
 }
 

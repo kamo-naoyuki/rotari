@@ -133,14 +133,16 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 		return fmt.Errorf("project %q is running; %s is not allowed (queue edits for the next run are)", paths.ProjectName, operation)
 	case Interrupted:
 		detail, stillRunning := InterruptedRunDetail(paths, runID)
-		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
-			paths.ProjectName, runID, detail, operation, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+		target := commandLocation(paths) + " --run-id " + executor.ShellQuote(runID)
+		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed.\nInspect it:\n  rotari show %s\n",
+			paths.ProjectName, runID, detail, operation, target)
 		if stillRunning {
-			message += UnconfirmedStopWarning + "\n"
+			message += UnconfirmedStopWarning + " Then recover:\n"
+		} else {
+			message += "Then recover:\n"
 		}
-		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s\n",
-			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-		message += "Then rerun its failed and unfinished jobs: " + RerunCommand(paths, runID)
+		message += "  rotari unlock " + target + "\n"
+		message += "Then rerun its failed and unfinished jobs:\n  " + RerunCommand(paths, runID)
 		return errors.New(message)
 	default:
 		return nil
@@ -173,8 +175,25 @@ func EnsureRunSettled(paths state.ProjectPaths, runID, operation string, cleanup
 // and unfinished jobs once it is recovered. The run took its jobs from the
 // queue when it started, so recovery does not bring them back into the queue.
 func RerunCommand(paths state.ProjectPaths, runID string) string {
-	return fmt.Sprintf("rotari retry --basedir %s --project-name %s --run-id %s",
-		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	return fmt.Sprintf("rotari retry %s --run-id %s", commandLocation(paths), executor.ShellQuote(runID))
+}
+
+// commandLocation renders the options that make a printed command target
+// paths' project. It names --basedir unless a CLI process has installed its
+// own rendering with SetCommandLocation, which can tell whether the state
+// directory is the one a command started there would use.
+var commandLocation = ExplicitCommandLocation
+
+// ExplicitCommandLocation names both --basedir and --project-name, for
+// readers whose environment rotari cannot know, such as the Web UI or MCP.
+func ExplicitCommandLocation(paths state.ProjectPaths) string {
+	return "--basedir " + executor.ShellQuote(paths.BaseDir) + " --project-name " + executor.ShellQuote(paths.ProjectName)
+}
+
+// SetCommandLocation installs how a CLI process renders the location part
+// of the commands this package prints (CLI-22).
+func SetCommandLocation(render func(state.ProjectPaths) string) {
+	commandLocation = render
 }
 
 // interruptedRunJobs summarizes what a run's own job directories report

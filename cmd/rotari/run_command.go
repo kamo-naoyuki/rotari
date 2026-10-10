@@ -295,6 +295,7 @@ func runJobs(args []string, defaultSelection string) int {
 	// wait without a selector follows the runs this command's parent started.
 	origin := attachment.CurrentLaunchOrigin()
 	request.LaunchOrigin = &origin
+	request.HintLocation = hintLocation(paths)
 	var response serverinternal.Response
 	if *async {
 		response, err = client.Send(request)

@@ -27,6 +27,9 @@ type Request struct {
 	Async            bool                      `json:"async,omitempty"`
 	DisconnectAction string                    `json:"disconnect_action,omitempty"`
 	ClientSessionID  string                    `json:"client_session_id,omitempty"`
+	// HintLocation is how the requesting CLI renders the location options of
+	// commands it prints for this project (CLI-22); empty names --basedir.
+	HintLocation string `json:"hint_location,omitempty"`
 	// LaunchOrigin is the process that ran the requesting rotari command.
 	LaunchOrigin    *model.LaunchOrigin `json:"launch_origin,omitempty"`
 	Quiet           bool                `json:"quiet,omitempty"`
