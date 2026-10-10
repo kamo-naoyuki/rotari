@@ -107,6 +107,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 	template = strings.Replace(template, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
+	template = strings.Replace(template, "__ROTARI_STATUS_TONES__", statusTonesJSON(), 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
@@ -194,10 +195,8 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		builder.WriteString(html.EscapeString(row.JobName))
 		builder.WriteString(`" data-run-url="`)
 		builder.WriteString(html.EscapeString(homePath + "project/" + url.PathEscape(row.Project) + "/run/" + url.PathEscape(row.RunID)))
-		builder.WriteString(`"><td class="jobs-state jobs-state-`)
-		builder.WriteString(jobsStateClass(row.State))
-		builder.WriteString(`">`)
-		builder.WriteString(html.EscapeString(row.State))
+		builder.WriteString(`"><td class="jobs-state">`)
+		builder.WriteString(statusPillHTML(row.State))
 		builder.WriteString(`</td><td><a href="`)
 		builder.WriteString(html.EscapeString(homePath))
 		builder.WriteString(`project/`)
@@ -373,19 +372,6 @@ func writeJobsSidebarProjects(builder *strings.Builder, homePath string, project
 		builder.WriteString(`</a></div>`)
 	}
 	builder.WriteString(`</div></div>`)
-}
-
-func jobsStateClass(state string) string {
-	switch state {
-	case "success", "failed", "running":
-		return state
-	case "success (accepted)":
-		return "success"
-	case "running (recorded)":
-		return "running"
-	default:
-		return "unknown"
-	}
 }
 
 func writeJobsCopyButton(builder *strings.Builder, value, label string) {

@@ -118,22 +118,6 @@ code {
   color: var(--text);
 }
 
-.jobs-state {
-  font-weight: 600;
-}
-
-.jobs-state-success {
-  color: var(--s-ok);
-}
-
-.jobs-state-failed {
-  color: var(--s-bad);
-}
-
-.jobs-state-running {
-  color: var(--s-warn);
-}
-
 .jobs-filter {
   display: flex;
   align-items: center;
@@ -349,16 +333,6 @@ button:hover {
   border-color: var(--line);
   border-radius: 7px;
   background: transparent;
-}
-
-.jobs-state-success {
-  color: var(--s-ok);
-}
-.jobs-state-failed {
-  color: var(--s-bad);
-}
-.jobs-state-running {
-  color: var(--s-warn);
 }
 
 pre {

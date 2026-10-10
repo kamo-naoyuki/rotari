@@ -1485,7 +1485,7 @@ function addProjectRuntime() {
   section.className = "project-runtime";
   section.innerHTML =
     '<h2>Project runtime</h2><div class="summary"><span class="' +
-    (active ? "status-running" : "meta") +
+    (active ? statusPillClass("running") : "meta") +
     '">' +
     esc(runner) +
     "</span></div><details" +

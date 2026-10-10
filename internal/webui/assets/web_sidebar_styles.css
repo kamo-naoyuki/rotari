@@ -1,4 +1,69 @@
 /* Shared by the live All projects and Job activity pages. */
+
+/*
+ * A status pill: one per displayed status on every page. The tone comes from
+ * statusTones (internal/webui/status.go); colours from the status tokens.
+ */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 1px 9px 1px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.status-pill::before {
+  width: 12px;
+  font-size: 11px;
+  text-align: center;
+}
+.status-pill.tone-ok {
+  color: var(--s-ok);
+  background: var(--s-ok-bg);
+}
+.status-pill.tone-ok::before {
+  content: "✓";
+}
+.status-pill.tone-bad {
+  color: var(--s-bad);
+  background: var(--s-bad-bg);
+}
+.status-pill.tone-bad::before {
+  content: "✕";
+}
+.status-pill.tone-run {
+  color: var(--s-run);
+  background: var(--s-run-bg);
+}
+.status-pill.tone-run::before {
+  content: "▶";
+}
+.status-pill.tone-warn {
+  color: var(--s-warn);
+  background: var(--s-warn-bg);
+}
+.status-pill.tone-warn::before {
+  content: "!";
+}
+.status-pill.tone-off {
+  color: var(--s-off);
+  background: var(--s-off-bg);
+}
+.status-pill.tone-off::before {
+  content: "■";
+}
+.status-pill.carried {
+  border: 1px dashed currentColor;
+  background: transparent;
+}
+.status-pill.carried::before {
+  content: "↩";
+}
 .sidebar {
   flex: 0 0 auto;
   position: sticky;

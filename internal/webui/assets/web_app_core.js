@@ -7,28 +7,36 @@ const mountedBasedirID = (() => {
 const sidebarScrollKey =
   "rotari-sidebar-scroll:" +
   (registeredBasedirs.find((item) => item.current)?.id || mountedBasedirID);
-// Status colours come from the status tokens in web_tokens.css. Every view
-// that colours a status goes through statusTone, so a status reads the same
-// everywhere and in both themes.
-const statusTones = {
-  success: "ok",
-  finished: "ok",
-  succeeded: "ok",
-  failed: "bad",
-  unreadable: "bad",
-  running: "run",
-  "in progress": "run",
-  blocked: "warn",
-  interrupted: "warn",
-  pending: "off",
-  unfinished: "off",
-  cancelled: "off",
-};
+// Status tones (ok, bad, run, warn, off) name a status's colour and icon.
+// The table is statusTones in internal/webui/status.go, the Web UI's one
+// status-to-colour rule; statusBase normalises a label the same way Go does.
+const statusTones = __ROTARI_STATUS_TONES__;
+function statusBase(status) {
+  let base = String(status).trim().toLowerCase();
+  if (base.endsWith("...")) base = base.slice(0, -3).trim();
+  const open = base.indexOf(" (");
+  if (open >= 0 && base.endsWith(")")) base = base.slice(0, open);
+  return base;
+}
 function statusTone(status) {
-  return statusTones[String(status).trim().toLowerCase()] || "off";
+  return statusTones[statusBase(status)] || "off";
 }
 function statusColor(status) {
   return "var(--s-" + statusTone(status) + ")";
+}
+// A status pill: the label in its tone's colour, with its icon; a carried
+// result keeps its tone and gets a dashed outline.
+function statusPillClass(status) {
+  return (
+    "status-pill tone-" +
+    statusTone(status) +
+    (String(status).toLowerCase().includes("(carried)") ? " carried" : "")
+  );
+}
+function statusPill(status, text = status) {
+  return (
+    '<span class="' + statusPillClass(status) + '">' + esc(text) + "</span>"
+  );
 }
 // statusColorMap and statusTintMap build a view's colour table for its
 // status keys: a colour, or a [background, foreground] pair.
@@ -1364,11 +1372,9 @@ function renderOverview(queues) {
             esc(latest.run_name || latest.run_id) +
             "</a>"
           : "-") +
-        '</td><td><span class="status-' +
-        (latest ? latest.status : "") +
-        '\">' +
-        esc(latest ? latest.status : "-") +
-        "</span></td><td>" +
+        "</td><td>" +
+        (latest ? statusPill(latest.status) : "-") +
+        "</td><td>" +
         esc(latest ? latest.started_at : "-") +
         "</td></tr>"
       );
@@ -1402,12 +1408,12 @@ function renderQueue(q) {
         encodeURIComponent(r.run_id) +
         '">' +
         esc(r.run_id) +
-        '</a></td><td><span class="status-' +
-        esc(r.lifecycle || r.status) +
-        '">' +
-        esc(r.lifecycle || r.status) +
-        (r.running ? " ..." : "") +
-        "</span></td><td>" +
+        "</a></td><td>" +
+        statusPill(
+          r.lifecycle || r.status,
+          (r.lifecycle || r.status) + (r.running ? " ..." : ""),
+        ) +
+        "</td><td>" +
         esc(r.client_label || clientStatusLabel(r.client_status)) +
         "</td><td>" +
         (r.finished_at ? esc(r.exit_code) : "-") +
@@ -1880,7 +1886,9 @@ function enhancePage() {
               esc(j.id) +
               "</div></td><td>" +
               (j.array ? esc(j.array.first + "-" + j.array.last) : "-") +
-              '</td><td class="status-value">pending</td><td>' +
+              "</td><td>" +
+              statusPill("pending") +
+              "</td><td>" +
               esc(j.executor || "default") +
               "</td><td>" +
               esc((j.executor_options || []).join(" ") || "-") +

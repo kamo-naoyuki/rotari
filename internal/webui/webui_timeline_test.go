@@ -64,7 +64,7 @@ func TestJobTimelineRendersOneBarPerPoint(t *testing.T) {
 		t.Fatal("job timeline renderer was not found")
 	}
 	// The renderer colours statuses through the shared mapping in the core script.
-	toneStart := strings.Index(webAppCoreJS, "const statusTones = {")
+	toneStart := strings.Index(webAppCoreJS, "const statusTones = __ROTARI_STATUS_TONES__;")
 	toneEnd := strings.Index(webAppCoreJS, "function basedirURL(")
 	if toneStart < 0 || toneEnd <= toneStart {
 		t.Fatal("status colour mapping was not found")
@@ -82,7 +82,7 @@ const state = { projects: [{ project_name: 'demo', runs: [{
     {at: '2026-10-02T10:00:00Z', success: 2},
   ]
 }]}]};
-` + webAppCoreJS[toneStart:toneEnd] + webAppChartsJS[start:start+end] + `
+` + strings.Replace(webAppCoreJS[toneStart:toneEnd], "__ROTARI_STATUS_TONES__", statusTonesJSON(), 1) + webAppChartsJS[start:start+end] + `
 renderJobTimelineScratch();
 const bars = document.querySelectorAll('.job-timeline svg rect');
 const barPositions = new Set([...bars].map(bar => bar.getAttribute('x')));

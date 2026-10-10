@@ -109,11 +109,12 @@ setTimeout(async () => {
       const rows = [...window.document.querySelectorAll('#app tbody tr')];
       assert.equal(rows.length, runs.length);
       const states = ['interrupted', 'incomplete', 'running', 'finished', 'failed', 'running', 'running', 'running'];
+      const tones = ['warn', 'off', 'run', 'ok', 'bad', 'run', 'run', 'run'];
       rows.forEach((row, index) => {
         const pill = row.children[2].querySelector('span');
         assert.equal(pill.textContent, states[index] + (runs[index].running ? ' ...' : ''));
-        assert(pill.classList.contains('status-' + states[index]));
-        if (index < 2) assert(!pill.classList.contains('status-running'));
+        assert(pill.classList.contains('status-pill') && pill.classList.contains('tone-' + tones[index]));
+        if (index < 2) assert(!pill.classList.contains('tone-run'));
       });
       assert.equal(rows[0].children[3].textContent, 'detached (disconnect)');
       assert.equal(rows[1].children[3].textContent, 'unknown');

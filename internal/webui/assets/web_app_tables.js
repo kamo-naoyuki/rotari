@@ -1,18 +1,3 @@
-function applyStatusColors() {
-  const colors = statusColorMap([
-    "pending",
-    "unfinished",
-    "running",
-    "success",
-    "finished",
-    "failed",
-    "blocked",
-  ]);
-  document.querySelectorAll(".status-value").forEach((element) => {
-    const value = element.textContent.trim().toLowerCase();
-    if (colors[value]) element.style.color = colors[value];
-  });
-}
 function sortTable(table, key, stateKey) {
   const headers = [...table.querySelectorAll("thead th")];
   const index = headers.findIndex((header) => header.dataset.sort === key);
@@ -185,11 +170,9 @@ function enhanceQueueOverview() {
         encodeURIComponent(latest.run_id) +
         '">' +
         esc(latest.run_name || latest.run_id) +
-        '</a></div><div class="summary"><span class="status-' +
-        esc(latest.status) +
-        '">' +
-        esc(latest.status) +
-        "</span><span>Started: " +
+        '</a></div><div class="summary">' +
+        statusPill(latest.status) +
+        "<span>Started: " +
         esc(latest.started_at || "-") +
         "</span><span>Finished: " +
         esc(latest.finished_at || "-") +
@@ -268,25 +251,6 @@ function jobDisplayStatus(job, run) {
   if (result.error === "blocked by failed dependency") return "blocked";
   return result.exit_code === 0 ? "success" : "failed";
 }
-function jobStatusClass(status) {
-  status = status.toLowerCase().replace(/ \(carried\)$/, "");
-  const classes = {
-    pending: "status-pending",
-    unfinished: "status-pending",
-    running: "status-running",
-    "running (recorded)": "status-running",
-    "waiting (recorded)": "status-pending",
-    "suspended (recorded)": "status-pending",
-    success: "status-finished",
-    finished: "status-finished",
-    "success (accepted)": "status-finished",
-    failed: "status-failed",
-    cancelled: "status-failed",
-    blocked: "status-blocked",
-    unknown: "status-unreadable",
-  };
-  return classes[status.toLowerCase()] || "status-unreadable";
-}
 function addRunJobStatusColumn() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
@@ -312,7 +276,7 @@ function addRunJobStatusColumn() {
     const status = document.createElement("td");
     const label = jobDisplayStatus(job, run);
     const pill = document.createElement("span");
-    pill.className = "status-value " + jobStatusClass(label);
+    pill.className = statusPillClass(label);
     pill.textContent = label;
     status.append(pill);
     rows[index].children[3].after(status);

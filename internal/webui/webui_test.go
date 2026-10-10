@@ -1441,8 +1441,8 @@ setTimeout(async () => {
 	assert(row().querySelector('[title="Copy command"]'), 'command copy button is missing');
 	assert(row().querySelectorAll('.table-copy').length >= 4, 'table copy buttons are not styled as table controls');
     assert(row().textContent.includes('attempt-1'), 'latest attempt is not displayed');
-    const statusPill = () => row().querySelector('.status-value');
-    assert(statusPill().tagName === 'SPAN' && statusPill().classList.contains('status-failed'), 'failed job status is not rendered as a pill');
+    const statusPill = () => row().querySelector('.status-pill');
+    assert(statusPill().tagName === 'SPAN' && statusPill().classList.contains('tone-bad'), 'failed job status is not rendered as a pill');
     dom.window.setAttemptMenuOpen('default', 'run-1', 'job-1', true);
     dom.window.render();
     assert(row().querySelector('.attempt-menu').open, 'attempt menu did not stay open after render');
@@ -1454,7 +1454,7 @@ setTimeout(async () => {
     assert(row().textContent.includes('attempt-0'), 'selected attempt is not displayed');
     assert(row().textContent.includes('0'), 'selected attempt result is not displayed');
     assert(row().textContent.includes('old-start'), 'selected attempt timestamp is not displayed');
-    assert(statusPill().classList.contains('status-finished'), 'successful job status is not rendered as a pill');
+    assert(statusPill().classList.contains('tone-ok'), 'successful job status is not rendered as a pill');
     assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close after selection');
 	const logButton = row().querySelector('button[onclick*="attempt-0"]');
 	assert(logButton, 'log button does not target selected attempt');
@@ -3023,13 +3023,13 @@ func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 func TestJobsHTMLStylesStates(t *testing.T) {
 	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}, {State: "running (recorded)"}}, joblist.DefaultSinceText, true, true)
 	for _, want := range []string{
-		`class="jobs-state jobs-state-success"`,
-		`class="jobs-state jobs-state-failed"`,
-		`class="jobs-state jobs-state-running"`,
-		`class="jobs-state jobs-state-running">running (recorded)</td>`,
-		`.jobs-state-success`,
-		`.jobs-state-failed`,
-		`.jobs-state-running`,
+		`<td class="jobs-state"><span class="status-pill tone-ok">success</span></td>`,
+		`<td class="jobs-state"><span class="status-pill tone-bad">failed</span></td>`,
+		`<td class="jobs-state"><span class="status-pill tone-run">running</span></td>`,
+		`<td class="jobs-state"><span class="status-pill tone-run">running (recorded)</span></td>`,
+		`.status-pill.tone-ok`,
+		`.status-pill.tone-bad`,
+		`.status-pill.tone-run`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("jobs HTML does not contain %q", want)

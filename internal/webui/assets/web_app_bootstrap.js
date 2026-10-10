@@ -292,7 +292,6 @@ render = function () {
   markLatestRun();
   enableTableSorting();
   restoreSelectedOutput();
-  applyStatusColors();
   fixRunStatisticsColors();
   fixTimelineLegendColors();
   addConfigButton();

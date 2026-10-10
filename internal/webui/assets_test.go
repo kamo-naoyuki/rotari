@@ -52,16 +52,16 @@ func TestComposeStaticBootstrapInjectsData(t *testing.T) {
 	}
 }
 
-func TestJobsStateClassTreatsAcceptedSuccessAsSuccess(t *testing.T) {
+func TestStatusToneTreatsAcceptedSuccessAsSuccess(t *testing.T) {
 	for state, want := range map[string]string{
-		"success":            "success",
-		"success (accepted)": "success",
-		"running (recorded)": "running",
-		"failed":             "failed",
-		"pending":            "unknown",
+		"success":            "ok",
+		"success (accepted)": "ok",
+		"running (recorded)": "run",
+		"failed":             "bad",
+		"pending":            "off",
 	} {
-		if got := jobsStateClass(state); got != want {
-			t.Errorf("jobsStateClass(%q) = %q, want %q", state, got, want)
+		if got := statusTone(state); got != want {
+			t.Errorf("statusTone(%q) = %q, want %q", state, got, want)
 		}
 	}
 }

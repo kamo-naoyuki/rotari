@@ -342,16 +342,13 @@ function fixQueueSourceColumns(commands) {
     if (!rows[index]) return;
     const sourceRun = document.createElement("td");
     const sourceStatus = document.createElement("td");
-    sourceStatus.className = "status-value";
     const sourceStarted = document.createElement("td");
     const sourceFinished = document.createElement("td");
     const sourceOutput = document.createElement("td");
     if (job.origin) {
       sourceRun.textContent = job.origin.run_id + "/" + job.origin.job_id;
-      sourceStatus.textContent = queuedStatusText(
-        job.origin.status,
-        job.marked_status,
-      );
+      const recorded = queuedStatusText(job.origin.status, job.marked_status);
+      sourceStatus.innerHTML = recorded === "-" ? "-" : statusPill(recorded);
       sourceStarted.textContent = job.origin.submitted_at || "-";
       sourceFinished.textContent = job.origin.finished_at || "-";
       sourceOutput.innerHTML =
@@ -362,7 +359,8 @@ function fixQueueSourceColumns(commands) {
         "',this)\">Output</button>";
     } else {
       sourceRun.textContent = "-";
-      sourceStatus.textContent = queuedStatusText("", job.marked_status);
+      const marked = queuedStatusText("", job.marked_status);
+      sourceStatus.innerHTML = marked === "-" ? "-" : statusPill(marked);
       sourceStarted.textContent = "-";
       sourceFinished.textContent = "-";
       sourceOutput.textContent = "-";

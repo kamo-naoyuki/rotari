@@ -310,18 +310,6 @@ section {
   letter-spacing: 0.04em;
   margin-left: 6px;
 }
-.status-finished {
-  color: var(--s-ok);
-}
-.status-failed {
-  color: var(--s-bad);
-}
-.status-running {
-  color: var(--s-warn);
-}
-.status-unreadable {
-  color: var(--s-bad);
-}
 .run-id {
   font-family: ui-monospace, monospace;
   color: var(--link);
@@ -810,8 +798,13 @@ td.matrix-failed:hover {
     0 0 0 1px var(--s-bad),
     0 0 18px 2px color-mix(in oklab, var(--s-bad) 85%, transparent);
 }
-td.matrix-blocked:hover,
 td.matrix-running:hover {
+  background: color-mix(in oklab, var(--s-run) 50%, transparent);
+  box-shadow:
+    0 0 0 1px var(--s-run),
+    0 0 18px 2px color-mix(in oklab, var(--s-run) 85%, transparent);
+}
+td.matrix-blocked:hover {
   background: color-mix(in oklab, var(--s-warn) 50%, transparent);
   box-shadow:
     0 0 0 1px var(--s-warn),
@@ -828,8 +821,11 @@ td.matrix-pending:hover {
   background: color-mix(in oklab, var(--s-bad) 25%, transparent);
   color: var(--s-bad);
 }
-.matrix-blocked,
 .matrix-running {
+  background: color-mix(in oklab, var(--s-run) 18%, transparent);
+  color: var(--s-run);
+}
+.matrix-blocked {
   background: color-mix(in oklab, var(--s-warn) 18%, transparent);
   color: var(--s-warn);
 }
@@ -1133,40 +1129,6 @@ section h2 {
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-}
-
-.status-finished,
-.status-failed,
-.status-running,
-.status-unreadable,
-.status-pending,
-.status-blocked {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: fit-content;
-  padding: 3px 8px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  background: transparent;
-  font-size: 11px;
-  font-weight: 620;
-  line-height: 1.4;
-}
-
-.status-finished {
-  color: var(--s-ok);
-}
-.status-failed,
-.status-unreadable {
-  color: var(--s-bad);
-}
-.status-running,
-.status-pending {
-  color: var(--s-warn);
-}
-.status-blocked {
-  color: var(--s-warn);
 }
 
 .run-id {
