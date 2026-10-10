@@ -79,7 +79,20 @@ func TestRunNotes(t *testing.T) {
 		}
 	}
 
-	response := e.HTTPGet(e.StartWeb() + "/api/run?project_name=notes&run_id=" + url.QueryEscape(first))
+	web := e.StartWeb()
+	// The run page shows the run's notes in its report, each job's notes in
+	// that job's section.
+	report := e.HTTPGet(web + "/api/report?project_name=notes&run_id=" + url.QueryEscape(first))
+	if report.Status != 200 {
+		t.Fatalf("GET report: status %d: %s", report.Status, report.Body)
+	}
+	runNotes, jobSections, _ := strings.Cut(report.Body, "\n## Jobs\n")
+	if !strings.Contains(runNotes, "\n## Notes\n") || !strings.Contains(runNotes, "\n\nfirst sweep\n") || !strings.Contains(runNotes, "\n\nboth tasks fail on purpose\n") || strings.Contains(runNotes, "exit 1 is expected") ||
+		!strings.Contains(jobSections, "\n### Notes\n") || !strings.Contains(jobSections, "\n\nexit 1 is expected\n") {
+		t.Fatalf("Web run report does not place the notes:\n%s", report.Body)
+	}
+
+	response := e.HTTPGet(web + "/api/run?project_name=notes&run_id=" + url.QueryEscape(first))
 	if response.Status != 200 {
 		t.Fatalf("GET run: status %d: %s", response.Status, response.Body)
 	}
@@ -89,8 +102,7 @@ func TestRunNotes(t *testing.T) {
 			AttemptID string `json:"attempt_id"`
 			Text      string `json:"text"`
 		} `json:"notes"`
-		NoteLabels []string `json:"note_labels"`
-		Jobs       []struct {
+		Jobs []struct {
 			ID         string   `json:"id"`
 			NoteLabels []string `json:"note_labels"`
 		} `json:"jobs"`
@@ -98,11 +110,8 @@ func TestRunNotes(t *testing.T) {
 	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
 		t.Fatal(err)
 	}
-	// The run's labels, shown at the top of the run page, leave the job's
-	// note to that job.
-	if len(detail.Notes) != 3 || detail.Notes[0].Text != "first sweep" || detail.Notes[1].AttemptID != attempt || detail.Notes[1].Text != "exit 1 is expected" ||
-		len(detail.NoteLabels) != 2 || !strings.HasSuffix(detail.NoteLabels[0], " first sweep") || !strings.HasSuffix(detail.NoteLabels[1], " both tasks fail on purpose") {
-		t.Fatalf("Web run notes = %+v, labels %q", detail.Notes, detail.NoteLabels)
+	if len(detail.Notes) != 3 || detail.Notes[0].Text != "first sweep" || detail.Notes[1].AttemptID != attempt || detail.Notes[1].Text != "exit 1 is expected" {
+		t.Fatalf("Web run notes = %+v", detail.Notes)
 	}
 	// Each job carries its own notes, for the run page's Notes button.
 	if len(detail.Jobs) != 2 {
