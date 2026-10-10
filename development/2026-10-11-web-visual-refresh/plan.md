@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Proposed; open decisions below need the user's answer before Phase 1
+**Status:** Proposed; decisions made, Phase 0 not started
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -120,8 +120,8 @@ a review aid, not a test: CI does not depend on a browser.
 ### Phase 1: tokens and status component
 
 Collect the colours, sizes, and fonts into tokens and replace literals; add
-the status pill and use it wherever a status is rendered. Mostly visual no-op
-plus the status change.
+the status pill and use it wherever a status is rendered; add the light theme
+and the theme choice; embed the fonts. Apart from these, a visual no-op.
 
 ### Phase 2: renderers own their markup
 
@@ -144,15 +144,24 @@ compact command/attempt layout.
 The Activity page is built on the Phase 1 tokens and status component, so
 Phase 1 should land before the activity plan's Phase 2.
 
-## Open decisions (for the user)
+## Decisions
 
-1. **Light theme.** Today the UI is dark only. Add a light theme that follows
-   the OS setting, or stay dark?
-2. **Font.** Keep the system font, or embed one sans and one monospace face
-   in the binary (roughly 100–200 KB of WOFF2) so every machine renders the
-   same?
-3. **Run page sections.** Open the job timeline by default and let the others
-   remember their state, as proposed, or open all?
+- **Light theme (2026-10-11).** Add a light theme. The UI follows the OS
+  setting (`prefers-color-scheme`); a Light / Dark / System choice in the
+  Settings menu overrides it and is remembered per browser. Both themes are
+  designed from the same tokens, not by inverting colours, and status and
+  chart colours are checked for contrast on both backgrounds. The static
+  export behaves the same. Part of Phase 1.
+- **Embedded fonts (2026-10-11).** Ship one sans and one monospace face in
+  the binary as WOFF2, served by the live server and copied into the static
+  export, so every machine renders the same. Constraints: an open licence
+  (SIL OFL or similar) whose text is shipped beside the files; a Latin subset
+  with only the weights used (about 100–200 KB in all); the system font stack
+  stays as fallback, which also covers CJK characters in job names and paths.
+  The faces are chosen with the Phase 1 mockup. Adding them is a new asset,
+  not a new code dependency.
+- **Run page sections (2026-10-11).** The job timeline is open by default;
+  the other sections remember their open state per browser.
 
 ## Tests and contracts
 
