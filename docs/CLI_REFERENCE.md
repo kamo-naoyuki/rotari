@@ -1,5 +1,17 @@
 # CLI reference
 
+The command reference below is generated from `rotari schema --json`, the same
+metadata used by command help and shell completion. Environment variables are
+documented separately in [Environment variables](ENVIRONMENT_VARIABLES.md).
+
+For options available from the CLI, environment, and configuration, values are
+resolved in this order: explicit CLI value, environment variable, configuration
+values, then built-in default. Ordinary files merge global → cwd workspace →
+basedir → project; command sections then override root values. `--config FILE`
+replaces automatic discovery with that file. See
+[Configuration](CONFIGURATION.md#configuration-files) for location constraints,
+`init`, source inspection, and file-only run snapshots.
+
 ## Short options
 
 These short forms are aliases for their long options. Each is available only
@@ -13,18 +25,6 @@ for commands that support the corresponding long option; `-h` displays help.
 | `-j ID` | `--job-id ID` | Job selector; repeatable where supported |
 | `-e EXECUTOR` | `--executor EXECUTOR` | Select or override the executor |
 | `-h` | `--help` | Display help |
-
-The command reference below is generated from `rotari schema --json`, the same
-metadata used by command help and shell completion. Environment variables are
-documented separately in [Environment variables](ENVIRONMENT_VARIABLES.md).
-
-For options available from the CLI, environment, and configuration, values are
-resolved in this order: explicit CLI value, environment variable, configuration
-values, then built-in default. Ordinary files merge global → cwd workspace →
-basedir → project; command sections then override root values. `--config FILE`
-replaces automatic discovery with that file. See
-[Configuration](CONFIGURATION.md#configuration-files) for location constraints,
-`init`, source inspection, and file-only run snapshots.
 
 <!-- BEGIN GENERATED CLI REFERENCE -->
 
