@@ -38,7 +38,8 @@ fi
 # Restore the failed job into the current queue before editing it.
 "${binary}" copy --run-id "${first_run_id}" --failed --overwrite
 "${binary}" change --job-name failed -- sh -c 'echo validation now passes'
-"${binary}" run --failed --run-name "Retry run"
+"${binary}" run --failed --run-name "Retry run" \
+    --note "Retry only the failed validation job after fixing its check."
 
 # Keep a useful current queue in the demo so the queue page is not empty.
 run_count=$(find "${state_dir}/projects/demo/runs" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | wc -l)
@@ -62,6 +63,16 @@ fi
 "${binary}" add -p sweep --job-name collect --depends-on-finished train \
     sh -c 'echo collected the finished sweep results'
 "${binary}" run -p sweep --run-name "Hyperparameter sweep" || true
+
+# An array whose tasks fail with different exit codes, so array task views
+# show more than one kind of failure.
+"${binary}" add -p shards --job-name decode --array 1-6 \
+    sh -c 'echo "decoding shard $ROTARI_ARRAY_TASK_ID"
+		case "$ROTARI_ARRAY_TASK_ID" in
+		3) exit 2 ;;
+		5) exit 137 ;;
+		esac'
+"${binary}" run -p shards --run-name "Decode shards" || true
 
 # A training job whose files cover every artifact view: images, audio,
 # video, tables, logs, text, JSON, NumPy arrays, an opaque checkpoint, a
