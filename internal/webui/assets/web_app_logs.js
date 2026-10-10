@@ -480,11 +480,6 @@ function arrangeRunControls() {
 function shellQuote(v) {
   return "'" + String(v || "").replace(/'/g, "'\\''") + "'";
 }
-function removeLegacyOutputBox() {
-  document
-    .querySelectorAll("#app pre.log:not(.row-log)")
-    .forEach((element) => element.remove());
-}
 function ensureOutputBox() {
   let output = document.getElementById("log");
   if (!output) {
@@ -563,13 +558,5 @@ function renameCopyButtons() {
       button.textContent = "Create queue from failed jobs";
     if (button.textContent === "Copy all jobs")
       button.textContent = "Create queue from all jobs";
-  });
-}
-function labelEquivalentCommand() {
-  document.querySelectorAll("pre.log").forEach((pre) => {
-    pre.textContent = pre.textContent.replace(
-      "Retry from a terminal:",
-      "Equivalent command:",
-    );
   });
 }

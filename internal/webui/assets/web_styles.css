@@ -1759,3 +1759,110 @@ pre,
 .project-runtime .runtime-details {
   margin-top: 10px;
 }
+
+/* A page's facts line (fact in web_app_core.js): "Label: value" entries. */
+.facts .fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.facts .fact-label {
+  margin-right: 3px;
+  color: var(--muted);
+}
+.facts code {
+  font-size: 12px;
+}
+.facts .identity-copy {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 3px;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* A run's own notes, above its command and cards. */
+.run-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.run-note {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--link);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+}
+.run-note-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.run-note-body > :first-child {
+  margin-top: 2px;
+}
+.run-note-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Four cards summarising a run (runCardsHTML). */
+.run-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  text-align: left;
+}
+.run-card {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.run-card-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.run-card-value {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.run-card-value small {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 400;
+}
+.run-card-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+.run-card-bar .tone-ok {
+  background: var(--s-ok);
+}
+.run-card-bar .tone-bad {
+  background: var(--s-bad);
+}
+.run-card-bar .tone-warn {
+  background: var(--s-warn);
+}
+.run-card-bar .tone-run {
+  background: var(--s-run);
+}
+.run-card-bar .tone-off {
+  background: var(--s-off);
+}
+@media (max-width: 760px) {
+  .run-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

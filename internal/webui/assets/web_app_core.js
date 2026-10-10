@@ -1474,47 +1474,49 @@ function renderRun(q, runID) {
     ],
     webStatePath(state.base_dir, "projects", q.project_name, "runs", runID),
   );
-  document.getElementById("page-title").innerHTML = esc(run.run_name || runID);
-  document.getElementById("summary").innerHTML =
-    "<span>Project: " +
-    esc(q.project_name) +
-    "</span><span>Run ID: " +
-    esc(run.run_id) +
-    copyIconForValue(run.run_id, "run ID") +
-    "</span><span>Status: " +
-    esc(run.status) +
-    "</span><span>Lifecycle: " +
-    esc(run.lifecycle || "unknown") +
-    "</span><span>Client: " +
-    esc(run.client_label || clientStatusLabel(run.client_status)) +
-    "</span><span>Exit: " +
-    (run.finished_at ? esc(run.exit_code) : "-") +
-    "</span>";
-  if (run.lineage_summary) {
-    const lineage = run.lineage_summary;
-    const diagnosisText = lineageDiagnosisText(lineage.diagnoses);
-    const failureText = (lineage.failures || [])
-      .map((group) => group.cause + " " + group.count)
-      .join(", ");
-    const originText = (lineage.origins || [])
-      .map((item) => (item.run_id || "new") + " " + item.count)
-      .join(", ");
-    document.getElementById("summary").innerHTML +=
-      "<span>Jobs: " +
-      esc(lineage.counts.jobs) +
-      " (ok " +
-      esc(lineage.counts.succeeded) +
-      ", failed " +
-      esc(lineage.counts.failed) +
-      ")</span>" +
-      (failureText
-        ? "<span>Failure causes: " + esc(failureText) + "</span>"
-        : "") +
-      (diagnosisText
-        ? "<span>Diagnoses: " + esc(diagnosisText) + "</span>"
-        : "") +
-      (originText ? "<span>Origins: " + esc(originText) + "</span>" : "");
-  }
+  document.getElementById("page-title").innerHTML =
+    esc(run.run_name || runID) + " " + statusPill(run.lifecycle || run.status);
+  const lineage = run.lineage_summary;
+  const diagnosisText = lineage ? lineageDiagnosisText(lineage.diagnoses) : "";
+  const originText = lineage
+    ? (lineage.origins || [])
+        .map((item) => (item.run_id || "new") + " " + item.count)
+        .join(", ")
+    : "";
+  const cwd = run.cwd || "-";
+  const host = run.context && run.context.hostname;
+  document.getElementById("summary").innerHTML = [
+    fact("Project", esc(q.project_name)),
+    fact(
+      "Run ID",
+      "<code>" +
+        esc(run.run_id) +
+        "</code>" +
+        copyIconForValue(run.run_id, "run ID"),
+    ),
+    fact("Status", esc(run.status)),
+    fact("Lifecycle", esc(run.lifecycle || "unknown")),
+    fact(
+      "Client",
+      esc(run.client_label || clientStatusLabel(run.client_status)),
+    ),
+    fact("Exit", run.finished_at ? esc(run.exit_code) : "-"),
+    fact("Started", esc(run.started_at || "-")),
+    fact("Finished", esc(run.finished_at || "-")),
+    host ? fact("Host", esc(host)) : "",
+    fact(
+      "Working directory",
+      "<code>" +
+        esc(cwd) +
+        "</code>" +
+        copyIconForValue(cwd, "working directory"),
+    ),
+    ...(run.source_labels || []).map((label) =>
+      fact("Source", "<code>" + esc(label) + "</code>"),
+    ),
+    diagnosisText ? fact("Diagnoses", esc(diagnosisText)) : "",
+    originText ? fact("Origins", esc(originText)) : "",
+  ].join("");
   if (run.unreadable) {
     // The run's files come from a newer rotari; only the reason is known.
     document.getElementById("app").innerHTML =
@@ -1752,44 +1754,136 @@ function renderRun(q, runID) {
       );
     })
     .join("");
-  const cwd = run.cwd || "-";
-  const copy =
-    "cd " + shellQuote(cwd) + " && rotari retry -r " + shellQuote(runID) + "";
-  const cwdCopy = copyIconForValue(cwd, "working directory");
+  const latest = latestRun(q.runs);
+  const retry =
+    "# To retry failed or unfinished jobs from this run\n" +
+    (run.cwd && run.cwd !== "-" ? "cd " + shellQuote(run.cwd) + "\n" : "") +
+    "rotari retry -r " +
+    shellQuote(runID) +
+    (latest && latest.run_id === runID
+      ? ""
+      : "\nrotari retry -r " + shellQuote(runID) + " --job-id JOB_ID");
   document.getElementById("app").innerHTML =
-    '<div class="toolbar"><a class="link" href="/project/' +
-    encodeURIComponent(q.project_name) +
-    '">Back to ' +
-    esc(q.project_name) +
-    '</a></div><p class="meta run-detail">Started: ' +
-    esc(run.started_at || "-") +
-    " | Finished: " +
-    esc(run.finished_at || "-") +
-    " | Jobs: " +
-    (run.jobs || []).length +
-    '</p><p class="meta run-detail">Working directory: ' +
-    "<code>" +
-    esc(cwd) +
-    "</code>" +
-    cwdCopy +
-    "</p>" +
-    (run.source_labels || [])
-      .map(
-        (label) =>
-          '<p class="meta run-detail">Source: <code>' +
-          esc(label) +
-          "</code></p>",
-      )
-      .join("") +
-    '<pre class="log command-example">Retry from a terminal:\n' +
-    esc(copy) +
-    "</pre>" +
+    runNotesHTML(run) +
+    commandGuideHTML(retry) +
+    runCardsHTML(run) +
     (jobs
       ? '<table class="runs run-jobs"><thead><tr><th class="actions">Actions</th><th></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th class="job-status-header" data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th class="job-host-header" data-sort="hosts">Hosts</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
-      : '<div class="empty">No job definitions yet.</div>') +
-    '<pre id="log" class="log">Select a job output.</pre>';
+      : '<div class="empty">No job definitions yet.</div>');
+}
+// fact is one "Label: value" entry of a page's facts line; valueHTML is
+// already escaped.
+function fact(label, valueHTML) {
+  return (
+    '<span class="fact"><span class="fact-label">' +
+    label +
+    ":</span> " +
+    valueHTML +
+    "</span>"
+  );
+}
+// runNotesHTML shows the notes on a run itself, oldest first; notes on a job
+// are behind that job's Notes button.
+function runNotesHTML(run) {
+  const notes = (run.notes || []).filter((note) => !note.job_id);
+  if (!notes.length) return "";
+  return (
+    '<div class="run-notes">' +
+    notes
+      .map(
+        (note) =>
+          '<div class="run-note"><div class="run-note-meta">Note · ' +
+          esc(note.at ? new Date(note.at).toLocaleString() : "") +
+          '</div><div class="run-note-body">' +
+          renderMarkdown(note.text) +
+          "</div></div>",
+      )
+      .join("") +
+    "</div>"
+  );
+}
+// runCardsHTML summarises a run in four cards: its jobs by result, its
+// failure causes, its wall time, and the host load when it ended.
+function runCardsHTML(run) {
+  const jobs = run.jobs || [];
+  const counts = { ok: 0, bad: 0, run: 0, warn: 0, off: 0 };
+  jobs.forEach((job) => counts[statusTone(jobDisplayStatus(job, run))]++);
+  const lineage = run.lineage_summary;
+  const failures = (lineage && lineage.failures) || [];
+  const failureCount = failures.reduce((sum, group) => sum + group.count, 0);
+  const elapsed = lineage && lineage.run && lineage.run.elapsed;
+  const context = run.context || {};
+  const samples = context.load_samples || [];
+  const load = samples.length
+    ? samples[samples.length - 1]
+    : context.started_load;
+  const fixed = (value) => Number(value).toFixed(2);
+  const card = (label, value, detail, extra = "") =>
+    '<div class="run-card"><div class="run-card-label">' +
+    label +
+    '</div><div class="run-card-value">' +
+    value +
+    (detail ? " <small>" + detail + "</small>" : "") +
+    "</div>" +
+    extra +
+    "</div>";
+  const bar =
+    '<div class="run-card-bar" aria-hidden="true">' +
+    ["ok", "bad", "warn", "run", "off"]
+      .filter((tone) => counts[tone])
+      .map(
+        (tone) =>
+          '<span class="tone-' +
+          tone +
+          '" style="flex:' +
+          counts[tone] +
+          '"></span>',
+      )
+      .join("") +
+    "</div>";
+  const jobDetail = [
+    counts.ok ? counts.ok + " ok" : "",
+    counts.bad ? counts.bad + " failed" : "",
+    counts.warn ? counts.warn + " blocked" : "",
+    counts.run ? counts.run + " running" : "",
+    counts.off ? counts.off + " other" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    '<div class="run-cards">' +
+    card("Jobs", jobs.length, esc(jobDetail), jobs.length ? bar : "") +
+    card(
+      "Failure causes",
+      failureCount,
+      esc(failures.map((group) => group.cause + " " + group.count).join(" · ")),
+    ) +
+    card("Wall time", esc(elapsed || "-"), "") +
+    card(
+      "Load at end",
+      load ? fixed(load.one) : "-",
+      load ? "/ " + fixed(load.five) + " / " + fixed(load.fifteen) : "",
+    ) +
+    "</div>"
+  );
+}
+const copyIconSVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+// commandGuideHTML is a command a reader can copy to a terminal.
+function commandGuideHTML(text) {
+  return (
+    '<pre class="command-guide execution-guide command-example" data-copy-text="' +
+    esc(text) +
+    '">' +
+    esc(text) +
+    '<span class="command-guide-copied" role="status">Copied!</span><button class="command-guide-copy" type="button" title="Copy command" aria-label="Copy command" data-icon="' +
+    esc(copyIconSVG) +
+    '" onclick="copyCommandGuide(this.closest(\'pre\'), this)">' +
+    copyIconSVG +
+    "</button></pre>"
+  );
 }
 
 function clientStatusLabel(status) {
@@ -2022,6 +2116,24 @@ function renderQueueCommands(queue) {
         rows +
         "</tbody></table>"
       : '<div class="empty">Queue is empty.</div>');
+  const directories = [
+    ...new Set(
+      commands.map((job) => job.origin && job.origin.cwd).filter(Boolean),
+    ),
+  ];
+  section.insertAdjacentHTML(
+    "beforeend",
+    commandGuideHTML(
+      "# To execute jobs in current queue\n" +
+        (directories.length === 1
+          ? "cd " + shellQuote(directories[0]) + "\n"
+          : "") +
+        "rotari run" +
+        (state && state.base_dir ? " -b " + shellQuote(state.base_dir) : " ") +
+        " --project-name " +
+        shellQuote(queue.project_name),
+    ),
+  );
   document.getElementById("app").prepend(section);
   // A select's value can be set only once it is in the page; each field
   // remembers its first value so Save is enabled only after an edit.

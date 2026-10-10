@@ -251,12 +251,8 @@ render = function () {
     }
   }
   addProjectRuntime();
-  addRunHostLine();
-  addExecutionGuide();
   addDeleteRunButton();
-  removeLegacyOutputBox();
   renameCopyButtons();
-  labelEquivalentCommand();
   addRunJobSelection();
   arrangeRunControls();
   enableTableSorting();

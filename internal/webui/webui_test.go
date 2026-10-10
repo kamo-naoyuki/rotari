@@ -1056,10 +1056,12 @@ setTimeout(() => {
     console.error(errors.join('\n'));
     process.exit(1);
   }
-  const summary = dom.window.document.getElementById('summary').textContent;
-  const want = 'Failure causes: CUDA/GPU memory exhausted 2, timeout 1';
+  // The run's Failure causes card counts them and lists each cause.
+  const card = [...dom.window.document.querySelectorAll('.run-card')].find(item => item.querySelector('.run-card-label').textContent === 'Failure causes');
+  const summary = card ? card.textContent : '';
+  const want = 'Failure causes3 CUDA/GPU memory exhausted 2 · timeout 1';
   if (!summary.includes(want)) {
-    console.error('summary does not show ' + want + ': ' + summary);
+    console.error('failure causes card does not show ' + want + ': ' + summary);
     process.exit(2);
   }
 }, 50);
@@ -1665,7 +1667,7 @@ setTimeout(async () => {
 
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := testSite().webHTML()
-	if !webContains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
+	if !webContains(html, `" --project-name " + shellQuote(queue.project_name)`) {
 		t.Fatal("web queue guidance does not use the project-name option")
 	}
 	if !webContains(html, "rotari retry -r '+shellQuote(runID)") {
@@ -2118,7 +2120,7 @@ func TestLoadWebConfigFilesRejectsUnsafeInputs(t *testing.T) {
 
 func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();addRunHostLine()", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
+	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}

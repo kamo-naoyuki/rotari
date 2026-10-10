@@ -322,99 +322,6 @@ function enhanceQueueSourceContext(commands) {
     (cwds.join(", ") || "-");
   section.prepend(context);
 }
-function addRunHostLine() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const hostname = run && run.context && run.context.hostname;
-  if (!hostname) return;
-  const workingDirectory = [...document.querySelectorAll("#app p")].find(
-    (element) => element.textContent.startsWith("Working directory:"),
-  );
-  if (!workingDirectory) return;
-  const host = document.createElement("p");
-  host.className = "meta run-detail";
-  host.textContent = "Host: " + hostname;
-  workingDirectory.before(host);
-}
-function addExecutionGuide() {
-  document
-    .querySelectorAll(".execution-guide")
-    .forEach((element) => element.remove());
-  const parts = pageParts();
-  if (parts[0] !== "project") return;
-  const queueName = decodeURIComponent(parts[1]);
-  const queue = state.projects.find((item) => item.project_name === queueName);
-  if (!queue) return;
-  const guide = document.createElement("pre");
-  guide.className = "command-guide execution-guide command-example";
-  const copyButton = document.createElement("button");
-  copyButton.className = "command-guide-copy";
-  copyButton.type = "button";
-  copyButton.title = "Copy command";
-  copyButton.setAttribute("aria-label", "Copy command");
-  copyButton.innerHTML =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
-  copyButton.dataset.icon = copyButton.innerHTML;
-  copyButton.onclick = () => copyCommandGuide(guide, copyButton);
-  const basedir =
-    state && state.base_dir ? " -b " + shellQuote(state.base_dir) : " ";
-  if (parts[2] === "run") {
-    const runID = decodeURIComponent(parts[3]);
-    const run = queue.runs.find((item) => item.run_id === runID);
-    if (!run) return;
-    const latest = latestRun(queue.runs);
-    const prefix =
-      run.cwd && run.cwd !== "-" ? "cd " + shellQuote(run.cwd) + "\n" : "";
-    if (latest && latest.run_id === runID) {
-      guide.textContent =
-        "# To retry failed or unfinished jobs from this run\n" +
-        prefix +
-        "rotari retry -r " +
-        shellQuote(runID) +
-        "";
-    } else {
-      guide.textContent =
-        "# To retry failed or unfinished jobs from this run\n" +
-        prefix +
-        "rotari retry -r " +
-        shellQuote(runID) +
-        "\nrotari retry -r " +
-        shellQuote(runID) +
-        " --job-id JOB_ID";
-    }
-    addCommandGuideCopyButton(guide, copyButton);
-    const workingDirectory = [...document.querySelectorAll("#app p")].find(
-      (element) => element.textContent.startsWith("Working directory:"),
-    );
-    if (workingDirectory) workingDirectory.after(guide);
-    else document.getElementById("app").prepend(guide);
-    return;
-  }
-  const origins = (queue.queue.commands || [])
-    .map((job) => job.origin)
-    .filter(Boolean);
-  const directories = [
-    ...new Set(origins.map((origin) => origin.cwd).filter(Boolean)),
-  ];
-  const prefix =
-    directories.length === 1 ? "cd " + shellQuote(directories[0]) + "\n" : "";
-  guide.textContent =
-    "# To execute jobs in current queue\n" +
-    prefix +
-    "rotari run" +
-    basedir +
-    " --project-name " +
-    shellQuote(queueName);
-  addCommandGuideCopyButton(guide, copyButton);
-  const section = document.querySelector(".web-queue-commands");
-  if (section) section.append(guide);
-}
 async function copyCommandGuide(guide, button) {
   try {
     await copyText(guide.dataset.copyText || "");
@@ -435,15 +342,6 @@ async function copyCommandGuide(guide, button) {
   } catch (error) {
     alert(error.message);
   }
-}
-function addCommandGuideCopyButton(guide, button) {
-  guide.dataset.copyText = guide.textContent;
-  const copied = document.createElement("span");
-  copied.className = "command-guide-copied";
-  copied.setAttribute("role", "status");
-  copied.textContent = "Copied!";
-  guide.append(copied);
-  guide.append(button);
 }
 function addDeleteRunButton() {
   const parts = pageParts();
