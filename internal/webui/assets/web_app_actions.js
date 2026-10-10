@@ -445,13 +445,6 @@ function addCommandGuideCopyButton(guide, button) {
   guide.append(copied);
   guide.append(button);
 }
-function addPathButton(cell, path) {
-  const button = document.createElement("button");
-  button.className = "show-path";
-  button.textContent = "Path";
-  button.onclick = () => showPath(path, button);
-  cell.append(" ", button);
-}
 function addDeleteRunButton() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;

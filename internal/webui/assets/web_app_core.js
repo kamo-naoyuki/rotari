@@ -1890,26 +1890,6 @@ function copyIconForValue(value, label) {
     '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>'
   );
 }
-async function copyAttemptID(button) {
-  try {
-    await copyText(button.dataset.attemptId || "");
-    button.classList.add("copied");
-    button.title = "Copied!";
-    button.setAttribute("aria-label", "Copied!");
-    button.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
-    clearTimeout(button.copyResetTimer);
-    button.copyResetTimer = setTimeout(() => {
-      button.classList.remove("copied");
-      button.title = "Copy attempt ID";
-      button.setAttribute("aria-label", "Copy attempt ID");
-      button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
-    }, 1200);
-  } catch (error) {
-    alert(error.message);
-  }
-}
 async function copyIdentityValue(button) {
   try {
     await copyText(button.dataset.copyValue || "");
