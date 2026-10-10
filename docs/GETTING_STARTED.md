@@ -106,32 +106,47 @@ for details.
 
 ## Quick start: Shell
 
+Use `rotari add` to put commands in the workspace's default project queue.
+You can add several variants of a command, as in this example, then use
+`rotari run` to execute the queued jobs and wait for the run to finish.
+
 ```sh
-# Add commands to the workspace's default project queue.
 rotari add python train.py --lr 0.1
 rotari add python train.py --lr 0.01
 rotari add python train.py --lr 0.001
-# Execute the queued commands and wait for the run to finish.
 rotari run
-# Show the current locations, project, and run status at a glance.
+```
+
+`rotari run` and `rotari retry` inherit the caller's environment by default;
+pass `--env=NONE` to suppress it while retaining job `--env` and rotari
+metadata.
+
+To check the workspace and see what is queued or running, use `rotari info`,
+`rotari jobs`, and `rotari show`:
+
+```sh
 rotari info
-# List recent job status across all known state directories.
 rotari jobs
-# Inspect the current project's queue or most relevant run.
 rotari show
 ```
 
+`info` summarizes the current locations, project, and run status.
+`jobs` gives a compact status overview across projects.
+`show` provides details for a project, run, or job, including captured output
+logs and saved results.
 Use `rotari projects` to list projects, `rotari runs` to list runs, and
 `rotari basedirs` to list registered state directories. `rotari show` inspects
 the selected project, run, job, or attempt; when project selection is
 ambiguous, it points to `rotari projects`.
 
-Use `rotari run --async` when the run should continue in the background. To
-inspect failed logs and retry only failed or unfinished work:
+If you want a run to continue in the background, start it asynchronously:
 
-Some options have a short form: `-p` is equivalent to `--project-name`. This
-guide uses either form. For options available to each command, see the
-[short option list](CLI_REFERENCE.md#short-options) in the CLI reference.
+```sh
+rotari run --async
+```
+
+If a run has failed jobs, inspect their logs and retry failed or unfinished
+work; successful jobs are reused:
 
 ```sh
 # Show logs for failed jobs in the selected project.
@@ -140,20 +155,9 @@ rotari show -p sweep --failed-logs
 rotari retry -p sweep
 ```
 
-`add`, `run`, `show`, and `retry` cover most batches; the other commands are
-available when needed. `jobs` gives a compact status overview across projects.
-`show` provides details for a project, run, or job, including captured output
-logs and saved results. `run` and `retry` inherit the caller's environment by
-default; pass `--env=NONE` to suppress it while retaining job `--env` and
-rotari metadata.
-
-See [Projects, queues, runs, and state](CONCEPTS.md#projects-queues-runs-and-state)
-for project selection and state layout, [Inspect](INSPECT.md#inspect) for
-status and logs, [Recovering failed runs](RECOVERING.md) for retries,
-[Running and controlling jobs](RUNNING.md#async-runs) for starting and waiting
-for runs, [Executors and schedulers](EXECUTORS.md#executors-and-schedulers)
-for execution backends, and [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs)
-for task expansion and matrix combinations.
+Some options have a short form: `-p` is equivalent to `--project-name`. This
+guide uses either form. For options available to each command, see the
+[short option list](CLI_REFERENCE.md#short-options) in the CLI reference.
 
 Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:
@@ -167,6 +171,14 @@ Use `--depends-on-finished NAME` for aggregation or cleanup jobs that should
 run once the prerequisite finishes, whatever its result. See
 [Dependencies and stages](RUNNING.md#dependencies-and-stages) for stages and
 multiple prerequisites.
+
+See [Projects, queues, runs, and state](CONCEPTS.md#projects-queues-runs-and-state)
+for project selection and state layout, [Inspect](INSPECT.md#inspect) for
+status and logs, [Recovering failed runs](RECOVERING.md) for retries,
+[Running and controlling jobs](RUNNING.md#async-runs) for starting and waiting
+for runs, [Executors and schedulers](EXECUTORS.md#executors-and-schedulers)
+for execution backends, and [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs)
+for task expansion and matrix combinations.
 
 ## Quick start: Manifest
 
