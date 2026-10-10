@@ -100,3 +100,20 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** new `TestPlanRevisionTellsPlansApart`, `TestCheckRunPlanRevision`, and `TestStartRunRefusesAnotherPlanThanItsPreview`; a manual replay of trial 2's dropped filter is refused with the jobs it would run; `scripts/check.sh` with the race detector passed.
 
 **Remaining:** trial 2 finding 2 (show clean sources) and trial 1 findings 3 and 5.
+
+## Clean sources and unexpanded variables
+
+- `f8bcdc8e` (2026-10-10 21:04:12 +0900): a git source says `(clean)` or `(uncommitted changes)`.
+- `0aff4bf6` (2026-10-10 21:04:12 +0900): `add` and a command-replacing `change` warn about arguments such as `$LR` that no shell expands (CLI-25).
+
+**Change:**
+- `model.FormatSourceRevision` adds `(clean)` to a git revision without uncommitted changes; RUN-15, `docs/INSPECT.md`, and the source conformance tests follow.
+- `model.UnexpandedVariables` finds `$NAME` and `${NAME}` arguments of a command that `sh`, `bash`, `dash`, `zsh`, or `ksh` does not run with `-c`; `queueops` warns once per add or change through `Editor.Warn`, which `change` now sets too. The agent guide no longer calls the commands shell commands and says how to pass matrix values; `docs/FAQ.md` mentions the warning.
+
+**Reason:** trial 2 finding 2, and trial 1 finding 5, which recurred for every agent in both trials.
+
+**Plan impact:** none beyond closing those findings.
+
+**Validation:** `TestUnexpandedVariables`, `TestAddAndChangeWarnAboutUnexpandedVariables`, conformance `TestAddWarnsAboutUnexpandedVariables`, and the updated `TestRunRecords*`; `scripts/check.sh` with the race detector passed.
+
+**Remaining:** comparison across projects (trial 1 finding 3), and a trial where the user reads an agent's runs.
