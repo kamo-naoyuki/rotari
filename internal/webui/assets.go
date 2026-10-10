@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"html"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -60,8 +61,8 @@ var jobsTemplateHTML string
 //go:embed assets/web_info_styles.css
 var webInfoStylesCSS string
 
-//go:embed assets/web_theme.js
-var webThemeJS string
+//go:embed assets/web_shell.js
+var webShellJS string
 
 //go:embed assets/web_tokens.css
 var webTokensCSS string
@@ -76,7 +77,41 @@ type webBaseDir struct {
 	ID      string `json:"id"`
 	Path    string `json:"path"`
 	Current bool   `json:"current"`
+	// Parent and Name label the basedir in the sidebar and breadcrumbs: its
+	// parent directory tells it apart from other basedirs, which usually
+	// share a name such as .rotari-state.
+	Parent string `json:"parent"`
+	Name   string `json:"name"`
 }
+
+// newWebBaseDir describes a registered basedir, with its label.
+func newWebBaseDir(id, path string, current bool) webBaseDir {
+	name := filepath.Base(path)
+	parent := filepath.Base(filepath.Dir(path))
+	if parent == string(filepath.Separator) || parent == "." || parent == name {
+		parent = ""
+	}
+	return webBaseDir{ID: id, Path: path, Current: current, Parent: parent, Name: name}
+}
+
+// basedirLabelHTML is a basedir's label: its parent directory in bold and its
+// own name. The JS sidebar builds the same markup from Parent and Name.
+func basedirLabelHTML(entry webBaseDir) string {
+	name := html.EscapeString(entry.Name)
+	if entry.Parent == "" {
+		return `<span class="basedir-name">` + name + `</span>`
+	}
+	return `<span class="basedir-parent">` + html.EscapeString(entry.Parent) + `</span><span class="basedir-name">/` + name + `</span>`
+}
+
+// basedirBellHTML is the switch that notifies about runs in one basedir. It
+// is a checkbox drawn as a bell; onchange names the page's handler.
+func basedirBellHTML(entry webBaseDir, extra, onchange string) string {
+	return `<label class="basedir-bell" title="Enable notifications"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="` +
+		html.EscapeString(entry.ID) + `"` + extra + ` aria-label="Notify about runs in this basedir" onchange="` + onchange + `(this)" />` + bellIconSVG + `</label>`
+}
+
+const bellIconSVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>`
 
 func composeWebHTML(executors []string, notifications bool, bootstrap string, basedirLists ...[]webBaseDir) string {
 	return composeWebHTMLWithSession(executors, notifications, bootstrap, "", basedirLists...)
@@ -103,7 +138,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 		"const diagnosisGuidance = " + string(diagnosisGuidanceJSON) + ";",
 		webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppMarkdownJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS,
 	}, "\n")
-	template := strings.Replace(webTemplateHTML, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
+	template := strings.Replace(webTemplateHTML, "__ROTARI_SHELL_SCRIPT__", webShellJS, 1)
 	template = strings.Replace(template, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
@@ -132,7 +167,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
-	template = strings.Replace(template, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
+	template = strings.Replace(template, "__ROTARI_SHELL_SCRIPT__", webShellJS, 1)
 	styles := fontFaceCSS(homePath+"fonts/") + "\n" + webTokensCSS + "\n" + webInfoStylesCSS + "\n" + webShellCSS
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", styles, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
@@ -166,11 +201,23 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	} else {
 		template = strings.Replace(template, "__ROTARI_BASEDIR_SCROLL_KEY__", "", 1)
 	}
-	notificationControl := `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button><label class="theme-choice" for="theme-choice">Theme <select id="theme-choice"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div>`
+	notificationControl := `<button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button>`
 	var toolbar string
 	if canFilter {
-		toolbar = `<div class="toolbar"><button type="button" onclick="location.reload()">Refresh</button></div>`
+		toolbar = `<button id="refresh-button" type="button" onclick="location.reload()">Refresh</button>`
 	}
+	var crumbs strings.Builder
+	if len(basedirLists) > 0 {
+		activeID := jobsActiveBasedirID(homePath, basedirLists[0])
+		for _, entry := range basedirLists[0] {
+			if entry.ID == activeID {
+				writeBasedirCrumb(&crumbs, homePath, entry)
+				crumbs.WriteString(`<span class="crumb-sep">/</span>`)
+			}
+		}
+	}
+	crumbs.WriteString(`<span class="crumb-here">Job activity</span>`)
+	template = strings.Replace(template, "__ROTARI_JOBS_CRUMBS__", crumbs.String(), 1)
 	template = strings.Replace(template, "__ROTARI_JOBS_NOTIFICATION_CONTROL__", notificationControl, 1)
 	template = strings.Replace(template, "__ROTARI_JOBS_TOOLBAR__", toolbar, 1)
 	template = strings.Replace(template, "__ROTARI_JOBS_LIVE__", strconv.FormatBool(canFilter), 1)
@@ -295,21 +342,17 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	}
 	builder.WriteString(`" data-basedir-id="`)
 	builder.WriteString(html.EscapeString(entry.ID))
-	builder.WriteString(`"><div class="sidebar-project-row basedir-row"><span class="basedir-notification-control"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="`)
-	builder.WriteString(html.EscapeString(entry.ID))
-	builder.WriteString(`" data-jobs-url="`)
-	builder.WriteString(html.EscapeString(basePath + "jobs/"))
-	builder.WriteString(`" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleJobsNotificationBasedir(this)" /><span class="basedir-notification-tooltip">Enable notifications</span></span><button type="button" class="sidebar-toggle" aria-expanded="`)
+	builder.WriteString(`"><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="`)
 	builder.WriteString(strconv.FormatBool(active))
-	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" data-full-path="`)
-	builder.WriteString(html.EscapeString(entry.Path))
-	builder.WriteString(`" title="`)
+	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" title="`)
 	builder.WriteString(html.EscapeString(entry.Path))
 	builder.WriteString(`" href="`)
 	builder.WriteString(html.EscapeString(basePath))
 	builder.WriteString(`">`)
-	builder.WriteString(html.EscapeString(entry.Path))
-	builder.WriteString(`</a></div><div class="sidebar-projects basedir-contents"`)
+	builder.WriteString(basedirLabelHTML(entry))
+	builder.WriteString(`</a>`)
+	builder.WriteString(basedirBellHTML(entry, ` data-jobs-url="`+html.EscapeString(basePath+"jobs/")+`"`, "toggleJobsNotificationBasedir"))
+	builder.WriteString(`</div><div class="sidebar-projects basedir-contents"`)
 	if !active {
 		builder.WriteString(` hidden`)
 	}
@@ -326,6 +369,19 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	builder.WriteString(`" href="`)
 	builder.WriteString(html.EscapeString(basePath))
 	builder.WriteString(`jobs/">Job activity</a></div></div>`)
+}
+
+// writeBasedirCrumb writes the breadcrumb that names a page's basedir, with
+// a button that copies its full path.
+func writeBasedirCrumb(builder *strings.Builder, homePath string, entry webBaseDir) {
+	builder.WriteString(`<a class="crumb-basedir" href="`)
+	builder.WriteString(html.EscapeString(homePath))
+	builder.WriteString(`" title="`)
+	builder.WriteString(html.EscapeString(entry.Path))
+	builder.WriteString(`">`)
+	builder.WriteString(basedirLabelHTML(entry))
+	builder.WriteString(`</a>`)
+	writeJobsCopyButton(builder, entry.Path, "state directory path")
 }
 
 func jobsBasedirHomePath(homePath string, entry webBaseDir, active bool) string {

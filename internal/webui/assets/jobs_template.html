@@ -6,7 +6,7 @@
     <title>rotari Job activity</title>
     __ROTARI_FAVICON_LINKS__
     <script>
-      __ROTARI_THEME_SCRIPT__;
+      __ROTARI_SHELL_SCRIPT__;
     </script>
     <style>
       __ROTARI_INFO_STYLES__
@@ -26,8 +26,10 @@
           <span class="brand-name">rotari</span>
           <span class="brand-caption">JOB CONTROL</span>
         </a>
-        __ROTARI_JOBS_NOTIFICATION_CONTROL__
-        <a class="sidebar-search-link" href="__ROTARI_SEARCH_PATH__"
+        <div class="sidebar-section-heading">Views</div>
+        <a
+          class="sidebar-link sidebar-search-link"
+          href="__ROTARI_SEARCH_PATH__"
           >History search</a
         >
         <div class="sidebar-section-heading">Registered basedirs</div>
@@ -43,20 +45,52 @@
         aria-label="Resize sidebar"
         tabindex="0"
       ></div>
+      <div class="drawer-scrim" onclick="closeDrawer()"></div>
       <div class="content">
-        <header>
-          <div>
-            <h1>
-              <a class="header-home" href="__ROTARI_HOME_PATH__"
-                >__ROTARI_BRAND_ICON__rotari Job activity</a
+        <header class="topbar">
+          <button
+            class="drawer-toggle"
+            type="button"
+            aria-label="Show navigation"
+            aria-expanded="false"
+            onclick="toggleDrawer()"
+          >
+            ☰
+          </button>
+          <nav class="crumbs" id="crumbs" aria-label="Location">
+            __ROTARI_JOBS_CRUMBS__
+          </nav>
+          <div class="toolbar">
+            __ROTARI_JOBS_NOTIFICATION_CONTROL__ __ROTARI_JOBS_TOOLBAR__
+            <div class="settings-menu">
+              <button
+                id="settings-button"
+                type="button"
+                aria-haspopup="true"
+                aria-expanded="false"
+                onclick="toggleSettingsMenu()"
               >
-            </h1>
-            <div class="meta">
-              Running jobs and jobs finished in the last 24 hours
+                Settings
+              </button>
+              <div id="settings-panel" class="settings-panel" hidden>
+                <label class="theme-choice" for="theme-choice"
+                  >Theme
+                  <select id="theme-choice">
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select></label
+                >
+              </div>
             </div>
           </div>
-          __ROTARI_JOBS_TOOLBAR__
         </header>
+        <div class="page-head">
+          <h1 id="page-title">Job activity</h1>
+          <div class="facts">
+            Running jobs and jobs finished in the last 24 hours
+          </div>
+        </div>
         __ROTARI_CONTENT__
       </div>
     </main>
@@ -78,66 +112,6 @@
           ),
         { passive: true },
       );
-      const jobsResizeHandle = document.querySelector(".sidebar-resizer");
-      function applyJobsSidebarWidth() {
-        if (window.innerWidth <= 760) {
-          jobsSidebar.style.width = "";
-          return;
-        }
-        const jobsSavedWidth = Number(
-          localStorage.getItem("rotari-sidebar-width"),
-        );
-        if (Number.isFinite(jobsSavedWidth) && jobsSavedWidth > 0)
-          jobsSidebar.style.width =
-            Math.max(190, Math.min(520, jobsSavedWidth)) + "px";
-      }
-      applyJobsSidebarWidth();
-      window.addEventListener("resize", applyJobsSidebarWidth);
-      function fitJobsBasedirPaths() {
-        jobsSidebar
-          .querySelectorAll(".basedir-path[data-full-path]")
-          .forEach((link) => {
-            if (link.textContent !== link.dataset.fullPath)
-              link.textContent = link.dataset.fullPath;
-          });
-      }
-      new ResizeObserver(fitJobsBasedirPaths).observe(jobsSidebar);
-      jobsResizeHandle.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        const startX = event.clientX;
-        const startWidth = jobsSidebar.getBoundingClientRect().width;
-        jobsResizeHandle.classList.add("dragging");
-        const move = (moveEvent) => {
-          const width = Math.max(
-            190,
-            Math.min(520, startWidth + moveEvent.clientX - startX),
-          );
-          jobsSidebar.style.width = width + "px";
-          localStorage.setItem("rotari-sidebar-width", String(width));
-        };
-        const end = () => {
-          jobsResizeHandle.classList.remove("dragging");
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", end);
-        };
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", end);
-      });
-      jobsResizeHandle.addEventListener("keydown", (event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-        event.preventDefault();
-        const direction = event.key === "ArrowRight" ? 1 : -1;
-        const width = Math.max(
-          190,
-          Math.min(
-            520,
-            jobsSidebar.getBoundingClientRect().width + direction * 12,
-          ),
-        );
-        jobsSidebar.style.width = width + "px";
-        localStorage.setItem("rotari-sidebar-width", String(width));
-      });
-      fitJobsBasedirPaths();
 
       function copyJobsValueFallback(value) {
         const input = document.createElement("textarea");
@@ -333,11 +307,8 @@
         const text = checkbox.checked
           ? "Disable notifications"
           : "Enable notifications";
-        checkbox.title = text;
-        const tooltip = checkbox.parentElement.querySelector(
-          ".basedir-notification-tooltip",
-        );
-        if (tooltip) tooltip.textContent = text;
+        const bell = checkbox.closest(".basedir-bell");
+        if (bell) bell.title = text;
       }
 
       function restoreJobsNotificationTargets() {

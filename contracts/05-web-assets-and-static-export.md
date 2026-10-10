@@ -91,7 +91,7 @@ Web assets live under `internal/webui/assets/`:
 internal/webui/assets/
 ├── web_template.html
 ├── web_tokens.css
-├── web_theme.js
+├── web_shell.js
 ├── web_styles.css
 ├── web_shell.css
 ├── web_app_core.js
@@ -138,9 +138,11 @@ dark values when the OS prefers dark and the viewer has not chosen light, or
 when the viewer chose dark. Stylesheets and scripts set no colour literal and
 name fonts only through `--font-sans` and `--font-mono`
 (`TestStylesAndScriptsTakeColoursFromTokens`,
-`TestStylesheetsTakeFontsFromTokens`). `web_theme.js` is inlined in `<head>`
-of both page templates and applies the viewer's System / Light / Dark choice,
-kept per browser, before the page is drawn (`TestWebThemeChoice`). The fonts
+`TestStylesheetsTakeFontsFromTokens`). `web_shell.js` is inlined in `<head>`
+of both page templates. It applies the viewer's System / Light / Dark choice,
+kept per browser, before the page is drawn (`TestWebThemeChoice`), and runs the
+page frame: the Settings menu, the navigation drawer, and the sidebar's width
+(`TestWebShellMenuAndDrawer`). The fonts
 are IBM Plex Sans and Mono, IBM's Latin-1 WOFF2 files under the SIL OFL
 ([fonts/README.md](../internal/webui/assets/fonts/README.md));
 [fonts.go](../internal/webui/fonts.go) serves them and their licence under
@@ -206,24 +208,33 @@ single-basedir snapshot and has no basedir switching. Covered by
 [`TestWebSwitchesBetweenRegisteredBasedirs`](../internal/webui/webui_test.go),
 and [`TestWebSidebarLazilyListsProjectsInOtherBasedirs`](../internal/webui/webui_test.go).
 
+Both page kinds share one frame. A top bar holds breadcrumbs (the basedir,
+then the project and run), the notification toggle, Refresh, and a Settings
+menu with the theme choice and, on application pages, the config and
+notification config actions; the page title and its facts follow. The sidebar
+starts with Views (History search), then the basedir list. Below 760px wide the
+sidebar is a drawer opened from the top bar, and no page scrolls sideways.
+
 The basedir list is introduced by a `Registered basedirs` heading so the tree
 is self-describing. Each basedir entry is collapsible and only the basedir
 currently mounted starts expanded; collapsing or expanding another entry is a
-user choice the sidebar keeps. An entry labels itself with the basedir's
-absolute path, shortened at the end with the full path in its tooltip, because
-basedir names alone are ambiguous. `All projects` and `Job activity` are nested
+user choice the sidebar keeps. An entry, and the breadcrumb naming a page's
+basedir, labels the basedir by its parent directory in bold and its own name,
+with the full path in its tooltip, because basedirs usually share a name such
+as `.rotari-state`; `newWebBaseDir` in [assets.go](../internal/webui/assets.go)
+computes the label once for both page kinds
+(`TestNewWebBaseDirLabelsByParentAndName`). `All projects` and `Job activity` are nested
 inside each basedir entry rather than offered once at the top level, since both
 pages describe a single basedir. `All projects` has its own disclosure control;
 its project list is nested beneath it, and `Job activity` follows the project
 tree. The sidebar scrolls independently of the page body, preserves its
 manually selected position during background refreshes, and remembers the
 position per basedir. A separator at the sidebar/content boundary is shown on
-hover and can be dragged to resize the sidebar; basedir paths keep their
-end with an ellipsis through CSS as the width changes. These
-rules apply to both the application page and the server-rendered Job activity
-page.
+hover and can be dragged to resize the sidebar; a label too long for the
+width ends with an ellipsis. These rules apply to both the application page
+and the server-rendered Job activity page.
 
-Each basedir row has a notification monitor checkbox. The selected basedir IDs
+Each basedir row has a notification monitor checkbox, drawn as a bell. The selected basedir IDs
 are stored in browser local storage under a key scoped to the current Web
 server session. Restarting `rotari web` therefore discards the extra selected
 basedirs and returns monitoring to the current basedir. The application page

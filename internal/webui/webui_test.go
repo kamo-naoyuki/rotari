@@ -317,6 +317,7 @@ const context = {
 	paginateTable: (table, key) => { context.paginatedTable = table; context.paginatedKey = key; },
 	esc: value => String(value),
 	basedirURL: (_id, path) => path,
+	setCrumbs: (trail, copyPath) => { context.crumbs = trail; context.crumbsCopyPath = copyPath; },
 	document: {
 		querySelector(selector) {
 			if (selector === '.header-home') return headerHome;
@@ -390,11 +391,9 @@ vm.runInContext(code, context);
 	context.mountedBasedirID = '';
 	if (!context.historySearchScopeHTML().includes('<option value="base-a" selected>')) throw new Error('current basedir was not selected by default');
 	context.renderHistorySearchPage();
-	if (location.textContent === 'loading...') throw new Error('history search page left the location label loading');
-	if (headerTitle.textContent !== 'rotari History search') throw new Error('header home title was not updated for history search');
-	if (location.textContent !== 'Search project, run, and job history in the ranges you choose.') throw new Error('history search description is not shown under the header title');
-	if (!pageHeadingSection.hidden) throw new Error('History search heading box is still visible above Search scope');
-	if (summary.textContent) throw new Error('History search description remains in the heading box');
+	if (!context.crumbs || context.crumbs.at(-1)[0] !== 'History search') throw new Error('history search page is not named in the breadcrumbs');
+	if (pageTitle.textContent !== 'History search') throw new Error('history search page title is not set');
+	if (summary.textContent !== 'Search project, run, and job history in the ranges you choose.') throw new Error('history search description is not shown under the page title');
 	if (app.innerHTML.includes('history-search-intro')) throw new Error('history search intro box is still rendered');
 	context.historySearchUpdateScopeControls(scopeContainer);
 	if (firstScope.querySelector('.history-search-scope-remove')) throw new Error('first search range unexpectedly has a remove button');
@@ -715,15 +714,16 @@ setTimeout(() => {
 	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification config') process.exit(11);
 	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification config') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
-	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
-	const historySearchLink = sidebarControls?.nextElementSibling;
+	const viewsHeading = [...dom.window.document.querySelectorAll('.sidebar-section-heading')].find(heading => heading.textContent.trim() === 'Views');
+	const historySearchLink = viewsHeading?.nextElementSibling;
 	if (!historySearchLink || !historySearchLink.classList.contains('sidebar-search-link') || historySearchLink.textContent.trim() !== 'History search' || historySearchLink.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
-	const toolbar = dom.window.document.querySelector('.toolbar');
-	if (notificationConfigButtons[0].parentElement !== toolbar || generateNotificationConfigButton.parentElement !== toolbar) process.exit(37);
-	const sidebarControlNames = [...sidebarControls.children].map(button => button.className || button.id);
-	if (JSON.stringify(sidebarControlNames) !== JSON.stringify(['notify-toggle', 'theme-choice'])) process.exit(38);
-	const toolbarNames = [...toolbar.children].map(button => button.className || button.id);
-	if (JSON.stringify(toolbarNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button', 'refresh-button'])) process.exit(39);
+	const settingsActions = dom.window.document.getElementById('settings-actions');
+	if (notificationConfigButtons[0].parentElement !== settingsActions || generateNotificationConfigButton.parentElement !== settingsActions) process.exit(37);
+	const toolbar = dom.window.document.querySelector('.topbar .toolbar');
+	const toolbarNames = [...toolbar.children].map(item => item.className || item.id);
+	if (JSON.stringify(toolbarNames) !== JSON.stringify(['notify-toggle', 'refresh-button', 'settings-menu'])) process.exit(38);
+	const settingsNames = [...settingsActions.children].map(button => button.className || button.id);
+	if (JSON.stringify(settingsNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button'])) process.exit(39);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
 	const fields = ['project', 'attempt_id', 'command'];
 	const webhookEditor = dom.window.notificationChannelEditor('webhook', channelSettings, fields);
@@ -1762,7 +1762,7 @@ func TestRunToolbarButtonsUseConsistentMinimumWidth(t *testing.T) {
 
 func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function setLocation(path)", `copyIconForValue(path, "state path")`, `setLocation(webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`, `copyIconForValue(run.run_id, "run ID")`} {
+	for _, marker := range []string{"function setCrumbs(trail, copyPath)", `copyIconForValue(copyPath, "state path")`, `webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`, `copyIconForValue(run.run_id, "run ID")`} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing identity copy control %q", marker)
 		}
@@ -1778,9 +1778,9 @@ func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
 	for _, marker := range []string{
-		`setLocation(webStatePath(state.base_dir, "projects"))`,
-		`setLocation(webStatePath(state.base_dir, "projects", q.project_name))`,
-		`setLocation(webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`,
+		`setCrumbs([["All projects"]], webStatePath(state.base_dir, "projects"))`,
+		`[["All projects", "/"], [q.project_name]], webStatePath(state.base_dir, "projects", q.project_name))`,
+		`[run.run_name || runID]], webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`,
 	} {
 		if !webContains(html, marker) {
 			t.Fatalf("web page is missing state path display setup %q", marker)
@@ -1887,10 +1887,10 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 		}
 	}
 	jobsHTML := jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true, true)
-	if !strings.Contains(jobsHTML, `class="sidebar-search-link"`) || !strings.Contains(jobsHTML, `href="/search/"`) || !strings.Contains(jobsHTML, `History search`) {
+	if !strings.Contains(jobsHTML, `sidebar-search-link"`) || !strings.Contains(jobsHTML, `href="/search/"`) || !strings.Contains(jobsHTML, `History search`) {
 		t.Fatal("Job activity sidebar does not link to history search")
 	}
-	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active {"} {
+	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active,", ".content > .topbar {", ".settings-panel {", ".page-head {"} {
 		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webShellCSS, marker) {
 			t.Fatalf("Job activity page is missing shared sidebar style %q", marker)
 		}
@@ -1898,7 +1898,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", ".sidebar-search-link {", "width: max-content;", "box-sizing: border-box;", "align-self: flex-start;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-link {", ".sidebar-resizer {", ".basedir-bell {", ".basedir-bell:has(input:checked) {", ".basedir-contents {", "margin-left: 20px;", ".basedir-parent {", ".sidebar-run-dot.tone-ok {", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;", ".crumb-basedir {", "@media (max-width: 760px)", "body.drawer-open .sidebar {"} {
 		if !strings.Contains(webShellCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -1957,14 +1957,13 @@ setTimeout(async () => {
 	try {
 		const bases = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')];
 		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
-		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
+		assert([...dom.window.document.querySelectorAll('.sidebar-section-heading')].some(heading => heading.textContent.trim() === 'Registered basedirs'), 'sidebar does not explain what the basedir list contains');
 		assert(rootID && dom.window.document.querySelector('.basedir-notification-toggle'), 'basedir notification checkbox is missing');
 		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
 		let root = dom.window.document.querySelector(rootSelector);
 		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
 		assert(root.querySelector('.basedir-notification-toggle')?.checked, 'startup basedir should be monitored by default');
-		assert(root.querySelector('.basedir-notification-toggle')?.title === 'Disable notifications', 'enabled basedir checkbox should explain how to disable notifications');
-		assert(root.querySelector('.basedir-notification-tooltip')?.textContent === 'Disable notifications', 'notification hover text is missing');
+		assert(root.querySelector('.basedir-bell')?.title === 'Disable notifications', 'enabled basedir bell should explain how to disable notifications');
 		const activeNotificationToggle = root.querySelector('.basedir-notification-toggle');
 		activeNotificationToggle.click();
 		assert(!activeNotificationToggle.checked, 'active basedir notification monitor should be switchable off');
@@ -2001,12 +2000,12 @@ setTimeout(async () => {
 		sidebar.scrollTop = 0;
 		dom.window.renderSidebar(state.projects);
 		assert(dom.window.document.querySelector('.sidebar').scrollTop === 87, 'sidebar scroll position was not restored after rerender');
-		const pathLink = dom.window.document.querySelector('.basedir-path');
-		pathLink.dataset.fullPath = '/very/long/base/directory/with/a/unique-ending';
-		Object.defineProperty(pathLink, 'clientWidth', {configurable: true, value: 48});
-		Object.defineProperty(pathLink, 'scrollWidth', {configurable: true, get() { return this.textContent.length * 8; }});
-		dom.window.fitBasedirPaths(dom.window.document.querySelector('.sidebar'));
-		assert(pathLink.textContent === pathLink.dataset.fullPath, 'basedir path should keep its full value for CSS ellipsis');
+		// A basedir is labelled by its parent directory and its own name, with
+		// its full path in the tooltip.
+		const pathLink = root.querySelector('.basedir-path');
+		const pathParts = pathLink.title.split('/').filter(Boolean);
+		assert(pathParts.length >= 2, 'basedir link does not carry its full path');
+		assert(pathLink.querySelector('.basedir-parent')?.textContent === pathParts.at(-2) && pathLink.querySelector('.basedir-name')?.textContent === '/' + pathParts.at(-1), 'basedir link is not labelled by its parent and name');
 		const other = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')].find(base => base.dataset.basedirId === process.argv[3]);
 		assert(other && other.querySelector(':scope > .sidebar-projects').hidden, 'other basedir should start collapsed');
 		other.querySelector('.sidebar-toggle').click();
@@ -2071,8 +2070,7 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		`media="(prefers-color-scheme: light)"`,
 		`data:image/svg+xml;base64,`,
 		`<span class="brand-mark" aria-hidden="true"><img class="brand-icon" alt="" src="data:image/svg+xml;base64,`,
-		`<h1><a class="header-home" href="/"><img class="brand-icon"`,
-		`<span class="header-title-text">rotari Web</span></a></h1>`,
+		`<h1 id="page-title">All projects</h1>`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
@@ -2129,7 +2127,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function setLocation(path)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run?.context?.config_snapshot_paths"} {
+	for _, want := range []string{"function setCrumbs(trail, copyPath)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run?.context?.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
@@ -2775,12 +2773,15 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("GET /jobs/ status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
 	}
-	// The template is formatted by prettier, so the heading spans lines.
-	if !regexp.MustCompile(`<h1>\s*<a class="header-home" href="/"\s*>`).MatchString(response.Body.String()) {
-		t.Fatalf("GET /jobs/ heading does not link home: %s", response.Body.String())
+	// The template is formatted by prettier, so tags may span lines.
+	if !regexp.MustCompile(`<a\s+class="sidebar-brand"\s+href="/"`).MatchString(response.Body.String()) {
+		t.Fatalf("GET /jobs/ sidebar brand does not link home: %s", response.Body.String())
+	}
+	if !regexp.MustCompile(`<h1 id="page-title">Job activity</h1>`).MatchString(response.Body.String()) {
+		t.Fatalf("GET /jobs/ is not titled Job activity: %s", response.Body.String())
 	}
 	for _, want := range []string{
-		"rotari Job activity",
+		"Job activity",
 		"Registered basedirs",
 		"State directories known to rotari",
 		`aria-label="Toggle projects"`,
@@ -2811,13 +2812,13 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		}
 	}
 	body := response.Body.String()
-	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><button id="notify-toggle"`)
-	registeredBasedirsIndex := strings.Index(body, "Registered basedirs")
-	if notificationButtonIndex < 0 || registeredBasedirsIndex <= notificationButtonIndex {
-		t.Fatal("Job activity notification controls are not above Registered basedirs in the sidebar")
+	// The notification toggle is in the top bar, as on the application page.
+	topbar := regexp.MustCompile(`(?s)<header class="topbar">.*?</header>`).FindString(body)
+	if !strings.Contains(topbar, `<button id="notify-toggle"`) || !strings.Contains(topbar, `id="settings-button"`) {
+		t.Fatal("Job activity top bar lacks the notification toggle or the Settings menu")
 	}
-	if strings.Contains(body, `<div class="toolbar"><button id="notify-toggle"`) {
-		t.Fatal("Job activity notification toggle is still in the header toolbar")
+	if strings.Contains(body, `sidebar-config-controls`) {
+		t.Fatal("Job activity sidebar still holds the notification controls")
 	}
 	allProjectsIndex := strings.Index(body, `>All projects</a>`)
 	projectListIndex := strings.Index(body, `class="sidebar-projects project-list"`)
@@ -3120,7 +3121,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 				t.Fatal(err)
 			}
 			body := string(data)
-			for _, want := range []string{"rotari Job activity", `aria-label="Toggle projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`, `id="notify-toggle"`, `onclick="toggleJobsNotifications()"`, `const jobsPageIsLive = false`, `if (!jobsPageIsLive) return;`, `if (jobsPageIsLive) setInterval(pollJobsActivity, 2000)`, "const jobsNotificationsDefaultOn = " + strconv.FormatBool(notifications)} {
+			for _, want := range []string{"Job activity", `aria-label="Toggle projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`, `id="notify-toggle"`, `onclick="toggleJobsNotifications()"`, `const jobsPageIsLive = false`, `if (!jobsPageIsLive) return;`, `if (jobsPageIsLive) setInterval(pollJobsActivity, 2000)`, "const jobsNotificationsDefaultOn = " + strconv.FormatBool(notifications)} {
 				if !strings.Contains(body, want) {
 					t.Fatalf("static jobs page does not contain %q: %s", want, body)
 				}

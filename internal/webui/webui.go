@@ -265,11 +265,7 @@ func (s site) basedirEntries() []webBaseDir {
 	currentDir, currentErr := filepath.Abs(rootBaseDir)
 	currentDir = filepath.Clean(currentDir)
 	for _, path := range paths {
-		entries = append(entries, webBaseDir{
-			ID:      basedirID(path),
-			Path:    path,
-			Current: currentErr == nil && path == currentDir,
-		})
+		entries = append(entries, newWebBaseDir(basedirID(path), path, currentErr == nil && path == currentDir))
 	}
 	return entries
 }

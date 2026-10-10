@@ -163,9 +163,7 @@ function initOrbitGame() {
     if (hasCollision()) endGame();
   };
 
-  for (const link of document.querySelectorAll(
-    ".sidebar-brand, .header-home",
-  )) {
+  for (const link of document.querySelectorAll(".sidebar-brand")) {
     link.addEventListener("click", (event) => {
       if (!event.shiftKey || event.button !== 0) return;
       event.preventDefault();
@@ -236,7 +234,7 @@ function initOrbitGame() {
 const originalRender = render;
 render = function () {
   if (pageParts()[0] !== "search")
-    document.getElementById("page-title").closest("section").hidden = false;
+    document.getElementById("page-title").closest(".page-head").hidden = false;
   const runtimeDetails = document.querySelector(".project-runtime details");
   if (runtimeDetails) projectRuntimeDetailsOpen = runtimeDetails.open;
   originalRender();
@@ -274,6 +272,5 @@ render = function () {
 };
 initOrbitGame();
 window.addEventListener("popstate", () => refresh(true));
-initSidebarResizer();
 refresh(true);
 setInterval(() => refresh(false), 2000);

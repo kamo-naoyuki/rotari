@@ -498,7 +498,7 @@ Yes. It uses browser notifications locally and sends nothing to an external serv
 
 ### Does the Web UI have a light theme?
 
-Yes. By default it follows the operating system's light or dark setting. The `Theme` choice in the sidebar sets `Light` or `Dark` instead; the browser remembers it for every page of the live server and the static export, and `System` returns to following the operating system.
+Yes. By default it follows the operating system's light or dark setting. The `Theme` choice in the `Settings` menu at the top right sets `Light` or `Dark` instead; the browser remembers it for every page of the live server and the static export, and `System` returns to following the operating system.
 
 ### Does the Web UI send run details to an AI service?
 
@@ -519,7 +519,8 @@ Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, 
 ### Can I switch projects or state directories in the Web UI?
 
 Yes. The sidebar groups projects under the startup basedir and other basedirs
-registered in rotari's master registry. Expand a basedir to see its project
+registered in rotari's master registry; each basedir is labelled by its parent
+directory and its own name, with the full path on hover. Expand a basedir to see its project
 names, then select a project to load its runs and jobs. The Web UI reads full
 state for only the selected basedir; expanding another one lists directory
 names without scanning its run history. `rotari web --project-name` is not

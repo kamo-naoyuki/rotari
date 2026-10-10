@@ -352,11 +352,8 @@ function updateNotificationTooltip(checkbox) {
   const text = checkbox.checked
     ? "Disable notifications"
     : "Enable notifications";
-  checkbox.title = text;
-  const tooltip = checkbox.parentElement.querySelector(
-    ".basedir-notification-tooltip",
-  );
-  if (tooltip) tooltip.textContent = text;
+  const bell = checkbox.closest(".basedir-bell");
+  if (bell) bell.title = text;
 }
 function toggleNotificationBasedir(checkbox) {
   const selected =
@@ -391,13 +388,30 @@ function sidebarRunLinksHTML(q, isActive, activeRun, basedirID) {
             "/run/" +
             encodeURIComponent(r.run_id),
         ) +
-        '">' +
+        '"><span class="sidebar-run-dot tone-' +
+        statusTone(r.lifecycle || r.status || "") +
+        '" aria-hidden="true"></span>' +
         esc(r.run_name || r.run_id) +
         "</a>",
     )
     .join("");
   return runLinks || '<span class="sidebar-run">No runs</span>';
 }
+// basedirLabelHTML labels a basedir by its parent directory, in bold, and
+// its own name, from the label newWebBaseDir (assets.go) computes; it is the
+// same markup as Go's basedirLabelHTML.
+function basedirLabelHTML(entry) {
+  const name = esc(entry.name || entry.path);
+  return entry.parent
+    ? '<span class="basedir-parent">' +
+        esc(entry.parent) +
+        '</span><span class="basedir-name">/' +
+        name +
+        "</span>"
+    : '<span class="basedir-name">' + name + "</span>";
+}
+const bellIconSVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>';
 function sidebarProjectLink(name, basedirID, active) {
   return (
     '<div class="sidebar-project-row"><span class="sidebar-toggle-placeholder" aria-hidden="true"></span><a class="sidebar-project-link basedir-switch' +
@@ -480,21 +494,21 @@ function sidebarBasedirHTML(
     (isExpanded ? " expanded" : "") +
     '" data-basedir-id="' +
     entry.id +
-    '"><div class="sidebar-project-row basedir-row"><span class="basedir-notification-control"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
-    entry.id +
-    '" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleNotificationBasedir(this)" /><span class="basedir-notification-tooltip">Enable notifications</span></span><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '"><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +
-    ' basedir-path basedir-switch" data-full-path="' +
-    esc(entry.path) +
-    '" title="' +
+    ' basedir-path basedir-switch" title="' +
     esc(entry.path) +
     '" href="' +
     basedirURL(entry.id, "/") +
     '">' +
-    esc(entry.path) +
-    '</a></div><div class="sidebar-projects basedir-contents"' +
+    basedirLabelHTML(entry) +
+    '</a><label class="basedir-bell" title="Enable notifications"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
+    entry.id +
+    '" aria-label="Notify about runs in this basedir" onchange="toggleNotificationBasedir(this)" />' +
+    bellIconSVG +
+    '</label></div><div class="sidebar-projects basedir-contents"' +
     (isExpanded ? ">" : " hidden>") +
     '<div class="sidebar-project all-projects' +
     (allProjectsExpanded ? " expanded" : "") +
@@ -514,67 +528,6 @@ function sidebarBasedirHTML(
     basedirURL(entry.id, "/jobs/") +
     '">Job activity</a></div></div>'
   );
-}
-function fitBasedirPaths(sidebar) {
-  sidebar.querySelectorAll(".basedir-path[data-full-path]").forEach((link) => {
-    if (link.textContent !== link.dataset.fullPath)
-      link.textContent = link.dataset.fullPath;
-  });
-}
-function initSidebarResizer() {
-  const sidebar = document.querySelector(".sidebar");
-  const handle = document.querySelector(".sidebar-resizer");
-  if (!sidebar || !handle) return;
-  const applySavedWidth = () => {
-    if (window.innerWidth <= 760) {
-      sidebar.style.width = "";
-      return;
-    }
-    const savedWidth = Number(localStorage.getItem("rotari-sidebar-width"));
-    if (Number.isFinite(savedWidth) && savedWidth > 0)
-      sidebar.style.width = Math.max(190, Math.min(520, savedWidth)) + "px";
-  };
-  applySavedWidth();
-  window.addEventListener("resize", applySavedWidth);
-  const resizeObserver =
-    typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(() => fitBasedirPaths(sidebar));
-  if (resizeObserver) resizeObserver.observe(sidebar);
-  else window.addEventListener("resize", () => fitBasedirPaths(sidebar));
-  handle.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = sidebar.getBoundingClientRect().width;
-    handle.classList.add("dragging");
-    const move = (moveEvent) => {
-      const width = Math.max(
-        190,
-        Math.min(520, startWidth + moveEvent.clientX - startX),
-      );
-      sidebar.style.width = width + "px";
-      localStorage.setItem("rotari-sidebar-width", String(width));
-    };
-    const end = () => {
-      handle.classList.remove("dragging");
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-  });
-  handle.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const direction = event.key === "ArrowRight" ? 1 : -1;
-    const width = Math.max(
-      190,
-      Math.min(520, sidebar.getBoundingClientRect().width + direction * 12),
-    );
-    sidebar.style.width = width + "px";
-    localStorage.setItem("rotari-sidebar-width", String(width));
-  });
-  fitBasedirPaths(sidebar);
 }
 function renderSidebar(queues) {
   const container = document.getElementById("sidebar-basedirs");
@@ -627,7 +580,6 @@ function renderSidebar(queues) {
   sessionStorage.setItem(savedLocationKey, location.pathname);
   const storedScroll = Number(sessionStorage.getItem(sidebarScrollKey));
   sidebar.scrollTop = Number.isFinite(storedScroll) ? storedScroll : scrollTop;
-  fitBasedirPaths(sidebar);
   const activeItem =
     sidebar.querySelector(".sidebar-run.active") ||
     sidebar.querySelector(
@@ -729,14 +681,35 @@ function webStatePath(...segments) {
   }
   return path;
 }
-function setLocation(path) {
-  const location = document.getElementById("location");
-  location.replaceChildren(
-    path,
-    document
-      .createRange()
-      .createContextualFragment(copyIconForValue(path, "state path")),
+// setCrumbs fills the top bar: the page's basedir, with a button that copies
+// copyPath (the page's state path), then trail, [label, href] pairs whose
+// last is the page itself. It also names the window after the page.
+function setCrumbs(trail, copyPath) {
+  const entry = registeredBasedirs.find((item) =>
+    mountedBasedirID ? item.id === mountedBasedirID : item.current,
   );
+  const basePath = entry ? entry.path : (state && state.base_dir) || "";
+  const parts = [];
+  if (basePath)
+    parts.push(
+      '<a class="crumb-basedir" href="/" title="' +
+        esc(basePath) +
+        '">' +
+        (entry ? basedirLabelHTML(entry) : esc(basePath)) +
+        "</a>" +
+        (copyPath ? copyIconForValue(copyPath, "state path") : ""),
+    );
+  trail.forEach(([label, href], index) =>
+    parts.push(
+      index === trail.length - 1 || !href
+        ? '<span class="crumb-here">' + esc(label) + "</span>"
+        : '<a href="' + href + '">' + esc(label) + "</a>",
+    ),
+  );
+  document.getElementById("crumbs").innerHTML = parts.join(
+    '<span class="crumb-sep">/</span>',
+  );
+  document.title = trail[trail.length - 1][0] + " · rotari";
 }
 function setModalConfigPaths(paths) {
   const container = document.getElementById("modal-config-paths");
@@ -1296,14 +1269,15 @@ function addConfigButton() {
     )
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
-  const toolbar = document.querySelector(".toolbar");
+  const toolbar = document.getElementById("settings-actions");
+  if (!toolbar) return;
   const viewButton = document.createElement("button");
   viewButton.className = "config-button";
   viewButton.textContent = "View config";
   viewButton.disabled = !paths.length;
   viewButton.title = paths.length ? "View config" : "No config file";
   if (paths.length) viewButton.onclick = () => showConfig();
-  toolbar.insertBefore(viewButton, document.getElementById("refresh-button"));
+  toolbar.append(viewButton);
   if (configGenerationProject() === null) {
     const notificationPaths = pageConfigPaths(true);
     const notificationButton = document.createElement("button");
@@ -1314,10 +1288,7 @@ function addConfigButton() {
       ? "View the notification config copied for this run"
       : "No notification config snapshot";
     notificationButton.onclick = () => showConfig(true);
-    toolbar.insertBefore(
-      notificationButton,
-      document.getElementById("refresh-button"),
-    );
+    toolbar.append(notificationButton);
     return;
   }
   const generateConfigButton = document.createElement("button");
@@ -1325,19 +1296,13 @@ function addConfigButton() {
   generateConfigButton.textContent = "Generate config";
   generateConfigButton.title = "Generate or replace a config template";
   generateConfigButton.onclick = showGenerateConfig;
-  toolbar.insertBefore(
-    generateConfigButton,
-    document.getElementById("refresh-button"),
-  );
+  toolbar.append(generateConfigButton);
   if (notificationConfigProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
     notificationButton.textContent = "Notification config";
     notificationButton.onclick = showNotificationConfig;
-    toolbar.insertBefore(
-      notificationButton,
-      document.getElementById("refresh-button"),
-    );
+    toolbar.append(notificationButton);
     const generateNotificationButton = document.createElement("button");
     generateNotificationButton.className =
       "notification-generate-config-button";
@@ -1345,10 +1310,7 @@ function addConfigButton() {
     generateNotificationButton.title =
       "Generate or replace a notifications.toml template";
     generateNotificationButton.onclick = showGenerateNotificationConfig;
-    toolbar.insertBefore(
-      generateNotificationButton,
-      document.getElementById("refresh-button"),
-    );
+    toolbar.append(generateNotificationButton);
   }
 }
 function openRequestedConfigAction() {
@@ -1374,7 +1336,7 @@ function renderOverview(queues) {
     runs += q.run_count || q.runs.length;
     running += q.running_run_id ? 1 : 0;
   });
-  setLocation(webStatePath(state.base_dir, "projects"));
+  setCrumbs([["All projects"]], webStatePath(state.base_dir, "projects"));
   document.getElementById("page-title").textContent = "All projects";
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -1427,7 +1389,10 @@ function renderOverview(queues) {
     : "No projects found.";
 }
 function renderQueue(q) {
-  setLocation(webStatePath(state.base_dir, "projects", q.project_name));
+  setCrumbs(
+    [["All projects", "/"], [q.project_name]],
+    webStatePath(state.base_dir, "projects", q.project_name),
+  );
   document.getElementById("page-title").textContent = q.project_name;
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -1502,7 +1467,11 @@ function renderRun(q, runID) {
     renderMissing("Run not found");
     return;
   }
-  setLocation(
+  setCrumbs(
+    [
+      [q.project_name, "/project/" + encodeURIComponent(q.project_name)],
+      [run.run_name || runID],
+    ],
     webStatePath(state.base_dir, "projects", q.project_name, "runs", runID),
   );
   document.getElementById("page-title").innerHTML = esc(run.run_name || runID);
@@ -1872,6 +1841,7 @@ document.addEventListener("pointerdown", (event) => {
   closeAttemptMenus();
 });
 function renderMissing(message) {
+  setCrumbs([["Not found"]], "");
   document.getElementById("page-title").textContent = "Not found";
   document.getElementById("summary").textContent = "";
   document.getElementById("app").innerHTML =

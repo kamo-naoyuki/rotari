@@ -27,7 +27,7 @@ data to an external service.
 
 ### Enabling browser notifications
 
-Open `rotari web` and click `Enable notifications` in the sidebar.
+Open `rotari web` and click `Enable notifications` in the top bar.
 After browser permission is
 granted, the button becomes a `Notification on`/`Notification off` toggle.
 The toggle is stored in the browser's `localStorage`, scoped by protocol,

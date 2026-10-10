@@ -64,6 +64,7 @@
 .status-pill.carried::before {
   content: "↩";
 }
+/* Sidebar: brand, views, and the basedir tree. */
 .sidebar {
   flex: 0 0 auto;
   position: sticky;
@@ -71,128 +72,28 @@
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   width: 260px;
   min-width: 190px;
   max-width: 520px;
   height: 100vh;
-  min-height: 520px;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   overflow-anchor: none;
-  resize: none;
-  padding: 26px 14px 22px;
+  padding: 18px 12px 22px;
   border-right: 1px solid var(--line-soft);
   background: var(--surface);
-  backdrop-filter: blur(18px);
-}
-
-.sidebar-section-heading {
-  margin: 0 8px 5px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.sidebar-config-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin: -8px 4px 16px;
-}
-
-.sidebar-config-controls > button,
-.sidebar-config-controls > .sidebar-config-action {
-  display: block;
-  align-self: flex-start;
-  width: max-content;
-  max-width: 100%;
-  min-height: 34px;
-  text-align: left;
-}
-
-.theme-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.theme-choice select {
-  min-width: 0;
-  min-height: 30px;
-  padding: 3px 8px;
-  font-size: 12px;
-}
-
-.sidebar-config-controls > #notify-toggle.notifications-on {
-  border-color: color-mix(in oklab, var(--accent) 72%, transparent);
-  background: color-mix(in oklab, var(--accent) 18%, transparent);
-  color: var(--accent-text);
-  box-shadow: 0 0 14px color-mix(in oklab, var(--accent) 16%, transparent);
-}
-
-.sidebar-config-controls > #notify-toggle.notifications-on:hover {
-  border-color: color-mix(in oklab, var(--accent) 92%, transparent);
-  background: color-mix(in oklab, var(--accent) 26%, transparent);
-}
-
-.sidebar-config-controls > .sidebar-config-action {
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 590;
-  text-decoration: none;
-}
-
-.sidebar-config-controls > .sidebar-config-action:hover {
-  border-color: var(--muted);
-  background: var(--surface-2);
-}
-
-.sidebar-search-link {
-  display: block;
-  width: max-content;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin: -8px 4px 16px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  background: var(--surface);
-  font-size: 12px;
-  font-weight: 590;
-  text-decoration: none;
-}
-
-.sidebar-search-link:hover {
-  border-color: var(--muted);
-  background: var(--surface-2);
-}
-
-.sidebar-section-note {
-  margin: -5px 8px 7px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.35;
 }
 
 .sidebar-brand {
   display: grid;
-  grid-template-columns: 36px 1fr;
-  grid-template-rows: 21px 16px;
+  grid-template-columns: 34px 1fr;
+  grid-template-rows: 20px 15px;
   align-items: center;
-  column-gap: 11px;
-  margin: 0 4px 27px;
-  padding: 4px 7px 13px;
+  column-gap: 10px;
+  margin: 0 4px 10px;
+  padding: 2px 4px 14px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--text);
   text-decoration: none;
@@ -201,70 +102,81 @@
 .brand-mark {
   grid-row: 1 / 3;
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
-  border-radius: 11px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklab, var(--accent) 20%, transparent),
-    color-mix(in oklab, var(--accent) 7%, transparent)
-  );
+  border: 1px solid color-mix(in oklab, var(--logo-red) 40%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--logo-red) 10%, var(--surface));
   line-height: 1;
-  box-shadow: 0 5px 18px color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 .brand-mark .brand-icon {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
 }
 
 .brand-name {
   align-self: end;
   font-size: 17px;
-  font-weight: 720;
-  letter-spacing: -0.035em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .brand-caption {
   align-self: start;
   color: var(--muted);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+}
+
+.sidebar-section-heading {
+  margin: 14px 8px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar-section-note {
+  margin: -2px 8px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .sidebar-link,
 .sidebar-project-link,
 .sidebar-run {
+  border-radius: 6px;
   text-decoration: none;
   transition:
     color 140ms ease,
-    background 140ms ease,
-    border-color 140ms ease;
+    background 140ms ease;
 }
 
 .sidebar-link {
-  padding: 9px 11px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  display: block;
+  padding: 5px 8px;
   color: var(--text-2);
   font-size: 13px;
-  font-weight: 560;
 }
 
 .sidebar-link:hover,
 .sidebar-project-row:hover,
 .sidebar-run:hover {
-  background: var(--highlight);
+  background: var(--surface-2);
 }
 
-.sidebar-link.active {
-  border-color: color-mix(in oklab, var(--accent) 16%, transparent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
-  color: var(--accent-text);
+.sidebar-link.active,
+.sidebar-run.active,
+.sidebar-project:not(.basedir-entry) .sidebar-project-link.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .sidebar-project {
@@ -273,62 +185,74 @@
 
 .sidebar-project-row {
   display: flex;
-  min-height: 38px;
+  min-height: 30px;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
-  border-radius: 8px;
+  padding: 0 2px;
+  border-radius: 6px;
 }
 
-.basedir-notification-toggle {
-  flex: 0 0 auto;
-  display: block;
-  width: 14px !important;
-  height: 14px !important;
-  min-width: 14px !important;
-  max-width: 14px;
-  margin: 0 4px 0 0;
-  padding: 0;
+.sidebar-project-link {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px 4px 0;
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A basedir is labelled by its parent directory and its own name (basedirLabelHTML). */
+.basedir-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.basedir-parent {
+  font-weight: 600;
+}
+.basedir-name {
+  color: var(--muted);
+}
+
+/* The bell is a checkbox: notify about runs in this basedir. */
+.basedir-bell {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 26px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
   cursor: pointer;
 }
-
-.basedir-notification-control {
-  position: relative;
-  display: flex;
-  flex: 0 0 14px;
-  width: 14px;
-  height: 14px;
-  align-self: center;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
-  line-height: 0;
+.basedir-bell:hover {
+  border-color: var(--line);
 }
-
-.basedir-notification-tooltip {
+.basedir-bell input {
   position: absolute;
-  bottom: calc(100% + 5px);
-  left: 0;
-  z-index: 10;
-  display: none;
-  padding: 4px 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
   pointer-events: none;
 }
-
-.basedir-notification-control:hover .basedir-notification-tooltip,
-.basedir-notification-control:focus-within .basedir-notification-tooltip {
-  display: block;
+.basedir-bell svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
 }
-
-.basedir-row .sidebar-toggle {
-  margin-left: 0;
+.basedir-bell:has(input:checked) {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.basedir-bell:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .sidebar-toggle {
@@ -366,34 +290,18 @@
   transform: rotate(90deg);
 }
 
-.sidebar-project-link {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px 6px 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 580;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-project-link.active {
-  color: var(--accent-text);
-}
-
 .sidebar-projects,
 .sidebar-runs {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   margin-left: 10px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
+  padding-left: 8px;
+  border-left: 1px solid var(--line-soft);
 }
 
 .basedir-contents {
-  margin-left: 42px;
+  margin-left: 20px;
   padding-left: 0;
   border-left: 0;
 }
@@ -404,104 +312,40 @@
 }
 
 .sidebar-run {
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 8px;
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sidebar-run.active {
-  border-color: var(--line-soft);
-  background: var(--highlight);
-  color: var(--text);
+.sidebar-run-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--s-off);
+}
+.sidebar-run-dot.tone-ok {
+  background: var(--s-ok);
+}
+.sidebar-run-dot.tone-bad {
+  background: var(--s-bad);
+}
+.sidebar-run-dot.tone-run {
+  background: var(--s-run);
+}
+.sidebar-run-dot.tone-warn {
+  background: var(--s-warn);
 }
 
 .brand-icon {
   width: 0.85em;
   height: 0.85em;
-  filter: drop-shadow(
-    0 3px 10px color-mix(in oklab, var(--accent) 18%, transparent)
-  );
-}
-
-@media (max-width: 760px) {
-  .sidebar {
-    position: relative;
-    z-index: 2;
-    top: auto;
-    display: flex;
-    width: 100%;
-    max-width: none;
-    height: auto;
-    min-height: 0;
-    overflow: visible;
-    resize: none;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .sidebar-brand {
-    flex: 0 0 auto;
-    grid-template-columns: 30px auto;
-    grid-template-rows: 30px;
-    margin: 0 8px 0 0;
-    padding: 0 10px 0 0;
-    border: 0;
-    border-right: 1px solid var(--line);
-  }
-
-  .brand-mark {
-    grid-row: auto;
-    width: 30px;
-    height: 30px;
-  }
-
-  .brand-caption {
-    display: none;
-  }
-
-  .sidebar-project {
-    min-width: 0;
-  }
-
-  .sidebar-section-heading {
-    flex: 0 0 auto;
-    align-self: center;
-    margin: 0;
-    white-space: nowrap;
-  }
-
-  .sidebar-section-note {
-    display: none;
-  }
-
-  .sidebar-resizer {
-    display: none;
-  }
-
-  .sidebar-link {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-}
-
-@media (max-width: 520px) {
-  .sidebar {
-    overflow-x: auto;
-    overflow-y: visible;
-  }
-
-  .sidebar-project-row {
-    white-space: nowrap;
-  }
 }
 
 .sidebar-resizer {
@@ -509,15 +353,10 @@
   z-index: 4;
   flex: 0 0 12px;
   align-self: stretch;
-  margin-left: -14px;
-  margin-right: -14px;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-main.web-main .sidebar-resizer {
   margin-left: -6px;
   margin-right: -6px;
+  cursor: col-resize;
+  touch-action: none;
 }
 
 .sidebar-resizer::after {
@@ -537,7 +376,235 @@ main.web-main .sidebar-resizer {
   background: color-mix(in oklab, var(--accent) 78%, transparent);
 }
 
-.basedir-path {
-  direction: ltr;
+/* Top bar: breadcrumbs, then notifications, refresh, and the Settings menu. */
+.content {
+  --content-x: clamp(22px, 3.1vw, 48px);
+  padding-top: 0;
+}
+
+.content > .topbar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 6;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 0 calc(-1 * var(--content-x)) 24px;
+  padding: 10px var(--content-x);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.crumbs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.crumbs a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+.crumbs a:hover {
+  text-decoration: underline;
+}
+.crumb-basedir {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.crumb-here {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+.crumb-sep {
+  color: var(--line);
+}
+.crumbs .identity-copy,
+.crumbs .jobs-copy {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin: 0;
+  padding: 4px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.content > .topbar .toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.content > .topbar .toolbar button {
+  min-height: 32px;
+  padding: 5px 11px;
+}
+#notify-toggle.notifications-on {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.settings-menu {
+  position: relative;
+}
+.settings-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  width: 270px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.settings-panel[hidden] {
+  display: none;
+}
+.theme-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.theme-choice select {
+  min-width: 0;
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.settings-actions:empty {
+  display: none;
+}
+.content > .topbar .settings-actions button {
+  width: 100%;
+  min-height: 0;
+  padding: 7px 8px;
+  border-color: transparent;
+  background: transparent;
   text-align: left;
+}
+.content > .topbar .settings-actions button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+/* The page's title and its facts. */
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 20px;
+}
+.page-head[hidden] {
+  display: none;
+}
+.page-head h1 {
+  display: block;
+  margin: 0;
+  font-size: clamp(22px, 2vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* Below 760px the sidebar is a drawer over the page (web_shell.js). */
+.drawer-toggle,
+.drawer-scrim {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .content {
+    --content-x: 18px;
+  }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(300px, 86vw) !important;
+    max-width: none;
+    height: 100%;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 160ms ease,
+      visibility 160ms;
+    box-shadow: var(--shadow-pop);
+  }
+  body.drawer-open .sidebar {
+    visibility: visible;
+    transform: none;
+  }
+  body.drawer-open .drawer-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: block;
+    background: var(--overlay);
+  }
+  .sidebar-resizer {
+    display: none;
+  }
+  .content > .topbar .drawer-toggle {
+    display: inline-flex;
+    min-height: 32px;
+    padding: 5px 9px;
+  }
+  .content > .topbar .toolbar button {
+    padding: 5px 8px;
+  }
+  .crumbs > .crumb-basedir,
+  .crumbs > .crumb-basedir + button,
+  .crumbs > .crumb-basedir + button + .crumb-sep {
+    display: none;
+  }
+}
+
+/* On a phone the page refreshes itself; its breadcrumb needs the room. */
+@media (max-width: 520px) {
+  .content > .topbar #refresh-button {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
 }

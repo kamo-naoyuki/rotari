@@ -269,15 +269,11 @@ function historySearchPageHTML() {
 
 function renderHistorySearchPage() {
   const app = document.getElementById("app");
-  document.title = "History search · rotari";
-  document.querySelector(".header-title-text").textContent =
-    "rotari History search";
-  document.getElementById("location").textContent =
+  setCrumbs([["History search"]], "");
+  document.getElementById("page-title").textContent = "History search";
+  document.getElementById("summary").textContent =
     "Search project, run, and job history in the ranges you choose.";
-  document.getElementById("page-title").closest("section").hidden = true;
   if (typeof rewriteStaticLinks === "function") {
-    document.getElementById("page-title").textContent = "History search";
-    document.getElementById("summary").textContent = "";
     app.className = "empty";
     app.textContent =
       "Cross-basedir history search is available in the live Web UI only.";

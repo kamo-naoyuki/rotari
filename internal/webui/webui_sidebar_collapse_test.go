@@ -42,13 +42,15 @@ if (!collapsed.includes('class="sidebar-runs" hidden></div>')) process.exit(5);
 	}
 }
 
-func TestWebHeaderBrandLinksToHome(t *testing.T) {
+// The sidebar's brand and the breadcrumb that names the basedir both lead
+// to the projects overview.
+func TestWebBrandAndBasedirCrumbLinkHome(t *testing.T) {
 	html := testSite().webHTML()
-	if !webContains(html, `<a class="header-home" href="/"><img class="brand-icon"`) {
-		t.Fatal("header brand logo is not a home link")
+	if !webContains(html, `<a class="sidebar-brand" href="/" aria-label="rotari home"`) {
+		t.Fatal("sidebar brand is not a home link")
 	}
-	if !webContains(html, `<span class="header-title-text">rotari Web</span></a>`) {
-		t.Fatal("header brand link does not include the page title")
+	if !webContains(html, `'<a class="crumb-basedir" href="/" title="'`) {
+		t.Fatal("the basedir breadcrumb is not a home link")
 	}
 }
 
