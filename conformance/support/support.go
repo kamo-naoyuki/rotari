@@ -22,9 +22,10 @@ import (
 var binary string
 
 const (
-	flagJSON    = "--json"
-	flagJobName = "--job-name"
-	flagQuiet   = "--quiet"
+	flagJSON      = "--json"
+	flagJobName   = "--job-name"
+	flagQuiet     = "--quiet"
+	supervisorArg = "__server\x00"
 )
 
 var addedJobPattern = regexp.MustCompile(`job_id=(\S+)`)
@@ -477,7 +478,7 @@ func KillSupervisors(t *testing.T, root string) {
 			continue
 		}
 		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
-		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte("__server\x00")) {
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte(supervisorArg)) {
 			continue
 		}
 		_ = syscall.Kill(pid, syscall.SIGKILL)
@@ -490,6 +491,7 @@ func KillStrays(t *testing.T, root string) {
 	if err != nil {
 		return
 	}
+	var processes []strayProcess
 	for _, entry := range entries {
 		pid, err := strconv.Atoi(entry.Name())
 		if err != nil {
@@ -501,8 +503,37 @@ func KillStrays(t *testing.T, root string) {
 		}
 		pgid, err := syscall.Getpgid(pid)
 		if err == nil && pgid != syscall.Getpgrp() {
-			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+			processes = append(processes, strayProcess{pid, pgid, bytes.Contains(cmdline, []byte(supervisorArg))})
 		}
+	}
+	killStrayGroups(processes, func(pid int) {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		WaitUntil(t, 15*time.Second, func() (bool, string) {
+			cmdline, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+			return os.IsNotExist(err) || (err == nil && !bytes.Contains(cmdline, []byte(supervisorArg))), fmt.Sprintf("supervisor %d did not stop", pid)
+		})
+	}, func(pgid int) {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	})
+}
+
+type strayProcess struct {
+	pid        int
+	pgid       int
+	supervisor bool
+}
+
+func killStrayGroups(processes []strayProcess, stopSupervisor func(int), killGroup func(int)) {
+	// A supervisor can finalize its run as soon as the last job dies. Stop
+	// every supervisor first and wait for it to exit before killing any jobs,
+	// so crash fixtures stay interrupted regardless of /proc enumeration order.
+	for _, process := range processes {
+		if process.supervisor {
+			stopSupervisor(process.pid)
+		}
+	}
+	for _, process := range processes {
+		killGroup(process.pgid)
 	}
 }
 
