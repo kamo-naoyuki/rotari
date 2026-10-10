@@ -182,3 +182,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `TestRunReportRecordsSourcesNotesAndJobTable` updated to the new columns; the guide tests; a results-table note added by hand to trial 2's run renders as a table in the report; `scripts/check.sh` with the race detector passed.
 
 **Remaining:** the run page header still lists run notes as plain text, so a Markdown note shows raw there; whether to drop that list now that the report renders notes is the user's call. Whether agents follow the new guide rule needs a trial.
+
+## Run notes only in the rendered report
+
+- `55fb76d8` (2026-10-11 01:13:11 +0900): the run page no longer lists run notes above its jobs; the Web API run drops `note_labels`.
+
+**Change:** the plain-text note list in the run page header (`web_app_core.js`, `.run-note`) and `web.Run.NoteLabels` with `runNoteLabels` are removed; the run's `notes` stays in the Web API. RUN-16 and `docs/INSPECT.md` say the run's notes are in the run report behind `Report`.
+
+**Reason:** the user agreed to drop the list once the report rendered notes: a Markdown results table showed raw there.
+
+**Plan impact:** settles where run notes go on the Web: in the run report.
+
+**Validation:** `TestRunNotes` now checks that `/api/report` puts the run's notes under `## Notes` before the job table and the job's note in its section; `scripts/check.sh` with the race detector passed.
+
+**Remaining:** a trial to see whether agents write the results table.
