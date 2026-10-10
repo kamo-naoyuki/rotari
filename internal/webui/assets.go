@@ -133,7 +133,8 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
 	template = strings.Replace(template, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
-	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webTokensCSS+"\n"+webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
+	styles := fontFaceCSS(homePath+"fonts/") + "\n" + webTokensCSS + "\n" + webInfoStylesCSS + "\n" + webSidebarStylesCSS
+	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", styles, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	searchPath := strings.TrimRight(homePath, "/") + "/search/"

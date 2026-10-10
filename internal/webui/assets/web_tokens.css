@@ -7,6 +7,12 @@
  */
 :root {
   color-scheme: light;
+  /* IBM Plex, embedded (assets/fonts); the system faces cover other scripts. */
+  --font-sans:
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --bg: #f4f6f9;
   --surface: #ffffff;
   --surface-2: #eef2f6;

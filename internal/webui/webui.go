@@ -316,6 +316,11 @@ func (s site) baseHandler() http.Handler {
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(s.webHTML()))
 	})
+	mux.HandleFunc("/fonts/", serveWebFont)
+	mux.HandleFunc("/web_fonts.css", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = writer.Write([]byte(fontFaceCSS("/fonts/")))
+	})
 	mux.HandleFunc("/web_tokens.css", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = writer.Write([]byte(webTokensCSS))
@@ -1733,7 +1738,8 @@ func (s site) generateStaticWeb(outputDir string) error {
 	json.HTMLEscape(&escapedArtifactData, artifactDataJSON)
 	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String(), escapedArtifactData.String()) + "\n</script>"
 	baseTemplate := s.webHTMLWithStaticBootstrap(bootstrap)
-	template := strings.Replace(baseTemplate, `href="/web_tokens.css"`, `href="web_tokens.css"`, 1)
+	template := strings.Replace(baseTemplate, `href="/web_fonts.css"`, `href="web_fonts.css"`, 1)
+	template = strings.Replace(template, `href="/web_tokens.css"`, `href="web_tokens.css"`, 1)
 	template = strings.Replace(template, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	template = strings.Replace(template, `href="/web_sidebar_styles.css"`, `href="web_sidebar_styles.css"`, 1)
 	if template == baseTemplate {
@@ -1751,14 +1757,17 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticWebPage(filepath.Join(outputDir, "index.html"), template); err != nil {
 		return err
 	}
-	if err := writeStaticStylesheet(outputDir); err != nil {
+	if err := writeStaticFonts(outputDir); err != nil {
+		return err
+	}
+	if err := writeStaticStylesheet(outputDir, outputDir); err != nil {
 		return err
 	}
 	searchPath := filepath.Join(outputDir, "search")
 	if err := writeStaticWebPage(filepath.Join(searchPath, "index.html"), template); err != nil {
 		return err
 	}
-	if err := writeStaticStylesheet(searchPath); err != nil {
+	if err := writeStaticStylesheet(outputDir, searchPath); err != nil {
 		return err
 	}
 	projects, err := joblist.Projects(baseDir, "")
@@ -1780,7 +1789,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTMLWithSession("../", projects, jobs, joblist.DefaultSinceText, false, s.Notifications, s.notificationSession, staticBaseDirs)); err != nil {
 		return err
 	}
-	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {
+	if err := writeStaticStylesheet(outputDir, filepath.Join(outputDir, "jobs")); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, ".nojekyll"), nil, 0o644); err != nil {
@@ -1800,7 +1809,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		if err := writeStaticWebPage(filepath.Join(queuePath, "index.html"), template); err != nil {
 			return err
 		}
-		if err := writeStaticStylesheet(queuePath); err != nil {
+		if err := writeStaticStylesheet(outputDir, queuePath); err != nil {
 			return err
 		}
 		for _, run := range queue.Runs {
@@ -1808,7 +1817,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 			if err := writeStaticWebPage(filepath.Join(runPath, "index.html"), template); err != nil {
 				return err
 			}
-			if err := writeStaticStylesheet(runPath); err != nil {
+			if err := writeStaticStylesheet(outputDir, runPath); err != nil {
 				return err
 			}
 		}
@@ -1902,8 +1911,18 @@ func writeStaticWebPage(path, contents string) error {
 	return os.WriteFile(path, []byte(contents), 0o644)
 }
 
-func writeStaticStylesheet(directory string) error {
+// writeStaticStylesheet writes the stylesheets beside a static page. Its
+// web_fonts.css loads the fonts that writeStaticFonts put at the export root.
+func writeStaticStylesheet(outputDir, directory string) error {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return err
+	}
+	toRoot, err := filepath.Rel(directory, outputDir)
+	if err != nil {
+		return err
+	}
+	fontPrefix := filepath.ToSlash(filepath.Join(toRoot, "fonts")) + "/"
+	if err := os.WriteFile(filepath.Join(directory, "web_fonts.css"), []byte(fontFaceCSS(fontPrefix)), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(directory, "web_tokens.css"), []byte(webTokensCSS), 0o644); err != nil {
