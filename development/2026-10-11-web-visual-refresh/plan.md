@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phases 0–2 done; Phase 3 next
+**Status:** Phases 0–3 done; Phase 4 next
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -227,6 +227,19 @@ appears under Views only once that page exists.
 
 Page titles and breadcrumbs, the Settings menu, sidebar paths truncated in
 the middle, full-height background and sidebar.
+
+Done. Both page kinds (application and Job activity) have one frame: a sticky
+top bar with breadcrumbs (basedir, project, run; the basedir's path copy
+button), the notification toggle, Refresh, and the Settings menu (theme;
+config and notification config actions on application pages); a page title
+with a facts line; and a sidebar with Views, then the basedirs, each labelled
+by parent and name with a bell and status dots for runs. Below 760px the
+sidebar is a drawer, Refresh hides below 520px, and no page scrolls sideways
+(10 of 12 demo pages did). `web_sidebar_styles.css` became `web_shell.css`,
+and `web_theme.js` became `web_shell.js`, which also holds the one sidebar
+resizer the two page kinds each used to carry. The "full-height background"
+item needed no work: the band it described was a screenshot artifact (Phase
+0). Tables are unchanged (`scripts/web-structure.sh`).
 
 ### Phase 4: page bodies
 

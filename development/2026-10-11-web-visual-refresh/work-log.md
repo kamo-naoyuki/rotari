@@ -146,3 +146,26 @@ Entries group cohesive changes. Times are Git commit times.
 - `go test ./internal/webui ./cmd/rotari`, `go test ./conformance/05-web`, `TestContractStatus`, `internal/doclinks`, `npm run typecheck`, pre-commit, and `scripts/check.sh --short` passed before the commits. After `27ce4ba1`, the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0.
 
 **Remaining:** the run page toolbar, run detail lines, runtime panel, and config buttons are still assembled after rendering; Phases 3–4 rebuild them. More scripts to mark `// @ts-check` as they are rewritten.
+
+## Phase 3: one page frame
+
+- `e2682b58` (2026-10-11 07:48:41 +0900): mockup decisions.
+- `9038f988` (2026-10-11 07:52:09 +0900): `web_sidebar_styles.css` renamed to `web_shell.css`.
+- `7e3e7bef` (2026-10-11 08:12:01 +0900): the page frame.
+
+**Change:**
+- Templates (`web_template.html`, `jobs_template.html`): a `header.topbar` with a drawer toggle, `nav.crumbs`, `#notify-toggle`, `#refresh-button` (live pages), and a Settings menu (`#settings-panel` with the theme choice and, on application pages, `#settings-actions`); a `.page-head` with `h1#page-title` and a `.facts` line; the sidebar's config controls replaced by a Views section.
+- `web_shell.js` (was `web_theme.js`): theme, Settings menu, drawer, and the sidebar resizer, replacing `initSidebarResizer` and the jobs page's inline copy; `fitBasedirPaths` removed.
+- `web_app_core.js`: `setCrumbs` replaces `setLocation`; `basedirLabelHTML` and a bell in basedir rows; status dots in the run tree; `addConfigButton` fills the Settings panel. `web_app_search.js` names its page through the shared title and crumbs.
+- Go: `webBaseDir` gains `Parent` and `Name` from `newWebBaseDir`; `basedirLabelHTML`, `basedirBellHTML`, and `writeBasedirCrumb` for the Job activity page.
+- `web_shell.css`: the frame's styles, the drawer below 760px, Refresh hidden below 520px; the old phone top-bar sidebar, config controls, and checkbox tooltip removed.
+- Tests: new `TestNewWebBaseDirLabelsByParentAndName` and `TestWebShellMenuAndDrawer`; `TestWebHeaderBrandLinksToHome` became `TestWebBrandAndBasedirCrumbLinkHome`; tests pinned to the old header, location line, sidebar controls, toolbar config buttons, checkbox tooltip, and `fitBasedirPaths` now check the frame with the same intent.
+- Docs: `contracts/05-web-assets-and-static-export.md` (frame, label, bell, asset names), `docs/FAQ.md` (theme in Settings; basedir labels), `docs/NOTIFICATIONS.md` (toggle in the top bar).
+
+**Reason:** Phase 3 of the plan, as decided on the Phase 3 mockup.
+
+**Plan impact:** Phase 3 done. The basedir label is accepted provisionally; the user will judge it in use.
+
+**Validation:** `go test ./internal/webui ./cmd/rotari`, `npm run typecheck`, pre-commit, and `scripts/check.sh --short` passed before the commits. `scripts/web-structure.sh` on the shared demo state: every table identical to the end of Phase 2; toolbars, headings, and the Job activity title changed as intended. `scripts/screenshot-web.sh` on that state: no phone capture wider than 390px (10 of 12 were before); desktop and phone captures inspected in light and dark. After `7e3e7bef`, the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0.
+
+**Remaining:** Phase 4 (page bodies), which also rebuilds the run toolbar, run detail lines, runtime panel, and config buttons still assembled after rendering.
