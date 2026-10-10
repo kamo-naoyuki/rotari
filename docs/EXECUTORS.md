@@ -2,6 +2,32 @@
 
 Running jobs locally, over SSH, or on Slurm, PBS, LSF, or Sun Grid Engine.
 
+## Choosing an executor
+
+Select the executor with `--executor EXECUTOR` (short form `-e EXECUTOR`).
+It accepts these values:
+
+| Value | Runs the job | Submission command |
+| --- | --- | --- |
+| `local` | on the machine running rotari | `/bin/sh` |
+| `ssh` | on a remote host over SSH | `ssh` |
+| `slurm` | as a Slurm job | `sbatch` |
+| `pbs` | as a PBS job | `qsub` |
+| `lsf` | as an LSF job | `bsub` |
+| `sge` | as a Sun Grid Engine job | `qsub` |
+
+Any other value is rejected. The option is accepted by:
+
+* `rotari add`, to set the job's executor;
+* `rotari change`, to replace a job's executor;
+* `rotari run` and `rotari retry`, to set the executor for jobs that do not
+  have their own.
+
+A job's own executor takes precedence over the `run` / `retry` value. When
+neither is set, the job runs with `local`. `ROTARI_EXECUTOR` and the
+`executor` [configuration](CONFIGURATION.md) key supply the default for
+`--executor`.
+
 ## Scheduler
 
 Each job can choose its execution backend and backend-specific options:
