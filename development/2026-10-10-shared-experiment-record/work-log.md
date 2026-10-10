@@ -131,3 +131,20 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** new `TestWebRunPageShowsJobNotesButton` (jsdom: only the noted task has the button; it shows its two notes, naming the earlier attempt, and not the run's note); `TestRunNotes` checks the Web API's per-job labels; `scripts/check.sh` with the race detector passed.
 
 **Remaining:** where run notes go on the Web pages (the user's decision).
+
+## Disabled Notes button and run-only notes at the top of the run page
+
+- `6e4d1085` (2026-10-10 21:47:35 +0900): a job without notes shows a disabled `Notes` button.
+- `a60f583a` (2026-10-10 22:19:50 +0900): the run page's header lists only the notes on the run itself.
+
+**Change:**
+- `notesControl` in `web_app_core.js` renders a disabled `Notes` button, titled with how to add a note, for a job without notes, so every job row has the same buttons.
+- `web.Run.NoteLabels` (the Web API run's `note_labels`) describes only the run's own notes, through `runNoteLabels`; a job's notes appear only in its `Job.NoteLabels`. The run's `notes` still carries every note. RUN-16 and `docs/INSPECT.md` follow.
+
+**Reason:** the user asked for the button to be shown disabled when a job has no notes, and then for job notes to be left out of the top of the run page for now, since they are behind each job's button.
+
+**Plan impact:** none. Where run notes go on the Web pages is still the user's decision; this only stops listing job notes there.
+
+**Validation:** `TestWebRunPageShowsJobNotesButton` checks the disabled button; `TestRunNotes` now expects the run's labels to hold its two run notes only and failed against the previous loader with the job note among them; `go test ./conformance/...` and `scripts/check.sh` with the race detector passed.
+
+**Remaining:** run notes placement on the Web (the user's decision); the browser-notification issues found while answering a question (notifications for jobs first seen when an old run is opened, and a settings lookup by the wrong key), not yet fixed or recorded.
