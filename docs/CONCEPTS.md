@@ -34,6 +34,7 @@ that has started:
         ├── commands.json      # command snapshot
         ├── context.json       # execution context and config snapshot paths
         ├── sources.json       # git or jj revision the executed jobs ran from
+        ├── notes.jsonl        # notes on the run and its jobs, appended only
         ├── summary.json       # run result
         └── <job-id>/
             └── attempts/<attempt-id>/
@@ -53,7 +54,8 @@ success.
 
 Each run records its own command snapshot, success/failure status, logs, and
 metadata. The run empties the queue when it starts, and when it finishes, the
-runner updates the project state and leaves the completed run immutable, which makes retry loops and inspection easy to
+runner updates the project state and leaves the completed run immutable,
+except for notes that `rotari note` appends, which makes retry loops and inspection easy to
 reason about without losing the earlier outcome.
 
 ```mermaid

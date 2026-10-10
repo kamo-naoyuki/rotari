@@ -154,7 +154,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 			return startedRun{}, fmt.Errorf("failed to accept client attachment: %w", err)
 		}
 	}
-	start := projectrun.Start{RunID: runID, RunName: request.RunName, ClientStatus: clientStatus, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig, LaunchOrigin: request.LaunchOrigin}
+	start := projectrun.Start{RunID: runID, RunName: request.RunName, Note: request.Note, ClientStatus: clientStatus, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig, LaunchOrigin: request.LaunchOrigin}
 	if prepared.snapshotFromSource {
 		start.Snapshot = &prepared.queue
 	}

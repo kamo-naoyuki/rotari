@@ -303,9 +303,9 @@ func TestRunSummaryListsTenJobsPerGroupUnlessAllAreAsked(t *testing.T) {
 	}
 }
 
-// TestRunToolsNameSourcesWithoutPaths records a repository for both runs;
-// the run summary and the comparison name it by its last path element, and
-// redact paths in a read error.
+// TestRunToolsNameSourcesWithoutPaths records a repository for both runs and
+// a note with a path; the run summary and the comparison name the repository
+// by its last path element, and redact paths in a read error and the note.
 func TestRunToolsNameSourcesWithoutPaths(t *testing.T) {
 	f := newToolFixture(t)
 	paths, err := state.ResolveProjectPaths(f.firstBaseDir, "exp")
@@ -321,12 +321,19 @@ func TestRunToolsNameSourcesWithoutPaths(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	runDir := filepath.Join(paths.RunsDir, f.firstRun)
+	if err := state.AppendRunNote(runDir, model.RunNote{At: "2026-01-01T00:00:00Z", Text: "data from /home/alice/data"}); err != nil {
+		t.Fatal(err)
+	}
 	summary, err := runSummary(f.masterDir, RunSummaryInput{RunID: f.firstRun})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sources := summary.Summary.Run.Sources; len(sources) != 1 || sources[0].Root != "project" || sources[0].CommitID != "1111" {
 		t.Fatalf("run summary sources = %+v, want project at 1111", sources)
+	}
+	if notes := summary.Summary.Run.Notes; len(notes) != 1 || strings.Contains(notes[0].Text, "/home/alice") {
+		t.Fatalf("run summary notes = %+v, want one with its path redacted", notes)
 	}
 	output, err := compareRuns(f.masterDir, CompareRunsInput{RunID: f.secondRun, PreviousRunID: f.firstRun})
 	if err != nil {

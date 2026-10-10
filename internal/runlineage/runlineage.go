@@ -59,6 +59,8 @@ type Run struct {
 	// Sources is the run's recorded source revisions, nil when it recorded
 	// none.
 	Sources *model.RunSources
+	// Notes are the notes on the run and its job attempts, oldest first.
+	Notes []model.RunNote
 }
 
 // IsCarried reports whether a job's result came from its origin rather than
@@ -112,6 +114,7 @@ type RunInfo struct {
 	Name    string                 `json:"run_name,omitempty"`
 	Elapsed string                 `json:"elapsed,omitempty"`
 	Sources []model.SourceRevision `json:"sources,omitempty"`
+	Notes   []model.RunNote        `json:"notes,omitempty"`
 }
 
 // Summary counts the transitions and changes.
@@ -285,6 +288,7 @@ func runInfo(run Run) RunInfo {
 	if run.Sources != nil {
 		info.Sources = run.Sources.Sources
 	}
+	info.Notes = run.Notes
 	started, startErr := time.Parse(time.RFC3339, run.StartedAt)
 	finished, finishErr := time.Parse(time.RFC3339, run.FinishedAt)
 	if startErr == nil && finishErr == nil && !finished.Before(started) {
@@ -494,6 +498,10 @@ type LineageEntry struct {
 	Run     RunInfo  `json:"run"`
 	Counts  Counts   `json:"counts"`
 	Changes *Summary `json:"changes_from_previous,omitempty"`
+	// CodeChange is whether the code changed since the run before, combined
+	// over repositories by CombineSourceChanges; empty for the first run and
+	// when neither run recorded sources.
+	CodeChange string `json:"code_change_from_previous,omitempty"`
 }
 
 // Lineage describes runs, given oldest first, as the version history of an
@@ -504,8 +512,9 @@ func Lineage(runs []Run) []LineageEntry {
 	for index, run := range runs {
 		entry := LineageEntry{Run: runInfo(run), Counts: Summarize(run)}
 		if index > 0 {
-			summary := Compare(runs[index-1], run).Summary
-			entry.Changes = &summary
+			comparison := Compare(runs[index-1], run)
+			entry.Changes = &comparison.Summary
+			entry.CodeChange = CombineSourceChanges(comparison.Sources)
 		}
 		entries = append(entries, entry)
 	}

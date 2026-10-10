@@ -1531,6 +1531,34 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[SELECTOR]",
         },
         {
+            "description": "add a note to a run or to one job attempt: why it was "
+            "made or what its result showed",
+            "flags": [
+                {
+                    "command_line_only": True,
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+            ],
+            "name": "note",
+            "positional": "RUN_ID|ATTEMPT_ID TEXT",
+        },
+        {
             "description": "list runs, summarize one run, or compare two runs",
             "flags": [
                 {
@@ -2164,6 +2192,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
+                    "command_line_only": True,
+                    "description": "why this run is made; recorded with the run "
+                    "and shown by show and lineage; add more "
+                    "later with rotari note",
+                    "name": "note",
+                    "value_name": "TEXT",
+                },
+                {
                     "description": "local worker concurrency",
                     "environment": "ROTARI_RUN_LOCAL_CONCURRENCY",
                     "name": "local-concurrency",
@@ -2595,6 +2631,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_RUN_NAME",
                     "name": "run-name",
                     "value_name": "NAME",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "why this run is made; recorded with the run "
+                    "and shown by show and lineage; add more "
+                    "later with rotari note",
+                    "name": "note",
+                    "value_name": "TEXT",
                 },
                 {
                     "description": "local worker concurrency",

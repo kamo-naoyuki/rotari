@@ -236,6 +236,9 @@ class Run(CommandResult):
     def cancel(self, *, wait: bool = False) -> CommandResult:
         return self._project().cancel(self, wait=wait)
 
+    def note(self, text: str) -> CommandResult:
+        return self._project().note(self, text)
+
     def _project(self) -> Rotari:
         if self._client is None:
             raise ValueError("run is not bound to a Rotari client")
@@ -616,6 +619,14 @@ class Rotari:
         """Cancel the project's active run or selected active jobs."""
 
         return self._control("cancel", target, options)
+
+    def note(self, target: Run | str, text: str) -> CommandResult:
+        """Add a note to a run, or to one job attempt given its attempt ID."""
+
+        target_id = target.id if isinstance(target, Run) else target
+        if not target_id:
+            raise ValueError("a run or attempt ID is required")
+        return self.command("note", target_id, text)
 
     def suspend(
         self, target: Job | str | Sequence[Job | str] | None = None, **options: object

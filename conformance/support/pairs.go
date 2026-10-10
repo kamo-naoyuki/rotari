@@ -45,6 +45,8 @@ func PairAdapter(command string) string {
 		return "preview"
 	case "unlock":
 		return "control"
+	case "note":
+		return "note"
 	case "wait":
 		return "wait"
 	case "gc", "server":

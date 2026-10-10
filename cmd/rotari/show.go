@@ -911,6 +911,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			fmt.Printf("%s %s\n", cyan("Source:"), model.SourceLabel(source))
 		}
 	}
+	if notes, err := state.LoadRunNotes(runDir); err != nil {
+		fmt.Printf("%s unreadable (%v)\n", cyan("Note:"), err)
+	} else {
+		writeRunNotes(os.Stdout, notes, loadRunJobSpecs(runDir))
+	}
 	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
 		// The job table can be long; point to the compact summary before it.
 		fmt.Printf("%s rotari lineage %s%s\n", cyan("Failure summary:"), runHintLocation(paths), executor.ShellQuote(runID))
@@ -1537,6 +1542,17 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if source, ok := state.AttemptSource(runDir, jobDir); ok && !neverRan {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), model.SourceLabel(source))
 	}
+	if notes, err := state.LoadRunNotes(runDir); err != nil {
+		fmt.Fprintf(writer, "%s unreadable (%v)\n", cyan("Note:"), err)
+	} else {
+		for _, note := range model.RunNotesFor(notes, jobID) {
+			label := note.Text
+			if note.AttemptID != selectedAttemptID {
+				label += " (attempt " + note.AttemptID + ")"
+			}
+			fmt.Fprintf(writer, "%s %s %s\n", cyan("Note:"), model.FormatDisplayTimestamp(note.At), strings.ReplaceAll(label, "\n", "\n  "))
+		}
+	}
 	if neverRan {
 		fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
 		return 0
@@ -2047,4 +2063,18 @@ func lastLines(data []byte, n int) []byte {
 		}
 	}
 	return data
+}
+
+// writeRunNotes prints a run's notes, oldest first, naming the job of a job
+// note by its name when the run's snapshot has one.
+func writeRunNotes(writer io.Writer, notes []model.RunNote, specs map[string]model.JobSpec) {
+	for _, note := range notes {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Note:"), model.FormatRunNote(note, noteJobLabel(specs[note.JobID])))
+	}
+}
+
+// noteJobLabel names a job for a note: its name, which for an array task
+// already carries the task number, or empty to fall back to the job ID.
+func noteJobLabel(spec model.JobSpec) string {
+	return spec.Name
 }

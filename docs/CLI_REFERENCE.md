@@ -404,6 +404,18 @@ Usage: `rotari show [SELECTOR]`
 | `--filter-matrix` | `NAME` | `CLI only` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `CLI only` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
+### `rotari note`
+
+add a note to a run or to one job attempt: why it was made or what its result showed
+
+Usage: `rotari note RUN_ID|ATTEMPT_ID TEXT`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `CLI only` | config file to use |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+
 ### `rotari lineage`
 
 list runs, summarize one run, or compare two runs
@@ -542,6 +554,7 @@ Usage: `rotari run [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
+| `--note` | `TEXT` | `CLI only` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
@@ -612,6 +625,7 @@ Usage: `rotari retry [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
+| `--note` | `TEXT` | `CLI only` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |

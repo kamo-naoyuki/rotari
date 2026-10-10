@@ -54,6 +54,9 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if recordedSources {
 		run.Sources = &sources
 	}
+	if run.Notes, err = state.LoadRunNotes(runDir); err != nil {
+		return runlineage.Run{}, fmt.Errorf("failed to load run %s notes: %w", runID, err)
+	}
 	for _, spec := range model.QueueToJobs(commands.Commands) {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
 		if err != nil {

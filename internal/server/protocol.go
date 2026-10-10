@@ -14,13 +14,15 @@ func IsKnownOperation(op string) bool {
 }
 
 type Request struct {
-	Op               string                    `json:"op"`
-	QueueName        string                    `json:"project_name,omitempty"`
-	LocalConcurrency int                       `json:"local_concurrency,omitempty"`
-	BatchMaxActive   int                       `json:"batch_max_active,omitempty"`
-	ExecutorSettings executor.RunSettingsMap   `json:"executor_settings,omitempty"`
-	Retry            int                       `json:"retry,omitempty"`
-	RunName          string                    `json:"run_name,omitempty"`
+	Op               string                  `json:"op"`
+	QueueName        string                  `json:"project_name,omitempty"`
+	LocalConcurrency int                     `json:"local_concurrency,omitempty"`
+	BatchMaxActive   int                     `json:"batch_max_active,omitempty"`
+	ExecutorSettings executor.RunSettingsMap `json:"executor_settings,omitempty"`
+	Retry            int                     `json:"retry,omitempty"`
+	RunName          string                  `json:"run_name,omitempty"`
+	// Note is why the run is made, recorded as its first note.
+	Note             string                    `json:"note,omitempty"`
 	CWD              string                    `json:"cwd,omitempty"`
 	ConfigPath       string                    `json:"config_path,omitempty"`
 	FileConfig       *model.FileConfigSnapshot `json:"file_config,omitempty"`

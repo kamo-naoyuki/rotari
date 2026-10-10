@@ -374,6 +374,26 @@ The one-run summary also counts failed jobs by diagnosis, groups them by
 cause as `show` does, and reports their source-run origins, including `new`
 for jobs without an origin.
 
+### Notes on runs
+
+A note says why a run was made or what its results showed, for whoever reads
+the runs later, person or agent. Give the reason when the run starts, and
+add conclusions after:
+
+```sh
+rotari run -p sweep --note "lr 0.1 with one epoch of warmup"
+rotari note RUN_ID "warmup makes lr 0.1 trainable; best is bs 48"
+rotari note ATTEMPT_ID "NaN at step 12: the learning rate, not a bug"
+```
+
+`retry --note` works as `run --note` does, and a `--dry-run` preview shows
+the note without recording it. A note on an attempt belongs to that job.
+Notes are only ever added; they never change a run's results. `show` for a
+run lists its notes, `show -j` the job's, and `lineage RUN_ID` and
+`lineage RUN_A RUN_B` each run's. The run history, `lineage -p PROJECT`, shows
+each run's first note in its `NOTE` column, and in its `CODE` column whether
+the code changed since the run before (see below).
+
 ### Which code a run executed
 
 Before a run starts its jobs, it records the version-control revision of each

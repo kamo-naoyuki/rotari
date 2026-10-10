@@ -94,6 +94,8 @@ func dispatch(args []string) int {
 		return cmdGC(args[1:])
 	case "unlock":
 		return cmdUnlock(args[1:])
+	case "note":
+		return cmdNote(args[1:])
 	case "change":
 		return cmdChange(args[1:])
 	case "export":

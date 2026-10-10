@@ -28,6 +28,12 @@ values. Notifications select one project/basedir/global file without merging.
   the run's exit code.
   `wait --until-failure` also returns as soon as a job fails with no retry
   left, so a long run's first failure can be fixed early.
+- Leave notes for the people and agents who read the runs later. Start each
+  run or retry with `--note "why this run"`, such as what you changed and
+  what you expect. When you have read the results, add what they showed:
+  `rotari note RUN_ID "what you concluded"`, or `rotari note ATTEMPT_ID
+  "..."` for one job. `rotari lineage -p PROJECT` lists each run's first
+  note and whether its code changed.
 - Read summaries before logs. `rotari lineage RUN_ID` prints a run's counts
   and its failures grouped by cause, each with the jobs, an example line, the
   command that shows one job, and a suggested fix. It stays short however

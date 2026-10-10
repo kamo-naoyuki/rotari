@@ -188,6 +188,12 @@ def test_control_run_jobs_and_object_shortcuts():
         (lambda: client.suspend([job, other]), "suspend", ["job-1", "job-2"]),
         (lambda: job.resume(), "resume", ["job-1"]),
         (lambda: client.resume([job, other]), "resume", ["job-1", "job-2"]),
+        (lambda: run.note("why"), "note", ["run-1", "why"]),
+        (
+            lambda: client.note("att_run-1-job-1-0", "NaN"),
+            "note",
+            ["att_run-1-job-1-0", "NaN"],
+        ),
     ]
     for action, command, ending in cases:
         with patch("subprocess.run", return_value=response("ok")) as invoke:

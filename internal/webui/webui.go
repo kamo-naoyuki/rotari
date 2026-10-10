@@ -1521,6 +1521,9 @@ func (s site) loadWebRunDetail(baseDir, projectName, runID string) (webprojectio
 		Sources: func(id string) (model.RunSources, bool, error) {
 			return stateinternal.LoadRunSources(filepath.Join(paths.RunsDir, id))
 		},
+		Notes: func(id string) ([]model.RunNote, error) {
+			return stateinternal.LoadRunNotes(filepath.Join(paths.RunsDir, id))
+		},
 		Samples: func(id string) []model.LoadSample {
 			return stateinternal.ReadLoadSamples(loadSamplesPath(paths, id))
 		},
@@ -1937,6 +1940,9 @@ func (s site) loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection
 		},
 		Sources: func(runID string) (model.RunSources, bool, error) {
 			return stateinternal.LoadRunSources(filepath.Join(paths.RunsDir, runID))
+		},
+		Notes: func(runID string) ([]model.RunNote, error) {
+			return stateinternal.LoadRunNotes(filepath.Join(paths.RunsDir, runID))
 		},
 		Samples: func(runID string) []model.LoadSample {
 			return stateinternal.ReadLoadSamples(loadSamplesPath(paths, runID))

@@ -53,3 +53,46 @@ func TestCompareCarriesSources(t *testing.T) {
 		t.Fatalf("Compare = %+v", result)
 	}
 }
+
+func TestCombineSourceChanges(t *testing.T) {
+	change := func(values ...string) []SourceChange {
+		changes := []SourceChange{}
+		for _, value := range values {
+			changes = append(changes, SourceChange{Change: value})
+		}
+		return changes
+	}
+	for _, test := range []struct {
+		changes []SourceChange
+		want    string
+	}{
+		{nil, ""},
+		{change(SourceUnchanged, SourceUnchanged), SourceUnchanged},
+		{change(SourceUnchanged, SourceUnknown), SourceUnknown},
+		{change(SourceUnknown, SourceChanged), SourceChanged},
+	} {
+		if got := CombineSourceChanges(test.changes); got != test.want {
+			t.Errorf("CombineSourceChanges(%+v) = %q, want %q", test.changes, got, test.want)
+		}
+	}
+}
+
+// TestLineageCarriesCodeChangesAndNotes gives three runs; each entry after
+// the first says whether the code changed, and every entry keeps its notes.
+func TestLineageCarriesCodeChangesAndNotes(t *testing.T) {
+	sources := func(commit string) *model.RunSources {
+		return &model.RunSources{Sources: []model.SourceRevision{{Root: "/repo", VCS: "git", CommitID: commit}}}
+	}
+	runs := []Run{
+		{ID: "a", Sources: sources("1"), Notes: []model.RunNote{{Text: "first"}}},
+		{ID: "b", Sources: sources("1")},
+		{ID: "c", Sources: sources("2"), Notes: []model.RunNote{{Text: "after the fix"}}},
+	}
+	entries := Lineage(runs)
+	if entries[0].CodeChange != "" || entries[1].CodeChange != SourceUnchanged || entries[2].CodeChange != SourceChanged {
+		t.Fatalf("code changes = %q, %q, %q", entries[0].CodeChange, entries[1].CodeChange, entries[2].CodeChange)
+	}
+	if len(entries[0].Run.Notes) != 1 || len(entries[1].Run.Notes) != 0 || entries[2].Run.Notes[0].Text != "after the fix" {
+		t.Fatalf("notes = %+v", entries)
+	}
+}

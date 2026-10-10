@@ -128,6 +128,7 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 		runlineage.LimitMembers(summary.Failures, failureMemberLimit)
 	}
 	summary.Run.Sources = sourcesWithoutPaths(summary.Run.Sources)
+	summary.Run.Notes = notesWithoutPaths(summary.Run.Notes)
 	output.Summary = summary
 	return output, nil
 }
@@ -186,6 +187,8 @@ func compareRuns(masterDir string, input CompareRunsInput) (CompareRunsOutput, e
 	output := CompareRunsOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Comparison: runlineage.Compare(from, to)}
 	output.Comparison.From.Sources = sourcesWithoutPaths(output.Comparison.From.Sources)
 	output.Comparison.To.Sources = sourcesWithoutPaths(output.Comparison.To.Sources)
+	output.Comparison.From.Notes = notesWithoutPaths(output.Comparison.From.Notes)
+	output.Comparison.To.Notes = notesWithoutPaths(output.Comparison.To.Notes)
 	for index, change := range output.Comparison.Sources {
 		change.Root = filepath.Base(change.Root)
 		for _, side := range []**model.SourceRevision{&change.From, &change.To} {
@@ -306,6 +309,20 @@ func sourcesWithoutPaths(sources []model.SourceRevision) []model.SourceRevision 
 	shown := make([]model.SourceRevision, len(sources))
 	for index, source := range sources {
 		shown[index] = sourceWithoutPaths(source)
+	}
+	return shown
+}
+
+// notesWithoutPaths redacts paths and hostnames in notes, as in evidence
+// lines.
+func notesWithoutPaths(notes []model.RunNote) []model.RunNote {
+	if notes == nil {
+		return nil
+	}
+	shown := make([]model.RunNote, len(notes))
+	for index, note := range notes {
+		note.Text = report.RedactPatterns(note.Text)
+		shown[index] = note
 	}
 	return shown
 }

@@ -24,6 +24,7 @@ Commands:
   projects    list projects across known state directories
   runs        list active runs and recently finished runs across known state directories
   show        show details for a project, run, job, or attempt
+  note        add a note to a run or to one job attempt: why it was made or what its result showed
   lineage     list runs, summarize one run, or compare two runs
   jobs        list running and recently finished jobs across known state directories
   wait        wait for a run by project, run name, or run ID

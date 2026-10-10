@@ -36,7 +36,7 @@ read-only tools are annotated as such.
 | Preview | Write | Input | CLI equivalent |
 | --- | --- | --- | --- |
 | `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`), `overwrite`, and `detail`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
-| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry` and source `run_id`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
+| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry` and source `run_id`; the write also `if_revision` and optional `run_name` and `note` (why the run is made, RUN-16) | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
 
 An import tool returns the plan's summary: each job with its status, an
 array's tasks counted by status, the statuses counted over the plan, the

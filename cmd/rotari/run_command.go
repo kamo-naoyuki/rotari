@@ -49,6 +49,7 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	runName := cliString(fs, "run-name", "")
+	noteOption := cliString(fs, "note", "")
 	localConcurrency := cliInt(fs, "local-concurrency", 8)
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
 	executorSettings := cliExecutorRunSettings(fs)
@@ -68,6 +69,15 @@ func runJobs(args []string, defaultSelection string) int {
 	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
+	}
+	note := ""
+	if cliOptionSet(fs, "note") {
+		text, err := model.NoteText(*noteOption)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		note = text
 	}
 	if *async && *guard.dryRun {
 		printError("--async cannot be combined with --dry-run, which starts no run; preview without --async, then start the run with --async --if-revision REVISION, taking REVISION from the preview")
@@ -249,7 +259,7 @@ func runJobs(args []string, defaultSelection string) int {
 			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID,
 			SourcePolicy: sourcePolicy, CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
 			PartialArray: *partialArray, MatchBy: *matchBy,
-		}, *guard.ifRevision, *runName)
+		}, *guard.ifRevision, *runName, note)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -283,7 +293,7 @@ func runJobs(args []string, defaultSelection string) int {
 	defer client.Close()
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, DisconnectAction: *disconnectAction, Quiet: *quiet,
-		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath, FileConfig: fileConfig,
+		RunName: *runName, Note: note, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath, FileConfig: fileConfig,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID,
 		SourcePolicy: string(sourcePolicy), CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
 		PartialArray: *partialArray, MatchBy: *matchBy,
@@ -480,7 +490,7 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 // projectrun.Runner.PlanRun as the run itself is, without starting it. queue,
 // when set, is an explicitly supplied replacement queue; saved-run snapshots
 // are prepared by the shared planner without changing queue.json.
-func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision, runName string) int {
+func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision, runName, note string) int {
 	planned, revision, err := projectRunner().PreviewRun(paths, queue, request, ifRevision)
 	if err != nil {
 		printError(err)
@@ -498,6 +508,9 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 		if planned.Plan.Execute[job.ID] {
 			fmt.Printf("  execute job_id=%s%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""), strings.Join(optionalField(" depends_on_rerun", planned.Plan.RerunDependencies[job.ID]), ""))
 		}
+	}
+	if note != "" {
+		fmt.Printf("  note: %s\n", note)
 	}
 	if planned.UsedQueueWithSource {
 		fmt.Print(projectrun.SourceNotice(planned.SourceRunID, planned.OmittedSourceJobs, hintLocation(paths)))

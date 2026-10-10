@@ -71,3 +71,22 @@ func sourceChange(from, to *model.SourceRevision) string {
 	}
 	return SourceUnchanged
 }
+
+// CombineSourceChanges sums up a comparison over repositories: changed when
+// any repository's code changed, otherwise unknown when any cannot be told,
+// otherwise unchanged; empty when there is nothing to compare.
+func CombineSourceChanges(changes []SourceChange) string {
+	if len(changes) == 0 {
+		return ""
+	}
+	combined := SourceUnchanged
+	for _, change := range changes {
+		switch change.Change {
+		case SourceChanged:
+			return SourceChanged
+		case SourceUnknown:
+			combined = SourceUnknown
+		}
+	}
+	return combined
+}

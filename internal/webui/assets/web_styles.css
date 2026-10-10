@@ -239,6 +239,9 @@ h2 {
 .run-detail {
   text-align: left;
 }
+.run-note {
+  white-space: pre-wrap;
+}
 .toolbar {
   display: flex;
   gap: 8px;

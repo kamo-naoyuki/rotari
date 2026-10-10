@@ -1654,6 +1654,12 @@ function renderRun(q, runID) {
     "</code>" +
     cwdCopy +
     "</p>" +
+    (run.note_labels || [])
+      .map(
+        (label) =>
+          '<p class="meta run-detail run-note">Note: ' + esc(label) + "</p>",
+      )
+      .join("") +
     (run.source_labels || [])
       .map(
         (label) =>

@@ -28,8 +28,12 @@ type Run struct {
 	// each as model.SourceLabel describes it for `show`.
 	Sources      []model.SourceRevision `json:"sources,omitempty"`
 	SourceLabels []string               `json:"source_labels,omitempty"`
-	Timeline     []TimelinePoint        `json:"timeline,omitempty"`
-	Running      bool                   `json:"running"`
+	// Notes are the run's notes, oldest first, and NoteLabels each as
+	// model.FormatRunNote describes it, naming a job note's job.
+	Notes      []model.RunNote `json:"notes,omitempty"`
+	NoteLabels []string        `json:"note_labels,omitempty"`
+	Timeline   []TimelinePoint `json:"timeline,omitempty"`
+	Running    bool            `json:"running"`
 	// Unreadable, when set, is why the run's files cannot be read: they come
 	// from a newer rotari. The run then has status "unreadable" and no jobs.
 	Unreadable string `json:"unreadable,omitempty"`

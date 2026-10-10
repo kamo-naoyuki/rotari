@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -112,4 +113,52 @@ func AttemptSource(runDir, attemptDir string) (model.SourceRevision, bool) {
 		return model.SourceRevision{}, false
 	}
 	return sources.SourceFor(spec.WorkingDirectory)
+}
+
+// RunNotesFileName is the run file holding a run's notes, one JSON
+// model.RunNote per line, in the order they were added. It is the one run
+// file that changes after a run finishes, and only by appending.
+const RunNotesFileName = "notes.jsonl"
+
+// AppendRunNote adds a note to the run in runDir. Each note is written with
+// one append, so notes added at the same time do not interleave.
+func AppendRunNote(runDir string, note model.RunNote) error {
+	data, err := json.Marshal(note)
+	if err != nil {
+		return err
+	}
+	// codeql[go/path-injection]: runDir is a validated run directory and the file name is fixed.
+	file, err := os.OpenFile(filepath.Join(runDir, RunNotesFileName), os.O_WRONLY|os.O_APPEND|os.O_CREATE, FileMode())
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(append(data, '\n')); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+// LoadRunNotes reads a run's notes in the order they were added; a run
+// without notes has none.
+func LoadRunNotes(runDir string) ([]model.RunNote, error) {
+	data, err := os.ReadFile(filepath.Join(runDir, RunNotesFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	notes := make([]model.RunNote, 0)
+	for number, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var note model.RunNote
+		if err := json.Unmarshal([]byte(line), &note); err != nil {
+			return nil, fmt.Errorf("failed to read %s line %d: %w", RunNotesFileName, number+1, err)
+		}
+		notes = append(notes, note)
+	}
+	return notes, nil
 }

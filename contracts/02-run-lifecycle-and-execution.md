@@ -214,6 +214,24 @@
   `projectrun.Runner.Execute`, and the comparison is
   `runlineage.CompareSources`. Covered by
   [`conformance/02-lifecycle/sources_test.go`](../conformance/02-lifecycle/sources_test.go).
+- **RUN-16** A run can carry notes: why it was made, and what its results
+  showed. `run --note TEXT` and `retry --note TEXT` (and the MCP
+  `rotari_start_run` `note`) record the run's first note when it starts; a
+  dry run shows the note and records nothing. `rotari note RUN_ID TEXT` adds a
+  note to a run, and `rotari note ATTEMPT_ID TEXT` to one job attempt of it,
+  while the run is active or after it finished. Notes are kept in the run's
+  `notes.jsonl`, the one run file that changes after a run finishes, and only
+  by appending: a note never changes a result, so `note` takes neither
+  `--dry-run` nor `--if-revision` (CLI-7). A note is trimmed and must have 1
+  to 4000 characters. `show` for a run lists every note, naming a job note's
+  job; `show -j` lists that job's notes; `lineage RUN` and `lineage RUN_A
+  RUN_B` list each run's notes; the `lineage` run history shows each run's
+  first run note and, in its `CODE` column, whether the code changed since
+  the run before (RUN-15). `lineage --json`, the Web API run, and the MCP run
+  summary and comparison carry the notes; MCP redacts paths in them. Adding
+  is `queueops.AddNote` in
+  [`internal/queueops/note.go`](../internal/queueops/note.go). Covered by
+  [`conformance/02-lifecycle/notes_test.go`](../conformance/02-lifecycle/notes_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

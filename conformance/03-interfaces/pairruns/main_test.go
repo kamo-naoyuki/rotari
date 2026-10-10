@@ -1,6 +1,7 @@
-// Package pairruns runs the flag-pair checks for run, retry, unlock, and wait.
-// Run and retry use dry-run previews; unlock and wait use synthetic locks over
-// a finished fixture, so no job or scheduler is started. It is separate from
+// Package pairruns runs the flag-pair checks for run, retry, unlock, wait,
+// and note. Run and retry use dry-run previews; unlock and wait use synthetic
+// locks over a finished fixture, and note adds notes to it, so no job or
+// scheduler is started. It is separate from
 // the other interface checks so each package stays well within Go's default
 // test time limit; see ../flag-pair-coverage.md.
 package pairruns

@@ -327,6 +327,12 @@ var cliCommandSpecs = []cliCommandSpec{
 		Positional: "[SELECTOR]",
 	},
 	{
+		Name:        "note",
+		Description: "add a note to a run or to one job attempt: why it was made or what its result showed",
+		Flags:       commonCLIFlags(),
+		Positional:  "RUN_ID|ATTEMPT_ID TEXT",
+	},
+	{
 		Name:        "lineage",
 		Description: "list runs, summarize one run, or compare two runs",
 		Flags: append(commonCLIFlags(),
@@ -571,6 +577,7 @@ func runCommandFlags(retry bool) []cliFlagSpec {
 	flags := append(append(commonCLIFlags(),
 		cliFlagSpec{Name: "run-id", Description: "build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs", ValueName: "ID"},
 		cliFlagSpec{Name: "run-name", Description: "run name label", ValueName: "NAME"},
+		cliFlagSpec{Name: "note", Description: "why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note", ValueName: "TEXT", CommandLineOnly: true},
 		cliFlagSpec{Name: "local-concurrency", Description: "local worker concurrency", ValueName: "N"},
 		cliFlagSpec{Name: "batch-concurrency", Description: "scheduler job concurrency (Slurm/PBS/LSF/SGE)", ValueName: "N"},
 		cliFlagSpec{Name: "retry", Description: "retry failed jobs up to N times; explicit cancellations are not retried", ValueName: "N"},

@@ -14,6 +14,9 @@ import (
 type Start struct {
 	RunID   string
 	RunName string
+	// Note, when not empty, is why the run is made; Begin records it as the
+	// run's first note.
+	Note string
 	// ClientStatus records the initiating client's mode and initial state.
 	ClientStatus model.RunClientStatus
 	// Snapshot, when non-nil, is already built from a saved run. Begin writes
@@ -54,6 +57,11 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 	}
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return fmt.Errorf("failed to save run commands: %w", err)
+	}
+	if start.Note != "" {
+		if err := state.AppendRunNote(runDir, model.RunNote{At: runner.timestamp(), Text: start.Note}); err != nil {
+			return fmt.Errorf("failed to save run note: %w", err)
+		}
 	}
 	if start.ClientStatus.Mode != "" {
 		if start.ClientStatus.UpdatedAt == "" {

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
@@ -97,6 +98,19 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 	}
 	for _, change := range result.Sources {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), sourceChangeText(change))
+	}
+	fromNames, toNames := map[string]string{}, map[string]string{}
+	for _, job := range result.Jobs {
+		fromNames[job.FromID], toNames[job.ToID] = job.Name, job.Name
+	}
+	for _, side := range []struct {
+		label string
+		info  runlineage.RunInfo
+		names map[string]string
+	}{{"Note (from):", result.From, fromNames}, {"Note (to):", result.To, toNames}} {
+		for _, note := range side.info.Notes {
+			fmt.Fprintf(writer, "%s %s\n", cyan(side.label), model.FormatRunNote(note, side.names[note.JobID]))
+		}
 	}
 	summary := result.Summary
 	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, definition changed %d, carried %d, cause changed %d\n",
@@ -376,8 +390,8 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		labels[index] = model.RunLabel(entry.Run.ID, entry.Run.Name)
 		width = max(width, len(labels[index]))
 	}
-	fmt.Println(cyan(fmt.Sprintf("%-*s  %5s  %5s  %6s  %7s  %5s  %8s  %5s  %7s  %7s  %7s  %s",
-		width, "RUN", "JOBS", "OK", "FAILED", "BLOCKED", "FIXED", "NEW FAIL", "ADDED", "REMOVED", "CHANGED", "CARRIED", "ELAPSED")))
+	fmt.Println(cyan(fmt.Sprintf("%-*s  %5s  %5s  %6s  %7s  %5s  %8s  %5s  %7s  %7s  %7s  %-9s  %-7s  %s",
+		width, "RUN", "JOBS", "OK", "FAILED", "BLOCKED", "FIXED", "NEW FAIL", "ADDED", "REMOVED", "CHANGED", "CARRIED", "CODE", "ELAPSED", "NOTE")))
 	for index, entry := range entries {
 		counts := entry.Counts
 		changeColumns := []string{"-", "-", "-", "-", "-", "-"}
@@ -387,10 +401,11 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 				fmt.Sprint(changes.Removed), fmt.Sprint(changes.Changed), fmt.Sprint(changes.Carried),
 			}
 		}
-		fmt.Printf("%-*s  %5d  %5d  %6d  %7d  %5s  %8s  %5s  %7s  %7s  %7s  %s\n",
+		line := fmt.Sprintf("%-*s  %5d  %5d  %6d  %7d  %5s  %8s  %5s  %7s  %7s  %7s  %-9s  %-7s  %s",
 			width, labels[index], counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked,
 			changeColumns[0], changeColumns[1], changeColumns[2], changeColumns[3], changeColumns[4], changeColumns[5],
-			firstNonEmpty(entry.Run.Elapsed, "-"))
+			firstNonEmpty(entry.CodeChange, "-"), firstNonEmpty(entry.Run.Elapsed, "-"), lineageNote(entry.Run.Notes))
+		fmt.Println(strings.TrimRight(line, " "))
 	}
 	if len(entries) >= 2 {
 		previous := entries[len(entries)-2].Run.ID
@@ -435,6 +450,7 @@ func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runline
 	for _, source := range summary.Run.Sources {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), model.SourceLabel(source))
 	}
+	writeRunNotes(writer, summary.Run.Notes, nil)
 	counts := summary.Counts
 	fmt.Fprintf(writer, "%s jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n", cyan("Summary:"),
 		counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
@@ -496,4 +512,21 @@ func sourceChangeText(change runlineage.SourceChange) string {
 		return change.Change + " " + side(change.From) + " in " + change.Root
 	}
 	return change.Change + " " + side(change.From) + " -> " + side(change.To) + " in " + change.Root
+}
+
+// lineageNoteWidth caps the NOTE column of the run history.
+const lineageNoteWidth = 60
+
+// lineageNote is the first note on the run itself, on one line, shortened
+// for the run history; "-" when there is none.
+func lineageNote(notes []model.RunNote) string {
+	runNotes := model.RunNotesFor(notes, "")
+	if len(runNotes) == 0 {
+		return "-"
+	}
+	text := joblist.ShortenText(strings.Join(strings.Fields(runNotes[0].Text), " "), lineageNoteWidth)
+	if more := len(runNotes) - 1; more > 0 {
+		text = fmt.Sprintf("%s (+%d more)", text, more)
+	}
+	return text
 }

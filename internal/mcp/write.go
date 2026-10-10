@@ -65,6 +65,7 @@ type StartRunInput struct {
 	RunInput
 	IfRevision string `json:"if_revision" jsonschema:"revision from rotari_preview_run; the run starts only if the project is still at it"`
 	RunName    string `json:"run_name,omitempty" jsonschema:"label for the run"`
+	Note       string `json:"note,omitempty" jsonschema:"why the run is made, recorded with it and shown by rotari show and lineage"`
 }
 
 type PlannedJob struct {
@@ -224,6 +225,12 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 	if err != nil {
 		return StartRunOutput{}, err
 	}
+	note := ""
+	if input.Note != "" {
+		if note, err = model.NoteText(input.Note); err != nil {
+			return StartRunOutput{}, err
+		}
+	}
 	request := runPlanRequest(input.Retry)
 	if err := configureRunSource(paths, &request, input.RunID); err != nil {
 		return StartRunOutput{}, err
@@ -238,7 +245,7 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 	}
 	response, err := tools.options.StartRun(paths, server.Request{
 		Op: server.OpRun, QueueName: paths.ProjectName, LocalConcurrency: 8, BatchMaxActive: 8, Async: true,
-		RunName: input.RunName, EnvMode: model.EnvModeAll, CWD: cwd,
+		RunName: input.RunName, Note: note, EnvMode: model.EnvModeAll, CWD: cwd,
 		Selection: request.Selection, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray, MatchBy: request.MatchBy,
 		SourcePolicy: string(request.SourcePolicy),
 		IfRevision:   input.IfRevision,

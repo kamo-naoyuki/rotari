@@ -26,6 +26,7 @@ type QueueLoader struct {
 	Jobs        func(runID string, summary model.RunSummary) ([]Job, error)
 	Context     func(runID string) (model.RunContext, error)
 	Sources     func(runID string) (model.RunSources, bool, error)
+	Notes       func(runID string) ([]model.RunNote, error)
 	Samples     func(runID string) []model.LoadSample
 }
 
@@ -73,6 +74,12 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			context = model.RunContext{}
 		}
 		context.LoadSamples = loader.Samples(runID)
+		var notes []model.RunNote
+		if loader.Notes != nil {
+			if loaded, notesErr := loader.Notes(runID); notesErr == nil {
+				notes = loaded
+			}
+		}
 		var sources []model.SourceRevision
 		if loader.Sources != nil {
 			if recorded, ok, sourcesErr := loader.Sources(runID); sourcesErr == nil && ok {
@@ -94,7 +101,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			Lifecycle: lifecycle, ClientStatus: clientStatus,
 			ClientLabel: runview.ClientStatusLabel(clientStatus),
 			CWD:         context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
-			Sources: sources, SourceLabels: sourceLabels(sources),
+			Sources: sources, SourceLabels: sourceLabels(sources), Notes: notes, NoteLabels: noteLabels(notes, jobs),
 		})
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
@@ -288,6 +295,18 @@ func sourceLabels(sources []model.SourceRevision) []string {
 	labels := make([]string, 0, len(sources))
 	for _, source := range sources {
 		labels = append(labels, model.SourceLabel(source))
+	}
+	return labels
+}
+
+func noteLabels(notes []model.RunNote, jobs []Job) []string {
+	names := make(map[string]string, len(jobs))
+	for _, job := range jobs {
+		names[job.ID] = job.Name
+	}
+	labels := make([]string, 0, len(notes))
+	for _, note := range notes {
+		labels = append(labels, model.FormatRunNote(note, names[note.JobID]))
 	}
 	return labels
 }

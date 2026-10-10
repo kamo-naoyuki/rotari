@@ -69,6 +69,7 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `config` | `str` | config file to use |
 | `run_id` | `str` | build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `run_name` | `str` | run name label |
+| `note` | `str` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
@@ -139,6 +140,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `config` | `str` | config file to use |
 | `run_id` | `str` | build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `run_name` | `str` | run name label |
+| `note` | `str` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |

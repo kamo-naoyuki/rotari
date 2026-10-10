@@ -1007,6 +1007,25 @@
           "name": "project-name",
           "short": "p",
           "value_name": "NAME"
+        }
+      ],
+      "name": "note"
+    },
+    {
+      "flags": [
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
+        {
+          "name": "basedir",
+          "short": "b",
+          "value_name": "DIR"
+        },
+        {
+          "name": "project-name",
+          "short": "p",
+          "value_name": "NAME"
         },
         {
           "name": "json"
@@ -1395,6 +1414,10 @@
           "value_name": "NAME"
         },
         {
+          "name": "note",
+          "value_name": "TEXT"
+        },
+        {
           "name": "local-concurrency",
           "value_name": "N"
         },
@@ -1672,6 +1695,10 @@
         {
           "name": "run-name",
           "value_name": "NAME"
+        },
+        {
+          "name": "note",
+          "value_name": "TEXT"
         },
         {
           "name": "local-concurrency",

@@ -12,7 +12,7 @@ near Go's default ten-minute test timeout:
 - [pairedits](../../../conformance/03-interfaces/pairedits/): restored mutation
   and edit adapters and their effect witnesses.
 - [pairruns](../../../conformance/03-interfaces/pairruns/): `run`/`retry`
-  previews, `unlock`, and `wait`.
+  previews, `unlock`, `wait`, and `note`.
 - [pairweb](../../../conformance/03-interfaces/pairweb/): safe static exports;
   it never starts an HTTP server.
 - [pairjobcontrol](../../../conformance/03-interfaces/pairjobcontrol/):
@@ -159,6 +159,10 @@ implementation imports. The staged rollout is tracked in the
   notifications, closes stdin after the final reply, and requires a clean
   bounded exit, empty stderr, and an unchanged fixture. No MCP tool is called,
   so tool-side effects and masterdir precedence inside tools remain untested.
+- `TestCLIFlagPairNote` adds a note to the finished fixture run with each of
+  the three `note` pairs in both orders from the restored fixture, and checks
+  that each invocation appends exactly its note. Notes carry the time they
+  were added, so the orders are compared by note text, not byte for byte.
 - `TestCLIFlagPairUnlock` executes all six `unlock` pairs in both orders from
   an identical synthetic interrupted state. It uses a stale local lock for an
   already-finished fixture run, so no process or scheduler is running. Each
@@ -194,22 +198,23 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and all twenty-six commands with at least two
+Every pair is inventoried, and all twenty-seven commands with at least two
 advertised flags have adapters; no generated pair is deferred.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,955 executed pairs consist of 822 read-only, 36 file-output, 178
-queue-mutation, 1,648 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
-6 gc/server, 1 MCP, 45 web static-export, and 532 job-control pairs. The edit
+The 7,085 executed pairs consist of 809 read-only, 36 file-output, 172
+queue-mutation, 1,648 edit, 3,782 run/retry previews, 6 unlock, 45 wait,
+6 gc/server, 1 MCP, 45 web static-export, 532 job-control, and 3 note pairs. The edit
 pair loop accepted 1,309 and explicitly rejected 339 pairs in 3,296
 invocations; one run took 43s on the edit loop alone.
 
 The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
 pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to
-list every `run` option it takes (61 flags, as `run` has). This excludes actual
+list every `run` option it takes (61 flags, as `run` had then; 62 with
+`--note`). This excludes actual
 execution, supervisor/async lifecycle, scheduler submission, and host effects.
 
 ## Remaining observation gaps
