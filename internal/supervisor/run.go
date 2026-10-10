@@ -224,7 +224,8 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		release()
 		return preparedRun{}, err
 	}
-	if _, err := project.CheckRevision(paths, project.Guard{IfRevision: request.IfRevision}); err != nil {
+	revision, err := projectrun.CheckRunProjectRevision(paths, request.IfRevision)
+	if err != nil {
 		release()
 		return preparedRun{}, err
 	}
@@ -237,6 +238,10 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 	// the project's last run. A planning error must not create an incomplete run.
 	planned, err := ops.Runner.PlanRun(paths, queue, planRequest(request))
 	if err != nil {
+		release()
+		return preparedRun{}, err
+	}
+	if err := projectrun.CheckRunPlanRevision(request.IfRevision, revision, planned); err != nil {
 		release()
 		return preparedRun{}, err
 	}

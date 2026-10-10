@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func testWriteTools(f toolFixture, started *[]server.Request) writeTools {
 			if err != nil {
 				return server.Response{}, err
 			}
-			if _, err := project.CheckRevision(paths, project.Guard{IfRevision: request.IfRevision}); err != nil {
+			if _, err := projectrun.CheckRunProjectRevision(paths, request.IfRevision); err != nil {
 				return server.Response{}, err
 			}
 			*started = append(*started, request)
@@ -106,7 +107,7 @@ func TestRunToolsPreviewAndStartTheRetry(t *testing.T) {
 	}
 	request := started[0]
 	now, _ := project.Revision(paths)
-	if !request.Async || request.Selection != model.ResultSelection(true, true, false) || request.SourceRunID != f.secondRun || request.SourcePolicy != string(projectrun.SourceCopyIfEmpty) || request.IfRevision != preview.Revision || now != preview.Revision || output.SourceRun != f.secondRun {
+	if !request.Async || request.Selection != model.ResultSelection(true, true, false) || request.SourceRunID != f.secondRun || request.SourcePolicy != string(projectrun.SourceCopyIfEmpty) || request.IfRevision != preview.Revision || !strings.HasPrefix(preview.Revision, now+".") || output.SourceRun != f.secondRun {
 		t.Fatalf("run request = %+v; want an async retry of %s at the unchanged preview revision %s (current %s)", request, f.secondRun, preview.Revision, now)
 	}
 	if queue, _ := state.LoadQueue(paths.QueueFile); len(queue.Commands) != 0 {
@@ -135,8 +136,8 @@ func TestRunToolsReportFailedJobsOmittedByQueue(t *testing.T) {
 	if preview.SourceRun != f.secondRun || !reflect.DeepEqual(preview.OmittedSourceJobs, []string{"tr-2", "tr-3"}) {
 		t.Fatalf("preview source report = %+v", preview)
 	}
-	if preview.Revision != before {
-		t.Fatalf("preview revision = %s, want %s", preview.Revision, before)
+	if !strings.HasPrefix(preview.Revision, before+".") {
+		t.Fatalf("preview revision = %s, want the project revision %s and the plan's hash", preview.Revision, before)
 	}
 	output, err := tools.startRun(StartRunInput{RunInput: input, IfRevision: preview.Revision})
 	if err != nil {
@@ -205,5 +206,25 @@ func TestExportRunRefusesAnActiveRun(t *testing.T) {
 	}
 	if _, err := exportRun(f.masterDir, ExportRunInput{RunID: f.secondRun}); err == nil || !strings.Contains(err.Error(), "interrupted") {
 		t.Fatalf("export of an unsettled run: %v", err)
+	}
+}
+
+// TestStartRunRefusesAnotherPlanThanItsPreview previews a retry and starts a
+// plain run with the preview's revision: the project has not changed, but
+// the plan has, so nothing starts.
+func TestStartRunRefusesAnotherPlanThanItsPreview(t *testing.T) {
+	f := newToolFixture(t)
+	var started []server.Request
+	tools := testWriteTools(f, &started)
+	input := RunInput{BaseDirRef: basedirregistry.Ref(f.firstBaseDir), Project: "exp", Retry: true}
+	preview, err := tools.previewRun(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := input
+	other.Retry = false
+	other.RunID = f.secondRun
+	if _, err := tools.startRun(StartRunInput{RunInput: other, IfRevision: preview.Revision}); !errors.Is(err, projectrun.ErrPlanChanged) || len(started) != 0 {
+		t.Fatalf("start of another plan: %v, requests %d; want ErrPlanChanged and no request", err, len(started))
 	}
 }

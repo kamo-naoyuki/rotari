@@ -177,7 +177,7 @@ func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
 	if message := session.call("rotari_preview_run", target, &preview); message != "" {
 		t.Fatal(message)
 	}
-	if len(preview.Execute) != 1 || preview.Execute[0].ID != run.BadJob || preview.Revision != checkRevision(t, e) {
+	if len(preview.Execute) != 1 || preview.Execute[0].ID != run.BadJob || !strings.HasPrefix(preview.Revision, checkRevision(t, e)+".") {
 		t.Fatalf("retry preview = %+v, want only %s at the checked revision", preview, run.BadJob)
 	}
 	if projectSnapshot(t, e) != before {

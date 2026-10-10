@@ -12,7 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
-var revisionLine = regexp.MustCompile(`(?m)^revision=([0-9a-f]+)$`)
+var revisionLine = regexp.MustCompile(`(?m)^revision=([0-9a-f]+(?:\.[0-9a-f]+)?)$`)
 
 // TestGuardedCommandsPreviewAndCheckTheRevision gives every command that
 // changes a project the same three calls: --dry-run must change nothing and
@@ -137,7 +137,8 @@ func projectSnapshot(t *testing.T, e *support.Env) string {
 
 // TestRunPreviewMatchesTheRun checks that `retry --dry-run` changes nothing
 // and lists the jobs the run then executes, and that the run starts only at
-// the previewed revision.
+// the previewed revision: the project's revision, which `check` reports,
+// and the plan's. A start whose options plan other jobs is refused.
 func TestRunPreviewMatchesTheRun(t *testing.T) {
 	covers(t, "CLI-7")
 	e := support.NewEnv(t)
@@ -149,8 +150,15 @@ func TestRunPreviewMatchesTheRun(t *testing.T) {
 	if !strings.Contains(preview.Stdout, "would execute 1 of 2 job(s)") || !strings.Contains(preview.Stdout, "execute job_id="+run.BadJob) || strings.Contains(preview.Stdout, "execute job_id="+run.OKJob) {
 		t.Fatalf("retry --dry-run does not plan only the failed job:\n%s", preview.Stdout)
 	}
-	if revision != checkRevision(t, e) || projectSnapshot(t, e) != before {
-		t.Fatal("retry --dry-run changed the project")
+	if !strings.HasPrefix(revision, checkRevision(t, e)+".") || projectSnapshot(t, e) != before {
+		t.Fatalf("retry --dry-run revision %s is not the checked revision with a plan, or the preview changed the project", revision)
+	}
+	// run of the same saved run would execute both jobs, not the previewed one.
+	if result := e.Rotari("run", "-p", "p1", "-r", run.RunID, "--if-revision", revision); result.Code == 0 || !strings.Contains(result.Stderr, "would execute other jobs than its preview") {
+		t.Fatalf("a start with another plan = %s, want refused", result)
+	}
+	if projectSnapshot(t, e) != before {
+		t.Fatal("a start refused for its plan changed the project")
 	}
 
 	if result := e.Rotari("retry", "-p", "p1", "--if-revision", "0000000000000000"); result.Code == 0 || !strings.Contains(result.Stderr, "project changed since the planned revision") {

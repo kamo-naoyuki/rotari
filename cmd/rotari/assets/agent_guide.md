@@ -54,7 +54,9 @@ values. Notifications select one project/basedir/global file without merging.
   `retry` take `--dry-run`,
   which prints the change and `revision=REVISION` without writing, and
   `--if-revision REVISION`, which applies only if nothing changed the project
-  since. `rotari check` also prints the revision.
+  since. For `run` and `retry` the revision also covers the jobs the preview
+  lists, so repeat the preview's options exactly: a start that would execute
+  other jobs is refused. `rotari check` prints the project's revision alone.
 - Do not rely on prompts. `copy` into a non-empty queue needs `--append` or
   `--overwrite`. `run --run-id` and `retry --run-id` start from the saved
   run's snapshot and leave the next queue untouched.

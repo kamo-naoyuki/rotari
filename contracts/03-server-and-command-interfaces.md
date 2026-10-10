@@ -269,8 +269,17 @@ does not promise to detect a lost remote client.
   would execute, planned by `projectrun.Runner.PlanRun` as the run itself is,
   with each task of an array that runs whole listed (`run.PlanRerun` keys the
   plan by job ID) and a job that executes only because a job it depends on
-  executes marked `depends_on_rerun=NAME` (`run.Plan.RerunDependencies`), and `--if-revision` starts the run only at that revision, compared again by
-  the supervisor when it begins the run.
+  executes marked `depends_on_rerun=NAME` (`run.Plan.RerunDependencies`). The
+  revision a run preview prints is the project's revision and, after a dot,
+  a hash of the jobs the plan executes and carries and the run it builds from
+  (`projectrun.PlanRevision`). `--if-revision` with it starts the run only
+  while the project is at that revision and the run's own plan has the same
+  hash, compared again by the supervisor when it begins the run, so a start
+  whose options select other jobs than its preview is refused and changes
+  nothing (`projectrun.CheckRunPlanRevision`). A project revision without a
+  plan hash, as `check` reports, guards the project's state only. Covered by
+  `TestRunPreviewMatchesTheRun` in
+  [`conformance/03-interfaces/guard_test.go`](../conformance/03-interfaces/guard_test.go).
 - **CLI-11** When a command names a project that its state directory does not
   have, the error lists the available projects in the selected state directory,
   sorted by name, with a `--project-name` hint, or `(none)` when it has no
@@ -481,11 +490,13 @@ as the CLI and hold no rules of their own.
 
 - **MCP-1** A tool that changes a project comes as a read-only preview and a
   write. The preview (`rotari_preview_import`, `rotari_preview_run`) changes
-  nothing and returns the project revision that `check` reports, planned as
-  the CLI's `--dry-run` plans it. The write (`rotari_import`,
-  `rotari_start_run`) requires that revision and applies only while the
-  project is still at it; otherwise it fails and changes nothing. A run the
-  write starts executes the jobs its preview listed. The tools are in
+  nothing and returns the revision the CLI's `--dry-run` prints, planned as
+  it plans: the project revision that `check` reports for an import, and that
+  revision with the plan's hash for a run (CLI-7). The write (`rotari_import`,
+  `rotari_start_run`) requires that revision and applies only while it still
+  holds; otherwise it fails and changes nothing. A run the write starts
+  executes the jobs its preview listed, and a start whose inputs plan other
+  jobs is refused. The tools are in
   [`internal/mcp/write.go`](../internal/mcp/write.go), with the end-to-end
   check in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).

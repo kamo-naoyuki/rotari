@@ -329,7 +329,14 @@ rotari remove -p sweep --if-revision REVISION JOB_ID
 `run` and `retry` take the same options. `--dry-run` lists the jobs the run
 would execute and how many results it would carry, planned the way the run
 itself is, without copying a run into the queue or starting anything.
-`--if-revision` starts the run only if the project is still at that revision.
+`--if-revision` starts the run only if the project is still at that revision
+and the run would execute the same jobs: a run preview's revision is the
+project's revision followed by a hash of its plan, such as
+`revision=7c28f3b699fcae20.59b54b04`. Give the start the same selection
+options as the preview. A start that would execute other jobs, for example
+because it left out a `--filter-*` option the preview had, is refused and
+changes nothing; preview again with the options you mean. A revision from
+`check`, which has no plan hash, guards only the project's state.
 
 `--async` cannot be combined with `--dry-run`: a preview does not start a run
 to detach from. Rotari reports the incompatible options rather than silently

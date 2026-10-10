@@ -48,7 +48,7 @@ func pairMutationRevision(t *testing.T, e *support.Env) string {
 	return support.PairMutationRevision(t, e)
 }
 
-var revisionLine = regexp.MustCompile(`(?m)^revision=([0-9a-f]+)$`)
+var revisionLine = regexp.MustCompile(`(?m)^revision=([0-9a-f]+(?:\.[0-9a-f]+)?)$`)
 
 func revisionOf(t *testing.T, result support.Result) string {
 	t.Helper()

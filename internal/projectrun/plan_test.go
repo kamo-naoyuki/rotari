@@ -96,11 +96,16 @@ func TestPreviewRunPlansTheQueueUnderTheRevision(t *testing.T) {
 		t.Fatalf("planned = %+v", planned)
 	}
 
-	// A replacement queue is planned instead of the project's.
+	// A replacement queue is planned instead of the project's. Its plan
+	// differs from the first preview's, so only the project's revision, as
+	// check reports it, still holds.
 	replacement := model.Queue{Commands: []model.QueuedCommand{{ID: "job-9", Command: []string{"true"}}}}
-	planned, _, err = runner.PreviewRun(paths, &replacement, PlanRequest{}, revision)
+	planned, _, err = runner.PreviewRun(paths, &replacement, PlanRequest{}, projectPart(revision))
 	if err != nil || !reflect.DeepEqual(planned.Plan.Execute, map[string]bool{"job-9": true}) {
 		t.Fatalf("PreviewRun(replacement) = %+v, %v", planned, err)
+	}
+	if _, _, err := runner.PreviewRun(paths, &replacement, PlanRequest{}, revision); !errors.Is(err, ErrPlanChanged) {
+		t.Fatalf("PreviewRun(replacement) at the first preview's revision: %v, want ErrPlanChanged", err)
 	}
 
 	if _, _, err := runner.PreviewRun(paths, nil, PlanRequest{}, "stale-revision"); err == nil {
@@ -200,7 +205,7 @@ func TestPreviewRunCopiesSavedSourceWithoutChangingNextQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !planned.SnapshotFromSource || revision != before || len(planned.Queue.Commands) != 1 || planned.Queue.Commands[0].Origin == nil || planned.Queue.Commands[0].Origin.RunID != "source-run" {
+	if !planned.SnapshotFromSource || !strings.HasPrefix(revision, before+".") || len(planned.Queue.Commands) != 1 || planned.Queue.Commands[0].Origin == nil || planned.Queue.Commands[0].Origin.RunID != "source-run" {
 		t.Fatalf("planned source snapshot = %+v, revision %s; want copied source snapshot at revision %s", planned, revision, before)
 	}
 	left, err := state.LoadQueue(paths.QueueFile)

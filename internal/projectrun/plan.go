@@ -216,9 +216,10 @@ func (runner Runner) OmittedFailedOrUnfinished(paths state.ProjectPaths, queue m
 
 // PreviewRun plans a run of the project without starting it, as a run would
 // plan it under the state lock: the project must be idle and, when
-// ifRevision is set, still at that revision. queue, when set, replaces the
-// project's queue, such as the queue a copy from the reference run would
-// leave. It returns the plan and the project's revision.
+// ifRevision is set, still at that revision, with the same plan when the
+// revision is a preview's. queue, when set, replaces the project's queue,
+// such as the queue a copy from the reference run would leave. It returns
+// the plan and its revision, PlanRevision.
 func (runner Runner) PreviewRun(paths state.ProjectPaths, queue *model.Queue, request PlanRequest, ifRevision string) (PlannedRun, string, error) {
 	release, err := state.AcquireStateReadLock(paths.StateLockFile)
 	if err != nil {
@@ -228,7 +229,7 @@ func (runner Runner) PreviewRun(paths state.ProjectPaths, queue *model.Queue, re
 	if err := project.EnsureIdle(paths, "run"); err != nil {
 		return PlannedRun{}, "", err
 	}
-	revision, err := project.CheckRevision(paths, project.Guard{IfRevision: ifRevision})
+	revision, err := CheckRunProjectRevision(paths, ifRevision)
 	if err != nil {
 		return PlannedRun{}, "", err
 	}
@@ -240,5 +241,11 @@ func (runner Runner) PreviewRun(paths state.ProjectPaths, queue *model.Queue, re
 		queue = &loaded
 	}
 	planned, err := runner.PlanRun(paths, *queue, request)
-	return planned, revision, err
+	if err != nil {
+		return PlannedRun{}, "", err
+	}
+	if err := CheckRunPlanRevision(ifRevision, revision, planned); err != nil {
+		return PlannedRun{}, "", err
+	}
+	return planned, PlanRevision(revision, planned), nil
 }
