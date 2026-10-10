@@ -112,18 +112,76 @@ func TestWebHTMLJavaScriptSyntax(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
-	path := filepath.Join(t.TempDir(), "web.js")
-	script := testSite().webHTML()
-	start := strings.Index(script, "<script>")
-	end := strings.LastIndex(script, "</script>")
-	if start < 0 || end < start {
-		t.Fatal("web HTML does not contain a script")
+	scripts := regexp.MustCompile(`(?s)<script>(.*?)</script>`).FindAllStringSubmatch(testSite().webHTML(), -1)
+	if len(scripts) < 2 {
+		t.Fatalf("web HTML has %d scripts, want the theme script and the app", len(scripts))
 	}
-	if err := os.WriteFile(path, []byte(script[start+len("<script>"):end]), 0o600); err != nil {
-		t.Fatal(err)
+	for index, script := range scripts {
+		path := filepath.Join(t.TempDir(), "web"+strconv.Itoa(index)+".js")
+		if err := os.WriteFile(path, []byte(script[1]), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if output, err := exec.Command("node", "--check", path).CombinedOutput(); err != nil {
+			t.Fatalf("web JavaScript syntax check of script %d failed: %v\n%s", index, err, output)
+		}
 	}
-	if output, err := exec.Command("node", "--check", path).CombinedOutput(); err != nil {
-		t.Fatalf("web JavaScript syntax check failed: %v\n%s", err, output)
+}
+
+// The theme choice applies a stored choice before the page is drawn, falls
+// back to following the OS, and stores a new choice, on both page kinds.
+func TestWebThemeChoice(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	pages := map[string]string{
+		"web":  testSite().webHTML(),
+		"jobs": jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true, true),
+	}
+	script := `
+const { JSDOM } = require('jsdom');
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const theme = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+function load(stored) {
+  // Only the theme script runs: it is what sets the theme before drawing.
+  const page = html.replace(/<script>[\s\S]*?<\/script>/g, '');
+  const dom = new JSDOM(page, { url: 'http://localhost/', runScripts: 'outside-only' });
+  if (stored !== null) dom.window.localStorage.setItem('rotari-theme', stored);
+  dom.window.eval(theme);
+  return dom;
+}
+let dom = load('dark');
+if (dom.window.document.documentElement.dataset.theme !== 'dark') process.exit(1);
+dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+const select = dom.window.document.getElementById('theme-choice');
+if (!select || select.value !== 'dark') process.exit(2);
+if ([...select.options].map(option => option.value).join() !== 'system,light,dark') process.exit(3);
+select.value = 'system';
+select.dispatchEvent(new dom.window.Event('change'));
+if ('theme' in dom.window.document.documentElement.dataset) process.exit(4);
+if (dom.window.localStorage.getItem('rotari-theme') !== 'system') process.exit(5);
+select.value = 'light';
+select.dispatchEvent(new dom.window.Event('change'));
+if (dom.window.document.documentElement.dataset.theme !== 'light') process.exit(6);
+dom = load('purple');
+if ('theme' in dom.window.document.documentElement.dataset) process.exit(7);
+dom = load(null);
+if ('theme' in dom.window.document.documentElement.dataset) process.exit(8);
+`
+	for name, page := range pages {
+		if !strings.Contains(page, `<select id="theme-choice">`) {
+			t.Fatalf("%s page has no theme choice", name)
+		}
+		if head := page[:strings.Index(page, "</head>")]; !strings.Contains(head, `const key = "rotari-theme";`) {
+			t.Fatalf("%s page does not apply the theme in <head>", name)
+		}
+		path := filepath.Join(t.TempDir(), name+".html")
+		if err := os.WriteFile(path, []byte(page), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if output, err := exec.Command("node", "-e", script, path).CombinedOutput(); err != nil {
+			t.Fatalf("%s page theme choice failed: %v\n%s", name, err, output)
+		}
 	}
 }
 
@@ -663,7 +721,7 @@ setTimeout(() => {
 	const toolbar = dom.window.document.querySelector('.toolbar');
 	if (notificationConfigButtons[0].parentElement !== toolbar || generateNotificationConfigButton.parentElement !== toolbar) process.exit(37);
 	const sidebarControlNames = [...sidebarControls.children].map(button => button.className || button.id);
-	if (JSON.stringify(sidebarControlNames) !== JSON.stringify(['notify-toggle'])) process.exit(38);
+	if (JSON.stringify(sidebarControlNames) !== JSON.stringify(['notify-toggle', 'theme-choice'])) process.exit(38);
 	const toolbarNames = [...toolbar.children].map(button => button.className || button.id);
 	if (JSON.stringify(toolbarNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button', 'refresh-button'])) process.exit(39);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };

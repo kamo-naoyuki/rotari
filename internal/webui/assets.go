@@ -60,6 +60,9 @@ var jobsTemplateHTML string
 //go:embed assets/web_info_styles.css
 var webInfoStylesCSS string
 
+//go:embed assets/web_theme.js
+var webThemeJS string
+
 //go:embed assets/web_tokens.css
 var webTokensCSS string
 
@@ -100,7 +103,8 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 		"const diagnosisGuidance = " + string(diagnosisGuidanceJSON) + ";",
 		webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppMarkdownJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS,
 	}, "\n")
-	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
+	template := strings.Replace(webTemplateHTML, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
+	template = strings.Replace(template, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
@@ -127,6 +131,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
+	template = strings.Replace(template, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webTokensCSS+"\n"+webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
@@ -159,7 +164,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	} else {
 		template = strings.Replace(template, "__ROTARI_BASEDIR_SCROLL_KEY__", "", 1)
 	}
-	notificationControl := `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button></div>`
+	notificationControl := `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button><label class="theme-choice" for="theme-choice">Theme <select id="theme-choice"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div>`
 	var toolbar string
 	if canFilter {
 		toolbar = `<div class="toolbar"><button type="button" onclick="location.reload()">Refresh</button></div>`

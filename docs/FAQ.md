@@ -496,6 +496,10 @@ Its `summary.json` or `commands.json` was written by a newer rotari, whose state
 
 Yes. It uses browser notifications locally and sends nothing to an external service. See [Notifications](NOTIFICATIONS.md#browser-notifications).
 
+### Does the Web UI have a light theme?
+
+Yes. By default it follows the operating system's light or dark setting. The `Theme` choice in the sidebar sets `Light` or `Dark` instead; the browser remembers it for every page of the live server and the static export, and `System` returns to following the operating system.
+
 ### Does the Web UI send run details to an AI service?
 
 No. On a run page, the `Report` button in the toolbar (for the run, or for the selected jobs) or in a job's row previews a Markdown report with execution details, saved diagnosis, and recent relevant output. The copy button copies it. Rotari never submits the report; paste and send it yourself. Reports redact known hostnames and paths plus common absolute-path and hostname patterns in logs, but redaction is best-effort, so review the report before sharing it. A `Redact: On` / `Redact: Off` button in the report dialog lets you turn redaction off for a trusted team; it starts on by default and is not offered in the static (GitHub Pages) export, which always serves its precomputed, redacted report. Log dialogs can also copy only the last 100 lines.

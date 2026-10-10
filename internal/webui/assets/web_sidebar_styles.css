@@ -49,6 +49,21 @@
   text-align: left;
 }
 
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.theme-choice select {
+  min-width: 0;
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
 .sidebar-config-controls > #notify-toggle.notifications-on {
   border-color: color-mix(in oklab, var(--accent) 72%, transparent);
   background: color-mix(in oklab, var(--accent) 18%, transparent);
