@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phase 0 done; Phase 1 next
+**Status:** Phases 0 and 1 done; Phase 2 next
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -139,6 +139,32 @@ Phase 1 mockup (private artifact, 2026-10-11):
 Collect the colours, sizes, and fonts into tokens and replace literals; add
 the status pill and use it wherever a status is rendered; add the light theme
 and the theme choice; embed the fonts. Apart from these, a visual no-op.
+
+Done. What it turned out to need:
+
+- The stylesheets used about 150 distinct colour literals and each defined
+  `:root` twice, the second block overriding the first. A one-to-one
+  tokenisation would have kept all 150, so they were mapped onto the
+  mockup's semantic tokens (`web_tokens.css`); the dark theme stays close to
+  the old look but is not pixel-identical. Gradients became flat surfaces.
+- Four separate rules decided how a status looked (`jobsStateClass` in Go,
+  `jobStatusClass` and `applyStatusColors` in the page script, and each
+  chart's own colour table, copied eight times). They are now one table,
+  `statusTones` in `internal/webui/status.go`, injected into the page script;
+  a test runs the Go and JS normalisation on the same labels. Running is
+  blue and cancelled neutral, as in the mockup. The CLI keeps yellow for
+  running (contract 03), so the two interfaces now differ in that colour.
+- The theme choice sits in the sidebar beside the notification toggle until
+  Phase 3 adds the Settings menu.
+- The fonts are IBM's own Latin-1 split files from the npm packages, not
+  Google Fonts subsets: Plex is a Reserved Font Name under the OFL, and a
+  third-party subset is a modified version that may not keep the name.
+  About 100 KB; the static export writes them once at its root.
+
+Found for Phase 2: `addJobTimeline` is defined five times and
+`renderJobTimelineScratch` twice in the page script, and only the last
+definition of each runs; `web_sidebar_styles.css` now also holds the shared
+status pill, so its name no longer fits its role.
 
 ### Phase 2: renderers own their markup
 
