@@ -321,7 +321,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "follow", Description: "follow one selected log stream until the run completes"},
 			cliFlagSpec{Name: "no-pager", Description: "print logs directly instead of using a pager"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
-			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
+			cliFlagSpec{Name: "report", Description: "print a Markdown report: notes, a job table, and each job's evidence"},
 			cliFlagSpec{Name: "artifacts", Description: "list every artifact candidate of one job attempt instead of its logs"},
 		), jobFilterFlagSpecs(queueRunJobFilters)...),
 		Positional: "[SELECTOR]",

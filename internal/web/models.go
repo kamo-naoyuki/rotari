@@ -63,10 +63,14 @@ type Job struct {
 	Carried         bool             `json:"carried,omitempty"`
 	ExecutionStatus string           `json:"execution_status"`
 	AttemptDir      string           `json:"-"`
-	SubmittedAt     string           `json:"submitted_at,omitempty"`
-	FinishedAt      string           `json:"finished_at,omitempty"`
-	SchedulerState  string           `json:"scheduler_state,omitempty"`
-	Final           bool             `json:"final,omitempty"`
+	// Environment is the job's own NAME=VALUE environment, matrix values
+	// included, for the run report. The Web API leaves it out: values given
+	// with --env may be secrets.
+	Environment    []string `json:"-"`
+	SubmittedAt    string   `json:"submitted_at,omitempty"`
+	FinishedAt     string   `json:"finished_at,omitempty"`
+	SchedulerState string   `json:"scheduler_state,omitempty"`
+	Final          bool     `json:"final,omitempty"`
 	// DiagnosisOutdated reports that Result's saved rule-based analysis was
 	// produced by earlier diagnosis rules.
 	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`

@@ -127,7 +127,14 @@ func loadRun(store state.Store, paths state.ProjectPaths, runID, attemptID strin
 	if loaded, err := state.LoadContext(store, runDir); err == nil {
 		context = model.RunContext(loaded)
 	}
-	return webprojection.Run{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
+	run := webprojection.Run{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}
+	if sources, ok, err := state.LoadRunSources(runDir); err == nil && ok {
+		run.Sources = sources.Sources
+	}
+	if notes, err := state.LoadRunNotes(runDir); err == nil {
+		run.Notes = notes
+	}
+	return run, nil
 }
 
 func formatRunAIReport(paths state.ProjectPaths, run webprojection.Run, failedOnly bool) string {
@@ -139,6 +146,9 @@ func formatRunAIReportSelected(paths state.ProjectPaths, run webprojection.Run, 
 	fmt.Fprintln(&builder, "# rotari run report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.ProjectName, run.RunID, run.Status, run.ExitCode)
 	fmt.Fprintf(&builder, "- Started: %s\n- Finished: %s\n- Host: %s\n- Working directory: `%s`\n", reportValue(model.FormatDisplayTimestamp(run.StartedAt)), reportValue(model.FormatDisplayTimestamp(run.FinishedAt)), reportValue(run.Context.Hostname), reportValue(run.CWD))
+	writeReportSources(&builder, run.Sources)
+	writeReportNotes(&builder, "##", model.RunNotesFor(run.Notes, ""), "")
+	var jobs []reportJob
 	for _, job := range run.Jobs {
 		if selected != nil && !selected[job.ID] {
 			continue
@@ -147,7 +157,11 @@ func formatRunAIReportSelected(paths state.ProjectPaths, run webprojection.Run, 
 		if failedOnly && !reportFailed(status) {
 			continue
 		}
-		writeJobAIReport(&builder, paths, run, job, status, reportIncludesLog(status))
+		jobs = append(jobs, reportJob{job: job, status: status})
+	}
+	writeReportJobTable(&builder, paths, run, jobs)
+	for _, entry := range jobs {
+		writeJobAIReport(&builder, paths, run, entry.job, entry.status, reportIncludesLog(entry.status))
 	}
 	fmt.Fprintf(&builder, "\n## Suggested commands\n```sh\nrotari show -r %s --failed-logs\nrotari retry -r %s\n```\n", executor.ShellQuote(run.RunID), executor.ShellQuote(run.RunID))
 	return builder.String()
@@ -157,6 +171,7 @@ func formatJobAIReport(paths state.ProjectPaths, run webprojection.Run, job webp
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari job report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.ProjectName, run.RunID, run.Status, reportValue(run.Context.Hostname))
+	writeReportSources(&builder, run.Sources)
 	writeJobAIReport(&builder, paths, run, job, reportJobStatus(job), true)
 	return builder.String()
 }
@@ -213,10 +228,7 @@ func RedactPatterns(text string) string {
 }
 
 func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run webprojection.Run, job webprojection.Job, status string, includeLog bool) {
-	name := job.Name
-	if name == "" {
-		name = job.ID
-	}
+	name := reportJobName(job)
 	executor := state.ReadAttemptExecutor(job.AttemptDir)
 	if executor == "" {
 		executor = job.Executor
@@ -238,6 +250,7 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 			fmt.Fprintf(builder, "- Error: %s\n", result.Error)
 		}
 	}
+	writeReportNotes(builder, "###", model.RunNotesFor(run.Notes, job.ID), job.AttemptID)
 	command, _ := json.Marshal(job.Command)
 	fmt.Fprintf(builder, "\n### Command\n```json\n%s\n```\n", command)
 	if result != nil {

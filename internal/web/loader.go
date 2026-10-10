@@ -199,7 +199,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		}
 		attempt := jobstatus.ReadAttempt(store, jobDir)
 		_, finalErr := os.Stat(filepath.Join(jobDir, state.FinalResultFileName))
-		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, LogMode: jobSpec.LogMode, DependsOn: jobSpec.DependsOn, DependsOnFinished: jobSpec.DependsOnFinished, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SchedulerState: attempt.SchedulerState, Final: hasSummary || finalErr == nil}
+		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, Environment: jobSpec.Environment, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, LogMode: jobSpec.LogMode, DependsOn: jobSpec.DependsOn, DependsOnFinished: jobSpec.DependsOnFinished, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SchedulerState: attempt.SchedulerState, Final: hasSummary || finalErr == nil}
 		job.Matrix = matrices[jobSpec.ID]
 		if jobSpec.ArrayGroup != "" {
 			job.Matrix = matrices[jobSpec.ArrayGroup]

@@ -383,7 +383,7 @@ Usage: `rotari show [SELECTOR]`
 | `--follow` | `` | `ROTARI_SHOW_FOLLOW` | follow one selected log stream until the run completes |
 | `--no-pager` | `` | `ROTARI_SHOW_NO_PAGER` | print logs directly instead of using a pager |
 | `--json` | `` | `ROTARI_SHOW_JSON` | print machine-readable JSON for a run |
-| `--report` | `` | `ROTARI_SHOW_REPORT` | print an AI-ready Markdown report |
+| `--report` | `` | `ROTARI_SHOW_REPORT` | print a Markdown report: notes, a job table, and each job's evidence |
 | `--artifacts` | `` | `ROTARI_SHOW_ARTIFACTS` | list every artifact candidate of one job attempt instead of its logs |
 | `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |

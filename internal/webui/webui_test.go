@@ -1309,6 +1309,16 @@ setTimeout(async () => {
 		const toggle = dom.window.document.getElementById('report-redact-toggle');
 		const output = dom.window.document.getElementById('modal-log');
 		if (toggle.hidden || toggle.textContent.trim() !== 'Redact: On' || !output.textContent.includes('[REDACTED_HOST]') || output.textContent.includes('node-1.example.com')) process.exit(1);
+		// The modal renders the report and shows its Markdown on request.
+		const rendered = dom.window.document.getElementById('modal-markdown');
+		const sourceToggle = dom.window.document.getElementById('report-source-toggle');
+		if (rendered.hidden || !output.hidden || !rendered.querySelector('h1') || sourceToggle.hidden || sourceToggle.textContent.trim() !== 'Show Markdown') {
+			console.error('report is not rendered:', rendered.hidden, output.hidden, rendered.innerHTML.slice(0, 200));
+			process.exit(6);
+		}
+		dom.window.toggleReportSource();
+		if (!rendered.hidden || output.hidden || sourceToggle.textContent.trim() !== 'Show rendered') process.exit(7);
+		dom.window.toggleReportSource();
 		await dom.window.toggleReportRedaction();
 		if (toggle.textContent.trim() !== 'Redact: Off' || !output.textContent.includes('worker-1')) {
 			console.error('single-job unredacted report mismatch:', toggle.textContent, output.textContent);
@@ -3042,7 +3052,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`title="Copy last 100 lines"`,
 		`<path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect>`,
 		`id="report-note"`,
-		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
+		`Copy gives the Markdown, which an AI assistant can read too. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,
 		`function addAIButtons()`,
 		`const actions=row.children[actionIndex]`,

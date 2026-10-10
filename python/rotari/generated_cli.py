@@ -1386,7 +1386,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "json",
                 },
                 {
-                    "description": "print an AI-ready Markdown report",
+                    "description": "print a Markdown report: notes, a job table, "
+                    "and each job's evidence",
                     "environment": "ROTARI_SHOW_REPORT",
                     "name": "report",
                 },

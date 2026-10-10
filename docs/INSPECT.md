@@ -231,7 +231,7 @@ not shown for an older one.
 
 ### JSON and reports
 
-Use `--json` for structured data, or `--report` for an AI-ready Markdown report:
+Use `--json` for structured data, or `--report` for a Markdown report:
 
 ```sh
 rotari show -p sweep --run-id latest --job-id JOB_ID --json
@@ -247,6 +247,18 @@ failure groups (the `commands` snapshot stays whole), and the job and array
 JSON keeps only the failed jobs, as the job table does. When a next queue is
 shown, `commands` remains the run snapshot and `next_queue` contains the
 queued work.
+
+A run report is the run's record, for people as well as agents. It starts
+with the run's source revisions and its notes, then a table with one row per
+job: its name, the environment values that differ between the jobs (matrix
+values among them), its status and exit code, and the first and last lines of
+its log, which often hold the configuration a program started with and its
+final metric or error. rotari does not read configuration files, so a
+difference the table cannot show, such as an edited YAML file, belongs in a
+note. Each job's section follows, with its notes, command, diagnosis, and,
+for a job that failed or may not have finished, a log excerpt. In the Web UI,
+the `Report` button shows the report rendered; `Show Markdown` shows its
+source, and Copy copies the Markdown.
 
 A report's log section shows, for a job whose saved diagnosis cites a line
 found in its log, the lines around that evidence and the last 20 lines, with

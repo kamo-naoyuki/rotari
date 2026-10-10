@@ -299,9 +299,15 @@ seeds the toggle's starting value for an origin that has never set the
 
 The Web UI is a projection of the same persisted model, not a separate
 database. `show --report`, the Web UI's `/api/report`, and static Web
-generation all use the same Go formatter for AI reports. Opening an AI service
-copies the report and opens a new tab; rotari does not transmit or submit the
-report.
+generation all use the same Go formatter, `internal/report`, for run and job
+reports. A run report is the run's record for people and agents: its sources,
+its run notes, a table of its jobs, and each job's notes and evidence. The
+report modal renders the Markdown, escaping all text and keeping only http(s)
+links, and shows the source on request; Copy gives the Markdown. rotari does
+not transmit or submit the report. Covered by
+`TestRunReportRecordsSourcesNotesAndJobTable`,
+`TestRenderMarkdownRendersReportsAndEscapesText`, and
+`TestStaticWebReportRedactionToggle`.
 
 Run job projections include each persisted attempt. The jobs table defaults to
 the latest attempt, but stores a browser-local selection per job so rows can

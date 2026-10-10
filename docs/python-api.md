@@ -257,7 +257,7 @@ Show details for a project, run, job, or attempt.
 | `tail` | `str` | print only the last N lines of each log, with --logs, --failed-logs, or a job's output |
 | `follow` | `bool` | follow one selected log stream until the run completes |
 | `no_pager` | `bool` | print logs directly instead of using a pager |
-| `report` | `bool` | print an AI-ready Markdown report |
+| `report` | `bool` | print a Markdown report: notes, a job table, and each job's evidence |
 | `artifacts` | `bool` | list every artifact candidate of one job attempt instead of its logs |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |

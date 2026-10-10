@@ -1609,6 +1609,71 @@ pre,
   }
 }
 
+.markdown-view {
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  /* Room on the right for the modal's copy button. */
+  padding: 0.25rem 52px 0.75rem 0.75rem;
+  line-height: 1.5;
+}
+.markdown-view h1 {
+  font-size: 1.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.markdown-view h2 {
+  font-size: 1.15rem;
+  margin: 1.5rem 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.markdown-view h3 {
+  font-size: 1rem;
+  margin: 1rem 0 0.4rem;
+}
+.markdown-view p,
+.markdown-view ul,
+.markdown-view ol,
+.markdown-view blockquote {
+  margin: 0.4rem 0;
+}
+.markdown-view ul,
+.markdown-view ol {
+  padding-left: 1.5rem;
+}
+.markdown-view blockquote {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.markdown-view code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+.markdown-view pre {
+  overflow: auto;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  white-space: pre;
+}
+.markdown-view .markdown-table {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+.markdown-view table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.markdown-view th,
+.markdown-view td {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
 .artifact-view {
   overflow: auto;
   max-height: 75vh;

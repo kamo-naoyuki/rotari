@@ -276,6 +276,12 @@ function updateModalActions() {
   document.getElementById("report-note").hidden = view !== "ai";
   const redactToggle = document.getElementById("report-redact-toggle");
   redactToggle.hidden = view !== "ai";
+  const sourceToggle = document.getElementById("report-source-toggle");
+  sourceToggle.hidden = view !== "ai";
+  sourceToggle.textContent = reportShowsSource
+    ? "Show rendered"
+    : "Show Markdown";
+  sourceToggle.setAttribute("aria-pressed", String(reportShowsSource));
   const copyButton = document.getElementById("copy-modal");
   copyButton.hidden =
     view === "generate-config" ||
@@ -296,13 +302,28 @@ function updateModalActions() {
   copyButton.dataset.copyTitle = copyTitle;
   copyButton.dataset.copyIcon ||= copyButton.innerHTML;
 }
+// reportShowsSource is whether the report modal shows the report's
+// Markdown source instead of rendering it.
+let reportShowsSource = false;
+// showReportOutput puts selectedOutput, the report's Markdown, in the
+// modal both as source and rendered; openOutputModal shows one of them.
+function showReportOutput() {
+  ensureModalOutput().textContent = selectedOutput;
+  document.getElementById("modal-markdown").innerHTML =
+    renderMarkdown(selectedOutput);
+}
+function toggleReportSource() {
+  reportShowsSource = !reportShowsSource;
+  openOutputModal(false);
+}
 async function showAIReport(project, run, job, jobIDs) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "ai";
   modal.querySelector("strong").textContent = job ? "Job report" : "Run report";
   selectedLog = null;
   selectedOutput = "Preparing...";
-  ensureModalOutput().textContent = selectedOutput;
+  reportShowsSource = false;
+  showReportOutput();
   openOutputModal(false);
   selectedReportContext = { project, run, job, jobIDs };
   setReportRedactionButton(true);
@@ -322,7 +343,7 @@ async function fetchAIReport(redact) {
   selectedOutput = await response.text();
   if (!response.ok)
     selectedOutput = "Failed to prepare report: " + selectedOutput;
-  ensureModalOutput().textContent = selectedOutput;
+  showReportOutput();
   openOutputModal(false);
 }
 function setReportRedactionButton(redact) {
@@ -337,7 +358,7 @@ async function toggleReportRedaction() {
     document.getElementById("report-redact-toggle").dataset.redact !== "true";
   setReportRedactionButton(redact);
   selectedOutput = "Preparing...";
-  ensureModalOutput().textContent = selectedOutput;
+  showReportOutput();
   await fetchAIReport(redact);
 }
 function addAIButtons() {
@@ -542,11 +563,14 @@ function openOutputModal(compact) {
   document
     .querySelector(".output-box")
     .classList.toggle("notification-config-output", editingNotificationConfig);
+  const renderedReport = view === "ai" && !reportShowsSource;
   ensureModalOutput().hidden =
     editingConfig ||
     editingNotificationConfig ||
     generatingConfig ||
-    view === "artifacts";
+    view === "artifacts" ||
+    renderedReport;
+  document.getElementById("modal-markdown").hidden = !renderedReport;
   document.getElementById("artifact-view").hidden = view !== "artifacts";
   ensureModalOutput().classList.toggle(
     "log-error",

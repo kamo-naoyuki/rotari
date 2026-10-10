@@ -108,6 +108,13 @@
                 >
                   Redact: On</button
                 ><button
+                  id="report-source-toggle"
+                  onclick="toggleReportSource()"
+                  aria-pressed="false"
+                  hidden
+                >
+                  Show Markdown</button
+                ><button
                   id="notification-config-save"
                   type="button"
                   onclick="
@@ -129,8 +136,9 @@
               </div>
             </header>
             <p id="report-note" class="meta" hidden>
-              Markdown report for pasting into an AI assistant. Nothing is sent
-              to external services automatically.
+              The run's record: its notes, a table of its jobs, and each job's
+              evidence. Copy gives the Markdown, which an AI assistant can read
+              too. Nothing is sent to external services automatically.
             </p>
             <div
               id="modal-config-paths"
@@ -139,6 +147,7 @@
             ></div>
             <div class="output-box">
               <pre id="modal-log" class="log"></pre>
+              <div id="modal-markdown" class="markdown-view" hidden></div>
               <div id="artifact-view" class="artifact-view" hidden></div>
               <div id="config-editor" class="config-editor" hidden>
                 <textarea aria-label="Config contents"></textarea>
