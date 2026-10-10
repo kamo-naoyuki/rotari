@@ -322,13 +322,28 @@ async function checkRunNotifications(previousState, nextState, basedirID) {
   const previousRuns = collectRunStatuses(previousState);
   const nextRuns = collectRunStatuses(nextState);
   const previousJobs = collectJobStatuses(previousState);
+  // A run the previous poll lacked is new only when it is newer than every
+  // run that poll knew in its project: run IDs start with their start time.
+  // An older one only now appeared because the page loaded it, as opening
+  // a project or run does, and finished before.
+  const newestRunIDs = new Map();
+  previousRuns.forEach((info) => {
+    if (info.runID > (newestRunIDs.get(info.projectName) || ""))
+      newestRunIDs.set(info.projectName, info.runID);
+  });
+  // watched reports whether what happens in a run happened since the
+  // previous poll: the run was then running, or it started since.
+  const watched = (runKey, info) => {
+    const before = previousRuns.get(runKey);
+    if (before) return before.running;
+    return info.runID > (newestRunIDs.get(info.projectName) || "");
+  };
   const events = new Map();
   nextRuns.forEach((info, runKey) => {
-    const before = previousRuns.get(runKey);
-    const newlyFinished =
-      !info.running && ((before && before.running) || !before);
-    if (newlyFinished) {
-      const settings = settingsByProject.get(info.projectName);
+    if (!info.running && watched(runKey, info)) {
+      const settings = settingsByProject.get(
+        notificationSettingsKey(info.projectName, resolvedBasedirID),
+      );
       const succeeded = runSucceeded(info.run);
       if (
         (succeeded && settings.run_success) ||
@@ -353,6 +368,9 @@ async function checkRunNotifications(previousState, nextState, basedirID) {
         const jobKey = runKey + "/" + job.id;
         const before = previousJobs.get(jobKey);
         if (before?.final && before.status === status) continue;
+        // A job the previous poll lacked ended since only in a watched run;
+        // in another run, the page only now loaded the job's result.
+        if (!before && !watched(runKey, nextRuns.get(runKey))) continue;
         const settings = settingsByProject.get(
           notificationSettingsKey(project.project_name, resolvedBasedirID),
         );

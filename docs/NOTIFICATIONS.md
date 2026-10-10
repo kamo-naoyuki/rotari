@@ -21,12 +21,13 @@ from a run's merged command configuration.
 ## Browser notifications
 
 The Web UI can show a desktop notification when a run finishes or a job reaches
-its final result. This is entirely local and never sends data to an external
-service.
+its final result while the page is open. Opening a run that had already
+finished does not notify about its jobs. This is entirely local and never sends
+data to an external service.
 
 ### Enabling browser notifications
 
-Open `rotari web` and click `Enable notifications` in the sidebar. 
+Open `rotari web` and click `Enable notifications` in the sidebar.
 After browser permission is
 granted, the button becomes a `Notification on`/`Notification off` toggle.
 The toggle is stored in the browser's `localStorage`, scoped by protocol,

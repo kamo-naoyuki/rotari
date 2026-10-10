@@ -261,13 +261,22 @@ runs. When other basedirs are selected for notifications, their `/api/active-run
 projections are polled as well:
 
 - A run is newly finished when it stops being `running` between two polls, or
-  when it is seen for the first time already finished (covers runs shorter
-  than the 2-second poll interval).
+  when it is seen for the first time already finished and its run ID sorts
+  after every run the previous poll had in its project (covers runs shorter
+  than the 2-second poll interval). An older run seen for the first time only
+  appeared because the page loaded it, as opening a project or run does, and
+  does not notify.
 - A job is newly finished when `jobDisplayStatus(job, run)` (`web_app_tables.js`)
-  becomes `"failed"` or `"success"` in an active-run detail, the projection marks
-  the job's result final, and the previous poll did not already show that final
-  result. Retried attempts are not reported because a job's result becomes final
-  only after its retries end.
+  becomes `"failed"` or `"success"`, the projection marks the job's result
+  final, and the previous poll did not already show that final result. A job
+  the previous poll lacked counts only in a run that poll showed running or
+  that is new as above; opening a finished run, which loads its jobs, does not
+  notify. Retried attempts are not reported because a job's result becomes
+  final only after its retries end.
+- Settings are looked up per basedir and project, for the page's basedir and
+  each other polled basedir alike.
+- Covered by `TestBrowserNotificationsReportOnlyWhatHappenedSinceThePreviousPoll`
+  and `TestBrowserRunNotificationsUseTheExitCode`.
 - Job results and a run's own completion detected in the same poll tick are
   merged into one `Notification` per run; events from different ticks stay
   separate.
