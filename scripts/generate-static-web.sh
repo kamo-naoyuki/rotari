@@ -4,8 +4,15 @@ set -euo pipefail
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "${script_dir}/.." && pwd)
 output_dir=${1:-"${repo_dir}/docs/web-demo"}
-work_dir=$(mktemp -d)
-trap 'rm -rf "${work_dir}"' EXIT INT TERM
+# DEMO_WORK_DIR keeps the binary, state, and workspace there for reuse, as
+# scripts/web-structure.sh does; otherwise they are removed on exit.
+if [[ -n "${DEMO_WORK_DIR:-}" ]]; then
+    work_dir=${DEMO_WORK_DIR}
+    mkdir -p "${work_dir}"
+else
+    work_dir=$(mktemp -d)
+    trap 'rm -rf "${work_dir}"' EXIT INT TERM
+fi
 
 binary="${work_dir}/rotari"
 state_dir="${work_dir}/state"

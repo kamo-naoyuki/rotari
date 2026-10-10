@@ -11,6 +11,11 @@ are not part of the `rotari` command-line interface. Runnable samples are in
 - `screenshot-web.sh`: screenshot every page of the static web demo at desktop
   and phone widths in light and dark, for reviewing Web UI changes; needs
   Chrome or Chromium and Node 22 (`screenshot-web.mjs` drives the browser).
+- `web-structure.sh`: record every Web UI page's title, toolbars, headings, and
+  tables, static and live, for one state directory; diff the output of two
+  builds to see what a Web UI change did to the pages. `DEMO_WORK_DIR=DIR
+  generate-static-web.sh DIR/static` keeps a demo state in `DIR/state` for it.
+  `web-browser.mjs` is the headless Chrome helper both scripts share.
 - `demo_artifacts.py`: write the static web demo's sample artifact files
   (images, audio, video, tables, text, NumPy arrays) with the standard
   library; the demo's video clip is `templates/demo/clip.mp4`.
