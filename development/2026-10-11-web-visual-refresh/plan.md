@@ -127,7 +127,8 @@ and the theme choice; embed the fonts. Apart from these, a visual no-op.
 
 Make the table and header renderers emit the final column order, labels, and
 classes, and delete the post-render patches and inline styles they replace.
-This fixes the mislabelled Started column. Every page must look the same as
+This fixes the mislabelled Started column. The rewritten files get JSDoc
+types and join the `tsc --checkJs` check. Every page must look the same as
 after Phase 1 except for that fix; the Phase 0 screenshots check it.
 
 ### Phase 3: page shell
@@ -160,6 +161,13 @@ Phase 1 should land before the activity plan's Phase 2.
   stays as fallback, which also covers CJK characters in job names and paths.
   The faces are chosen with the Phase 1 mockup. Adding them is a new asset,
   not a new code dependency.
+- **Language (2026-10-11).** The assets stay plain JavaScript, embedded as
+  they are, so `go build` alone still produces a complete binary and no
+  generated files are committed. Types are added as JSDoc annotations and
+  checked by `tsc --checkJs --noEmit` (a `typescript` devDependency beside
+  Prettier and jsdom, run in CI), starting with the files Phase 2 rewrites
+  and widening from there. A full TypeScript build is reconsidered only if
+  the front end grows well beyond today's ~10,000 lines.
 - **Run page sections (2026-10-11).** The job timeline is open by default;
   the other sections remember their open state per browser.
 
