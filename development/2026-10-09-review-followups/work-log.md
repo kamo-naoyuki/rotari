@@ -241,3 +241,27 @@ passed the full check, so it was kept rather than rewriting history. Two
 seconds after the commit the index was found reset to the previous commit's
 content for the committed paths, apparently by another thread's tooling;
 `git reset HEAD -- <paths>` restored it without touching the working tree.
+
+## Hints built outside `cmd/rotari` follow CLI-22
+
+- `81165b63` 2026-10-10 14:30:35
+
+**Change:** `project.EnsureIdle` and `project.RerunCommand` print their
+recovery commands through `commandLocation`, which defaults to
+`ExplicitCommandLocation` and which CLI commands replace with `hintLocation`
+through `SetCommandLocation` (not `__server`, `web`, or `mcp`). The run request
+carries the CLI's rendering as `hint_location`, which the supervisor uses for
+the retry source notice. Refusals list one command per line. CLI-22,
+ARCHITECTURE.md, and an `unlock` test that pinned the old wording were
+updated; ISSUES.md's agent-trial leftovers item is now empty and removed.
+**Reason:** Plan item 6: those hints always named `--basedir`, because the
+packages that build them cannot read the CLI's environment and configuration.
+A typed error was rejected because many callers print errors through `%v`,
+which would drop the type.
+**Plan impact:** Item 6 done.
+**Validation:** `TestRefusalAndSourceHintsNameOnlyANonImplicitBaseDir`
+failed before the change for the implicit state directory and passed for
+both cases after; `go test ./conformance/...` and the touched packages
+passed; `scripts/check.sh` passed on a worktree of the commit. The commit
+staged only its own twelve paths, and the index matched HEAD afterwards.
+**Remaining:** None.
