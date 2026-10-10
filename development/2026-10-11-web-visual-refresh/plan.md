@@ -133,6 +133,9 @@ running during the export) and opened modals and sections.
 
 ### Phase 1: tokens and status component
 
+Phase 1 mockup (private artifact, 2026-10-11):
+<https://claude.ai/artifact/JvhmLU9rE3Z2g7k5Z4JucA>.
+
 Collect the colours, sizes, and fonts into tokens and replace literals; add
 the status pill and use it wherever a status is rendered; add the light theme
 and the theme choice; embed the fonts. Apart from these, a visual no-op.
@@ -173,8 +176,20 @@ Phase 1 should land before the activity plan's Phase 2.
   (SIL OFL or similar) whose text is shipped beside the files; a Latin subset
   with only the weights used (about 100–200 KB in all); the system font stack
   stays as fallback, which also covers CJK characters in job names and paths.
-  The faces are chosen with the Phase 1 mockup. Adding them is a new asset,
-  not a new code dependency.
+  Adding them is a new asset, not a new code dependency.
+- **IBM Plex (2026-10-11).** After comparing IBM Plex, Geist, Source
+  Sans/Code, and the system font in the Phase 1 mockup, the user chose IBM
+  Plex Sans (400, 500, 600) and IBM Plex Mono (400, 500), both SIL OFL. Plex
+  Mono tells 0/O and 1/l/I apart, which matters for IDs and paths, and one
+  family keeps job names and commands consistent in a row.
+- **The logo stays (2026-10-11).** The refresh keeps rotari's mark
+  (`favicon-light.svg`, `favicon-dark.svg`) and its tile; only its colours
+  follow the theme tokens.
+- **No column is lost (2026-10-11).** Tables keep every column they show
+  today. The run page's jobs table shows each command under the job name;
+  columns whose values are the same for every job start hidden and can be
+  turned on from a Columns menu. The mockup first dropped Command and other
+  columns, which the user caught.
 - **Language (2026-10-11).** The assets stay plain JavaScript, embedded as
   they are, so `go build` alone still produces a complete binary and no
   generated files are committed. Types are added as JSDoc annotations and
