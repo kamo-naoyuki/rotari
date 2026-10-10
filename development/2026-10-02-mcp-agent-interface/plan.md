@@ -78,6 +78,7 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 | Recent jobs across projects | `joblist` | `jobs`, Web jobs page | M4 |
 | Project resolution | `resolve` (`RegisteredRun` for MCP), `state` | all commands | done in M0 (run ID only) |
 | Job result / status | `jobstatus` | `show`, Web `loadWebJobs` | via shared functions |
+| Elapsed and quiet time | `jobstatus` (`LastOutputAt`); elapsed still split between `cmd/rotari/show.go` and `joblist` | `show`, `jobs` (elapsed only) | M8 |
 | Result selection and `--filter-*` | `jobfilter` (`Filter.Selects`, `Filter.SelectsArray`) | `show`, `copy`, `run`, `retry` | via shared functions |
 | Run snapshot and display | `runview`, `runregistry` | `show`, Web | via shared functions |
 | History / log search | `web` (`SearchHistory`) | Web history search | open |
@@ -191,6 +192,18 @@ Outcome:
   - An interrupted run is recovered only with `recover_interrupted`, and the preview reports whether its jobs may still be running.
 - `gc` is not exposed. It removes stale registry entries for directories that no longer exist; its output is their absolute paths, and an agent has nothing to decide there. It stays a CLI maintenance command.
 
+### M8: Running-job facts and recovery guidance (planned)
+
+The [zero-information trial](agent-trial-2026-10-10-zero-info.md) left two weak spots: the facts that tell a hung job from a slow one reach only part of the interfaces, and no scenario has exercised recovery from an interrupted run. Summary-first output, shared logic, and narrow tool interfaces stay as they are.
+
+1. **Elapsed and quiet time in every view.** `33efb8dd` (CLI-23) added them to the `show` table and `show -j` only; `jobs`, `show --json`, the Web job views, and `rotari_run_summary` still lack quiet time. The calculation is also split: `show` measures elapsed time from submission (`showJobElapsed` in `cmd/rotari/show.go`), and `jobs` from the start (`joblist`). Move both into one function beside `jobstatus.LastOutputAt`, decide which starting point is meant (or show both as wait and run time), and have every view call it. Done when `jobs`, `show`, `show --json`, the Web API, and MCP give the same elapsed and quiet values for a running array task, a plain job, and a carried job.
+2. **Liveness before verdicts.** `running (recorded)` is a recorded phase, not a checked process. For local jobs, `executor.LocalProcessGroupAlive` already answers whether the process group is alive (`cancel --wait` uses it). Decide whether run views report it, and through which package, without making `jobstatus` depend on `executor`. Scheduler jobs keep their recorded state.
+3. **An interrupted-run scenario first, then the guidance.** Add an s4 scenario to [agent-trial-zero-info-fixture.sh](agent-trial-zero-info-fixture.sh): a run whose supervisor was killed, with one job still running and others unfinished. Run an agent on it before changing any message, and fix what it trips on. The likely gap is that `show` and `wait` name the interrupted state but not the single next command (`unlock`, then `retry`, or `cancel` first while a job still runs). `cancel --wait` with a job selection works since `9e16f485`; the guide only needs to say so.
+
+Not planned: a `stuck` status or label. Quiet time is the modification time of a job's log files; a block-buffered stdout or a delayed shared filesystem makes a healthy job look quiet for a long time, and a verdict would steer agents toward cancelling it (Principle 6). Views report the facts, quiet time and liveness, and the agent decides. Also not planned: moving the failure groups above the `show -r` table. M3 chose a `Failure summary:` pointer and `lineage RUN` as the first read, and no trial since has shown an agent misled by the order; revisit only with trial evidence.
+
+Validation: rerun s1 to s4 on fresh fixtures and compare calls, output size, and whether the agent's first view of the run leads to the right next command, against the third zero-information run (s1 9 calls / 13 KB, s2 18 / 35 KB, s3 12 / 24 KB). In s3 the first `jobs` or `show` must single out `frame[5]` by its quiet time; in s4 the agent must not unlock or retry while a job of the interrupted run still runs.
+
 ## Current status
 
 - M0 is done. `rotari-agent` is removed. `rotari_get_job_info` takes only `run_id` and `job_id`; `rotari-mcp` locates the run through its master directory's run registry and exits non-zero on failure.
@@ -218,7 +231,8 @@ Outcome:
   - `retry`'s help and the queue it keeps, a `fix:` and a `retry:` line for each failure group, and shorter command help.
   - The task fell from 27 calls and about 140 KB to 16 calls and about 41 KB.
 - The guide does not recommend `--json` to agents: it is the Python client's full-detail output, and the default text is what agents should read.
-- Next step: the `show -r` table, which is wide because of `DEPENDS ON`, and another trial to measure the fixes.
+- The [zero-information trial](agent-trial-2026-10-10-zero-info.md) gave agents no prior information and three scenarios. Its fixes (CLI-14, CLI-22 to CLI-24: grouped completion messages, implicit `--basedir` left out of hints, a short top-level help, elapsed and quiet time, a fitted `show` table, `show --tail`) took the scenarios from 27, 41, and 44 KB to 13, 35, and 24 KB.
+- Next step: M8.
 
 ## Open decisions
 
