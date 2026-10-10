@@ -1,5 +1,19 @@
 # CLI reference
 
+## Short options
+
+These short forms are aliases for their long options. Each is available only
+for commands that support the corresponding long option; `-h` displays help.
+
+| Short option | Long option | Purpose |
+| --- | --- | --- |
+| `-b DIR` | `--basedir DIR` | State directory |
+| `-p NAME` | `--project-name NAME` | Project name |
+| `-r ID` | `--run-id ID` | Run selector |
+| `-j ID` | `--job-id ID` | Job selector; repeatable where supported |
+| `-e EXECUTOR` | `--executor EXECUTOR` | Select or override the executor |
+| `-h` | `--help` | Display help |
+
 The command reference below is generated from `rotari schema --json`, the same
 metadata used by command help and shell completion. Environment variables are
 documented separately in [Environment variables](ENVIRONMENT_VARIABLES.md).
