@@ -68,7 +68,7 @@ Entries group cohesive changes. Times are Git commit times.
 
 ## Reconstruction trial 2
 
-- (this commit): [trial-2026-10-10-reconstruction-2.md](trial-2026-10-10-reconstruction-2.md).
+- `a2ddb274` (2026-10-10 20:26:51 +0900): [trial-2026-10-10-reconstruction-2.md](trial-2026-10-10-reconstruction-2.md).
 
 **Change:** the trial report and the plan's status. Documentation only.
 
