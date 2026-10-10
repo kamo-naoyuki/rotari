@@ -143,7 +143,7 @@ second one:
 - Source: the revision each repository was at (RUN-15)
 ## Notes               the run's notes, Markdown as written
 ## Jobs                one row per job: name, matrix and env values,
-                       status, exit code, last log line
+                       status, exit code, first and last log line
 ## Job: NAME           as today, plus
 ### Notes              that job's notes
 ### Command / Diagnosis / Log
@@ -156,7 +156,7 @@ Who fills what:
 
 | Part | Filled by |
 |---|---|
-| Job table: name, matrix and `--env` values, status, exit code, last log line | rotari |
+| Job table: name, matrix and `--env` values, status, exit code, first and last log line | rotari |
 | Source revision, and whether the code changed since the run before | rotari |
 | Conditions the table cannot show, such as what changed in a config file | the agent, in the run note |
 | A job's own condition or reading | the agent, in the job note |
@@ -168,7 +168,9 @@ means. Those differences are the agent's to write.
 
 Decided with the user:
 
-1. Successful jobs appear with their last log line in the job table; the
+1. Successful jobs appear with their first and last log line in the job
+   table: the first often states the configuration a program started with,
+   the last its final metric or error. The
    per-job log sections stay limited to jobs that failed or may not have
    finished.
 2. Order is summary first, details after, so a long run's report can be read
@@ -181,8 +183,8 @@ Decided with the user:
 The run notes' place on the Web run page is this report; the header list
 stays only until the rendered report exists.
 
-Open: whether the job table also shows a job's first log line, for programs
-that print their configuration at start.
+The first line is shown as the job printed it; rotari does not parse it. A
+program that prints nothing useful first just shows its first line.
 
 ## Decisions
 
