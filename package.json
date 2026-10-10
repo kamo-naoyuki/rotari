@@ -3,10 +3,12 @@
   "private": true,
   "scripts": {
     "format": "prettier --write internal/webui/assets/*.html internal/webui/assets/*.js internal/webui/assets/*.css",
-    "format:check": "prettier --check internal/webui/assets/*.html internal/webui/assets/*.js internal/webui/assets/*.css"
+    "format:check": "prettier --check internal/webui/assets/*.html internal/webui/assets/*.js internal/webui/assets/*.css",
+    "typecheck": "tsc -p internal/webui/tsconfig.json"
   },
   "devDependencies": {
     "jsdom": "^30.1.0",
-    "prettier": "3.9.8"
+    "prettier": "3.9.8",
+    "typescript": "5.9.3"
   }
 }

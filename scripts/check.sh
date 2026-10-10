@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run the checks from CI's go job in one command.
 #
-#   scripts/check.sh           go vet, go test, and go test -race
-#   scripts/check.sh --short   go vet and go test -short, for the edit loop
+#   scripts/check.sh           go vet, Web UI type check, go test, and go test -race
+#   scripts/check.sh --short   go vet, Web UI type check, and go test -short
 # Formatting is handled by pre-commit.
 #
 # CI also generates API docs, checks the generated Python CLI metadata, and
@@ -28,6 +28,11 @@ step() {
 
 step "go vet"
 go vet ./...
+
+# The Web UI scripts marked // @ts-check, checked against their JSDoc types
+# (internal/webui/tsconfig.json), as CI does after npm ci.
+step "npm run typecheck"
+npm run --silent typecheck
 
 if [[ "$short" == true ]]; then
     step "go test -short"

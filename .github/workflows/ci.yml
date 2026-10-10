@@ -38,6 +38,9 @@ jobs:
       - name: Install JavaScript test dependencies
         run: npm ci
 
+      - name: Type-check Web UI scripts
+        run: npm run typecheck
+
       - name: Run vet
         run: go vet ./...
 

@@ -1,3 +1,4 @@
+// @ts-check
 function runLoadSummary(run) {
   const context = run && run.context;
   const samples = (context && context.load_samples) || [];
@@ -21,6 +22,11 @@ function runLoadSummary(run) {
 // output word cloud. renderRunGraphics draws them whole, above the jobs
 // table; each starts collapsed and remembers, while the page is open,
 // whether it was opened (expandedRunGraphics).
+/**
+ * @param {string} kind the section's class, which also keys its open state
+ * @param {string} title
+ * @param {HTMLElement} [note] shown at the heading's end
+ */
 function runGraphicSection(kind, title, note) {
   const section = document.createElement("section");
   section.className = "run-graphic " + kind;
@@ -44,12 +50,17 @@ function runGraphicSection(kind, title, note) {
   apply(!!expandedRunGraphics[kind]);
   return section;
 }
+/**
+ * @param {string} text
+ * @param {string} [className]
+ */
 function graphicNote(text, className) {
   const note = document.createElement("span");
   note.className = "graphic-note" + (className ? " " + className : "");
   note.textContent = text;
   return note;
 }
+/** @param {WebRun} run */
 function jobTimelineSection(run) {
   const rawPoints = run.timeline || [];
   const maxPoints = 10;
@@ -159,10 +170,10 @@ function jobTimelineSection(run) {
         "http://www.w3.org/2000/svg",
         "rect",
       );
-      rect.setAttribute("x", x - 14);
-      rect.setAttribute("y", y);
-      rect.setAttribute("width", 28);
-      rect.setAttribute("height", segmentHeight);
+      rect.setAttribute("x", String(x - 14));
+      rect.setAttribute("y", String(y));
+      rect.setAttribute("width", "28");
+      rect.setAttribute("height", String(segmentHeight));
       rect.setAttribute("fill", colors[key]);
       rect.setAttribute("rx", "2");
       rect.setAttribute("title", key + ": " + count);
@@ -174,7 +185,7 @@ function jobTimelineSection(run) {
   text(width / 2, height - 4, "time", "middle");
   const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
   yLabel.setAttribute("x", "12");
-  yLabel.setAttribute("y", height / 2);
+  yLabel.setAttribute("y", String(height / 2));
   yLabel.setAttribute("fill", "var(--muted)");
   yLabel.setAttribute("font-size", "11");
   yLabel.setAttribute("text-anchor", "middle");
@@ -194,6 +205,7 @@ function jobTimelineSection(run) {
   section.append(chart, legend);
   return section;
 }
+/** @param {WebRun} run */
 function runStatisticsSection(run) {
   const keys = ["success", "failed", "blocked", "running", "pending"];
   const counts = Object.fromEntries(keys.map((key) => [key, 0]));
@@ -233,10 +245,10 @@ function runStatisticsSection(run) {
     const metric = document.createElement("div");
     metric.className = "stat-metric";
     const valueElement = document.createElement("strong");
-    valueElement.textContent = value;
+    valueElement.textContent = String(value);
     if (status) valueElement.style.color = statusColor(status);
     const labelElement = document.createElement("span");
-    labelElement.textContent = label;
+    labelElement.textContent = String(label);
     metric.append(valueElement, labelElement);
     metrics.append(metric);
   });
@@ -262,6 +274,7 @@ function runStatisticsSection(run) {
   section.append(metrics, bar, legend);
   return section;
 }
+/** @param {WebRun} run */
 function loadAverageSection(run) {
   const section = runGraphicSection(
     "run-environment",
@@ -438,6 +451,10 @@ async function loadOutputWordCloud(details, projectName, runID, refresh) {
   }
 }
 
+/**
+ * @param {WebProject} queue
+ * @param {string} runID
+ */
 function outputWordCloudSection(queue, runID) {
   const isStatic = typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
   const wordCloudKey = queue.project_name + "/" + runID;

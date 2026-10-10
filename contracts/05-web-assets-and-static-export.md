@@ -554,6 +554,10 @@ covered by `TestRunReportReadsCarriedJobLogs` in
 - Tests should inspect final generated HTML for required hooks and obsolete
   vocabulary. Avoid assertions that depend on formatter whitespace or quote
   style.
+- Scripts marked `// @ts-check` are checked against their JSDoc types by
+  `npm run typecheck` ([internal/webui/tsconfig.json](../internal/webui/tsconfig.json),
+  shared types in `assets/web_globals.d.ts`); CI and `scripts/check.sh` run it.
+  Mark a script when rewriting it, and keep it passing.
 - Run pre-commit on changed files, `go test ./...`, and `go build ./...` after
   Web asset changes.
 

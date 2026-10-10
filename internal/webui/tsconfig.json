@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true
+  },
+  "files": [
+    "assets/web_globals.d.ts",
+    "assets/web_app_core.js",
+    "assets/web_app_actions.js",
+    "assets/web_app_logs.js",
+    "assets/web_app_markdown.js",
+    "assets/web_app_artifacts.js",
+    "assets/web_app_tables.js",
+    "assets/web_app_charts.js",
+    "assets/web_app_matrix.js",
+    "assets/web_app_notifications.js",
+    "assets/web_app_search.js",
+    "assets/web_app_bootstrap.js"
+  ]
+}
