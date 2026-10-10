@@ -108,23 +108,26 @@ setTimeout(async () => {
       window.renderQueue({project_name: 'default', queue: {commands: []}, runs});
       const rows = [...window.document.querySelectorAll('#app tbody tr')];
       assert.equal(rows.length, runs.length);
+      // Cells by column name, so the test does not depend on column order.
+      const columns = [...window.document.querySelectorAll('#app thead th')].map(th => th.dataset.sort);
+      const cell = (row, key) => row.children[columns.indexOf(key)];
       const states = ['interrupted', 'incomplete', 'running', 'finished', 'failed', 'running', 'running', 'running'];
       const tones = ['warn', 'off', 'run', 'ok', 'bad', 'run', 'run', 'run'];
       rows.forEach((row, index) => {
-        const pill = row.children[2].querySelector('span');
+        const pill = cell(row, 'status').querySelector('span');
         assert.equal(pill.textContent, states[index] + (runs[index].running ? ' ...' : ''));
         assert(pill.classList.contains('status-pill') && pill.classList.contains('tone-' + tones[index]));
         if (index < 2) assert(!pill.classList.contains('tone-run'));
       });
-      assert.equal(rows[0].children[3].textContent, 'detached (disconnect)');
-      assert.equal(rows[1].children[3].textContent, 'unknown');
-      assert.equal(rows[2].children[3].textContent, 'attached');
-      assert.equal(rows[3].children[3].textContent, 'server <label>');
-      assert.equal(rows[3].children[4].textContent, '7');
-      assert.equal(rows[4].children[4].textContent, '3');
-      assert.equal(rows[5].children[3].textContent, 'detached (async)');
-      assert.equal(rows[6].children[3].textContent, 'detached (Ctrl-D)');
-      assert.equal(rows[7].children[3].textContent, 'detached (async)');
+      assert.equal(cell(rows[0], 'client').textContent, 'detached (disconnect)');
+      assert.equal(cell(rows[1], 'client').textContent, 'unknown');
+      assert.equal(cell(rows[2], 'client').textContent, 'attached');
+      assert.equal(cell(rows[3], 'client').textContent, 'server <label>');
+      assert.equal(cell(rows[3], 'exit').textContent, '7');
+      assert.equal(cell(rows[4], 'exit').textContent, '3');
+      assert.equal(cell(rows[5], 'client').textContent, 'detached (async)');
+      assert.equal(cell(rows[6], 'client').textContent, 'detached (Ctrl-D)');
+      assert.equal(cell(rows[7], 'client').textContent, 'detached (async)');
       assert(window.document.getElementById('summary').textContent.includes('1 running'));
       window.renderRun({project_name: 'default', queue: {commands: []}, runs: [{...runs[3], jobs: []}]}, 'finished');
       const summary = window.document.getElementById('summary').textContent;

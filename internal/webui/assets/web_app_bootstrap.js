@@ -258,7 +258,6 @@ render = function () {
   if (parts[0] === "search") return;
   enhancePage();
   enhanceQueueOverview();
-  addQueueOverviewPathActions();
   if (parts[0] === "project" && !parts[2]) {
     const queue = state.projects.find(
       (q) => q.project_name === decodeURIComponent(parts[1]),
@@ -289,7 +288,6 @@ render = function () {
   labelJobActionHeaders();
   styleActionColumns();
   markJobHeaders();
-  markLatestRun();
   enableTableSorting();
   restoreSelectedOutput();
   fixRunStatisticsColors();

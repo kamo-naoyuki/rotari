@@ -231,9 +231,16 @@ function staticRootPath() {
   return "/" + parts.slice(0, -1).join("/");
 }
 
+// routeParts names the page as the live server's path does. A page opened
+// from disk ends in index.html, which is the file, not part of the route.
 function routeParts() {
   const root = staticRootPath().split("/").filter(Boolean);
-  return window.location.pathname.split("/").filter(Boolean).slice(root.length);
+  const parts = window.location.pathname
+    .split("/")
+    .filter(Boolean)
+    .slice(root.length);
+  if (parts[parts.length - 1] === "index.html") parts.pop();
+  return parts;
 }
 
 function staticPath(path) {

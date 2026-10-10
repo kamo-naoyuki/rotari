@@ -51,6 +51,32 @@ function statusTintMap(keys) {
     ]),
   );
 }
+// Row actions. A table renderer emits its actions cell itself, first in the
+// row; its buttons carry their arguments in data- attributes and call one of
+// these handlers.
+function actionsCell(buttons) {
+  return (
+    '<td class="actions"><div class="action-buttons">' +
+    buttons.filter(Boolean).join(" ") +
+    "</div></td>"
+  );
+}
+function pathButton(path) {
+  return (
+    '<button class="show-path" data-path="' +
+    esc(path) +
+    '" onclick="showPath(this.dataset.path)">Path</button>'
+  );
+}
+function deleteRunButton(projectName, runID) {
+  return (
+    '<button class="delete-run-row" data-project="' +
+    esc(projectName) +
+    '" data-run="' +
+    esc(runID) +
+    '" onclick="deleteRun(this.dataset.project, this.dataset.run)">Delete</button>'
+  );
+}
 function basedirURL(id, path) {
   const entry = registeredBasedirs.find((item) => item.id === id);
   const prefix = entry?.current ? "" : "/_basedir/" + id;
@@ -1352,7 +1378,11 @@ function renderOverview(queues) {
     .map((q) => {
       const latest = latestRun(q.runs);
       return (
-        '<tr><td><a class="link" href="/project/' +
+        "<tr>" +
+        actionsCell([
+          pathButton(state.base_dir + "/projects/" + q.project_name),
+        ]) +
+        '<td><a class="link" href="/project/' +
         encodeURIComponent(q.project_name) +
         '">' +
         esc(q.project_name) +
@@ -1381,7 +1411,7 @@ function renderOverview(queues) {
     })
     .join("");
   document.getElementById("app").innerHTML = queues.length
-    ? '<table class="runs queue-overview"><thead><tr><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th></tr></thead><tbody>' +
+    ? '<table class="runs queue-overview final"><thead><tr><th class="actions">Actions</th><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th></tr></thead><tbody>' +
       rows +
       "</tbody></table>"
     : "No projects found.";
@@ -1397,10 +1427,24 @@ function renderQueue(q) {
     " runs</span><span>" +
     q.runs.filter((r) => r.running).length +
     " running</span>";
+  const latest = latestRun(q.runs);
   const rows = q.runs
     .map(
       (r) =>
-        "<tr><td>" +
+        "<tr" +
+        (r === latest ? ' class="latest-run"' : "") +
+        ">" +
+        actionsCell([
+          pathButton(
+            state.base_dir +
+              "/projects/" +
+              q.project_name +
+              "/runs/" +
+              r.run_id,
+          ),
+          deleteRunButton(q.project_name, r.run_id),
+        ]) +
+        "<td>" +
         esc(r.run_name || "-") +
         '</td><td><a class="link run-id" href="/project/' +
         encodeURIComponent(q.project_name) +
@@ -1408,7 +1452,9 @@ function renderQueue(q) {
         encodeURIComponent(r.run_id) +
         '">' +
         esc(r.run_id) +
-        "</a></td><td>" +
+        "</a>" +
+        (r === latest ? '<span class="latest-badge">latest</span>' : "") +
+        "</td><td>" +
         statusPill(
           r.lifecycle || r.status,
           (r.lifecycle || r.status) + (r.running ? " ..." : ""),
@@ -1427,7 +1473,7 @@ function renderQueue(q) {
   document.getElementById("app").innerHTML =
     '<div class="toolbar"><a class="link" href="/">All projects</a></div>' +
     (rows
-      ? '<table class="runs"><thead><tr><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
+      ? '<table class="runs project-runs final"><thead><tr><th class="actions">Actions</th><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
       : '<div class="empty">No runs found.</div>');

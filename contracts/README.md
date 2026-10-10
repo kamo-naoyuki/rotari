@@ -253,3 +253,4 @@ the IDs, this table, and those calls disagree.
 | WEB-6 | The live server serves artifact content only for recorded entries under allowed roots, without symlink escapes, with safe headers and paged text and directories | conformance | `TestWebPreviewsArtifactsUnderAllowedRoots` |
 | WEB-7 | `--static-artifact-contents` copies servable artifact contents into a static export within size limits | conformance | `TestStaticExportCopiesArtifactContents` |
 | WEB-8 | A run report reads each job's log from the attempt that produced its result, following carried jobs | conformance | `TestRunReportReadsCarriedJobLogs` |
+| WEB-9 | A static export page shows the live page's tables, columns, row actions, and panels, also when opened from disk | partial | `TestStaticExportPagesShowWhatLivePagesShow` |

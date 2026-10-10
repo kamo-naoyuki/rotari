@@ -896,7 +896,7 @@ function addJobTimeline() {
   else app.prepend(section);
 }
 function moveActionColumnsLeft() {
-  document.querySelectorAll("#app table.runs").forEach((table) => {
+  document.querySelectorAll("#app table.runs:not(.final)").forEach((table) => {
     const headerRow = table.querySelector("thead tr");
     if (!headerRow) return;
     const actionHeader = [...headerRow.children].find(

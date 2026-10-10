@@ -1624,3 +1624,23 @@ pre,
   max-height: 12rem;
   overflow: auto;
 }
+
+/* A table's row actions, first in each row (actionsCell in web_app_core.js). */
+.runs th.actions,
+.runs td.actions {
+  width: max-content;
+  min-width: 0;
+  white-space: normal;
+  text-align: left;
+  vertical-align: middle;
+}
+.action-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 4px;
+}
+.action-buttons button {
+  width: auto;
+  margin: 0;
+  vertical-align: top;
+}

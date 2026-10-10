@@ -495,32 +495,34 @@ function arrangeRunControls() {
   equalizeRunControlHeights();
 }
 function orderJobActions() {
-  document.querySelectorAll("#app table.runs tbody tr").forEach((row) => {
-    const cell = row.firstElementChild;
-    if (!cell) return;
-    const buttons = [...cell.querySelectorAll("button")];
-    const order = ["view-log", "job-ai", "diagnosis", "show-path"];
-    const ordered = [];
-    order.forEach((className) => {
-      buttons
-        .filter((button) => button.classList.contains(className))
-        .forEach((button) => ordered.push(button));
-    });
-    buttons
-      .filter((button) => !ordered.includes(button))
-      .forEach((button) => ordered.push(button));
-    if (!ordered.length) return;
-    const buttonGrid =
-      cell.querySelector(":scope > .action-buttons") ||
-      Object.assign(document.createElement("div"), {
-        className: "action-buttons",
+  document
+    .querySelectorAll("#app table.runs:not(.final) tbody tr")
+    .forEach((row) => {
+      const cell = row.firstElementChild;
+      if (!cell) return;
+      const buttons = [...cell.querySelectorAll("button")];
+      const order = ["view-log", "job-ai", "diagnosis", "show-path"];
+      const ordered = [];
+      order.forEach((className) => {
+        buttons
+          .filter((button) => button.classList.contains(className))
+          .forEach((button) => ordered.push(button));
       });
-    cell.replaceChildren(buttonGrid);
-    ordered.forEach((button, index) => {
-      if (index) buttonGrid.append(" ");
-      buttonGrid.append(button);
+      buttons
+        .filter((button) => !ordered.includes(button))
+        .forEach((button) => ordered.push(button));
+      if (!ordered.length) return;
+      const buttonGrid =
+        cell.querySelector(":scope > .action-buttons") ||
+        Object.assign(document.createElement("div"), {
+          className: "action-buttons",
+        });
+      cell.replaceChildren(buttonGrid);
+      ordered.forEach((button, index) => {
+        if (index) buttonGrid.append(" ");
+        buttonGrid.append(button);
+      });
     });
-  });
 }
 function shellQuote(v) {
   return "'" + String(v || "").replace(/'/g, "'\\''") + "'";

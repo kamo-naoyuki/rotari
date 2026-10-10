@@ -193,55 +193,6 @@ function enhanceQueueOverview() {
       latestHTML;
   });
 }
-function markLatestRun() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2]) return;
-  const queue = state.projects.find(
-    (q) => q.project_name === decodeURIComponent(parts[1]),
-  );
-  const table = [...document.querySelectorAll("#app table.runs")].find(
-    (item) => !item.closest(".web-queue-commands"),
-  );
-  if (!queue || !table) return;
-  table.querySelectorAll("tbody tr").forEach((row) => {
-    row.classList.remove("latest-run");
-    const badge = row.querySelector(".latest-badge");
-    if (badge) badge.remove();
-  });
-  const latest = latestRun(queue.runs);
-  if (!latest) return;
-  table.querySelectorAll("tbody tr").forEach((row) => {
-    const link = row.querySelector("a.run-id");
-    if (
-      link &&
-      decodeURIComponent(link.getAttribute("href")).endsWith(
-        "/run/" + latest.run_id,
-      )
-    ) {
-      row.classList.add("latest-run");
-      link.insertAdjacentHTML(
-        "afterend",
-        '<span class="latest-badge">latest</span>',
-      );
-    }
-  });
-}
-function addQueueOverviewPathActions() {
-  if (pageParts().length !== 0) return;
-  const table = document.querySelector(".queue-overview");
-  if (!table) return;
-  const header = document.createElement("th");
-  header.textContent = "Actions";
-  table.querySelector("thead tr").append(header);
-  const queues = state.projects || [];
-  table.querySelectorAll("tbody tr").forEach((row, index) => {
-    const queue = queues[index];
-    const cell = document.createElement("td");
-    if (queue)
-      addPathButton(cell, state.base_dir + "/projects/" + queue.project_name);
-    row.append(cell);
-  });
-}
 function jobDisplayStatus(job, run) {
   if (job.execution_status) return job.execution_status;
   const result = job.result;
@@ -360,7 +311,7 @@ function normalizeJobActionHeaders() {
 }
 function mergeActionColumns() {}
 function labelJobActionHeaders() {
-  document.querySelectorAll("#app table.runs").forEach((table) => {
+  document.querySelectorAll("#app table.runs:not(.final)").forEach((table) => {
     const headers = table.querySelectorAll("thead th");
     if (headers.length) {
       headers[headers.length - 1].textContent = "Actions";
@@ -376,11 +327,13 @@ function clarifyLogControls() {
         ? "Job log — " + selectedLog.stream
         : "Job log — merged";
   }
-  document.querySelectorAll("#app table.runs th").forEach((header) => {
-    if (header.textContent.trim() === "Output") header.textContent = "Logs";
-    if (header.textContent.trim() === "Source output")
-      header.textContent = "Source log";
-  });
+  document
+    .querySelectorAll("#app table.runs:not(.final) th")
+    .forEach((header) => {
+      if (header.textContent.trim() === "Output") header.textContent = "Logs";
+      if (header.textContent.trim() === "Source output")
+        header.textContent = "Source log";
+    });
   document.querySelectorAll("#app table.runs button").forEach((button) => {
     if (button.textContent.trim() === "Output") button.textContent = "View log";
   });
@@ -390,7 +343,7 @@ function styleActionColumns() {
   moveActionColumnsLeft();
   mergeLogButtonIntoActions();
   document
-    .querySelectorAll("#app table.runs th:first-child")
+    .querySelectorAll("#app table.runs:not(.final) th:first-child")
     .forEach((cell) => {
       if (cell.textContent.trim() === "Actions") {
         cell.style.width = "max-content";
@@ -398,7 +351,7 @@ function styleActionColumns() {
       }
     });
   document
-    .querySelectorAll("#app table.runs td:first-child")
+    .querySelectorAll("#app table.runs:not(.final) td:first-child")
     .forEach((cell) => {
       if (!cell.querySelector("button")) return;
       cell.style.width = "max-content";
@@ -427,7 +380,7 @@ function styleActionColumns() {
     });
 }
 function mergeLogButtonIntoActions() {
-  document.querySelectorAll("#app table.runs").forEach((table) => {
+  document.querySelectorAll("#app table.runs:not(.final)").forEach((table) => {
     const headerRow = table.querySelector("thead tr");
     if (
       !headerRow ||

@@ -600,30 +600,6 @@ function addPathTableActions() {
         );
       row.append(cell);
     });
-  } else {
-    const runTable = [...document.querySelectorAll("#app table.runs")].find(
-      (table) => !table.closest(".web-queue-commands"),
-    );
-    if (runTable) {
-      const header = document.createElement("th");
-      header.textContent = "Actions";
-      runTable.querySelector("thead tr").append(header);
-      runTable.querySelectorAll("tbody tr").forEach((row, index) => {
-        const run = queue.runs[index];
-        const cell = document.createElement("td");
-        if (run) {
-          addPathButton(
-            cell,
-            state.base_dir + "/projects/" + queueName + "/runs/" + run.run_id,
-          );
-          const deleteButton = document.createElement("button");
-          deleteButton.textContent = "Delete";
-          deleteButton.onclick = () => deleteRun(queueName, run.run_id);
-          cell.append(" ", deleteButton);
-        }
-        row.append(cell);
-      });
-    }
   }
 }
 function updateDirtyField(field) {

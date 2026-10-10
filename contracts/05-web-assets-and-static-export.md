@@ -90,6 +90,8 @@ Web assets live under `internal/webui/assets/`:
 ```text
 internal/webui/assets/
 ├── web_template.html
+├── web_tokens.css
+├── web_theme.js
 ├── web_styles.css
 ├── web_sidebar_styles.css
 ├── web_app_core.js
@@ -103,12 +105,11 @@ internal/webui/assets/
 ├── web_app_search.js
 ├── web_app_bootstrap.js
 ├── web_static_bootstrap.js
-├── cli_docs_template.html
-├── environment_template.html
 ├── jobs_template.html
 ├── web_info_styles.css
 ├── favicon-dark.svg
-└── favicon-light.svg
+├── favicon-light.svg
+└── fonts/
 ```
 
 `assets.go` embeds these files. The JavaScript files are concatenated in this
@@ -131,6 +132,33 @@ isolation. `web_app_notifications.js` must load before `web_app_bootstrap.js`:
 it wraps the global `refresh()` function, and bootstrap both calls `refresh()`
 immediately and passes it to `setInterval`, so the wrap must already be in
 place by then.
+
+Colours and typefaces come from `web_tokens.css`: light values on `:root`,
+dark values when the OS prefers dark and the viewer has not chosen light, or
+when the viewer chose dark. Stylesheets and scripts set no colour literal and
+name fonts only through `--font-sans` and `--font-mono`
+(`TestStylesAndScriptsTakeColoursFromTokens`,
+`TestStylesheetsTakeFontsFromTokens`). `web_theme.js` is inlined in `<head>`
+of both page templates and applies the viewer's System / Light / Dark choice,
+kept per browser, before the page is drawn (`TestWebThemeChoice`). The fonts
+are IBM Plex Sans and Mono, IBM's Latin-1 WOFF2 files under the SIL OFL
+([fonts/README.md](../internal/webui/assets/fonts/README.md));
+[fonts.go](../internal/webui/fonts.go) serves them and their licence under
+`/fonts/` with `/web_fonts.css` and writes them once at a static export's
+root (`TestLiveServerServesEmbeddedFonts`, `TestStaticExportWritesFontsOnce`).
+
+A status is shown as a pill whose tone (ok, bad, run, warn, off) names its
+colour and icon. `statusTones` in
+[internal/webui/status.go](../internal/webui/status.go) is the only
+status-to-tone rule: Go renders the Job activity page with it and injects it
+into the application script, which normalises labels the same way
+(`TestStatusToneMatchesInGoAndJS`).
+
+A table renderer emits its table whole: columns, labels, and a first
+`Actions` cell built with `actionsCell` in `web_app_core.js`, whose buttons
+carry their arguments in `data-` attributes. Tables rendered this way have the
+`final` class; later render steps do not rename, move, or restyle their
+columns.
 
 The static export bootstrap is kept separately in `web_static_bootstrap.js`
 because it provides the static fetch and routing adapters used only by
@@ -405,9 +433,23 @@ started with `--allow-control=false`. The bootstrap must run before the app
 script: otherwise the first state request can hit GitHub Pages' 404 document
 and briefly render that HTML as application text.
 
-Static pages receive a copy of `web_styles.css` beside every generated
-`index.html`. If a new asset or static API endpoint is added, update both the
-normal Web handler and `webui.GenerateStatic`/its bootstrap.
+Static pages receive `web_fonts.css`, `web_tokens.css`, `web_styles.css`, and
+`web_sidebar_styles.css` beside every generated `index.html`; the fonts
+themselves are written once, under `fonts/` at the export root. If a new asset
+or static API endpoint is added, update both the normal Web handler and
+`webui.GenerateStatic`/its bootstrap.
+
+**WEB-9** A page of the static export shows what the live server's page
+shows: the same tables, columns, row actions, and panels, with controls
+answered by the read-only `403`. A page opened from disk has a path ending in
+`index.html`; `routeParts()` drops that file name, so the page is routed like
+its live path. Implemented by `routeParts` in
+[web_static_bootstrap.js](../internal/webui/assets/web_static_bootstrap.js)
+and the table renderers in
+[web_app_core.js](../internal/webui/assets/web_app_core.js); covered for the
+projects overview and a project page by
+`TestStaticExportPagesShowWhatLivePagesShow` in
+[conformance/05-web/static_pages_test.go](../conformance/05-web/static_pages_test.go).
 
 ## Web CLI modes
 
