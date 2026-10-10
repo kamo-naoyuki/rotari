@@ -226,8 +226,16 @@ func TestCLIFlagPairWebNotificationsEffect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	enabledJobs, err := os.ReadFile(filepath.Join(output, "jobs", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, _ = invokeStaticWeb(t, f, []pairFlag{{Name: "notifications"}}, output)
 	disabled, err := os.ReadFile(filepath.Join(output, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabledJobs, err := os.ReadFile(filepath.Join(output, "jobs", "index.html"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,5 +244,17 @@ func TestCLIFlagPairWebNotificationsEffect(t *testing.T) {
 	}
 	if !bytes.Contains(enabled, []byte("const notificationsDefaultOn = true")) || !bytes.Contains(disabled, []byte("const notificationsDefaultOn = false")) {
 		t.Fatal("generated web bootstrap does not match the notifications option")
+	}
+	for _, check := range []struct {
+		name string
+		page []byte
+		want []byte
+	}{
+		{name: "enabled", page: enabledJobs, want: []byte("const jobsNotificationsDefaultOn = true")},
+		{name: "disabled", page: disabledJobs, want: []byte("const jobsNotificationsDefaultOn = false")},
+	} {
+		if !bytes.Contains(check.page, []byte(`id="notify-toggle"`)) || !bytes.Contains(check.page, []byte(`onclick="toggleJobsNotifications()"`)) || !bytes.Contains(check.page, check.want) || !bytes.Contains(check.page, []byte("const jobsPageIsLive = false")) || !bytes.Contains(check.page, []byte("if (!jobsPageIsLive) return;")) || !bytes.Contains(check.page, []byte("if (jobsPageIsLive) setInterval(pollJobsActivity, 2000)")) {
+			t.Fatalf("static Job activity page does not expose the %s notification toggle with the requested default", check.name)
+		}
 	}
 }

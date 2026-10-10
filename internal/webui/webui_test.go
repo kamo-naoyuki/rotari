@@ -2690,6 +2690,7 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		`id="notify-toggle"`,
 		`onclick="toggleJobsNotifications()"`,
 		`onclick="location.reload()">Refresh</button>`,
+		`const jobsPageIsLive = true`,
 		`setInterval(pollJobsActivity, 2000)`,
 	} {
 		if !strings.Contains(response.Body.String(), want) {
@@ -2993,18 +2994,25 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 	runID := "20260922-090000-00000001"
 	now := time.Now().UTC()
 	writeTestJobsRun(t, baseDir, "demo", runID, "job-1", now.Add(-time.Minute), now, 0)
-	outputDir := filepath.Join(t.TempDir(), "web")
-	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(outputDir, "jobs", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"rotari Job activity", `aria-label="Toggle projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`} {
-		if !strings.Contains(string(data), want) {
-			t.Fatalf("static jobs page does not contain %q: %s", want, string(data))
-		}
+	for _, notifications := range []bool{true, false} {
+		t.Run(strconv.FormatBool(notifications), func(t *testing.T) {
+			outputDir := filepath.Join(t.TempDir(), "web")
+			site := siteFor(baseDir)
+			site.Notifications = notifications
+			if err := site.generateStaticWeb(outputDir); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(outputDir, "jobs", "index.html"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := string(data)
+			for _, want := range []string{"rotari Job activity", `aria-label="Toggle projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`, `id="notify-toggle"`, `onclick="toggleJobsNotifications()"`, `const jobsPageIsLive = false`, `if (!jobsPageIsLive) return;`, `if (jobsPageIsLive) setInterval(pollJobsActivity, 2000)`, "const jobsNotificationsDefaultOn = " + strconv.FormatBool(notifications)} {
+				if !strings.Contains(body, want) {
+					t.Fatalf("static jobs page does not contain %q: %s", want, body)
+				}
+			}
+		})
 	}
 }
 

@@ -26,10 +26,11 @@ service.
 
 ### Enabling browser notifications
 
-Open a run or project page in `rotari web` and click `Enable notifications` in
-the toolbar. After browser permission is granted, the button becomes a
-`Notifications on`/`Notifications off` toggle. The toggle is stored in the
-browser's `localStorage`, scoped by protocol, host, and port.
+Open a run, project, All projects, or Job activity page in `rotari web` and
+click `Enable notifications` in the sidebar. After browser permission is
+granted, the button becomes a `Notification on`/`Notification off` toggle.
+The toggle is stored in the browser's `localStorage`, scoped by protocol,
+host, and port.
 
 Use `--notifications=false` or `ROTARI_WEB_NOTIFICATIONS=false` on `rotari web`
 to make the initial toggle state off. Once a browser has changed the toggle,
@@ -65,8 +66,9 @@ opens the exact run page; removing it disables click navigation.
 The current basedir's `/api/state` is checked every two seconds. Selected other
 basedirs use `/api/active-runs`. Completed run details are not repeatedly
 loaded. Static exports have no server to load notification settings, so they
-provide neither the editor nor live notifications. `--notifications` still
-selects the initial local toggle shown in a static export. Live-server options
+provide neither the editor nor live notifications. They show a local on/off
+toggle on both the main pages and Job activity; `--notifications` selects its
+initial value. Live-server options
 (`--host`, `--port`, `--auth-token`, and `--allow-control`) cannot be combined
 with `--static-dir`; use them only when starting the HTTP server.
 

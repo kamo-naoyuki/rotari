@@ -287,13 +287,14 @@ The static export has no server to read, save, or reload those files, so it
 offers neither the notification editor nor live notifications.
 
 The permission itself (`Notification.permission`) cannot be revoked from
-JavaScript once granted, so the toolbar's on/off toggle is a separate
+JavaScript once granted, so the global on/off toggle is a separate
 `localStorage` flag (`rotari-notifications-enabled`) checked before showing
 each notification; it does not touch the browser's actual permission grant.
 `--notifications`/`ROTARI_WEB_NOTIFICATIONS` (`webui.Options.Notifications`,
-injected into the bundle as `__ROTARI_NOTIFICATION_DEFAULT__`) only
-seeds the toggle's starting value for an origin that has never set the
-`localStorage` flag; an explicit prior toggle click always wins.
+injected into the app bundle and the Job activity page) only seeds the
+toggle's starting value for an origin that has never set the `localStorage`
+flag; an explicit prior toggle click always wins. The static Job activity page
+shows this local toggle too, but does not poll for live job events.
 
 ## Web UI model and reports
 
@@ -410,11 +411,12 @@ boundary is in [cmd/rotari/web.go](../cmd/rotari/web.go); static-mode pair and
 standalone checks are in
 [conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
 
-**WEB-4** The static export's initial browser notification toggle follows
-`--notifications`. This does not provide live event polling or load saved
-notification settings: the static export has no server. The marker is rendered
-by [internal/webui/assets.go](../internal/webui/assets.go) and checked by
-`TestCLIFlagPairWebNotificationsEffect` in
+**WEB-4** The static export's initial browser notification toggle, on both the
+application and Job activity pages, follows `--notifications`. The Job
+activity page does not poll for live events. Static export does not load saved
+notification settings or provide live event polling: it has no server. The
+markers are rendered by [internal/webui/assets.go](../internal/webui/assets.go)
+and checked by `TestCLIFlagPairWebNotificationsEffect` in
 [conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
 
 **WEB-5** A job row's Artifacts button shows the artifact candidates of the

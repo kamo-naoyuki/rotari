@@ -156,10 +156,9 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	} else {
 		template = strings.Replace(template, "__ROTARI_BASEDIR_SCROLL_KEY__", "", 1)
 	}
-	var notificationControl string
+	notificationControl := `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button></div>`
 	var toolbar string
 	if canFilter {
-		notificationControl = `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button></div>`
 		toolbar = `<div class="toolbar"><button type="button" onclick="location.reload()">Refresh</button></div>`
 	}
 	template = strings.Replace(template, "__ROTARI_JOBS_NOTIFICATION_CONTROL__", notificationControl, 1)

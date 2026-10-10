@@ -1772,7 +1772,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 			break
 		}
 	}
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTMLWithSession("../", projects, jobs, joblist.DefaultSinceText, false, false, s.notificationSession, staticBaseDirs)); err != nil {
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTMLWithSession("../", projects, jobs, joblist.DefaultSinceText, false, s.Notifications, s.notificationSession, staticBaseDirs)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {

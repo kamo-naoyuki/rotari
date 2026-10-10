@@ -236,6 +236,7 @@
           });
         });
 
+      const jobsPageIsLive = __ROTARI_JOBS_LIVE__;
       const jobsNotificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
       const jobsNotificationIcon = "__ROTARI_NOTIFICATION_ICON__";
       const jobsNotificationsEnabledKey = "rotari-notifications-enabled";
@@ -379,6 +380,7 @@
         );
 
       async function loadJobsNotificationSnapshot(target) {
+        if (!jobsPageIsLive) return;
         try {
           const response = await fetch(target.url, { cache: "no-store" });
           if (!response.ok) return;
@@ -440,7 +442,7 @@
 
       restoreJobsNotificationTargets();
       updateJobsNotifyToggleLabel();
-      setInterval(pollJobsActivity, 2000);
+      if (jobsPageIsLive) setInterval(pollJobsActivity, 2000);
     </script>
   </body>
 </html>
