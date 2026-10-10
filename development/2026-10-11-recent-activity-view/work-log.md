@@ -29,3 +29,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** documentation only; no tests run.
 
 **Remaining:** the user's answers to the open decisions; Phases 1–3.
+
+## Decisions and the many-project layout
+
+- `df5c91e0` (2026-10-11 02:21:04 +0900): decisions.
+
+**Change:** [plan.md](plan.md) replaces "Open decisions" with "Decisions" and adds "Many projects" to the page design.
+
+**Reason:** the user accepted `ROTARI_ACTOR` and the opening view, and wants lanes across basedirs but was unsure how the page behaves with many projects.
+
+**Plan impact:** lanes are one per (basedir, project) across basedirs, only for projects active on the selected day, grouped under collapsible basedir headers, with about 12 lanes before "+N more" folding. Lanes never overlap because a project runs one run at a time. All open decisions are closed.
+
+**Validation:** documentation only; no tests run.
+
+**Remaining:** Phases 1–3; tune the lane threshold on real data.
