@@ -85,6 +85,23 @@ keeping the previous run history. Use `delete` to remove saved run logs
 explicitly. Use `run --async` when an experiment should continue after the
 terminal returns.
 
+### Reusing results across runs
+
+There are two ways to associate new-run jobs with earlier results:
+**explicit carry-forward**, using a saved run or `copy` to retain the source
+run/job/attempt, and **fingerprint matching**, comparing recorded command
+inputs when you add the jobs again with new IDs. Both then use the same result
+selection: `retry` reruns failed and unfinished jobs and carries successes
+forward; an unfiltered `run` executes all queued jobs.
+
+A fingerprint describes the command, explicit job environment and working
+directory, matrix values, and array task number. It is not a hash of scripts,
+data, inherited environment, or source revision, and it is not an artifact
+cache or file freshness check. See [Two ways to reuse earlier
+results](RECOVERING.md#two-ways-to-reuse-earlier-results) and the
+[fingerprint walkthrough](RECOVERING.md#matching-a-new-queue-to-an-earlier-run)
+before relying on automatic matching.
+
 ### Workflow and execution environment
 
 A queue, a run's command snapshot, and an exported workflow describe the

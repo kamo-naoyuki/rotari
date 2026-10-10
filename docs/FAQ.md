@@ -229,6 +229,29 @@ show `copy --failed --unfinished --append` to include them. Use
 `retry --run-id RUN_ID` to build the retry directly from a saved run without
 changing the next queue; `--overwrite` is not accepted by `run` or `retry`.
 
+### Do I need to copy the old run, or can I add the commands again?
+
+Both work. `retry` on an empty queue uses the latest run, and `copy` preserves
+explicit links to the earlier results so you can edit jobs before retrying.
+Alternatively, regenerate the queue with `add`: fingerprint matching can find
+earlier results even though the new jobs have new IDs. The default
+`--match-by id-and-fingerprint` tries IDs first and fingerprints second.
+
+Use `retry` or `run --failed --unfinished` to carry matched successes forward
+and execute failures and new work. An unfiltered `run` executes the whole
+queue; matching alone does not skip jobs. See [Two ways to reuse earlier
+results](RECOVERING.md#two-ways-to-reuse-earlier-results) for the comparison
+and [Matching a new queue](RECOVERING.md#matching-a-new-queue-to-an-earlier-run)
+for an example, matching inputs, and repeated-command rules.
+
+### Does changing a script or dataset invalidate a fingerprint?
+
+No. Fingerprints compare recorded command inputs, not file contents. Changing
+a script, data, inherited environment, caller directory, or source revision
+can leave the fingerprint unchanged. If that change requires fresh results,
+execute the whole queue with an unfiltered `run`, or select the affected jobs
+explicitly. See [Fingerprint limitations](RECOVERING.md#fingerprints-are-not-file-freshness-checks).
+
 ### What's the difference between a job ID and an attempt ID?
 
 A job ID identifies a job in a project. An attempt ID identifies one specific

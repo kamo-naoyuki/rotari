@@ -4,13 +4,29 @@ When a run ends with failed or unfinished jobs, start a new run that executes
 only those jobs again. Successful jobs are not executed again; their results
 and output carry forward to the new run.
 
-Three different things are called "retry" in rotari:
+## Two ways to reuse earlier results
 
-| You want to | Use | See |
+There are **two ways to connect jobs in a new run to their earlier results**.
+Both can rerun failures while carrying successful results forward, but they
+identify the earlier jobs differently:
+
+| Approach | How it finds the earlier result | When to use it |
 | --- | --- | --- |
-| Rerun failed jobs after a run has finished | `rotari retry` | [Rerun failed jobs](#rerun-failed-jobs) |
-| Fix a job's command or options, then rerun it | `copy`, `change`, then `retry` | [Edit jobs before rerunning](#edit-jobs-before-rerunning) |
-| Retry a failing job automatically within the same run | `run --retry N`, `add --retry N` | [Automatic retries](RUNNING.md#automatic-retries) |
+| **Explicit carry-forward** | Start from a saved run with `retry`, or use `copy` to preserve each job's source run/job/attempt (`Origin`). No content comparison is needed. | Continue a particular run, or [edit its jobs before rerunning](#edit-jobs-before-rerunning). |
+| **Fingerprint matching** | Add the commands again; rotari compares their explicitly recorded inputs with the previous run, even though their job IDs are new. | Rerun a job-generating script or rebuild a parameter sweep without copying the old queue. See [Matching a new queue](#matching-a-new-queue-to-an-earlier-run). |
+
+These are not two separate execution engines: after the earlier results have
+been identified, the same selection decides what executes and what carries
+forward. `retry` normally executes failed and unfinished work; an unfiltered
+`run` executes all queued work, even if it matches an earlier success.
+
+The default matching mode is `id-and-fingerprint`, so rebuilding a queue and
+calling `retry` can use fingerprints without an extra option. Explicitly
+copied origins take precedence over automatic matching, even after an edit.
+
+**Automatic retries within a run are a separate feature.** `run --retry N`
+and `add --retry N` make additional attempts before that run finishes; see
+[Automatic retries](RUNNING.md#automatic-retries).
 
 ## Rerun failed jobs
 
@@ -107,18 +123,110 @@ To guard a rerun against concurrent edits, see
 
 ## Matching a new queue to an earlier run
 
-If you add the jobs again instead of copying them, they get new job IDs.
-`--match-by fingerprint` finds the earlier result of each job by its command,
-saved inputs, and array or matrix parameters:
+### Why fingerprints are useful
+
+Suppose a script generates a batch of training commands. Some succeed and
+some fail. You can use `copy` to recover that exact batch, but you may instead
+want to run the generating script again, perhaps adding another seed. Each
+`add` normally creates a new job ID, so IDs alone cannot connect these jobs to
+the old results.
+
+A **fingerprint** is a hash of the command and a small set of explicitly
+recorded job inputs. Matching fingerprints let rotari associate newly added
+jobs with the corresponding jobs in the project's previous run. You do not
+have to calculate or save the hash yourself.
+
+For example, assume seed 1 succeeded and seed 2 failed in the first run:
 
 ```sh
-rotari add -p sweep ...              # the same commands as the earlier run
-rotari run -p sweep --failed --unfinished --match-by fingerprint
+# First batch
+rotari add -p sweep python train.py --seed 1
+rotari add -p sweep python train.py --seed 2
+rotari run -p sweep
+
+# Generate the next batch again: new IDs, plus a new seed
+rotari add -p sweep python train.py --seed 1
+rotari add -p sweep python train.py --seed 2
+rotari add -p sweep python train.py --seed 3
+rotari retry -p sweep --match-by fingerprint --dry-run
+rotari retry -p sweep --match-by fingerprint
 ```
 
-The default `--match-by id-and-fingerprint` matches by job ID first and by
-fingerprint for jobs that remain unmatched; `--match-by job-id` uses job IDs
-only. Fingerprints are recalculated for each comparison, not stored.
+The new seed 1 job matches the earlier success and carries its result and
+original output forward without executing. Seed 2 matches the earlier failure
+and executes again. Seed 3 has no match, so it is unfinished new work and
+executes too. This also works with a matrix-generated sweep.
+
+**Matching and selecting are separate steps.** `--match-by fingerprint`
+identifies earlier results; it is not a "skip successful jobs" switch. Use
+`retry` or `run --failed --unfinished` to get the behavior above. With an
+unfiltered `run --match-by fingerprint`, all three jobs execute.
+
+The comparison is against the project's latest run, not a search of all run
+history or other projects. A command omitted from the new queue is not added
+by matching. To continue a specific saved run instead of rebuilding the
+queue, use `retry --run-id RUN_ID` or `copy --run-id RUN_ID`.
+
+### What makes two fingerprints equal?
+
+Fingerprints compare expanded execution units: one plain job, one matrix
+combination, or one array task. They use only these recorded inputs:
+
+| Included input | Comparison |
+| --- | --- |
+| Command and arguments | The exact argument list, including argument order. |
+| Job `--env NAME=VALUE` | The final explicitly stored values, sorted by variable name; repeated names use the last value. |
+| Job `--working-directory` | The explicitly stored path, with `.` and `..` cleaned lexically; it is not resolved against the caller's directory or through symlinks. |
+| Matrix parameters | The expanded combination's names and values, not the whole range. |
+| Array task number | The individual task number, not the whole range. |
+
+Job IDs and names, executors and their options, timeouts, retry settings,
+dependencies, stages, artifacts, and log destinations are **not** fingerprint
+inputs. For example, changing only Slurm resource options still allows a
+match; changing `--seed 2` to `--seed 3` does not.
+
+Widening an array from `1-2` to `1-3` can match tasks 1 and 2 while task 3 is
+new work. Adding matrix values works the same way: existing combinations can
+match, and new combinations are unfinished. Result selection then determines
+which matched tasks rerun; `--partial-array=false` instead reruns the whole
+array if any task is selected.
+
+### Matching modes and repeated commands
+
+| `--match-by` | How jobs are associated |
+| --- | --- |
+| `id-and-fingerprint` (default) | Preserve existing origins, match job IDs first, then match the remaining jobs by fingerprint. |
+| `fingerprint` | Preserve existing origins, then compare fingerprints without using job IDs. |
+| `job-id` | Preserve existing origins and match job IDs only; newly generated IDs do not match just because the command is the same. |
+
+An ID or an existing origin identifies the earlier logical job even when its
+command has changed. In particular, `--match-by fingerprint` does **not**
+discard the origin of a copied job. To rerun an edited success, mark it
+`change --status unfinished` or select that job explicitly.
+
+If several remaining jobs have the same fingerprint, rotari pairs them in
+queue occurrence order, but only when their counts agree on both sides. Two
+identical commands can match two earlier identical commands; three cannot
+match two. In the latter case, all three are new work rather than guessing
+which result belongs to which job. Origins and ID matches are removed before
+these remaining counts are compared. Fingerprints are recalculated for each
+comparison, not stored.
+
+### Fingerprints are not file freshness checks
+
+**The same fingerprint does not prove the computation would produce the same
+result now.** Rotari does not hash scripts, input files, output files, or
+artifacts. Editing the contents of `train.py` leaves the fingerprint of
+`python train.py --seed 1` unchanged. Likewise, changing the caller's directory,
+inherited environment, or source repository revision does not change it. The
+run's recorded source revision is evidence for inspection, not a matching key.
+
+Use fingerprint-based retry when you intend to reuse those earlier results.
+If changed code, data, or an inherited environment requires fresh results,
+use an unfiltered `run` to execute the entire rebuilt queue, or explicitly
+select the jobs that must run again. A recorded input such as an explicit
+`--env DATA_VERSION=v2` can distinguish versions when your workflow defines
+and maintains that value; rotari does not discover such changes for you.
 
 ## How results carry forward
 
