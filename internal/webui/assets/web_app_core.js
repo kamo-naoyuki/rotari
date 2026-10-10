@@ -1513,6 +1513,14 @@ function renderRun(q, runID) {
           ) +
           '" onclick="showDiagnosis(this)">Diagnosis</button>'
         : ' <button class="diagnosis" disabled title="Available after a finalized failed result with saved analysis">Diagnosis</button>';
+      const noteLabels = j.note_labels || [];
+      const notesControl = noteLabels.length
+        ? ' <button class="view-notes" data-notes="' +
+          esc(JSON.stringify(noteLabels)) +
+          '" onclick="showNotes(this)">Notes (' +
+          noteLabels.length +
+          ")</button>"
+        : "";
       const output = result
         ? '<button class="view-log" onclick="log(\'' +
           esc(q.project_name) +
@@ -1534,8 +1542,9 @@ function renderRun(q, runID) {
           "','" +
           esc(logAttemptID) +
           "')\">Artifacts</button>" +
-          diagnosisControl
-        : diagnosisControl;
+          diagnosisControl +
+          notesControl
+        : diagnosisControl + notesControl;
       const jobName = esc(j.name || "-");
       const carriedFrom = carried
         ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"

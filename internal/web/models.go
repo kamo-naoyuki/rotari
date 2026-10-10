@@ -69,6 +69,10 @@ type Job struct {
 	// DiagnosisOutdated reports that Result's saved rule-based analysis was
 	// produced by earlier diagnosis rules.
 	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`
+	// NoteLabels are the run's notes on this job, oldest first, each as
+	// model.FormatRunNote describes it without the job, naming the attempt
+	// when it is not the job's latest.
+	NoteLabels []string `json:"note_labels,omitempty"`
 	// lineageStatus is the job's runview.LineageStatus for the run summary.
 	lineageStatus string
 }

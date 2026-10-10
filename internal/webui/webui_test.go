@@ -1011,6 +1011,100 @@ setTimeout(() => {
 	}
 }
 
+// TestWebRunPageShowsJobNotesButton gives one task two notes, one of them on
+// an earlier attempt, another task none, and the run a note of its own. Only
+// the noted task's row has a Notes button, and it opens that task's notes,
+// naming the earlier attempt, without the run's note.
+func TestWebRunPageShowsJobNotesButton(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260927-000000-00000000"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "tr", Name: "train", Command: []string{"./train.sh"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	latest := stateinternal.MakeAttemptID(runID, "tr-1", 1)
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{
+		{ID: "tr-1", AttemptID: latest, ExitCode: 1},
+		{ID: "tr-2", AttemptID: stateinternal.MakeAttemptID(runID, "tr-2", 0), ExitCode: 0},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	earlier := stateinternal.MakeAttemptID(runID, "tr-1", 0)
+	for _, note := range []model.RunNote{
+		{At: "2026-09-27T00:00:00Z", Text: "the run's own note"},
+		{At: "2026-09-27T00:01:00Z", JobID: "tr-1", AttemptID: earlier, Text: "first try ran out of memory"},
+		{At: "2026-09-27T00:02:00Z", JobID: "tr-1", AttemptID: latest, Text: "NaN is the learning rate"},
+	} {
+		if err := stateinternal.AppendRunNote(runDir, note); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state, err := siteFor(baseDir).loadWebState(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/' + process.argv[3],
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async () => ({ok: true, json: async () => state});
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
+  const document = dom.window.document;
+  const button = id => document.querySelector('tr[data-job-id="' + id + '"] .view-notes');
+  if (button('tr-2')) { console.error('a task without notes has a Notes button'); process.exit(2); }
+  const notes = button('tr-1');
+  if (!notes || notes.textContent !== 'Notes (2)') { console.error('task 1 Notes button: ' + (notes && notes.textContent)); process.exit(3); }
+  notes.click();
+  const modal = document.getElementById('output-modal');
+  const text = modal.textContent;
+  for (const want of ['Notes', 'first try ran out of memory (attempt ' + process.argv[4] + ')', 'NaN is the learning rate']) {
+    if (!text.includes(want)) { console.error('notes modal lacks ' + want + ': ' + text); process.exit(4); }
+  }
+  if (text.includes("the run's own note") || text.includes('NaN is the learning rate (attempt')) { console.error('notes modal shows another note or names the latest attempt: ' + text); process.exit(5); }
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath, runID, earlier).CombinedOutput(); err != nil {
+		t.Fatalf("web runtime check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebShowDiagnosisRendersAnalysisStatus(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

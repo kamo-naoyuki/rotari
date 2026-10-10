@@ -95,6 +95,21 @@ async function showLog(queue, run, job, attemptID, stream, logMode) {
   attachLogLoader(output);
   followTimer = setInterval(followOutput, 2000);
 }
+// showNotes shows a job's notes, as the server formatted them, in the output
+// modal, as showDiagnosis shows its analysis.
+function showNotes(trigger) {
+  if (followTimer) clearInterval(followTimer);
+  followTimer = null;
+  selectedLog = null;
+  selectedOutput = JSON.parse(trigger.dataset.notes || "[]").join("\n\n");
+  const output = ensureModalOutput();
+  output.textContent = selectedOutput;
+  const modal = document.getElementById("output-modal");
+  modal.dataset.view = "notes";
+  modal.querySelector("strong").textContent = "Notes";
+  openOutputModal(true);
+}
+
 function showDiagnosis(trigger) {
   if (followTimer) clearInterval(followTimer);
   followTimer = null;

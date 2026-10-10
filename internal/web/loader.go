@@ -80,6 +80,9 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 				notes = loaded
 			}
 		}
+		for index := range jobs {
+			jobs[index].NoteLabels = jobNoteLabels(notes, jobs[index])
+		}
 		var sources []model.SourceRevision
 		if loader.Sources != nil {
 			if recorded, ok, sourcesErr := loader.Sources(runID); sourcesErr == nil && ok {
@@ -307,6 +310,20 @@ func noteLabels(notes []model.RunNote, jobs []Job) []string {
 	labels := make([]string, 0, len(notes))
 	for _, note := range notes {
 		labels = append(labels, model.FormatRunNote(note, names[note.JobID]))
+	}
+	return labels
+}
+
+func jobNoteLabels(notes []model.RunNote, job Job) []string {
+	var labels []string
+	for _, note := range model.RunNotesFor(notes, job.ID) {
+		attemptID := note.AttemptID
+		note.JobID = ""
+		label := model.FormatRunNote(note, "")
+		if attemptID != "" && attemptID != job.AttemptID {
+			label += " (attempt " + attemptID + ")"
+		}
+		labels = append(labels, label)
 	}
 	return labels
 }

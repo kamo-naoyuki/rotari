@@ -90,6 +90,10 @@ func TestRunNotes(t *testing.T) {
 			Text      string `json:"text"`
 		} `json:"notes"`
 		NoteLabels []string `json:"note_labels"`
+		Jobs       []struct {
+			ID         string   `json:"id"`
+			NoteLabels []string `json:"note_labels"`
+		} `json:"jobs"`
 	}
 	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
 		t.Fatal(err)
@@ -97,5 +101,15 @@ func TestRunNotes(t *testing.T) {
 	if len(detail.Notes) != 3 || detail.Notes[0].Text != "first sweep" || detail.Notes[1].AttemptID != attempt || detail.Notes[1].Text != "exit 1 is expected" ||
 		len(detail.NoteLabels) != 3 || !strings.HasSuffix(detail.NoteLabels[1], " [train[1]] exit 1 is expected") {
 		t.Fatalf("Web run notes = %+v, labels %q", detail.Notes, detail.NoteLabels)
+	}
+	// Each job carries its own notes, for the run page's Notes button.
+	if len(detail.Jobs) != 2 {
+		t.Fatalf("Web run has %d jobs, want the 2 array tasks", len(detail.Jobs))
+	}
+	for _, job := range detail.Jobs {
+		noted := strings.HasSuffix(job.ID, "-1")
+		if noted != (len(job.NoteLabels) == 1) || noted && !strings.HasSuffix(job.NoteLabels[0], " exit 1 is expected") {
+			t.Fatalf("Web job %s note labels = %q", job.ID, job.NoteLabels)
+		}
 	}
 }

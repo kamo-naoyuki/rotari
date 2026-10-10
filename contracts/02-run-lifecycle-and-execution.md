@@ -229,7 +229,9 @@
   RUN_B` list each run's notes; the `lineage` run history shows each run's
   first run note and, in its `CODE` column, whether the code changed since
   the run before (RUN-15). `lineage --json`, the Web API run, and the MCP run
-  summary and comparison carry the notes; MCP redacts paths in them. Adding
+  summary and comparison carry the notes; MCP redacts paths in them. The Web
+  API also gives each job its own notes, which the run page shows behind a
+  job's `Notes` button beside `Output` and `Artifacts`. Adding
   is `queueops.AddNote` in
   [`internal/queueops/note.go`](../internal/queueops/note.go). Covered by
   [`conformance/02-lifecycle/notes_test.go`](../conformance/02-lifecycle/notes_test.go).
