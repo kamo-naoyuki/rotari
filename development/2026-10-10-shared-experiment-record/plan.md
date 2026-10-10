@@ -1,7 +1,7 @@
 # Plan: rotari as a Shared Experiment Record for Agents and Humans
 
 **Created:** 2026-10-10
-**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2: source revisions (RUN-15) and run notes (RUN-16) done; trial 2 next
+**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2: source revisions (RUN-15) and run notes (RUN-16) done; [trial 2](trial-2026-10-10-reconstruction-2.md) answered Q2, Q3, Q5, and Q6 from the record
 **Related:** [Agent-facing MCP interface](../2026-10-02-mcp-agent-interface/plan.md)
 
 ## Purpose

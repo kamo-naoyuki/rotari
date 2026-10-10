@@ -65,3 +65,20 @@ Entries group cohesive changes. Times are Git commit times.
 - `scripts/check.sh` with the race detector passed. One earlier full run failed in `TestWaitJSONDisconnectWithSIGKILLCancelsRun`, which passed 20 isolated repeats on this change and on the commit before it; recorded in ISSUES.md.
 
 **Remaining:** reconstruction trial 2.
+
+## Reconstruction trial 2
+
+- (this commit): [trial-2026-10-10-reconstruction-2.md](trial-2026-10-10-reconstruction-2.md).
+
+**Change:** the trial report and the plan's status. Documentation only.
+
+**Reason:** to measure source revisions and run notes against trial 1, with the same fixture, task, and variants.
+
+**Plan impact:**
+- Both agents wrote a note at every run start and a conclusion afterwards, and committed their code changes; Q2, Q3, Q5, and Q6 became answerable from the record, except where an agent ran uncommitted code.
+- New finding: a preview and the run started after it can differ, because `--if-revision` guards only the project's state. rA previewed a filtered retry, started it without the filter, and its note no longer matched what ran. A replay of rA's command sequence at `24205def` and at `6e727399` executed the same jobs, so it was the agent's omitted option, not a selection bug.
+- New finding: a clean git source prints no "clean", and a reconstruction agent read that as dirty state not being recorded.
+
+**Validation:** four headless `claude -p` agents on fixtures built at `6e727399`; the reconstruction agents read nothing outside the work directory. The replay script and transcripts are in the session scratchpad.
+
+**Remaining:** the report's findings 1 (plan-guarding preview revision, a decision for the user), 2 (show clean sources), and the open trial 1 findings 3 and 5.
