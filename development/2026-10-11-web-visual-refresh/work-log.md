@@ -77,3 +77,39 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** documentation only; no tests run. The mockup was checked in headless Chrome (both themes, desktop) and its table and Columns menu in jsdom.
 
 **Remaining:** whether to keep the summary cards and the note at the top of the run page; Phase 1 implementation.
+
+## Run page top
+
+- `e9036121` (2026-10-11 05:00:29 +0900): decision.
+
+**Change:** [plan.md](plan.md) records that the run page keeps the mockup's notes and four summary cards at the top (Phase 4).
+
+**Reason:** the user accepted the top of the Phase 1 mockup as it is.
+
+**Plan impact:** all mockup questions are closed.
+
+**Validation:** documentation only; no tests run.
+
+**Remaining:** None for this decision.
+
+## Phase 1: tokens, light theme, status pill, fonts
+
+- `6655c9d0` (2026-10-11 05:14:45 +0900): design tokens and the light theme.
+- `de9484b7` (2026-10-11 05:21:06 +0900): the System / Light / Dark choice.
+- `107c28e1` (2026-10-11 05:29:53 +0900): one status pill and one status-to-tone rule.
+- `0291a669` (2026-10-11 05:39:24 +0900): embedded IBM Plex Sans and Mono.
+
+**Change:**
+- New `internal/webui/assets/web_tokens.css` (light values on `:root`, dark values under `prefers-color-scheme: dark` guarded by `:root:not([data-theme="light"])` and under `:root[data-theme="dark"]`), served at `/web_tokens.css`, linked from the main template, written beside every static page, and inlined into the jobs page. `web_styles.css`, `web_sidebar_styles.css`, and `web_info_styles.css` lose their `:root` blocks and every colour literal; the chart and table scripts take colours from tokens. `brandIcon` embeds both favicons and the tokens stylesheet shows the one for the theme. The undefined `var(--border)` became `var(--line)`.
+- New `web_theme.js`, inlined in `<head>` of both page templates: applies the stored choice before drawing, binds the sidebar `Theme` select, follows other tabs. FAQ entry "Does the Web UI have a light theme?".
+- New `internal/webui/status.go` (`statusTones`, `statusTone`, `statusPillClass`, `statusPillHTML`), injected into the page script as `statusTones`; `jobsStateClass`, `jobStatusClass`, and `applyStatusColors` removed. `.status-pill.tone-*` with icons in the shared stylesheet; carried results get a dashed outline; matrix cells colour running and blocked apart.
+- New `internal/webui/fonts.go` and `assets/fonts/` (five IBM Latin-1 WOFF2 files, OFL licence, provenance README): `/fonts/` and `/web_fonts.css` on the live server; `fonts/` once at a static export's root with a relative `web_fonts.css` per page directory; `--font-sans` / `--font-mono` tokens used by every font declaration.
+- Tests: `TestStylesAndScriptsTakeColoursFromTokens`, `TestWebThemeChoice`, `TestStatusToneMatchesInGoAndJS`, `TestLiveServerServesEmbeddedFonts`, `TestStaticExportWritesFontsOnce`, `TestStylesheetsTakeFontsFromTokens`. Updated for intended changes: the static stylesheet test (tokens moved to their own file), the script syntax test (now one check per `<script>`), the sidebar control list (adds the theme select), the timeline harness (includes the status table), status-class assertions in `TestWebHTMLRendersState`-style checks, `run_status_test.go`, and `TestJobsHTMLStylesStates` (same meanings, new pill classes); `TestJobsStateClassTreatsAcceptedSuccessAsSuccess` became `TestStatusToneTreatsAcceptedSuccessAsSuccess`.
+
+**Reason:** Phase 1 of the plan, as approved in the Phase 1 mockup.
+
+**Plan impact:** Phase 1 done; see the plan's Phase 1 notes for what it turned out to need (semantic mapping instead of a no-op, four status rules merged, IBM's own font files because of the OFL Reserved Font Name). Opened for Phase 2: duplicate `addJobTimeline` / `renderJobTimelineScratch` definitions, and renaming `web_sidebar_styles.css` now that it holds shared components. The Web UI now colours running blue while the CLI keeps yellow.
+
+**Validation:** `go test ./internal/webui` and `scripts/check.sh --short` passed before each commit; pre-commit (prettier, gofmt, whitespace) passed on the changed files. The new theme, parity, and static-font tests were each shown to fail on a deliberately broken implementation (no early theme apply; JS not stripping "..."; a non-relative font path) and to pass when restored. `scripts/screenshot-web.sh` was run after each step and the light and dark captures of the run, project, home, and jobs pages inspected. After the last commit, the full `scripts/check.sh` (vet, tests, and the race detector) passed with exit 0; Go reused cached results for packages this phase did not change.
+
+**Remaining:** Phases 2–4.
