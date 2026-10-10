@@ -217,6 +217,14 @@ still holds the shared status pill; its rename waits for Phase 3's shell.
 
 ### Phase 3: page shell
 
+Phase 3 mockup (private artifact, 2026-10-11):
+<https://claude.ai/artifact/K5JFw3SjJoiyzArPTG7f2w>. Decisions (2026-10-11):
+the Notifications toggle stays in the top bar beside Refresh, and Theme and
+the four config actions move into a Settings menu; a basedir is labelled by
+its parent directory in bold and its own name, with the full path on hover
+(accepted provisionally; the user will judge it in use); the Activity view
+appears under Views only once that page exists.
+
 Page titles and breadcrumbs, the Settings menu, sidebar paths truncated in
 the middle, full-height background and sidebar.
 
