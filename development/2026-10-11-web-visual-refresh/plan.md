@@ -185,6 +185,10 @@ Phase 1 should land before the activity plan's Phase 2.
 - **The logo stays (2026-10-11).** The refresh keeps rotari's mark
   (`favicon-light.svg`, `favicon-dark.svg`) and its tile; only its colours
   follow the theme tokens.
+- **Run page top (2026-10-11).** The run page opens, under the header, with
+  the run's notes and a row of four summary cards (jobs with a result bar,
+  failure causes, wall time, load at end), as in the Phase 1 mockup. These
+  show facts the page already has; they are part of Phase 4.
 - **No column is lost (2026-10-11).** Tables keep every column they show
   today. The run page's jobs table shows each command under the job name;
   columns whose values are the same for every job start hidden and can be
