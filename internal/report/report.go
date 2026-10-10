@@ -298,24 +298,14 @@ func reportIncludesLog(label string) bool {
 	return false
 }
 
+// readReportLog reads the log of the attempt that produced job's result,
+// following a carried job to the run it was carried from.
 func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {
-	if job.AttemptDir != "" {
-		return readSeparateJobLogs(job.AttemptDir)
-	}
-	jobID := job.ID
-	if job.Origin != nil {
-		runID = job.Origin.RunID
-		jobID = job.Origin.JobID
-	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
+	dir := jobstatus.ResultAttemptDir(paths.RunsDir, model.JobOrigin{RunID: runID, JobID: job.ID, AttemptID: job.AttemptID})
+	if dir == "" {
 		return ""
 	}
-	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
-	if err != nil {
-		return ""
-	}
-	return readSeparateJobLogs(jobDir)
+	return readSeparateJobLogs(dir)
 }
 
 func readSeparateJobLogs(jobDir string) string {

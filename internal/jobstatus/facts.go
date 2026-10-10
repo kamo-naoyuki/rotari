@@ -64,6 +64,15 @@ func AttemptAttributes(store state.Store, attemptDir string, now time.Time) jobf
 	return attributes
 }
 
+// ResultAttemptDir returns the directory of the attempt that produced the
+// result origin names: that attempt, or for a job carried into origin's run,
+// the attempt it was carried from, as FilterJob reads it. It is "" when no
+// such directory exists.
+func ResultAttemptDir(runsDir string, origin model.JobOrigin) string {
+	dir, _ := locateAttempt(runsDir, origin, 0)
+	return dir
+}
+
 // ReadLog returns the log of an attempt for diagnosis: its merged output, or
 // else its stdout, or else its stderr.
 func ReadLog(attemptDir string) (string, error) {

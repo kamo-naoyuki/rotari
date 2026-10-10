@@ -252,3 +252,4 @@ the IDs, this table, and those calls disagree.
 | WEB-5 | The Web UI and `/api/artifacts` show a job attempt's artifact listing as the CLI does, including in the static export | conformance | `TestWebShowsArtifactCandidates` |
 | WEB-6 | The live server serves artifact content only for recorded entries under allowed roots, without symlink escapes, with safe headers and paged text and directories | conformance | `TestWebPreviewsArtifactsUnderAllowedRoots` |
 | WEB-7 | `--static-artifact-contents` copies servable artifact contents into a static export within size limits | conformance | `TestStaticExportCopiesArtifactContents` |
+| WEB-8 | A run report reads each job's log from the attempt that produced its result, following carried jobs | conformance | `TestRunReportReadsCarriedJobLogs` |

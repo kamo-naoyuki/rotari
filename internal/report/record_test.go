@@ -16,8 +16,12 @@ import (
 // apart and each job's last log line. Each job's section carries
 // that job's notes.
 func TestRunReportRecordsSourcesNotesAndJobTable(t *testing.T) {
-	writeLogs := func(stdout, stderr string) string {
-		dir := t.TempDir()
+	runsDir := t.TempDir()
+	writeLogs := func(jobID, stdout, stderr string) string {
+		dir := filepath.Join(runsDir, "run-1", jobID)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
 		for name, text := range map[string]string{state.StdoutFileName: stdout, state.StderrFileName: stderr} {
 			if text == "" {
 				continue
@@ -40,13 +44,13 @@ func TestRunReportRecordsSourcesNotesAndJobTable(t *testing.T) {
 		},
 		Jobs: []web.Job{
 			{ID: "a", Name: "train-LR0.1", AttemptID: "att-a-1", ExecutionStatus: "failed", Environment: []string{"LR=0.1", "BS=32", "SEED=7"},
-				Result: &model.JobResult{ID: "a", ExitCode: 3}, AttemptDir: writeLogs("config lr=0.1\nstep 1\n", "Traceback\nValueError: a | `b`\n\n")},
+				Result: &model.JobResult{ID: "a", ExitCode: 3}, AttemptDir: writeLogs("a", "config lr=0.1\nstep 1\n", "Traceback\nValueError: a | `b`\n\n")},
 			{ID: "b", Name: "train-LR0.01", AttemptID: "att-b-0", ExecutionStatus: "success", Environment: []string{"LR=0.01", "BS=32"},
-				Result: &model.JobResult{ID: "b", ExitCode: 0}, AttemptDir: writeLogs("config lr=0.01\n"+long+"\n", "")},
-			{ID: "c", Name: "train-LR1", ExecutionStatus: "pending", Environment: []string{"LR=1", "BS=32"}, AttemptDir: t.TempDir()},
+				Result: &model.JobResult{ID: "b", ExitCode: 0}, AttemptDir: writeLogs("b", "config lr=0.01\n"+long+"\n", "")},
+			{ID: "c", Name: "train-LR1", ExecutionStatus: "pending", Environment: []string{"LR=1", "BS=32"}},
 		},
 	}
-	report := formatRunAIReport(state.ProjectPaths{ProjectName: "demo"}, run, false)
+	report := formatRunAIReport(state.ProjectPaths{ProjectName: "demo", RunsDir: runsDir}, run, false)
 
 	table := strings.Join([]string{
 		"| Job | LR | SEED | Status | Exit | Last log line |",
@@ -95,6 +99,71 @@ func TestReportTableCodeQuotesAnyText(t *testing.T) {
 	} {
 		if got := reportTableCode(test.text); got != test.want {
 			t.Errorf("reportTableCode(%q) = %q, want %q", test.text, got, test.want)
+		}
+	}
+}
+
+// A retry run carries the results of jobs it did not run. Its report reads a
+// carried job's log from the attempt that produced the result, as show and
+// the filters do, for the job table and for a failed job's log section.
+func TestRunReportReadsCarriedJobLogsFromTheirOrigin(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(path string, value any) {
+		t.Helper()
+		if err := state.WriteJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeLog := func(runID, jobID, text string) {
+		t.Helper()
+		dir := filepath.Join(paths.RunsDir, runID, jobID)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, state.StdoutFileName), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(paths.QueueFile, model.Queue{})
+	commands := []model.QueuedCommand{
+		{ID: "ok", Name: "train-ok", Command: []string{"python", "train.py"}},
+		{ID: "bad", Name: "train-bad", Command: []string{"python", "train.py"}},
+		{ID: "fixed", Name: "train-fixed", Command: []string{"python", "train.py"}},
+	}
+	write(filepath.Join(paths.RunsDir, "run-1", "commands.json"), model.Queue{Commands: commands})
+	write(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{RunID: "run-1", Status: "failed", ExitCode: 1, Results: []model.JobResult{
+		{ID: "ok", ExitCode: 0}, {ID: "bad", ExitCode: 2, Error: "exit status 2"}, {ID: "fixed", ExitCode: 1, Error: "exit status 1"},
+	}})
+	writeLog("run-1", "ok", "config ok\nval_acc=0.7810\n")
+	writeLog("run-1", "bad", "config bad\nRuntimeError: loss became NaN\n")
+	writeLog("run-1", "fixed", "IndexError: list index out of range\n")
+
+	// The retry reran only "fixed" and carried the other two from run-1.
+	retried := append([]model.QueuedCommand(nil), commands...)
+	retried[0].Origin = &model.JobOrigin{RunID: "run-1", JobID: "ok", Status: model.StatusSuccess}
+	retried[1].Origin = &model.JobOrigin{RunID: "run-1", JobID: "bad", Status: model.StatusFailed}
+	write(filepath.Join(paths.RunsDir, "run-2", "commands.json"), model.Queue{Commands: retried})
+	write(filepath.Join(paths.RunsDir, "run-2", "summary.json"), model.RunSummary{RunID: "run-2", Status: "failed", ExitCode: 1, Results: []model.JobResult{
+		{ID: "ok", ExitCode: 0}, {ID: "bad", ExitCode: 2, Error: "exit status 2"}, {ID: "fixed", ExitCode: 0},
+	}})
+	writeLog("run-2", "fixed", "val_acc=0.8680\n")
+
+	report, err := Build(testStore(), paths, "run-2", "", false, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"| train-ok | success (carried) | 0 | `val_acc=0.7810` |",
+		"| train-bad | failed (carried) | 2 | `RuntimeError: loss became NaN` |",
+		"| train-fixed | success | 0 | `val_acc=0.8680` |",
+		"config bad\nRuntimeError: loss became NaN",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report lacks %q:\n%s", want, report)
 		}
 	}
 }

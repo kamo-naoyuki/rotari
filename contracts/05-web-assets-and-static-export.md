@@ -491,6 +491,17 @@ and `staticArtifactFileURL` in
 covered by `TestStaticExportCopiesArtifactContents` in
 [conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
 
+**WEB-8** A run report, from `show RUN_ID --report`, `/api/report`, or the
+static export, reads each job's log, for its job table's last log line and
+its log excerpt, from the attempt that produced the job's result: a job
+carried into a retry is read from the run it was carried from, through
+`jobstatus.ResultAttemptDir`, the lookup `FilterJob` uses. Implemented by
+`readReportLog` in [internal/report/report.go](../internal/report/report.go);
+covered by `TestRunReportReadsCarriedJobLogs` in
+[conformance/05-web/report_test.go](../conformance/05-web/report_test.go) and
+`TestRunReportReadsCarriedJobLogsFromTheirOrigin` in
+[internal/report/record_test.go](../internal/report/record_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.
