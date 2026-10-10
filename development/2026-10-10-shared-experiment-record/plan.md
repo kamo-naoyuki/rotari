@@ -128,6 +128,62 @@ questions each would answer. Candidates, if the hypotheses hold:
 Each candidate is planned in detail only after the trial confirms it is
 needed.
 
+### Phase 3: one run report for people and agents
+
+Notes alone do not let a person follow a run: they are short messages that
+assume the writing agent's conversation, shown as plain text. The existing
+Markdown report (`show RUN_ID --report`, the Web `Report` button) already
+gathers each job's conditions, diagnosis, and log excerpt for an AI. Extend
+that report into the run's record for both readers instead of adding a
+second one:
+
+```
+# rotari run report
+- Project, run ID, status, start and finish
+- Source: the revision each repository was at (RUN-15)
+## Notes               the run's notes, Markdown as written
+## Jobs                one row per job: name, matrix and env values,
+                       status, exit code, last log line
+## Job: NAME           as today, plus
+### Notes              that job's notes
+### Command / Diagnosis / Log
+```
+
+The summary (header, notes, job table) comes first, so a reader can stop
+there; the per-job evidence follows.
+
+Who fills what:
+
+| Part | Filled by |
+|---|---|
+| Job table: name, matrix and `--env` values, status, exit code, last log line | rotari |
+| Source revision, and whether the code changed since the run before | rotari |
+| Conditions the table cannot show, such as what changed in a config file | the agent, in the run note |
+| A job's own condition or reading | the agent, in the job note |
+| Conclusion and next step | the agent, in the run note |
+
+rotari does not read config files: it knows a file's path (artifacts) and,
+through the source revision, that the repository changed, not what the change
+means. Those differences are the agent's to write.
+
+Decided with the user:
+
+1. Successful jobs appear with their last log line in the job table; the
+   per-job log sections stay limited to jobs that failed or may not have
+   finished.
+2. Order is summary first, details after, so a long run's report can be read
+   from the top.
+3. The Web renders the report as Markdown. This needs a renderer dependency
+   (`marked` in the page or `goldmark` on the server) and sanitizing, since
+   notes are agent-written.
+4. The report is described as the run's record, no longer as "AI-ready".
+
+The run notes' place on the Web run page is this report; the header list
+stays only until the rendered report exists.
+
+Open: whether the job table also shows a job's first log line, for programs
+that print their configuration at start.
+
 ## Decisions
 
 - **Record the commit ID, not file hashes or diffs.** A hash or a diff of the
