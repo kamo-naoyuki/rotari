@@ -117,3 +117,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `TestUnexpandedVariables`, `TestAddAndChangeWarnAboutUnexpandedVariables`, conformance `TestAddWarnsAboutUnexpandedVariables`, and the updated `TestRunRecords*`; `scripts/check.sh` with the race detector passed.
 
 **Remaining:** comparison across projects (trial 1 finding 3), and a trial where the user reads an agent's runs.
+
+## Job notes behind a button on the Web run page
+
+- `afb06017` (2026-10-10 21:32:37 +0900): a `Notes (N)` button for each job with notes.
+
+**Change:** `web.Job.NoteLabels` (the job's notes, formatted by `model.FormatRunNote`, naming an attempt other than the latest), filled by `LoadQueueState`; `showNotes` in `web_app_logs.js` opens them in the output modal from a button beside `Output` and `Artifacts`. RUN-16 and `docs/INSPECT.md` mention it.
+
+**Reason:** the user asked for job notes next to the job's report and log buttons. The run notes' placement is still being decided, so they stay at the top of the run page.
+
+**Plan impact:** none.
+
+**Validation:** new `TestWebRunPageShowsJobNotesButton` (jsdom: only the noted task has the button; it shows its two notes, naming the earlier attempt, and not the run's note); `TestRunNotes` checks the Web API's per-job labels; `scripts/check.sh` with the race detector passed.
+
+**Remaining:** where run notes go on the Web pages (the user's decision).
