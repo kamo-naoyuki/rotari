@@ -1,7 +1,7 @@
 # Plan: Recent Activity View in the Web UI
 
 **Created:** 2026-10-11
-**Status:** Proposed; open decisions below need the user's answer before Phase 3
+**Status:** Proposed; decisions made, implementation not started
 **Related:** [Shared experiment record](../2026-10-10-shared-experiment-record/plan.md) (candidate "marking whether a run was started by an agent")
 
 ## Purpose
@@ -9,6 +9,14 @@
 Two situations need a quick answer to "what has rotari been used for lately,
 and where":
 
+- **Many projects.** Only projects with a run that overlaps the selected
+  day get a lane, so the lane count is that day's active projects, not all
+  known ones. Lanes are grouped under a collapsible header per basedir,
+  ordered by the latest run, and the header shows the basedir's run count
+  when collapsed. Above about 12 lanes, the busiest are shown and the rest
+  fold into "+N more projects", expanded on click. Many short runs in one
+  lane are each drawn at least a few pixels wide, and the axis zoom spreads
+  them out. The same rules apply in the static export.
 - **Coming back after a break.** The user forgets which base directory and
   which project they last ran jobs in, and from which working directory
   (checkout) they ran them.
@@ -152,16 +160,18 @@ Shown on the Activity page (colour or marker per actor, filter by actor), the
 run page, `show`, `runs --json`, and the MCP run summary. A run with no actor
 is shown as unlabelled, not as "human".
 
-## Open decisions (for the user)
+## Decisions
 
-1. **Agent marking.** Is an explicit opt-in label (`ROTARI_ACTOR`) acceptable,
-   given that it only works once each agent's configuration sets it? The
-   alternative, detecting known agents' environment variables, was rejected
-   for notes; this plan proposes the same reasoning for runs.
-2. **Opening view**: the current month with today selected, falling back to
-   the latest day with runs, as proposed; or a week view as a third mode.
-3. **Grouping key**: lanes by (basedir, project) as proposed, or by working
-   directory, which is closer to "which checkout was I in"?
+- **Agent marking (2026-10-11).** The user accepted the explicit opt-in label
+  `ROTARI_ACTOR`; rotari does not detect agents.
+- **Opening view (2026-10-11).** The current month with today selected,
+  falling back to the latest day with runs; no week mode for now.
+- **Lanes (2026-10-11).** One lane per (basedir, project), across all
+  basedirs; the working directory is shown in the hover card and the project
+  list, not used as a lane. A project runs one run at a time (its
+  `running.lock`), so a lane's bars never overlap and need no stacking. How
+  the page stays readable with many projects is under "Many projects" in
+  [Page design](#page-design); the thresholds are to be tuned on real data.
 
 ## Contracts and documentation
 
