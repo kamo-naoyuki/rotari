@@ -1,7 +1,7 @@
 # Plan: rotari as a Shared Experiment Record for Agents and Humans
 
 **Created:** 2026-10-10
-**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2: source revisions recorded (RUN-15), run notes next
+**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2: source revisions (RUN-15) and run notes (RUN-16) done; trial 2 next
 **Related:** [Agent-facing MCP interface](../2026-10-02-mcp-agent-interface/plan.md)
 
 ## Purpose
@@ -140,9 +140,18 @@ needed.
   copy before reading `@`, so the recorded commit ID covers edits nobody
   committed. This adds one jj operation per run, which the user accepted for
   the exactness. The user is considering jj.
-- **Run notes next.** A reason for a run and a conclusion are an agent-specific
+- **Run notes.** A reason for a run and a conclusion are an agent-specific
   feature the user wants; they answer Q2 and Q6, which no automatic record
-  can.
+  can. A note is on a run or on one job attempt, given at `run --note` /
+  `retry --note` or added later with `rotari note`, and only ever appended.
+  Notes on job definitions (`add --note`) are left out until a trial needs
+  them: they would travel with the job through retry and copy and raise the
+  question of whether a changed note is a definition change.
+- **No author on notes.** Whether a person or an agent wrote a note is not
+  recorded. Detecting it (`CLAUDECODE=1`) covers only one agent and mislabels
+  a person typing in its terminal; the text usually tells, and a later trial
+  can show whether it is needed. The user was unsure and accepted leaving it
+  out for now.
 
 - **Evaluation axis.** Work is chosen by whether it makes the record answer
   the reconstruction questions. Agent efficiency (calls, output size) stays a

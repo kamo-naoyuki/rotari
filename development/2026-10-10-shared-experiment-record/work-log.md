@@ -41,3 +41,27 @@ Entries group cohesive changes. Times are Git commit times.
 - Manual runs in a git and a jj repository showed `unknown` for a dirty git tree and `changed` with the same change ID after a jj edit.
 
 **Remaining:** a job dispatched long after its run started may run code edited after the record was taken; `Execute` records once, before dispatch.
+
+## Notes on runs and job attempts
+
+- `0c6eb957` (2026-10-10 20:06:04 +0900): run and attempt notes (RUN-16).
+
+**Change:**
+- `model.RunNote`, `NoteText`, `RunNotesFor`, and `FormatRunNote`; `state.AppendRunNote` and `LoadRunNotes` over the run's `notes.jsonl`.
+- `run --note` / `retry --note` pass the note through `server.Request` to `projectrun.Start`, which `Begin` records; a dry run prints it. MCP `rotari_start_run` takes `note`.
+- New `rotari note RUN_ID|ATTEMPT_ID TEXT` (`cmd/rotari/note.go`) over `queueops.AddNote`.
+- `runlineage.Run.Notes` and `RunInfo.Notes`, loaded by `runview.LoadRun`; `LineageEntry.CodeChange` from `CombineSourceChanges`.
+- Views: `show` (run notes and job notes by job name), `show -j`, `lineage RUN`, `lineage A B` (`Note (from)` / `Note (to)`), and the run history's `CODE` and `NOTE` columns; the Web run page and API (`notes`, `note_labels`); the MCP run summary and comparison, with paths redacted.
+- Python client `Rotari.note` and `Run.note`; regenerated `generated_cli.py`, `docs/CLI_REFERENCE.md`, and `docs/python-api.md`.
+- Contract RUN-16, `docs/INSPECT.md`, `docs/CONCEPTS.md`, `docs/ARCHITECTURE.md`, `docs/MCP.md`, the flag-pair coverage document, and the agent guide, which asks agents to write a reason and a conclusion.
+
+**Reason:** trial 1's finding 2 (intent and conclusion), with the user's choices: notes on runs and attempts, no notes on job definitions, no author.
+
+**Plan impact:** Phase 2's second item is done. Trial 2 should show whether agents write notes when the guide asks, and whether Q2 and Q6 become answerable.
+
+**Validation:**
+- Unit tests in `model`, `state`, `queueops`, `runlineage`, and `mcp`; Python `test_object_api`.
+- Conformance `TestRunNotes` (CLI views, errors, dry run, Web API) and `TestCLIFlagPairNote` (a pair adapter for the new command, so no generated pair is deferred). `TestCLIFlagPairInventory` and the help/schema goldens were updated for the new command and option; the golden diff holds only them.
+- `scripts/check.sh` with the race detector passed. One earlier full run failed in `TestWaitJSONDisconnectWithSIGKILLCancelsRun`, which passed 20 isolated repeats on this change and on the commit before it; recorded in ISSUES.md.
+
+**Remaining:** reconstruction trial 2.
