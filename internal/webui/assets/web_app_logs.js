@@ -480,7 +480,6 @@ function arrangeRunControls() {
 function shellQuote(v) {
   return "'" + String(v || "").replace(/'/g, "'\\''") + "'";
 }
-function keepGlobalOutputBox() {}
 function removeLegacyOutputBox() {
   document
     .querySelectorAll("#app pre.log:not(.row-log)")
@@ -558,7 +557,6 @@ function restoreSelectedOutput() {
     attachLogLoader(output);
   }
 }
-function placeOutputBox() {}
 function renameCopyButtons() {
   document.querySelectorAll(".web-copy-controls button").forEach((button) => {
     if (button.textContent === "Copy failed jobs")

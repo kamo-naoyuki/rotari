@@ -243,7 +243,6 @@ render = function () {
   const parts = pageParts();
   if (parts[0] === "search") return;
   enhancePage();
-  enhanceQueueOverview();
   if (parts[0] === "project" && !parts[2]) {
     const queue = state.projects.find(
       (q) => q.project_name === decodeURIComponent(parts[1]),
@@ -258,8 +257,6 @@ render = function () {
   addExecutionGuide();
   addDeleteRunButton();
   removeLegacyOutputBox();
-  keepGlobalOutputBox();
-  placeOutputBox();
   renameCopyButtons();
   labelEquivalentCommand();
   addRunJobSelection();

@@ -148,44 +148,6 @@ function latestRun(runs) {
       : latest;
   }, null);
 }
-function enhanceQueueOverview() {
-  const parts = pageParts();
-  if (parts.length) return;
-  const queues = state.projects || [];
-  document.querySelectorAll("#app section").forEach((section, index) => {
-    const queue = queues[index];
-    if (!queue) return;
-    const latest = latestRun(queue.runs);
-    const latestHTML = latest
-      ? '<div class="meta">Latest run: <a class="link" href="/project/' +
-        encodeURIComponent(queue.project_name) +
-        "/run/" +
-        encodeURIComponent(latest.run_id) +
-        '">' +
-        esc(latest.run_name || latest.run_id) +
-        '</a></div><div class="summary">' +
-        statusPill(latest.status) +
-        "<span>Started: " +
-        esc(latest.started_at || "-") +
-        "</span><span>Finished: " +
-        esc(latest.finished_at || "-") +
-        "</span></div>"
-      : '<div class="meta">No runs yet</div>';
-    section.innerHTML =
-      '<h2><a class="link" href="/project/' +
-      encodeURIComponent(queue.project_name) +
-      '">' +
-      esc(queue.project_name) +
-      '</a></h2><div class="summary"><span>' +
-      (queue.queue.commands || []).length +
-      " queued</span><span>" +
-      queue.runs.length +
-      " runs</span><span>" +
-      queue.runs.filter((r) => r.running).length +
-      " running</span></div>" +
-      latestHTML;
-  });
-}
 function jobDisplayStatus(job, run) {
   if (job.execution_status) return job.execution_status;
   const result = job.result;
