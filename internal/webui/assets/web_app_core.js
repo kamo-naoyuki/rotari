@@ -1969,42 +1969,121 @@ function enhancePage() {
     syncRunControls();
     return;
   }
+  renderQueueCommands(queue);
+}
+// renderQueueCommands draws a project's queue as one table: the Actions cell
+// first (the source run's log, Save, Remove), editors for the fields a queued
+// job can change, and the run each job was copied from.
+function renderQueueCommands(queue) {
   const commands = queue.queue.commands || [];
   const section = document.createElement("section");
   section.className = "web-queue-commands";
+  const executorOptions = executorNames
+    .map(
+      (name) => '<option value="' + esc(name) + '">' + esc(name) + "</option>",
+    )
+    .join("");
+  const input = (className, value, placeholder) =>
+    '<input class="' +
+    className +
+    '"' +
+    (placeholder ? ' placeholder="' + placeholder + '"' : "") +
+    ' value="' +
+    esc(value) +
+    '">';
+  const rows = commands
+    .map((j) => {
+      const origin = j.origin;
+      const recorded = queuedStatusText(
+        origin ? origin.status : "",
+        j.marked_status,
+      );
+      const jobData =
+        ' data-project="' +
+        esc(queue.project_name) +
+        '" data-job="' +
+        esc(j.id) +
+        '"';
+      return (
+        '<tr data-job-id="' +
+        esc(j.id) +
+        '">' +
+        actionsCell([
+          origin
+            ? '<button class="view-log" data-run="' +
+              esc(origin.run_id) +
+              '" data-job="' +
+              esc(origin.job_id) +
+              '" onclick="showOriginalOutput(this.dataset.run, this.dataset.job, this)">View log</button>'
+            : "",
+          '<button class="save-job"' +
+            jobData +
+            " disabled onclick=\"saveQueueJob(this.dataset.project, this.dataset.job, this.closest('tr'))\">Save</button>",
+          '<button class="remove-job"' +
+            jobData +
+            ' data-label="' +
+            esc(j.name || j.id) +
+            '" onclick="removeQueueJob(this.dataset.project, this.dataset.job, this.dataset.label)">Remove</button>',
+        ]) +
+        "<td>" +
+        input("job-name-input", j.name || "") +
+        '<div class="meta">' +
+        esc(j.id) +
+        "</div></td><td>" +
+        (j.array ? esc(j.array.first + "-" + j.array.last) : "-") +
+        "</td><td>" +
+        statusPill("pending") +
+        '</td><td><select class="executor-input">' +
+        executorOptions +
+        "</select></td><td>" +
+        input(
+          "executor-option-input",
+          JSON.stringify(j.executor_options || []),
+        ) +
+        "</td><td>" +
+        esc(j.stage || "-") +
+        (j.stage ? copyIconForValue(j.stage, "stage name") : "") +
+        "</td><td>" +
+        input("depends-input", JSON.stringify(j.depends_on || [])) +
+        "</td><td>" +
+        input(
+          "working-directory-input",
+          j.working_directory || "",
+          "working directory",
+        ) +
+        "</td><td>" +
+        input("command-input", JSON.stringify(j.command)) +
+        "</td><td>" +
+        (origin ? esc(origin.run_id + "/" + origin.job_id) : "-") +
+        "</td><td>" +
+        (recorded === "-" ? "-" : statusPill(recorded)) +
+        "</td><td>" +
+        esc((origin && origin.submitted_at) || "-") +
+        "</td><td>" +
+        esc((origin && origin.finished_at) || "-") +
+        "</td></tr>"
+      );
+    })
+    .join("");
   section.innerHTML =
     "<h2>Current queue</h2>" +
     (commands.length
-      ? '<table class="runs web-queue-jobs"><thead><tr><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="command">Command</th></tr></thead><tbody>' +
-        commands
-          .map(
-            (j) =>
-              "<tr><td><strong>" +
-              esc(j.name || "-") +
-              '</strong><div class="meta">' +
-              esc(j.id) +
-              "</div></td><td>" +
-              (j.array ? esc(j.array.first + "-" + j.array.last) : "-") +
-              "</td><td>" +
-              statusPill("pending") +
-              "</td><td>" +
-              esc(j.executor || "default") +
-              "</td><td>" +
-              esc((j.executor_options || []).join(" ") || "-") +
-              "</td><td>" +
-              esc(j.stage || "-") +
-              (j.stage ? copyIconForValue(j.stage, "stage name") : "") +
-              "</td><td>" +
-              esc(formatDependencies(j) || "-") +
-              '</td><td class="command">' +
-              esc((j.command || []).join(" ")) +
-              "</td></tr>",
-          )
-          .join("") +
+      ? '<table class="runs web-queue-jobs final"><thead><tr><th class="actions">Actions</th><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="source_run">Source run</th><th data-sort="source_status">Source status</th><th data-sort="source_started">Source started</th><th data-sort="source_finished">Source finished</th></tr></thead><tbody>' +
+        rows +
         "</tbody></table>"
       : '<div class="empty">Queue is empty.</div>');
   document.getElementById("app").prepend(section);
-  fixQueueSourceColumns(commands);
+  // A select's value can be set only once it is in the page; each field
+  // remembers its first value so Save is enabled only after an edit.
+  section.querySelectorAll("tbody tr").forEach((row, index) => {
+    row.querySelector(".executor-input").value =
+      commands[index].executor || "local";
+    row.querySelectorAll("input,select").forEach((field) => {
+      field.dataset.initial = field.value;
+      field.addEventListener("input", () => updateDirtyField(field));
+      field.addEventListener("change", () => updateDirtyField(field));
+    });
+  });
 }
 // formatDependencies lists a job's prerequisites, marking those that only
 // need to finish (depends_on_finished) with a "finished:" prefix, like the CLI.

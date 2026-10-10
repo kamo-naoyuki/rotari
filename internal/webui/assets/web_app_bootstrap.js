@@ -264,8 +264,6 @@ render = function () {
     );
     if (queue) {
       const commands = queue.queue.commands || [];
-      ensureQueueWorkingDirectoryColumn(commands);
-      addQueueEditors(queue, commands);
       enhanceQueueSourceContext(commands);
     }
   }
@@ -280,10 +278,6 @@ render = function () {
   labelEquivalentCommand();
   addRunJobSelection();
   arrangeRunControls();
-  mergeActionColumns();
-  labelJobActionHeaders();
-  styleActionColumns();
-  markJobHeaders();
   enableTableSorting();
   restoreSelectedOutput();
   fixRunStatisticsColors();
@@ -292,7 +286,6 @@ render = function () {
   openRequestedConfigAction();
   addAIButtons();
   arrangeRunControls();
-  orderJobActions();
   clampLongTableCells();
   addMatrixPanels();
   applyBasedirLinks();

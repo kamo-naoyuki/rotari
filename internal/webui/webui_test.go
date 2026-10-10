@@ -757,7 +757,7 @@ setTimeout(() => {
 	modal.querySelector('strong').textContent = 'Notification config';
 	modal.dataset.view = 'notification-config';
 	dom.window.openOutputModal(false);
-	dom.window.styleActionColumns();
+	dom.window.render();
 	if (modal.querySelector('strong').textContent !== 'Notification config') process.exit(20);
 	if (!dom.window.document.getElementById('modal-log').hidden) process.exit(21);
 	if (dom.window.document.getElementById('notification-config-editor').hidden) process.exit(22);
@@ -767,7 +767,7 @@ setTimeout(() => {
 	if (JSON.stringify(modalActions.slice(-3)) !== JSON.stringify(['Save', 'Reload config', 'Close'])) process.exit(26);
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
-	dom.window.styleActionColumns();
+	dom.window.render();
 	if (modal.querySelector('strong').textContent !== 'Generate config') process.exit(4);
 	modal.dataset.view = 'config';
 	modal.dataset.editing = 'true';
@@ -1793,7 +1793,7 @@ func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()", "function addOutputWordCloud()", "addOutputWordCloud();"} {
+	for _, marker := range []string{"function renderQueueCommands(queue)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function addOutputWordCloud()", "addOutputWordCloud();"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
 		}
@@ -3131,9 +3131,15 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "if(modal.dataset.view==='log')", "cell.style.display='table-cell'", "buttonGrid.className='action-buttons'", "buttonGrid.style.gridTemplateColumns='repeat(2, max-content)'", "cell.querySelector(\":scope > .action-buttons\")", "button.style.width='auto'", "cell.style.width='max-content'"} {
+	for _, want := range []string{"function actionsCell(buttons)", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", `<td class="actions"><div class="action-buttons">`} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
+		}
+	}
+	// The actions cell lays its buttons out in two columns from the stylesheet.
+	for _, want := range []string{".runs td.actions {", "width: max-content;", ".action-buttons {\n  display: grid;\n  grid-template-columns: repeat(2, max-content);"} {
+		if !strings.Contains(webStylesCSS, want) {
+			t.Fatalf("web stylesheet does not contain %q", want)
 		}
 	}
 }
@@ -3215,15 +3221,11 @@ func TestWebHostsColumnIsSortable(t *testing.T) {
 func TestWebQueueWorkingDirectoryUsesSeparateEditableColumn(t *testing.T) {
 	html := testSite().webHTML()
 	for _, want := range []string{
-		"header.dataset.sort='working_directory';header.textContent='Working directory'",
-		"function rowCell(row,key)",
-		"rowCell(row,'command')",
-		"rowCell(row,'working_directory')",
-		"ensureQueueWorkingDirectoryColumn(commands);addQueueEditors(queue,commands)",
+		"function renderQueueCommands(queue)",
+		`input("working-directory-input",j.working_directory||"","working directory")`,
+		`input("command-input",JSON.stringify(j.command))`,
 		"<td>'+esc(j.working_directory||'-')+'</td><td class=\"command\">",
-		"data-sort=\"working_directory\">Working directory",
-		"data-sort=\"command\">Command",
-		"function markJobHeaders(){}",
+		"data-sort=\"working_directory\">Working directory</th><th data-sort=\"command\">Command",
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web queue table does not contain %q", want)

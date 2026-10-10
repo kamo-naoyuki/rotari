@@ -895,22 +895,6 @@ function addJobTimeline() {
   if (env) env.after(section);
   else app.prepend(section);
 }
-function moveActionColumnsLeft() {
-  document.querySelectorAll("#app table.runs:not(.final)").forEach((table) => {
-    const headerRow = table.querySelector("thead tr");
-    if (!headerRow) return;
-    const actionHeader = [...headerRow.children].find(
-      (header) => header.textContent.trim() === "Actions",
-    );
-    if (!actionHeader) return;
-    const actionIndex = [...headerRow.children].indexOf(actionHeader);
-    headerRow.insertBefore(actionHeader, headerRow.firstChild);
-    table.querySelectorAll("tbody tr").forEach((row) => {
-      const actionCell = row.children[actionIndex];
-      if (actionCell) row.insertBefore(actionCell, row.firstChild);
-    });
-  });
-}
 function spaceGraphicLegends() {
   document
     .querySelectorAll(
