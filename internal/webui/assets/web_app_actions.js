@@ -147,15 +147,8 @@ function updateSelectedRunJobs() {
   }
 }
 function addRunJobSelection() {
-  const selectAll = document.getElementById("select-all-jobs");
-  if (!selectAll) return;
+  if (!document.querySelector(".job-selection")) return;
   restoreSelectedRunJobs();
-  selectAll.onchange = () => {
-    document
-      .querySelectorAll(".job-selection")
-      .forEach((input) => (input.checked = selectAll.checked));
-    updateSelectedRunJobs();
-  };
   document
     .querySelectorAll(".job-selection")
     .forEach((input) => (input.onchange = updateSelectedRunJobs));
@@ -569,38 +562,6 @@ function showPath(path) {
   modal.dataset.view = "path";
   modal.querySelector("strong").textContent = "Job path";
   openOutputModal(true);
-}
-function addPathTableActions() {
-  const parts = pageParts();
-  if (parts[0] !== "project") return;
-  const queueName = decodeURIComponent(parts[1]);
-  const queue = state.projects.find((item) => item.project_name === queueName);
-  if (!queue) return;
-  if (parts[2] === "run") {
-    const runID = decodeURIComponent(parts[3]);
-    const run = queue.runs.find((item) => item.run_id === runID);
-    const table = document.querySelector("#app table.runs");
-    if (!run || !table) return;
-    const header = document.createElement("th");
-    header.textContent = "Actions";
-    table.querySelector("thead tr").append(header);
-    table.querySelectorAll("tbody tr").forEach((row, index) => {
-      const cell = document.createElement("td");
-      const job = run.jobs[index];
-      if (job)
-        addPathButton(
-          cell,
-          state.base_dir +
-            "/projects/" +
-            queueName +
-            "/runs/" +
-            runID +
-            "/" +
-            job.id,
-        );
-      row.append(cell);
-    });
-  }
 }
 function updateDirtyField(field) {
   field.classList.toggle("dirty", field.value !== field.dataset.initial);

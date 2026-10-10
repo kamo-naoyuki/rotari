@@ -273,15 +273,11 @@ render = function () {
   addRunHostLine();
   addExecutionGuide();
   addDeleteRunButton();
-  addPathTableActions();
   removeLegacyOutputBox();
   keepGlobalOutputBox();
   placeOutputBox();
   renameCopyButtons();
   labelEquivalentCommand();
-  addRunJobStatusColumn();
-  addRunHostsColumn();
-  addRunningOutputButtons();
   addRunJobSelection();
   arrangeRunControls();
   mergeActionColumns();

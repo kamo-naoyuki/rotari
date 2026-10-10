@@ -1456,7 +1456,7 @@ setTimeout(async () => {
     assert(row().textContent.includes('old-start'), 'selected attempt timestamp is not displayed');
     assert(statusPill().classList.contains('tone-ok'), 'successful job status is not rendered as a pill');
     assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close after selection');
-	const logButton = row().querySelector('button[onclick*="attempt-0"]');
+	const logButton = row().querySelector('button.view-log[data-attempt="attempt-0"]');
 	assert(logButton, 'log button does not target selected attempt');
 	logButton.click();
 	await new Promise(resolve => setTimeout(resolve, 0));
@@ -3176,7 +3176,8 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`Copy gives the Markdown, which an AI assistant can read too. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,
 		`function addAIButtons()`,
-		`const actions=row.children[actionIndex]`,
+		`onclick="showJobReport(this)">Report</button>`,
+		`function showJobReport(button)`,
 		`button.textContent='Report'`,
 		`Prepare run report`,
 		`Prepare job report`,
@@ -3206,7 +3207,7 @@ func TestWebReportModalOutputScrollsWithinPanel(t *testing.T) {
 }
 
 func TestWebHostsColumnIsSortable(t *testing.T) {
-	if !webContains(testSite().webHTML(), "header.dataset.sort='hosts'") {
+	if !webContains(testSite().webHTML(), `<th class="job-host-header" data-sort="hosts">Hosts</th>`) {
 		t.Fatal("web page Hosts column is not sortable")
 	}
 }

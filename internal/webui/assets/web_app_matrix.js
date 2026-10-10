@@ -328,11 +328,7 @@ function matrixJobRow(jobID) {
 function matrixRowActions(row) {
   const table = row && row.closest("table");
   if (!table) return [];
-  const headers = Array.from(table.querySelectorAll("thead th"));
-  const index = headers.findIndex(
-    (header) => header.textContent.trim() === "Actions",
-  );
-  const cell = index >= 0 ? row.children[index] : null;
+  const cell = row.querySelector("td.actions");
   return cell ? Array.from(cell.querySelectorAll("button")) : [];
 }
 

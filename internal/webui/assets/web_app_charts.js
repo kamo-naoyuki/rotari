@@ -1428,38 +1428,6 @@ function simplifyRunStatistics() {
     });
   });
 }
-function addRunHostsColumn() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (q) => q.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const table = document.querySelector("#app table.runs");
-  if (!run || !table || table.querySelector(".job-host-header")) return;
-  const headers = [...table.querySelectorAll("thead th")];
-  const commandIndex = headers.findIndex(
-    (header) => header.textContent.trim() === "Command",
-  );
-  if (commandIndex < 0) return;
-  const header = document.createElement("th");
-  header.className = "job-host-header";
-  header.dataset.sort = "hosts";
-  header.textContent = "Hosts";
-  headers[commandIndex].after(header);
-  table.querySelectorAll("tbody tr").forEach((row, index) => {
-    const cell = document.createElement("td");
-    const hosts =
-      (run.jobs[index] &&
-        run.jobs[index].result &&
-        run.jobs[index].result.hosts) ||
-      [];
-    cell.textContent = hosts.length ? hosts.join(",") : "-";
-    row.children[commandIndex].after(cell);
-  });
-}
 function addProjectRuntime() {
   const parts = pageParts();
   if (parts.length !== 2 || parts[0] !== "project") return;

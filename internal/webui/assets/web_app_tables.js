@@ -202,74 +202,6 @@ function jobDisplayStatus(job, run) {
   if (result.error === "blocked by failed dependency") return "blocked";
   return result.exit_code === 0 ? "success" : "failed";
 }
-function addRunJobStatusColumn() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (q) => q.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const table = document.querySelector("#app table.runs");
-  if (!run || !table || table.querySelector(".job-status-header")) return;
-  const header = document.createElement("th");
-  header.className = "job-status-header";
-  header.dataset.sort = "status";
-  header.textContent = "Status";
-  table
-    .querySelector("thead tr")
-    .querySelector('[data-sort="attempt"]')
-    .after(header);
-  const rows = table.querySelectorAll("tbody tr");
-  (run.jobs || []).forEach((job, index) => {
-    if (!rows[index]) return;
-    const status = document.createElement("td");
-    const label = jobDisplayStatus(job, run);
-    const pill = document.createElement("span");
-    pill.className = statusPillClass(label);
-    pill.textContent = label;
-    status.append(pill);
-    rows[index].children[3].after(status);
-  });
-}
-function addRunningOutputButtons() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (q) => q.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const table = document.querySelector("#app table.runs");
-  if (!run || !table) return;
-  table.querySelectorAll("tbody tr").forEach((row, index) => {
-    const cell = row.children[row.children.length - 2];
-    if (cell && !cell.querySelector(".view-log")) {
-      const job = run.jobs[index];
-      if (job) {
-        const started = !!job.submitted_at || !!job.result || run.running;
-        const button = document.createElement("button");
-        button.className = "view-log";
-        button.textContent = "View log";
-        button.disabled = !started;
-        button.title = started ? "" : "Job has not started yet";
-        button.onclick = () =>
-          showLog(
-            queue.project_name,
-            run.run_id,
-            job.id,
-            job.attempt_id,
-            "stdout",
-            job.log_mode,
-          );
-        if (cell.textContent.trim() === "-") cell.textContent = "";
-        cell.append(" ", button);
-      }
-    }
-  });
-}
 function mergeActionColumns() {
   document.querySelectorAll("#app table.runs").forEach((table) => {
     const headerRow = table.querySelector("thead tr");
@@ -300,14 +232,6 @@ function mergeActionColumns() {
       }
     });
   });
-}
-function normalizeJobActionHeaders() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const table = document.querySelector("#app table.runs");
-  if (!table) return;
-  const headers = table.querySelectorAll("thead th");
-  if (headers.length >= 2) headers[headers.length - 2].textContent = "Output";
 }
 function mergeActionColumns() {}
 function labelJobActionHeaders() {

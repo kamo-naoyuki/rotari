@@ -381,23 +381,6 @@ function addAIButtons() {
       showAIReport(project, run, null, selectedRunJobIDs());
     controls.append(button);
   }
-  const table = document.querySelector("#app table.runs");
-  if (!table) return;
-  const actionIndex = [...table.querySelectorAll("thead th")].findIndex(
-    (header) => header.textContent.trim() === "Actions",
-  );
-  if (actionIndex < 0) return;
-  table.querySelectorAll("tbody tr").forEach((row, index) => {
-    const actions = row.children[actionIndex];
-    const job = run.jobs[index];
-    if (!actions || !job || actions.querySelector(".job-ai")) return;
-    const button = document.createElement("button");
-    button.className = "job-ai";
-    button.textContent = "Report";
-    button.title = "Prepare job report";
-    button.onclick = () => showAIReport(project, run, job);
-    actions.append(" ", button);
-  });
 }
 function equalizeRunControlHeights() {
   const controls = document.querySelector(".web-copy-controls");

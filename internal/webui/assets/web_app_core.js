@@ -61,6 +61,16 @@ function actionsCell(buttons) {
     "</div></td>"
   );
 }
+function showJobReport(button) {
+  const project = state.projects.find(
+    (item) => item.project_name === button.dataset.project,
+  );
+  const run =
+    project && project.runs.find((item) => item.run_id === button.dataset.run);
+  const job =
+    run && (run.jobs || []).find((item) => item.id === button.dataset.job);
+  if (job) showAIReport(project, run, job);
+}
 function pathButton(path) {
   return (
     '<button class="show-path" data-path="' +
@@ -1609,19 +1619,40 @@ function renderRun(q, runID) {
           noteLabels.length +
           ")</button>"
         : ' <button class="view-notes" disabled title="No notes on this job; add one with rotari note ATTEMPT_ID TEXT">Notes</button>';
-      const output = result
-        ? '<button class="view-log" onclick="log(\'' +
+      const jobData =
+        ' data-project="' +
+        esc(q.project_name) +
+        '" data-run="' +
+        esc(runID) +
+        '" data-job="' +
+        esc(j.id) +
+        '"';
+      // A finished job's log is its result's attempt, in the origin run for
+      // a carried job; an unfinished job's log is its current attempt.
+      const started = !!j.submitted_at || !!result || run.running;
+      const viewLog = result
+        ? '<button class="view-log" data-project="' +
           esc(q.project_name) +
-          "','" +
+          '" data-log-run="' +
           esc(logRun) +
-          "','" +
+          '" data-log-job="' +
           esc(logJob) +
-          "','" +
+          '" data-attempt="' +
           esc(logAttemptID) +
-          "','" +
+          '" data-log-mode="' +
           esc(logMode) +
-          "')\">Output</button>" +
-          ' <button class="view-artifacts" onclick="showArtifacts(\'' +
+          '" onclick="log(this.dataset.project, this.dataset.logRun, this.dataset.logJob, this.dataset.attempt, this.dataset.logMode)">View log</button>'
+        : '<button class="view-log"' +
+          jobData +
+          ' data-attempt="' +
+          esc(j.attempt_id || "") +
+          '" data-log-mode="' +
+          esc(j.log_mode || "") +
+          '"' +
+          (started ? "" : ' disabled title="Job has not started yet"') +
+          " onclick=\"showLog(this.dataset.project, this.dataset.run, this.dataset.job, this.dataset.attempt, 'stdout', this.dataset.logMode)\">View log</button>";
+      const artifacts = result
+        ? '<button class="view-artifacts" onclick="showArtifacts(\'' +
           esc(q.project_name) +
           "','" +
           esc(logRun) +
@@ -1629,10 +1660,28 @@ function renderRun(q, runID) {
           esc(logJob) +
           "','" +
           esc(logAttemptID) +
-          "')\">Artifacts</button>" +
-          diagnosisControl +
-          notesControl
-        : diagnosisControl + notesControl;
+          "')\">Artifacts</button>"
+        : "";
+      const actions = actionsCell([
+        viewLog,
+        '<button class="job-ai" title="Prepare job report"' +
+          jobData +
+          ' onclick="showJobReport(this)">Report</button>',
+        diagnosisControl.trim(),
+        pathButton(
+          state.base_dir +
+            "/projects/" +
+            q.project_name +
+            "/runs/" +
+            runID +
+            "/" +
+            j.id,
+        ),
+        artifacts,
+        notesControl.trim(),
+      ]);
+      const status = jobDisplayStatus(j, run);
+      const hosts = (result && result.hosts) || [];
       const jobName = esc(j.name || "-");
       const carriedFrom = carried
         ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
@@ -1690,7 +1739,9 @@ function renderRun(q, runID) {
       return (
         '<tr data-job-id="' +
         esc(j.id) +
-        '"><td><input class="job-selection" type="checkbox" aria-label="Select ' +
+        '">' +
+        actions +
+        '<td><input class="job-selection" type="checkbox" aria-label="Select ' +
         esc(j.id) +
         '"></td><td><strong>' +
         jobName +
@@ -1703,6 +1754,8 @@ function renderRun(q, runID) {
         esc(j.attempt_id || "-") +
         attemptCopy +
         attemptMenu +
+        "</td><td>" +
+        statusPill(status) +
         "</td><td>" +
         esc(j.executor || "default") +
         "</td><td>" +
@@ -1718,14 +1771,14 @@ function renderRun(q, runID) {
         esc(commandText) +
         commandCopy +
         "</td><td>" +
+        esc(hosts.length ? hosts.join(",") : "-") +
+        "</td><td>" +
         esc(j.submitted_at || "-") +
         "</td><td>" +
         esc(j.finished_at || "-") +
         "</td><td>" +
         exit +
         error +
-        "</td><td>" +
-        output +
         "</td></tr>"
       );
     })
@@ -1763,7 +1816,7 @@ function renderRun(q, runID) {
     esc(copy) +
     "</pre>" +
     (jobs
-      ? '<table class="runs"><thead><tr><th><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
+      ? '<table class="runs run-jobs final"><thead><tr><th class="actions">Actions</th><th></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th class="job-status-header" data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th class="job-host-header" data-sort="hosts">Hosts</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +
