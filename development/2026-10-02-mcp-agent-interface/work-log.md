@@ -825,3 +825,28 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - After `812bb165`, `scripts/check.sh` with the race detector passed in a clean worktree.
 
 **Remaining:** the ISSUES.md entry "Leftovers from the 2026-10-10 zero-information agent trial".
+
+## 2026-10-10: M8 elapsed and quiet time in every view
+
+- `739c3c77`: the added work plan rewritten as M8.
+- `6d6732bc` (2026-10-10 17:53:39 +0900): elapsed and quiet time measured once, and shown by `jobs`.
+
+**Change:**
+- `internal/jobstatus/times.go`: `RunTime` and `MeasureRunTime`, which measure a job's elapsed time and, while it runs, how long ago it last wrote output.
+- `internal/joblist`: `FormatRunTime`; `Row` embeds `RunTime` instead of its own `Elapsed`.
+- `cmd/rotari/show.go`: `showJobElapsed` parses the timestamps and calls the shared functions.
+- `cmd/rotari/jobs.go`: the ELAPSED column gives quiet time; `jobs --json` adds `quiet_seconds`.
+- `internal/webui/assets.go`: the Web jobs page uses `FormatRunTime`.
+- CLI-23, its status row, and `docs/INSPECT.md` name `jobs` and the shared functions.
+
+**Reason:** the user asked to implement the part of M8 worth doing now. Both `show` and `jobs` measured elapsed time with their own fallbacks, and an agent that read `jobs` could not see that a job had gone quiet.
+
+**Plan impact:**
+- M8 item 1 is done. The plan had said `jobs` measured from the start; `joblist`'s `StartedAt` is in fact read from `submitted_at` first, so no starting point had to be chosen.
+- `show --json` (no times at all) and MCP (no running-job view) did not gain quiet time.
+- Items 2 (liveness) and 3 (interrupted-run scenario) are deferred.
+
+**Validation:**
+- `TestShowReportsElapsedAndQuietTime`, extended to `jobs` and `jobs --json`, failed on `739c3c77` in a temporary worktree with "jobs does not report elapsed and quiet time".
+- New unit tests: `TestMeasureRunTime`, `TestFormatRunTime`, and running and waiting rows in `TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts`.
+- pre-commit on the changed files, `go test ./cmd/rotari ./internal/...`, `go test ./conformance/...`, and `scripts/check.sh` with the race detector passed.
