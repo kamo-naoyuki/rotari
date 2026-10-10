@@ -1,7 +1,7 @@
 # Plan: rotari as a Shared Experiment Record for Agents and Humans
 
 **Created:** 2026-10-10
-**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2 not started
+**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2: source revisions recorded (RUN-15), run notes next
 **Related:** [Agent-facing MCP interface](../2026-10-02-mcp-agent-interface/plan.md)
 
 ## Purpose
@@ -129,6 +129,20 @@ Each candidate is planned in detail only after the trial confirms it is
 needed.
 
 ## Decisions
+
+- **Record the commit ID, not file hashes or diffs.** A hash or a diff of the
+  files a command names cannot cover installed packages, data outside the
+  repository, or imported modules, so it would suggest more than it records.
+  A commit ID is unambiguous about what it covers. Git records `HEAD` and
+  whether tracked files had uncommitted changes; a comparison of such runs
+  says the code is unknown rather than unchanged.
+- **jj is snapshotted.** For a jj repository, rotari snapshots the working
+  copy before reading `@`, so the recorded commit ID covers edits nobody
+  committed. This adds one jj operation per run, which the user accepted for
+  the exactness. The user is considering jj.
+- **Run notes next.** A reason for a run and a conclusion are an agent-specific
+  feature the user wants; they answer Q2 and Q6, which no automatic record
+  can.
 
 - **Evaluation axis.** Work is chosen by whether it makes the record answer
   the reconstruction questions. Agent efficiency (calls, output size) stays a
