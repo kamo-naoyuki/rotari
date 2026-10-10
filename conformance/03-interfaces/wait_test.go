@@ -316,6 +316,15 @@ func TestWaitAttachmentIsSharedAndImplicitWaitFollowsIt(t *testing.T) {
 
 func TestWaitInterruptCancelsRun(t *testing.T) {
 	covers(t, "CLI-19")
+	for _, selector := range []string{"project", "run-id"} {
+		t.Run(selector, func(t *testing.T) {
+			testWaitInterruptCancelsRun(t, selector)
+		})
+	}
+}
+
+func testWaitInterruptCancelsRun(t *testing.T, selector string) {
+	t.Helper()
 	e := support.NewEnv(t)
 	project := "interrupt-wait"
 	gate := filepath.Join(e.Root, "release")
@@ -325,7 +334,18 @@ func TestWaitInterruptCancelsRun(t *testing.T) {
 	})
 	e.MustRotari("add", "-p", project, "--", "sh", "-c", "while [ ! -f release ]; do sleep 0.05; done")
 	e.MustRotari("run", "-p", project, "--async", "--quiet")
-	cmd := e.Command("wait", "-p", project, "--timeout", "10s")
+	args := []string{"wait", "-p", project}
+	if selector == "run-id" {
+		checked := e.Rotari("check", "-p", project, "--json")
+		var active struct {
+			RunID string `json:"run_id"`
+		}
+		if err := json.Unmarshal([]byte(checked.Stdout), &active); err != nil || active.RunID == "" {
+			t.Fatalf("active run ID: %v; %s", err, checked)
+		}
+		args = []string{"wait", "--run-id", active.RunID}
+	}
+	cmd := e.Command(append(args, "--timeout", "10s")...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -370,7 +390,9 @@ func TestWaitInterruptCancelsRun(t *testing.T) {
 	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 130 {
 		t.Fatalf("Ctrl-C exit = %v, want 130", err)
 	}
-	result := e.Rotari("wait", "-p", project, "--quiet", "--json", "--timeout", "10s")
+	// Start another explicit waiter immediately: cancellation may still be
+	// finalizing and removing running.lock during attachment inspection.
+	result := e.Rotari(append(args, "--quiet", "--json", "--timeout", "10s")...)
 	var summary struct {
 		Status string `json:"status"`
 	}

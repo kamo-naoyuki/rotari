@@ -353,7 +353,16 @@ does not promise to detect a lost remote client.
   session; timeout and `--until-failure` also release only that session without
   cancelling work. Ctrl-C cancels every still-active selected run and exits
   130. Explicitly selected active runs may have multiple followers and warn
-  when another session is attached; implicit selection skips any run with a
+  when another session is attached. The warning inspects the run phase, lock,
+  and attachment under the project state lock and tolerates the run lock
+  being removed afterward by completion, so a successful or cancelled run
+  does not become a missing-lock error. Checked
+  by `TestWarnAttachedWaitTargetSerializesWithRunCompletion` and
+  `TestWarnAttachedWaitTargetToleratesRemovedRunLock` in
+  [`cmd/rotari/wait_test.go`](../cmd/rotari/wait_test.go) and
+  `TestWaitInterruptCancelsRun` in
+  [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
+  Implicit selection skips any run with a
   valid session.
 
   Unexpected disconnect defaults to detach. With

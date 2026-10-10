@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -14,6 +17,98 @@ import (
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+func TestWarnAttachedWaitTargetToleratesRemovedRunLock(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A FIFO supplies the first lock snapshot. Unlink it before closing the
+	// writer, so LoadLock's ReadFile cannot finish until the next read will
+	// see ENOENT. This deterministically places removal after the phase read.
+	if err := syscall.Mkfifo(paths.LockFile, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runID := "finishing-run"
+	data, err := json.Marshal(model.LockInfo{PID: os.Getpid(), RunID: runID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		writer, err := os.OpenFile(paths.LockFile, os.O_WRONLY, 0)
+		if err != nil {
+			done <- err
+			return
+		}
+		defer writer.Close()
+		if _, err := writer.Write(data); err != nil {
+			done <- err
+			return
+		}
+		done <- os.Remove(paths.LockFile)
+	}()
+	if err := warnAttachedWaitTarget(resolve.Run{BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID}); err != nil {
+		t.Errorf("completed run produced an attachment warning error: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWarnAttachedWaitTargetSerializesWithRunCompletion(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "finishing-run"
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	release, err := state.AcquireStateLock(paths.StateLockFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
+	done := make(chan error, 1)
+	go func() {
+		done <- warnAttachedWaitTarget(resolve.Run{BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID})
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("attachment inspection bypassed the finalizer's state lock: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	// Finish while the finalizer owns the state lock. The warning must inspect
+	// the completed state only after that lock is released, not read a run
+	// lock that completion can remove between the phase and attachment reads.
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, defaultMeta()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(paths.LockFile); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	release = nil
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("inspection of completed run: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("attachment inspection did not resume after completion")
+	}
+}
 
 func TestCmdWaitReportsMalformedSummaryAfterRunEnds(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())

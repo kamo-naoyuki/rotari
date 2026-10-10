@@ -216,11 +216,22 @@ func warnAttachedWaitTarget(target resolve.Run) error {
 	if err != nil {
 		return err
 	}
+	// Serialize with metadata finalization and attachment registration.
+	release, err := state.AcquireStateLock(paths.StateLockFile)
+	if err != nil {
+		return err
+	}
+	defer release()
 	phase, err := project.RunPhaseOf(paths, target.RunID)
 	if err != nil || phase != project.RunPhaseRunning {
 		return err
 	}
 	lock, err := state.LoadLock(paths.LockFile)
+	// Finish removes the run lock after releasing the state lock. Completion
+	// between the phase check and this read needs no attachment warning.
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to inspect run %s client: %w", target.RunID, err)
 	}
