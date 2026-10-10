@@ -82,3 +82,21 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** four headless `claude -p` agents on fixtures built at `6e727399`; the reconstruction agents read nothing outside the work directory. The replay script and transcripts are in the session scratchpad.
 
 **Remaining:** the report's findings 1 (plan-guarding preview revision, a decision for the user), 2 (show clean sources), and the open trial 1 findings 3 and 5.
+
+## A run preview's revision guards its plan
+
+- `23f2c9df` (2026-10-10 20:51:42 +0900): refuse a run that would execute other jobs than its preview.
+
+**Change:**
+- `internal/projectrun/plan_revision.go`: `PlanRevision` (project revision, a dot, and a hash of the executed and carried job IDs and the source run), `CheckRunProjectRevision`, `CheckRunPlanRevision`, and `ErrPlanChanged`, whose message names the jobs the start would execute.
+- `PreviewRun` returns the plan revision and refuses a plan that differs from a given one; the supervisor's `prepareRun` checks the project part before planning and the plan part after it, so the CLI and MCP starts share the rule.
+- CLI-7 and MCP-1, `docs/RECOVERING.md`, `docs/ARCHITECTURE.md`, and the agent guide.
+- Tests that pinned "a run preview's revision equals check's" now expect it as the prefix: `TestRunPreviewMatchesTheRun` (which also checks a refused start of another plan), `TestMCPWritesApplyOnlyAtThePreviewedRevision`, two `internal/mcp` and two `internal/projectrun` tests, and the revision-line regexes of two conformance packages.
+
+**Reason:** trial 2 finding 1; the user agreed after the `--if-revision` design was explained.
+
+**Plan impact:** decision recorded in [plan.md](plan.md).
+
+**Validation:** new `TestPlanRevisionTellsPlansApart`, `TestCheckRunPlanRevision`, and `TestStartRunRefusesAnotherPlanThanItsPreview`; a manual replay of trial 2's dropped filter is refused with the jobs it would run; `scripts/check.sh` with the race detector passed.
+
+**Remaining:** trial 2 finding 2 (show clean sources) and trial 1 findings 3 and 5.

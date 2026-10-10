@@ -147,6 +147,12 @@ needed.
   Notes on job definitions (`add --note`) are left out until a trial needs
   them: they would travel with the job through retry and copy and raise the
   question of whether a changed note is a definition change.
+- **A run preview's revision guards its plan.** Trial 2 showed an agent
+  dropping a previewed `--filter-diagnosis` from the start; the project
+  revision still matched, so other jobs ran than previewed. The user agreed to
+  make `run`/`retry --dry-run` print `PROJECT_REVISION.PLAN_HASH` and refuse a
+  start whose own plan differs. A bare project revision from `check` still
+  guards only the state, so earlier scripts keep working.
 - **No author on notes.** Whether a person or an agent wrote a note is not
   recorded. Detecting it (`CLAUDECODE=1`) covers only one agent and mislabels
   a person typing in its terminal; the text usually tells, and a later trial
