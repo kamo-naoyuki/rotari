@@ -143,7 +143,7 @@ second one:
 - Source: the revision each repository was at (RUN-15)
 ## Notes               the run's notes, Markdown as written
 ## Jobs                one row per job: name, matrix and env values,
-                       status, exit code, first and last log line
+                       status, exit code, last log line
 ## Job: NAME           as today, plus
 ### Notes              that job's notes
 ### Command / Diagnosis / Log
@@ -156,10 +156,11 @@ Who fills what:
 
 | Part | Filled by |
 |---|---|
-| Job table: name, matrix and `--env` values, status, exit code, first and last log line | rotari |
+| Job table: name, matrix and `--env` values, status, exit code, last log line | rotari |
 | Source revision, and whether the code changed since the run before | rotari |
 | Conditions the table cannot show, such as what changed in a config file | the agent, in the run note |
 | A job's own condition or reading | the agent, in the job note |
+| Results gathered into a Markdown table, one row per job name | the agent, in the run note |
 | Conclusion and next step | the agent, in the run note |
 
 rotari does not read config files: it knows a file's path (artifacts) and,
@@ -168,23 +169,28 @@ means. Those differences are the agent's to write.
 
 Decided with the user:
 
-1. Successful jobs appear with their first and last log line in the job
-   table: the first often states the configuration a program started with,
-   the last its final metric or error. The
-   per-job log sections stay limited to jobs that failed or may not have
+1. Every job appears in the job table with its last log line, which for a
+   failed job is often its error. The per-job log sections stay limited to jobs that failed or may not have
    finished.
 2. Order is summary first, details after, so a long run's report can be read
    from the top.
-3. The Web renders the report as Markdown. This needs a renderer dependency
-   (`marked` in the page or `goldmark` on the server) and sanitizing, since
-   notes are agent-written.
+3. The Web renders the report as Markdown, escaping all text, since notes
+   are agent-written. A small renderer in the page does this without a new
+   dependency.
 4. The report is described as the run's record, no longer as "AI-ready".
 
 The run notes' place on the Web run page is this report; the header list
 stays only until the rendered report exists.
 
-The first line is shown as the job printed it; rotari does not parse it. A
-program that prints nothing useful first just shows its first line.
+After seeing the first cut, the user noted that a log line is a result only
+for programs like the trial's `train.py`, which print their final metric last.
+So the agent gathers the results: the agent guide asks it to put them, as a
+Markdown table with one row per job name, in its concluding run note, where a
+reader can check each row against rotari's job table. The job table dropped
+its first-log-line column, which helped only programs that print their
+configuration first. If agent-gathered results prove unreliable, a job could
+write a declared results file for rotari to tabulate; that needs the job's
+cooperation and waits for a trial to ask for it.
 
 ## Decisions
 

@@ -13,7 +13,7 @@ import (
 
 // A run report starts with the run's record: its sources, its notes, and a
 // table of its jobs that shows only the environment values telling them
-// apart and each job's first and last log lines. Each job's section carries
+// apart and each job's last log line. Each job's section carries
 // that job's notes.
 func TestRunReportRecordsSourcesNotesAndJobTable(t *testing.T) {
 	writeLogs := func(stdout, stderr string) string {
@@ -49,11 +49,11 @@ func TestRunReportRecordsSourcesNotesAndJobTable(t *testing.T) {
 	report := formatRunAIReport(state.ProjectPaths{ProjectName: "demo"}, run, false)
 
 	table := strings.Join([]string{
-		"| Job | LR | SEED | Status | Exit | First log line | Last log line |",
-		"| --- | --- | --- | --- | --- | --- | --- |",
-		"| train-LR0.1 | `0.1` | `7` | failed | 3 | `config lr=0.1` | `` ValueError: a \\| `b` `` |",
-		"| train-LR0.01 | `0.01` | - | success | 0 | `config lr=0.01` | `" + strings.Repeat("x", reportTableLineRunes-1) + "…` |",
-		"| train-LR1 | `1` | - | pending | - | - | - |",
+		"| Job | LR | SEED | Status | Exit | Last log line |",
+		"| --- | --- | --- | --- | --- | --- |",
+		"| train-LR0.1 | `0.1` | `7` | failed | 3 | `` ValueError: a \\| `b` `` |",
+		"| train-LR0.01 | `0.01` | - | success | 0 | `" + strings.Repeat("x", reportTableLineRunes-1) + "…` |",
+		"| train-LR1 | `1` | - | pending | - | - |",
 	}, "\n")
 	for _, want := range []string{
 		"- Source: `git b32d3ad88f5c (clean) in /work/repo`\n",

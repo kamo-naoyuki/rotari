@@ -251,11 +251,11 @@ queued work.
 A run report is the run's record, for people as well as agents. It starts
 with the run's source revisions and its notes, then a table with one row per
 job: its name, the environment values that differ between the jobs (matrix
-values among them), its status and exit code, and the first and last lines of
-its log, which often hold the configuration a program started with and its
-final metric or error. rotari does not read configuration files, so a
-difference the table cannot show, such as an edited YAML file, belongs in a
-note. Each job's section follows, with its notes, command, diagnosis, and,
+values among them), its status and exit code, and the last line of its log,
+which for a failed job is often its error. A log line is not reliably a
+result, and rotari does not read configuration files, so the results of a run
+and differences the table cannot show, such as an edited YAML file, belong in
+a note; a note may hold Markdown, including a table of results. Each job's section follows, with its notes, command, diagnosis, and,
 for a job that failed or may not have finished, a log excerpt. In the Web UI,
 the `Report` button shows the report rendered; `Show Markdown` shows its
 source, and Copy copies the Markdown.

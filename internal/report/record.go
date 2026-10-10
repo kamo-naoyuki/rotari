@@ -41,8 +41,9 @@ func writeReportNotes(builder *strings.Builder, heading string, notes []model.Ru
 
 // writeReportJobTable writes one row per job: its name, the environment
 // values that tell the jobs apart (matrix values among them), its status
-// and exit code, and the first and last line of its log, which often hold
-// the configuration a program started with and its final metric or error.
+// and exit code, and the last line of its log, which for a failed job is
+// often its error. What a job's results were is for the run's notes: a log
+// line is not reliably a result.
 func writeReportJobTable(builder *strings.Builder, paths state.ProjectPaths, run webprojection.Run, jobs []reportJob) {
 	if len(jobs) == 0 {
 		return
@@ -57,7 +58,7 @@ func writeReportJobTable(builder *strings.Builder, paths state.ProjectPaths, run
 		header = append(header, "Task")
 	}
 	header = append(header, variables...)
-	header = append(header, "Status", "Exit", "First log line", "Last log line")
+	header = append(header, "Status", "Exit", "Last log line")
 	fmt.Fprintln(builder, "\n## Jobs")
 	fmt.Fprintf(builder, "\n| %s |\n|%s\n", strings.Join(header, " | "), strings.Repeat(" --- |", len(header)))
 	for _, entry := range jobs {
@@ -83,8 +84,7 @@ func writeReportJobTable(builder *strings.Builder, paths state.ProjectPaths, run
 		if job.Result != nil {
 			exit = strconv.Itoa(job.Result.ExitCode)
 		}
-		first, last := reportLogEnds(readReportLog(paths, run.RunID, job))
-		row = append(row, reportTableText(entry.status), exit, reportTableCode(first), reportTableCode(last))
+		row = append(row, reportTableText(entry.status), exit, reportTableCode(reportLastLine(readReportLog(paths, run.RunID, job))))
 		fmt.Fprintf(builder, "| %s |\n", strings.Join(row, " | "))
 	}
 }
@@ -140,21 +140,17 @@ func environmentValues(environment []string) map[string]string {
 	return values
 }
 
-// reportLogEnds returns the first and last non-blank lines of a job's log,
-// skipping the stream headers readSeparateJobLogs adds.
-func reportLogEnds(log string) (string, string) {
-	var first, last string
-	for _, line := range strings.Split(log, "\n") {
-		line = strings.TrimRight(line, "\r")
-		if strings.TrimSpace(line) == "" || line == "--- "+state.StdoutFileName+" ---" || line == "--- "+state.StderrFileName+" ---" {
-			continue
+// reportLastLine returns the last non-blank line of a job's log, skipping
+// the stream headers readSeparateJobLogs adds.
+func reportLastLine(log string) string {
+	lines := strings.Split(log, "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimRight(lines[index], "\r")
+		if strings.TrimSpace(line) != "" && line != "--- "+state.StdoutFileName+" ---" && line != "--- "+state.StderrFileName+" ---" {
+			return line
 		}
-		if first == "" {
-			first = line
-		}
-		last = line
 	}
-	return first, last
+	return ""
 }
 
 // reportTableText escapes text for a Markdown table cell.
