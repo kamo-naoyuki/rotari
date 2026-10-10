@@ -63,3 +63,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `scripts/screenshot-web.sh` ran to completion three times (the last after formatting the helper with the repository's Prettier): 12 pages, 48 screenshots, exit 0; sample captures inspected (run page with the failing array at desktop, project page at phone width). `bash -n`, `node --check`, and `pre-commit run` on the changed files (shfmt, whitespace) passed. No Go tests run: no Go code changed.
 
 **Remaining:** Phase 1 mockup (tokens, status pill, light theme, font choice).
+
+## Phase 1 mockup and its decisions
+
+- `8e139fd2` (2026-10-11 04:59:07 +0900): font, logo, and column decisions.
+
+**Change:** [plan.md](plan.md) links the Phase 1 mockup (a private artifact: the demo's "Decode shards" run page with tokens, status pills, light/dark/system themes, a Settings menu, and a font switcher) and records three decisions.
+
+**Reason:** the user reviewed the mockup.
+
+**Plan impact:** IBM Plex Sans and Mono are the embedded fonts; the logo is kept as is; tables keep every column, with the command under the job name and same-for-all columns hidden behind a Columns menu. Three mockup faults the user found were fixed before these decisions: Command and other columns were missing, a later revision's table did not render (a column without a value function threw during the auto-hide check; found with jsdom), and the logo had been replaced by a drawn stand-in.
+
+**Validation:** documentation only; no tests run. The mockup was checked in headless Chrome (both themes, desktop) and its table and Columns menu in jsdom.
+
+**Remaining:** whether to keep the summary cards and the note at the top of the run page; Phase 1 implementation.
