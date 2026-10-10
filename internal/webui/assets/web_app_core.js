@@ -1421,7 +1421,7 @@ function renderOverview(queues) {
     })
     .join("");
   document.getElementById("app").innerHTML = queues.length
-    ? '<table class="runs queue-overview final"><thead><tr><th class="actions">Actions</th><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th></tr></thead><tbody>' +
+    ? '<table class="runs queue-overview"><thead><tr><th class="actions">Actions</th><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th></tr></thead><tbody>' +
       rows +
       "</tbody></table>"
     : "No projects found.";
@@ -1483,7 +1483,7 @@ function renderQueue(q) {
   document.getElementById("app").innerHTML =
     '<div class="toolbar"><a class="link" href="/">All projects</a></div>' +
     (rows
-      ? '<table class="runs project-runs final"><thead><tr><th class="actions">Actions</th><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
+      ? '<table class="runs project-runs"><thead><tr><th class="actions">Actions</th><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
       : '<div class="empty">No runs found.</div>');
@@ -1816,7 +1816,7 @@ function renderRun(q, runID) {
     esc(copy) +
     "</pre>" +
     (jobs
-      ? '<table class="runs run-jobs final"><thead><tr><th class="actions">Actions</th><th></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th class="job-status-header" data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th class="job-host-header" data-sort="hosts">Hosts</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th></tr></thead><tbody>' +
+      ? '<table class="runs run-jobs"><thead><tr><th class="actions">Actions</th><th></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th class="job-status-header" data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th class="job-host-header" data-sort="hosts">Hosts</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +
@@ -2048,7 +2048,7 @@ function renderQueueCommands(queue) {
   section.innerHTML =
     "<h2>Current queue</h2>" +
     (commands.length
-      ? '<table class="runs web-queue-jobs final"><thead><tr><th class="actions">Actions</th><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="source_run">Source run</th><th data-sort="source_status">Source status</th><th data-sort="source_started">Source started</th><th data-sort="source_finished">Source finished</th></tr></thead><tbody>' +
+      ? '<table class="runs web-queue-jobs"><thead><tr><th class="actions">Actions</th><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="source_run">Source run</th><th data-sort="source_status">Source status</th><th data-sort="source_started">Source started</th><th data-sort="source_finished">Source finished</th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
       : '<div class="empty">Queue is empty.</div>');

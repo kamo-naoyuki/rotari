@@ -156,9 +156,10 @@ into the application script, which normalises labels the same way
 
 A table renderer emits its table whole: columns, labels, and a first
 `Actions` cell built with `actionsCell` in `web_app_core.js`, whose buttons
-carry their arguments in `data-` attributes. Tables rendered this way have the
-`final` class; later render steps do not rename, move, or restyle their
-columns.
+carry their arguments in `data-` attributes. No later render step renames,
+moves, or restyles a table's columns, and the run page's sections are drawn
+whole by `renderRunGraphics` in `web_app_charts.js`. Layout lives in the
+stylesheets; only data-driven sizes and colours are set inline.
 
 The static export bootstrap is kept separately in `web_static_bootstrap.js`
 because it provides the static fetch and routing adapters used only by
