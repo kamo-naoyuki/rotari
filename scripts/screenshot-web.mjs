@@ -21,6 +21,16 @@ const sizes = [
   { name: "phone", width: 390, height: 844, mobile: true },
 ];
 const schemes = ["light", "dark"];
+// Run pages are also captured with every collapsed section opened, so the
+// sections' contents can be reviewed too.
+const expandSections = `(() => {
+  document
+    .querySelectorAll('#app section [aria-expanded="false"]')
+    .forEach((button) => button.click());
+  document
+    .querySelectorAll("#app section details:not([open])")
+    .forEach((details) => (details.open = true));
+})()`;
 // Very long pages (a run with many jobs) are cut here to keep files small.
 const maxHeight = 8000;
 
@@ -58,21 +68,32 @@ try {
     `<p>Captured ${new Date().toISOString()} from ${revision}. A width larger than the viewport means the page scrolls sideways.</p>`;
   for (const [name, path] of pages) {
     html += `<h2>${name}</h2>`;
-    for (const size of sizes) {
-      for (const scheme of schemes) {
-        const file = `${name}-${size.name}-${scheme}.png`;
-        try {
-          const shot = await withPage(
-            chromeSession.cdp,
-            "file://" + join(staticDir, path),
-            { ...size, scheme },
-            (page) => capture(page, size, file),
-          );
-          html += `<figure><figcaption>${size.name} / ${scheme} (${shot.width}×${shot.height})</figcaption><a href="${file}"><img src="${file}" loading="lazy"></a></figure>`;
-        } catch (error) {
-          failed = true;
-          console.error(`${file}: ${error.message}`);
-        }
+    const variants = sizes.flatMap((size) =>
+      schemes.map((scheme) => ({ size, scheme, expanded: false })),
+    );
+    if (path.includes("/run/"))
+      schemes.forEach((scheme) =>
+        variants.push({ size: sizes[0], scheme, expanded: true }),
+      );
+    for (const { size, scheme, expanded } of variants) {
+      const file = `${name}-${size.name}-${scheme}${expanded ? "-expanded" : ""}.png`;
+      try {
+        const shot = await withPage(
+          chromeSession.cdp,
+          "file://" + join(staticDir, path),
+          { ...size, scheme },
+          async (page) => {
+            if (expanded) {
+              await page.evaluate(expandSections);
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            return capture(page, size, file);
+          },
+        );
+        html += `<figure><figcaption>${size.name} / ${scheme}${expanded ? " / sections open" : ""} (${shot.width}×${shot.height})</figcaption><a href="${file}"><img src="${file}" loading="lazy"></a></figure>`;
+      } catch (error) {
+        failed = true;
+        console.error(`${file}: ${error.message}`);
       }
     }
   }
