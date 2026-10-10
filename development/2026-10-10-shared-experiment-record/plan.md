@@ -1,7 +1,7 @@
 # Plan: rotari as a Shared Experiment Record for Agents and Humans
 
 **Created:** 2026-10-10
-**Status:** planning; no implementation yet
+**Status:** Phase 1 trial 1 done ([report](trial-2026-10-10-reconstruction.md)); Phase 2 not started
 **Related:** [Agent-facing MCP interface](../2026-10-02-mcp-agent-interface/plan.md)
 
 ## Purpose
@@ -105,6 +105,12 @@ Measure the value of the record before changing rotari.
 Hypothesis 5's other direction, an agent continuing a human's experiment, is
 covered by the zero-information trial's s2 and is not repeated unless
 Phase 2 changes it.
+
+Trial 1 ([report](trial-2026-10-10-reconstruction.md)) confirmed hypotheses
+1 and 2, partly confirmed 3 (comparison fails across projects), and rejected
+4 for its task: an agent told only that rotari is installed used it for every
+run. No question about code or intent could be answered from the record
+except by forensic inference that a real project would not support.
 
 ### Phase 2: close the gaps the trial finds
 
