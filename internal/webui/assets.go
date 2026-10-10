@@ -69,8 +69,8 @@ var webTokensCSS string
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
-//go:embed assets/web_sidebar_styles.css
-var webSidebarStylesCSS string
+//go:embed assets/web_shell.css
+var webShellCSS string
 
 type webBaseDir struct {
 	ID      string `json:"id"`
@@ -133,7 +133,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
 	template = strings.Replace(template, "__ROTARI_THEME_SCRIPT__", webThemeJS, 1)
-	styles := fontFaceCSS(homePath+"fonts/") + "\n" + webTokensCSS + "\n" + webInfoStylesCSS + "\n" + webSidebarStylesCSS
+	styles := fontFaceCSS(homePath+"fonts/") + "\n" + webTokensCSS + "\n" + webInfoStylesCSS + "\n" + webShellCSS
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", styles, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))

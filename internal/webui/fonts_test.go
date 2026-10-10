@@ -127,9 +127,9 @@ func TestStaticExportWritesFontsOnce(t *testing.T) {
 func TestStylesheetsTakeFontsFromTokens(t *testing.T) {
 	family := regexp.MustCompile(`^\s*font(-family)?:\s*(.*)$`)
 	for name, stylesheet := range map[string]string{
-		"web_styles.css":         webStylesCSS,
-		"web_sidebar_styles.css": webSidebarStylesCSS,
-		"web_info_styles.css":    webInfoStylesCSS,
+		"web_styles.css":      webStylesCSS,
+		"web_shell.css":       webShellCSS,
+		"web_info_styles.css": webInfoStylesCSS,
 	} {
 		for number, line := range strings.Split(stylesheet, "\n") {
 			match := family.FindStringSubmatch(line)

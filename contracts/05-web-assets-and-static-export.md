@@ -93,7 +93,7 @@ internal/webui/assets/
 ├── web_tokens.css
 ├── web_theme.js
 ├── web_styles.css
-├── web_sidebar_styles.css
+├── web_shell.css
 ├── web_app_core.js
 ├── web_app_actions.js
 ├── web_app_logs.js
@@ -174,10 +174,10 @@ default. The dynamic page accepts `?since=DURATION`, validated by the shared
 fixed at the default window; preserve that page whenever changing the Web export
 layout.
 
-The All projects and Job activity pages load the same sidebar stylesheet,
-`web_sidebar_styles.css`; static Web exports include it beside each generated
-application page. Keep shared sidebar layout changes in that asset rather than
-duplicating them in the page-specific stylesheets. `TestWebSidebarStylesAreSharedWithJobsPage`
+The All projects and Job activity pages load the same page-frame stylesheet,
+`web_shell.css` (sidebar, top bar, and status pills); static Web exports
+include it beside each generated application page. Keep shared frame changes
+in that asset rather than duplicating them in the page-specific stylesheets. `TestWebSidebarStylesAreSharedWithJobsPage`
 and `TestGenerateStaticWebWritesProjectPages` in
 [internal/webui/webui_test.go](../internal/webui/webui_test.go) cover the shared
 asset and static copies.
@@ -435,7 +435,7 @@ script: otherwise the first state request can hit GitHub Pages' 404 document
 and briefly render that HTML as application text.
 
 Static pages receive `web_fonts.css`, `web_tokens.css`, `web_styles.css`, and
-`web_sidebar_styles.css` beside every generated `index.html`; the fonts
+`web_shell.css` beside every generated `index.html`; the fonts
 themselves are written once, under `fonts/` at the export root. If a new asset
 or static API endpoint is added, update both the normal Web handler and
 `webui.GenerateStatic`/its bootstrap.

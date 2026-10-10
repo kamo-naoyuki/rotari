@@ -329,9 +329,9 @@ func (s site) baseHandler() http.Handler {
 		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = writer.Write([]byte(webStylesCSS))
 	})
-	mux.HandleFunc("/web_sidebar_styles.css", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/web_shell.css", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
-		_, _ = writer.Write([]byte(webSidebarStylesCSS))
+		_, _ = writer.Write([]byte(webShellCSS))
 	})
 	mux.HandleFunc("/jobs/", func(writer http.ResponseWriter, request *http.Request) {
 		sinceText := request.URL.Query().Get("since")
@@ -1741,7 +1741,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 	template := strings.Replace(baseTemplate, `href="/web_fonts.css"`, `href="web_fonts.css"`, 1)
 	template = strings.Replace(template, `href="/web_tokens.css"`, `href="web_tokens.css"`, 1)
 	template = strings.Replace(template, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
-	template = strings.Replace(template, `href="/web_sidebar_styles.css"`, `href="web_sidebar_styles.css"`, 1)
+	template = strings.Replace(template, `href="/web_shell.css"`, `href="web_shell.css"`, 1)
 	if template == baseTemplate {
 		return errors.New("web HTML static stylesheet marker not found")
 	}
@@ -1931,7 +1931,7 @@ func writeStaticStylesheet(outputDir, directory string) error {
 	if err := os.WriteFile(filepath.Join(directory, "web_styles.css"), []byte(webStylesCSS), 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(directory, "web_sidebar_styles.css"), []byte(webSidebarStylesCSS), 0o644)
+	return os.WriteFile(filepath.Join(directory, "web_shell.css"), []byte(webShellCSS), 0o644)
 }
 
 func (s site) loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection.QueueState, error) {

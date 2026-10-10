@@ -1820,7 +1820,7 @@ func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
 	if !strings.Contains(webTemplateHTML, `href="/web_styles.css"`) {
 		t.Fatal("web template does not load the stylesheet from the server root")
 	}
-	if !strings.Contains(webTemplateHTML, `href="/web_sidebar_styles.css"`) {
+	if !strings.Contains(webTemplateHTML, `href="/web_shell.css"`) {
 		t.Fatal("web template does not load the shared sidebar stylesheet")
 	}
 }
@@ -1832,7 +1832,7 @@ func TestStylesAndScriptsTakeColoursFromTokens(t *testing.T) {
 	literal := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(`)
 	for name, stylesheet := range map[string]string{
 		"web_styles.css":           webStylesCSS,
-		"web_sidebar_styles.css":   webSidebarStylesCSS,
+		"web_shell.css":            webShellCSS,
 		"web_info_styles.css":      webInfoStylesCSS,
 		"web_app_core.js":          webAppCoreJS,
 		"web_app_actions.js":       webAppActionsJS,
@@ -1872,13 +1872,13 @@ func TestStylesAndScriptsTakeColoursFromTokens(t *testing.T) {
 }
 
 func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/web_sidebar_styles.css", nil)
+	request := httptest.NewRequest(http.MethodGet, "/web_shell.css", nil)
 	response := httptest.NewRecorder()
 	Handler(testOptions(t.TempDir(), false)).ServeHTTP(response, request)
 	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/css; charset=utf-8" {
-		t.Fatalf("GET /web_sidebar_styles.css = %d (%q), want CSS response", response.Code, response.Header().Get("Content-Type"))
+		t.Fatalf("GET /web_shell.css = %d (%q), want CSS response", response.Code, response.Header().Get("Content-Type"))
 	}
-	if response.Body.String() != webSidebarStylesCSS {
+	if response.Body.String() != webShellCSS {
 		t.Fatal("sidebar stylesheet route does not serve the shared stylesheet")
 	}
 	for _, selector := range []string{".sidebar {", ".sidebar-brand {", ".sidebar-project-row {"} {
@@ -1891,7 +1891,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 		t.Fatal("Job activity sidebar does not link to history search")
 	}
 	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active {"} {
-		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webSidebarStylesCSS, marker) {
+		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webShellCSS, marker) {
 			t.Fatalf("Job activity page is missing shared sidebar style %q", marker)
 		}
 	}
@@ -1899,7 +1899,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
 	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", ".sidebar-search-link {", "width: max-content;", "box-sizing: border-box;", "align-self: flex-start;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
-		if !strings.Contains(webSidebarStylesCSS, marker) {
+		if !strings.Contains(webShellCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
 	}
@@ -2726,13 +2726,13 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 		if !strings.Contains(string(pageData), `href="web_styles.css"`) || strings.Contains(string(pageData), `href="/web_styles.css"`) {
 			t.Fatalf("static web page %s does not use a relative stylesheet path", page)
 		}
-		if !strings.Contains(string(pageData), `href="web_sidebar_styles.css"`) || strings.Contains(string(pageData), `href="/web_sidebar_styles.css"`) {
+		if !strings.Contains(string(pageData), `href="web_shell.css"`) || strings.Contains(string(pageData), `href="/web_shell.css"`) {
 			t.Fatalf("static web page %s does not use the relative shared sidebar stylesheet path", page)
 		}
 		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_styles.css")); statErr != nil {
 			t.Fatalf("static web stylesheet beside %s is missing: %v", page, statErr)
 		}
-		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_sidebar_styles.css")); statErr != nil {
+		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_shell.css")); statErr != nil {
 			t.Fatalf("static sidebar stylesheet beside %s is missing: %v", page, statErr)
 		}
 	}
@@ -2742,7 +2742,7 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "var(--bg)") {
 		t.Fatalf("static web stylesheet is missing or invalid: %v", readErr)
 	}
-	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_sidebar_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), ".sidebar-brand {") {
+	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_shell.css")); readErr != nil || !strings.Contains(string(stylesheet), ".sidebar-brand {") {
 		t.Fatalf("static shared sidebar stylesheet is missing or invalid: %v", readErr)
 	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues", "All queues", "No queues found."} {

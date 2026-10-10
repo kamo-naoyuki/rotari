@@ -8,7 +8,7 @@ import (
 
 // statusTones maps the base word of a displayed status to its tone, which
 // names the status colour and icon (.status-pill.tone-* in
-// web_sidebar_styles.css, colours in web_tokens.css). It is the Web UI's only
+// web_shell.css, colours in web_tokens.css). It is the Web UI's only
 // status-to-colour rule: the jobs page is rendered with it in Go, and the page
 // script receives it as statusTones and applies the same normalisation in
 // statusTone (web_app_core.js); TestStatusToneMatchesInGoAndJS keeps the two
