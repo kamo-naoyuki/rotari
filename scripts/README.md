@@ -8,6 +8,9 @@ are not part of the `rotari` command-line interface. Runnable samples are in
 
 - `generate-demos.sh`: record the terminal demo GIFs.
 - `generate-static-web.sh`: build the static web demo.
+- `screenshot-web.sh`: screenshot every page of the static web demo at desktop
+  and phone widths in light and dark, for reviewing Web UI changes; needs
+  Chrome or Chromium and Node 22 (`screenshot-web.mjs` drives the browser).
 - `demo_artifacts.py`: write the static web demo's sample artifact files
   (images, audio, video, tables, text, NumPy arrays) with the standard
   library; the demo's video clip is `templates/demo/clip.mp4`.
