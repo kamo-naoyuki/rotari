@@ -904,6 +904,13 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
 	fmt.Printf("%s %s\n", cyan("Output directory:"), runDir)
+	if sources, ok, err := state.LoadRunSources(runDir); err != nil {
+		fmt.Printf("%s unreadable (%v)\n", cyan("Source:"), err)
+	} else if ok {
+		for _, source := range sources.Sources {
+			fmt.Printf("%s %s\n", cyan("Source:"), model.SourceLabel(source))
+		}
+	}
 	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
 		// The job table can be long; point to the compact summary before it.
 		fmt.Printf("%s rotari lineage %s%s\n", cyan("Failure summary:"), runHintLocation(paths), executor.ShellQuote(runID))
@@ -1527,6 +1534,9 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		writeJobDiagnoses(writer, resolved.Summary)
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
+	if source, ok := state.AttemptSource(runDir, jobDir); ok && !neverRan {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), model.SourceLabel(source))
+	}
 	if neverRan {
 		fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
 		return 0

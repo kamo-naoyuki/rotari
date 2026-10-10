@@ -47,6 +47,13 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	results := jobstatus.RecordedResults(runDir, recorded)
 	origins := model.QueueOriginsByJobID(commands)
 	run := runlineage.Run{ID: runID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
+	sources, recordedSources, err := state.LoadRunSources(runDir)
+	if err != nil {
+		return runlineage.Run{}, fmt.Errorf("failed to load run %s sources: %w", runID, err)
+	}
+	if recordedSources {
+		run.Sources = &sources
+	}
 	for _, spec := range model.QueueToJobs(commands.Commands) {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
 		if err != nil {

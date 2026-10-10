@@ -200,6 +200,7 @@ the IDs, this table, and those calls disagree.
 | RUN-12 | A run that ended without a summary, such as an interrupted run after unlock, can be the source of a filtered rerun; finished jobs keep their results and the rest are unfinished | conformance | `TestRerunOfAnInterruptedRun` |
 | RUN-13 | Saved-run starts build their snapshot without changing the next queue and reject `--overwrite` | conformance | `TestRetryFromSavedRunLeavesNextQueueUntouched`, `TestMCPRetryFromSavedRunKeepsNextQueue` |
 | RUN-14 | A non-empty queue retry reports failed/unfinished latest-run jobs it omits without changing selection | conformance | `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, `TestMCPRetryReportsFailedJobsOmittedByQueue` |
+| RUN-15 | A run records the git or jj revision its executed jobs ran from, and `show`, `lineage`, and the Web API report and compare it | conformance | `TestRunRecordsTheSourceItExecuted`, `TestRunRecordsUncommittedGitChanges`, `TestRunRecordsAJJWorkingCopy` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |

@@ -374,6 +374,25 @@ The one-run summary also counts failed jobs by diagnosis, groups them by
 cause as `show` does, and reports their source-run origins, including `new`
 for jobs without an origin.
 
+### Which code a run executed
+
+Before a run starts its jobs, it records the version-control revision of each
+repository its executed jobs run from, in the run's `sources.json`. For git it
+records `HEAD` and whether tracked files had uncommitted changes. For jj,
+colocated with git or not, it first snapshots the working copy (one jj
+operation), so the recorded commit ID covers edits nobody committed; it also
+records the change ID. A directory outside any repository records nothing.
+
+`show` for a run and `lineage RUN_ID` print one `Source:` line per
+repository, such as `Source: git 89281f8c3a1b (uncommitted changes) in
+/home/me/project`; `show -j` prints the job's. `lineage RUN_A RUN_B` says
+whether each repository's code `changed`, is `unchanged`, or is `unknown`:
+one run did not record it (its jobs there were carried, or the run predates
+source recording), its revision could not be read, or a git working tree had
+uncommitted changes, so the same commit may hold different code. Commit
+before running, or use jj, to make the comparison exact. The commit ID does
+not cover installed packages or files outside the repository.
+
 ## Check run readiness
 
 To check whether a project can start its queued run without changing any

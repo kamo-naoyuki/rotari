@@ -88,7 +88,8 @@ rotari show -j ATTEMPT_ID --report
 rotari retry -p sweep --dry-run
 rotari retry -p sweep --async --if-revision REVISION
 rotari wait sweep
-# What the retry fixed, what still fails, and whether the cause changed:
+# What the retry fixed, what still fails, whether the cause changed, and
+# whether the code changed (Source: the git or jj revision each run used):
 rotari lineage RUN_ID NEW_RUN_ID
 ```
 

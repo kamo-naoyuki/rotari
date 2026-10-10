@@ -62,6 +62,11 @@ var boundaryRules = []boundaryRule{
 		forbidden: fileAccess,
 	},
 	{
+		pkg:     "internal/sourcerev",
+		reason:  "sourcerev reads a directory's version-control revision and holds no run rules",
+		allowed: []string{"internal/model"},
+	},
+	{
 		pkg:       "internal/run",
 		reason:    "run owns run rules without file access",
 		allowed:   []string{"internal/model", "internal/executor", "internal/jobfilter"},

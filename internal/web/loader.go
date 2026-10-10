@@ -25,6 +25,7 @@ type QueueLoader struct {
 	Summary     func(runID string) (model.RunSummary, error)
 	Jobs        func(runID string, summary model.RunSummary) ([]Job, error)
 	Context     func(runID string) (model.RunContext, error)
+	Sources     func(runID string) (model.RunSources, bool, error)
 	Samples     func(runID string) []model.LoadSample
 }
 
@@ -72,6 +73,12 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			context = model.RunContext{}
 		}
 		context.LoadSamples = loader.Samples(runID)
+		var sources []model.SourceRevision
+		if loader.Sources != nil {
+			if recorded, ok, sourcesErr := loader.Sources(runID); sourcesErr == nil && ok {
+				sources = recorded.Sources
+			}
+		}
 		lifecycle := summary.Status
 		clientStatus := model.RunClientStatus{State: "unknown"}
 		if loader.Paths.ProjectDir != "" {
@@ -87,6 +94,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			Lifecycle: lifecycle, ClientStatus: clientStatus,
 			ClientLabel: runview.ClientStatusLabel(clientStatus),
 			CWD:         context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
+			Sources: sources, SourceLabels: sourceLabels(sources),
 		})
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
@@ -274,4 +282,12 @@ func buildTimeline(summary model.RunSummary, jobs []Job, loadSamples []model.Loa
 		}
 	}
 	return BuildTimeline(startedAt, summary.FinishedAt, inputs)
+}
+
+func sourceLabels(sources []model.SourceRevision) []string {
+	labels := make([]string, 0, len(sources))
+	for _, source := range sources {
+		labels = append(labels, model.SourceLabel(source))
+	}
+	return labels
 }

@@ -1653,7 +1653,16 @@ function renderRun(q, runID) {
     esc(cwd) +
     "</code>" +
     cwdCopy +
-    '</p><pre class="log command-example">Retry from a terminal:\n' +
+    "</p>" +
+    (run.source_labels || [])
+      .map(
+        (label) =>
+          '<p class="meta run-detail">Source: <code>' +
+          esc(label) +
+          "</code></p>",
+      )
+      .join("") +
+    '<pre class="log command-example">Retry from a terminal:\n' +
     esc(copy) +
     "</pre>" +
     (jobs

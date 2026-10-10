@@ -11,6 +11,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/run"
+	"github.com/kamo-naoyuki/rotari/internal/sourcerev"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -139,6 +140,17 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	sort.Slice(carried.Results, func(i, j int) bool { return carried.Results[i].ID < carried.Results[j].ID })
 	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), carried); err != nil {
 		return 1, fmt.Errorf("failed to save carried results: %w", err)
+	}
+	// Recorded before any job starts, so the commit IDs name the code the
+	// executed jobs start with; carried jobs ran in their origin run.
+	executedDirs := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		if plan.Execute[job.ID] {
+			executedDirs = append(executedDirs, job.WorkingDirectory)
+		}
+	}
+	if err := state.SaveRunSources(runDir, sourcerev.ReadAll(executedDirs)); err != nil {
+		return 1, fmt.Errorf("failed to save run sources: %w", err)
 	}
 
 	finalResults := make(map[string]model.JobResult, len(jobs))

@@ -56,6 +56,9 @@ type Run struct {
 	StartedAt  string
 	FinishedAt string
 	Jobs       []Job
+	// Sources is the run's recorded source revisions, nil when it recorded
+	// none.
+	Sources *model.RunSources
 }
 
 // IsCarried reports whether a job's result came from its origin rather than
@@ -105,9 +108,10 @@ func (job JobDiff) Notable() bool {
 
 // RunInfo identifies a compared run.
 type RunInfo struct {
-	ID      string `json:"run_id"`
-	Name    string `json:"run_name,omitempty"`
-	Elapsed string `json:"elapsed,omitempty"`
+	ID      string                 `json:"run_id"`
+	Name    string                 `json:"run_name,omitempty"`
+	Elapsed string                 `json:"elapsed,omitempty"`
+	Sources []model.SourceRevision `json:"sources,omitempty"`
 }
 
 // Summary counts the transitions and changes.
@@ -129,6 +133,8 @@ type Result struct {
 	To      RunInfo   `json:"to"`
 	Summary Summary   `json:"summary"`
 	Jobs    []JobDiff `json:"jobs"`
+	// Sources compares the code each run executed, per repository.
+	Sources []SourceChange `json:"sources,omitempty"`
 }
 
 // GridResult compares three or more runs as a job-by-run result grid.
@@ -199,7 +205,7 @@ func CompareGrid(runs []Run) GridResult {
 // Compare compares from with to. Jobs are listed in to's order, followed by
 // removed jobs in from's order.
 func Compare(from, to Run) Result {
-	result := Result{From: runInfo(from), To: runInfo(to), Jobs: []JobDiff{}}
+	result := Result{From: runInfo(from), To: runInfo(to), Jobs: []JobDiff{}, Sources: CompareSources(from.Sources, to.Sources)}
 	fromByKey := make(map[string]Job, len(from.Jobs))
 	fromByID := make(map[string]Job, len(from.Jobs))
 	for _, job := range from.Jobs {
@@ -276,6 +282,9 @@ func matchingJob(from Run, byKey map[string]Job, byID map[string]Job, job Job) (
 
 func runInfo(run Run) RunInfo {
 	info := RunInfo{ID: run.ID, Name: run.Name}
+	if run.Sources != nil {
+		info.Sources = run.Sources.Sources
+	}
 	started, startErr := time.Parse(time.RFC3339, run.StartedAt)
 	finished, finishErr := time.Parse(time.RFC3339, run.FinishedAt)
 	if startErr == nil && finishErr == nil && !finished.Before(started) {

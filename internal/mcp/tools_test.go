@@ -302,3 +302,45 @@ func TestRunSummaryListsTenJobsPerGroupUnlessAllAreAsked(t *testing.T) {
 		t.Fatalf("all_jobs group = %d jobs, %d omitted", len(group.Jobs), group.JobsOmitted)
 	}
 }
+
+// TestRunToolsNameSourcesWithoutPaths records a repository for both runs;
+// the run summary and the comparison name it by its last path element, and
+// redact paths in a read error.
+func TestRunToolsNameSourcesWithoutPaths(t *testing.T) {
+	f := newToolFixture(t)
+	paths, err := state.ResolveProjectPaths(f.firstBaseDir, "exp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := "/home/alice/project"
+	for runID, revision := range map[string]model.SourceRevision{
+		f.firstRun:  {Root: root, VCS: "git", CommitID: "1111"},
+		f.secondRun: {Root: root, VCS: "git", Error: "git: cannot read /home/alice/project/.git"},
+	} {
+		if err := state.SaveRunSources(filepath.Join(paths.RunsDir, runID), model.RunSources{Sources: []model.SourceRevision{revision}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	summary, err := runSummary(f.masterDir, RunSummaryInput{RunID: f.firstRun})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sources := summary.Summary.Run.Sources; len(sources) != 1 || sources[0].Root != "project" || sources[0].CommitID != "1111" {
+		t.Fatalf("run summary sources = %+v, want project at 1111", sources)
+	}
+	output, err := compareRuns(f.masterDir, CompareRunsInput{RunID: f.secondRun, PreviousRunID: f.firstRun})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "/home/alice") {
+		t.Fatalf("comparison returns an absolute path: %s", encoded)
+	}
+	changes := output.Comparison.Sources
+	if len(changes) != 1 || changes[0].Root != "project" || changes[0].Change != runlineage.SourceUnknown || changes[0].From.CommitID != "1111" || !strings.Contains(changes[0].To.Error, "[REDACTED_PATH]") {
+		t.Fatalf("comparison sources = %+v", changes)
+	}
+}

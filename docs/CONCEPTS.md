@@ -33,6 +33,7 @@ that has started:
     └── <run-id>/              # immutable run history
         ├── commands.json      # command snapshot
         ├── context.json       # execution context and config snapshot paths
+        ├── sources.json       # git or jj revision the executed jobs ran from
         ├── summary.json       # run result
         └── <job-id>/
             └── attempts/<attempt-id>/

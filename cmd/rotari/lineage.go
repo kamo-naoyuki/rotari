@@ -95,6 +95,9 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 	if result.From.Elapsed != "" || result.To.Elapsed != "" {
 		fmt.Fprintf(writer, "%s %s -> %s\n", cyan("Elapsed:"), firstNonEmpty(result.From.Elapsed, "-"), firstNonEmpty(result.To.Elapsed, "-"))
 	}
+	for _, change := range result.Sources {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), sourceChangeText(change))
+	}
 	summary := result.Summary
 	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, definition changed %d, carried %d, cause changed %d\n",
 		cyan("Summary:"), summary.Fixed, summary.StillFailing, summary.NewlyFailing, summary.Added, summary.Removed, summary.Changed, summary.Carried, summary.CauseChanged)
@@ -429,6 +432,9 @@ func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid runlineage.Gr
 func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runlineage.RunSummary) {
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	fmt.Fprintf(writer, "%s %s\n", cyan("Run:"), model.RunLabel(summary.Run.ID, summary.Run.Name))
+	for _, source := range summary.Run.Sources {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), model.SourceLabel(source))
+	}
 	counts := summary.Counts
 	fmt.Fprintf(writer, "%s jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n", cyan("Summary:"),
 		counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
@@ -473,4 +479,21 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// sourceChangeText describes how a repository's code differs between two
+// runs: "changed git 89281f8c3a1b -> 9c0ffee12345 in /repo", "unchanged ...",
+// or "unknown ..." when a side is missing, unreadable, or had uncommitted
+// changes.
+func sourceChangeText(change runlineage.SourceChange) string {
+	side := func(revision *model.SourceRevision) string {
+		if revision == nil {
+			return "not recorded"
+		}
+		return model.FormatSourceRevision(*revision)
+	}
+	if change.Change == runlineage.SourceUnchanged {
+		return change.Change + " " + side(change.From) + " in " + change.Root
+	}
+	return change.Change + " " + side(change.From) + " -> " + side(change.To) + " in " + change.Root
 }

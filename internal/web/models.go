@@ -24,8 +24,12 @@ type Run struct {
 	ClientLabel    string                `json:"client_label,omitempty"`
 	CWD            string                `json:"cwd,omitempty"`
 	Context        model.RunContext      `json:"context,omitempty"`
-	Timeline       []TimelinePoint       `json:"timeline,omitempty"`
-	Running        bool                  `json:"running"`
+	// Sources is the code the run's executed jobs ran from, and SourceLabels
+	// each as model.SourceLabel describes it for `show`.
+	Sources      []model.SourceRevision `json:"sources,omitempty"`
+	SourceLabels []string               `json:"source_labels,omitempty"`
+	Timeline     []TimelinePoint        `json:"timeline,omitempty"`
+	Running      bool                   `json:"running"`
 	// Unreadable, when set, is why the run's files cannot be read: they come
 	// from a newer rotari. The run then has status "unreadable" and no jobs.
 	Unreadable string `json:"unreadable,omitempty"`

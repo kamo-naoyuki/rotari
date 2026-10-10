@@ -1,8 +1,10 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -65,4 +67,49 @@ func LoadRunSummary(path string) (model.RunSummary, error) {
 		return model.RunSummary{}, err
 	}
 	return summary, nil
+}
+
+// RunSourcesFileName is the run file in which a run records, before it
+// dispatches any job, the version-control revisions its executed jobs run
+// from. A run started before rotari recorded sources has none.
+const RunSourcesFileName = "sources.json"
+
+// SaveRunSources writes a run's sources.
+func SaveRunSources(runDir string, sources model.RunSources) error {
+	return WriteJSON(filepath.Join(runDir, RunSourcesFileName), sources)
+}
+
+// LoadRunSources reads a run's sources, and false when the run recorded
+// none.
+func LoadRunSources(runDir string) (model.RunSources, bool, error) {
+	var sources model.RunSources
+	path := filepath.Join(runDir, RunSourcesFileName)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return model.RunSources{}, false, nil
+	}
+	if err != nil {
+		return model.RunSources{}, false, err
+	}
+	if err := json.Unmarshal(data, &sources); err != nil {
+		return model.RunSources{}, false, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+	return sources, true, nil
+}
+
+// AttemptSource returns the recorded revision of the repository the attempt
+// in attemptDir ran from: its working directory, from its command.json,
+// matched against its run's sources. It returns false when either is not
+// recorded.
+func AttemptSource(runDir, attemptDir string) (model.SourceRevision, bool) {
+	var spec model.JobSpec
+	data, err := os.ReadFile(filepath.Join(attemptDir, "command.json"))
+	if err != nil || json.Unmarshal(data, &spec) != nil || spec.WorkingDirectory == "" {
+		return model.SourceRevision{}, false
+	}
+	sources, ok, err := LoadRunSources(runDir)
+	if err != nil || !ok {
+		return model.SourceRevision{}, false
+	}
+	return sources.SourceFor(spec.WorkingDirectory)
 }

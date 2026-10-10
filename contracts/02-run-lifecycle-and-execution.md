@@ -194,6 +194,26 @@
   `TestPlanRunReportsFailedSourceJobsOmittedByNonEmptyQueue`,
   `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, and
   `TestRunToolsReportFailedJobsOmittedByQueue`.
+- **RUN-15** Before it dispatches any job, a run records in `sources.json`
+  the version-control revision of each repository that its executed jobs'
+  working directories belong to, so the record names the code a run
+  executed. A jj repository, colocated with git or not, is read after
+  snapshotting its working copy, which adds one jj operation; the run records
+  the working-copy commit ID, which covers edits nobody committed, and its
+  change ID. A git repository records `HEAD` and whether tracked files had
+  uncommitted changes. A directory in no repository is not recorded, and a
+  failed read records why. Carried jobs add nothing, because they did not run
+  in this run. `show` for a run and `lineage RUN` list the sources, `show -j`
+  gives the job's own, and `lineage RUN_A RUN_B` compares each repository as
+  `changed`, `unchanged`, or `unknown`: a side did not record it or could not
+  read it, or a git working tree had uncommitted changes, so the same commit
+  may hold different code. `lineage --json`, the MCP run summary and
+  comparison, and the Web API run carry the same records; MCP names each
+  repository by its last path element, as it names a basedir. Reading is
+  [`internal/sourcerev`](../internal/sourcerev/sourcerev.go), recording is
+  `projectrun.Runner.Execute`, and the comparison is
+  `runlineage.CompareSources`. Covered by
+  [`conformance/02-lifecycle/sources_test.go`](../conformance/02-lifecycle/sources_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

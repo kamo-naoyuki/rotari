@@ -6,6 +6,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/report"
@@ -126,6 +127,7 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 	if !input.AllJobs {
 		runlineage.LimitMembers(summary.Failures, failureMemberLimit)
 	}
+	summary.Run.Sources = sourcesWithoutPaths(summary.Run.Sources)
 	output.Summary = summary
 	return output, nil
 }
@@ -182,6 +184,18 @@ func compareRuns(masterDir string, input CompareRunsInput) (CompareRunsOutput, e
 		return CompareRunsOutput{}, err
 	}
 	output := CompareRunsOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Comparison: runlineage.Compare(from, to)}
+	output.Comparison.From.Sources = sourcesWithoutPaths(output.Comparison.From.Sources)
+	output.Comparison.To.Sources = sourcesWithoutPaths(output.Comparison.To.Sources)
+	for index, change := range output.Comparison.Sources {
+		change.Root = filepath.Base(change.Root)
+		for _, side := range []**model.SourceRevision{&change.From, &change.To} {
+			if *side != nil {
+				revision := sourceWithoutPaths(**side)
+				*side = &revision
+			}
+		}
+		output.Comparison.Sources[index] = change
+	}
 	if !input.AllJobs {
 		shown := output.Comparison.Jobs[:0]
 		for _, job := range output.Comparison.Jobs {
@@ -275,4 +289,23 @@ func registeredRun(masterDir, runID string) (runregistry.Location, state.Project
 		return runregistry.Location{}, state.ProjectPaths{}, err
 	}
 	return location, paths, nil
+}
+
+// sourceWithoutPaths names a recorded repository by its last path element,
+// as a basedir is named, and redacts paths in a read error.
+func sourceWithoutPaths(source model.SourceRevision) model.SourceRevision {
+	source.Root = filepath.Base(source.Root)
+	source.Error = report.RedactPatterns(source.Error)
+	return source
+}
+
+func sourcesWithoutPaths(sources []model.SourceRevision) []model.SourceRevision {
+	if sources == nil {
+		return nil
+	}
+	shown := make([]model.SourceRevision, len(sources))
+	for index, source := range sources {
+		shown[index] = sourceWithoutPaths(source)
+	}
+	return shown
 }
