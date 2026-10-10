@@ -90,3 +90,37 @@ func TestLastOutputAtTakesTheLatestNonEmptyLog(t *testing.T) {
 		t.Fatalf("LastOutputAt = %v, %v; want %v", got, ok, base.Add(time.Minute))
 	}
 }
+
+// TestMeasureRunTime checks a finished, a running, a silent, and an
+// unsubmitted job, and a finished job whose finish time is unknown.
+func TestMeasureRunTime(t *testing.T) {
+	now := time.Date(2026, 10, 10, 1, 20, 0, 0, time.UTC)
+	submitted := now.Add(-12 * time.Minute)
+	quietDir := t.TempDir()
+	output := filepath.Join(quietDir, "output")
+	if err := os.WriteFile(output, []byte("started\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(output, now.Add(-11*time.Minute), now.Add(-11*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name                string
+		jobDir              string
+		submitted, finished time.Time
+		done                bool
+		want                RunTime
+	}{
+		{name: "finished", jobDir: quietDir, submitted: submitted, finished: now.Add(-2 * time.Minute), done: true, want: RunTime{Elapsed: 10 * time.Minute, Quiet: -1}},
+		{name: "running and quiet", jobDir: quietDir, submitted: submitted, want: RunTime{Elapsed: 12 * time.Minute, Running: true, Quiet: 11 * time.Minute}},
+		{name: "running without output", jobDir: t.TempDir(), submitted: submitted, want: RunTime{Elapsed: 12 * time.Minute, Running: true, Quiet: -1}},
+		{name: "not submitted", jobDir: t.TempDir(), want: RunTime{Elapsed: -1, Quiet: -1}},
+		{name: "finish unknown", jobDir: quietDir, submitted: submitted, done: true, want: RunTime{Elapsed: -1, Quiet: -1}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := MeasureRunTime(test.jobDir, test.submitted, test.finished, test.done, now); got != test.want {
+				t.Fatalf("MeasureRunTime() = %+v, want %+v", got, test.want)
+			}
+		})
+	}
+}

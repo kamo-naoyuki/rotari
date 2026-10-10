@@ -38,7 +38,7 @@ type Row struct {
 	FullCommand string
 	StartedAt   time.Time
 	FinishedAt  time.Time
-	Elapsed     time.Duration
+	jobstatus.RunTime
 }
 
 // ParseSince parses a listing window: a Go duration such as "24h" or "90m",
@@ -244,18 +244,12 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		}
 		fullCommand := strings.Join(job.Command, " ")
 		command := ShortenText(fullCommand, 40)
-		end := now
-		if statusOK {
-			end = finishedAt
+		finished := finishedAt
+		if finishedErr != nil {
+			finished = time.Time{}
 		}
-		if statusOK && finishedErr != nil {
-			end = time.Time{}
-		}
-		elapsed := end.Sub(startedAt)
-		if startedAt.IsZero() {
-			elapsed = -1
-		}
-		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: job.ID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, Elapsed: elapsed})
+		runTime := jobstatus.MeasureRunTime(jobDir, startedAt, finished, statusOK, now)
+		rows = append(rows, Row{State: jobState, BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: job.ID, AttemptID: attemptID, JobName: jobName, Command: command, FullCommand: fullCommand, StartedAt: startedAt, FinishedAt: finishedAt, RunTime: runTime})
 	}
 	return rows, true, false, nil
 }
@@ -280,6 +274,20 @@ func parseTimestamp(value string) (time.Time, error) {
 // matching the other web pages.
 func FormatTimestamp(value time.Time) string {
 	return value.In(time.Local).Format("2006-01-02 15:04:05 MST")
+}
+
+// FormatRunTime formats a job's elapsed time and, while it runs, how long
+// ago it last wrote output: "12m 03s, quiet 11m 58s", or "12m 03s, no
+// output" when it has written none.
+func FormatRunTime(runTime jobstatus.RunTime) string {
+	elapsed := FormatElapsed(runTime.Elapsed)
+	if !runTime.Running {
+		return elapsed
+	}
+	if runTime.Quiet < 0 {
+		return elapsed + ", no output"
+	}
+	return elapsed + ", quiet " + FormatElapsed(runTime.Quiet)
 }
 
 // FormatElapsed formats a duration as "42s", "3m 05s", or "2h 07m", and a

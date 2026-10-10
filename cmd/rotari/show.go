@@ -1963,26 +1963,18 @@ func loadRunResult(runDir, jobID string) (model.JobResult, bool) {
 // `show -j` prints a job's full command.
 const showCommandWidth = 60
 
-// showJobElapsed describes how long a job ran: from submission to its finish,
-// or until now while it runs. A running job also shows how long ago it last
-// wrote output, so one that has gone quiet stands out.
+// showJobElapsed describes how long a job ran and, while it runs, how long
+// ago it last wrote output, as `jobs` does. A timestamp that does not parse
+// is unknown.
 func showJobElapsed(submittedAt, finishedAt string, finished bool, jobDir string, now time.Time) string {
-	start, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(submittedAt))
-	if err != nil {
-		return "-"
-	}
-	if finished {
-		end, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(finishedAt))
+	parse := func(value string) time.Time {
+		parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
 		if err != nil {
-			return "-"
+			return time.Time{}
 		}
-		return joblist.FormatElapsed(end.Sub(start))
+		return parsed
 	}
-	elapsed := joblist.FormatElapsed(now.Sub(start))
-	if lastOutput, ok := jobstatus.LastOutputAt(jobDir); ok {
-		return elapsed + ", quiet " + joblist.FormatElapsed(max(now.Sub(lastOutput), 0))
-	}
-	return elapsed + ", no output"
+	return joblist.FormatRunTime(jobstatus.MeasureRunTime(jobDir, parse(submittedAt), parse(finishedAt), finished, now))
 }
 
 // printShowJobTable prints the run table with each column as wide as its

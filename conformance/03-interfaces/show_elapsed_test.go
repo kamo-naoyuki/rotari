@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
@@ -10,9 +11,9 @@ import (
 )
 
 // TestShowReportsElapsedAndQuietTime runs one job that writes output and then
-// sleeps, and one that never writes output. While they run, the run table
-// and show -j report how long each has run and how long ago it last wrote
-// output, or that it wrote none.
+// sleeps, and one that never writes output. While they run, the run table,
+// show -j, and jobs report how long each has run and how long ago it last
+// wrote output, or that it wrote none.
 func TestShowReportsElapsedAndQuietTime(t *testing.T) {
 	covers(t, "CLI-23")
 	e := support.NewEnv(t)
@@ -42,5 +43,33 @@ func TestShowReportsElapsedAndQuietTime(t *testing.T) {
 	job := e.MustRotari("show", "-p", project, "-j", quiet, "--no-pager").Stdout
 	if !regexp.MustCompile(`(?m)^Elapsed: \d+s, quiet \d+s$`).MatchString(job) {
 		t.Fatalf("show -j does not report elapsed and quiet time:\n%s", job)
+	}
+
+	jobs := e.MustRotari("jobs", project).Stdout
+	for _, row := range []*regexp.Regexp{
+		regexp.MustCompile(`(?m)\squiet\s.*\s\d+s, quiet \d+s$`),
+		regexp.MustCompile(`(?m)\ssilent\s.*\s\d+s, no output$`),
+	} {
+		if !row.MatchString(jobs) {
+			t.Fatalf("jobs does not report elapsed and quiet time of the running jobs (want %s):\n%s", row, jobs)
+		}
+	}
+	var listed []struct {
+		JobName      string   `json:"job_name"`
+		QuietSeconds *float64 `json:"quiet_seconds"`
+	}
+	output := e.MustRotari("jobs", project, "--json").Stdout
+	if err := json.Unmarshal([]byte(output), &listed); err != nil {
+		t.Fatalf("jobs --json: %v\n%s", err, output)
+	}
+	quietSeconds := map[string]*float64{}
+	for _, row := range listed {
+		quietSeconds[row.JobName] = row.QuietSeconds
+	}
+	if seconds, ok := quietSeconds["quiet"]; !ok || seconds == nil || *seconds < 0 {
+		t.Fatalf("jobs --json gives the quiet job no quiet_seconds:\n%s", output)
+	}
+	if seconds, ok := quietSeconds["silent"]; !ok || seconds != nil {
+		t.Fatalf("jobs --json gives the silent job quiet_seconds:\n%s", output)
 	}
 }

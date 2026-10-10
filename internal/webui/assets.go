@@ -236,7 +236,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 			builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.FinishedAt)))
 		}
 		builder.WriteString(`</td><td>`)
-		builder.WriteString(html.EscapeString(joblist.FormatElapsed(row.Elapsed)))
+		builder.WriteString(html.EscapeString(joblist.FormatRunTime(row.RunTime)))
 		builder.WriteString(`</td></tr>`)
 	}
 	builder.WriteString(`</tbody></table></section>`)

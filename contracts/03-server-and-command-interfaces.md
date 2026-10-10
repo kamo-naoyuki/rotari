@@ -181,15 +181,17 @@ does not promise to detect a lost remote client.
   [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go),
   and `TestRefusalAndSourceHintsNameOnlyANonImplicitBaseDir` in
   [`conformance/03-interfaces/refusal_hints_test.go`](../conformance/03-interfaces/refusal_hints_test.go).
-- **CLI-23** The job table of `show` for a run, and `show -j`, report each
-  job's elapsed time: from submission to its finish, or for a running job
-  until now, followed by how long ago the job last wrote to its logs
-  (`quiet DURATION`) or `no output` when it has written none. Logs an
-  executor keeps on another host are not seen. The last write is read once,
-  by `jobstatus.LastOutputAt` in
-  [`internal/jobstatus/times.go`](../internal/jobstatus/times.go); the
-  presentation is `showJobElapsed` in
-  [`cmd/rotari/show.go`](../cmd/rotari/show.go). Covered by
+- **CLI-23** The job table of `show` for a run, `show -j`, and `jobs` report
+  each job's elapsed time: from submission to its finish, or for a running
+  job until now, followed by how long ago the job last wrote to its logs
+  (`quiet DURATION`) or `no output` when it has written none. `jobs --json`
+  gives the same as `elapsed_seconds` and `quiet_seconds`. Logs an executor
+  keeps on another host are not seen. The run time is measured once, by
+  `jobstatus.MeasureRunTime` in
+  [`internal/jobstatus/times.go`](../internal/jobstatus/times.go), and
+  formatted by `joblist.FormatRunTime` in
+  [`internal/joblist/joblist.go`](../internal/joblist/joblist.go), which the
+  Web jobs page also uses. Covered by
   [`conformance/03-interfaces/show_elapsed_test.go`](../conformance/03-interfaces/show_elapsed_test.go).
 - **CLI-24** `show --logs` and `--failed-logs` list a run's jobs in the
   order the run defines them, executed and carried alike, so the members of a

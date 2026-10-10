@@ -12,14 +12,15 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 	rows := []joblist.Row{
-		{State: "success", Project: "demo", AttemptID: "att_20260922-103800-afc43f9f-6aa4af5d9-1-0", StartedAt: time.Date(2026, 9, 22, 10, 38, 0, 0, time.UTC), Elapsed: 2 * time.Second},
-		{State: "failed", Project: "demo", AttemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", StartedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), Elapsed: 2 * time.Second},
+		{State: "success", Project: "demo", AttemptID: "att_20260922-103800-afc43f9f-6aa4af5d9-1-0", StartedAt: time.Date(2026, 9, 22, 10, 38, 0, 0, time.UTC), RunTime: jobstatus.RunTime{Elapsed: 2 * time.Second, Quiet: -1}},
+		{State: "failed", Project: "demo", AttemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", StartedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), RunTime: jobstatus.RunTime{Elapsed: 2 * time.Second, Quiet: -1}},
 	}
 	var output bytes.Buffer
 	oldStdout := os.Stdout
@@ -272,7 +273,7 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 }
 
 func TestJobsColumnShowsDashForJobWithoutAttempt(t *testing.T) {
-	row := joblist.Row{State: "pending", JobID: "job-1", Elapsed: -1}
+	row := joblist.Row{State: "pending", JobID: "job-1", RunTime: jobstatus.RunTime{Elapsed: -1, Quiet: -1}}
 	if got := jobsColumnValue('a', row); got != "-" {
 		t.Fatalf("attempt column = %q, want -", got)
 	}

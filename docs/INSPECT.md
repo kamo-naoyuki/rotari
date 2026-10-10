@@ -106,8 +106,8 @@ When `jobs` finds nothing, it names the state directories it searched and the
 time window. To choose its displayed fields, use `--format`; see the
 [CLI reference](CLI_REFERENCE.md#rotari-jobs). For scripts, `jobs --json` and
 `runs --json` print the same rows as JSON arrays. Each job has its `state`,
-IDs, command, start and finish times, and `elapsed_seconds` (`null` when
-unknown); `--json` cannot be combined with `--format`. Each run has its
+IDs, command, start and finish times, `elapsed_seconds` (`null` when
+unknown), and, for a running job that has written output, `quiet_seconds`; `--json` cannot be combined with `--format`. Each run has its
 `lifecycle`, `client_status`, exit code (`null` until the run finishes), and
 recorded start and finish times.
 
@@ -148,9 +148,10 @@ A run's job table sizes each column to its contents and shortens long
 commands; `show -j` prints a job's full command. Its ELAPSED column, also
 printed by `show -j`, gives a finished job's run time. For a running job it
 gives how long the job has run and how long ago it last wrote to its logs,
-such as `12m 03s, quiet 11m 58s`, or `no output`. A running job that has been
-quiet much longer than usual may be stuck. Logs that an executor keeps on
-another host are not seen.
+such as `12m 03s, quiet 11m 58s`, or `no output`. The ELAPSED column of
+`jobs` gives the same value. A running job that has been quiet much longer
+than usual may be stuck. Logs that an executor keeps on another host are not
+seen.
 
 ### Filtering jobs and inspecting failures
 

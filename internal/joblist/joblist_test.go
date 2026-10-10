@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -148,6 +149,18 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	} {
 		writeTestInterruptedAttempt(t, runDir, record.jobID, record.state, record.submittedAt, record.wrapperStarts)
 	}
+	// The running job last wrote output 40 minutes ago; the waiting one has
+	// written none.
+	runningDir, err := state.LatestAttemptJobDir(runDir, "running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestFile(filepath.Join(runningDir, "output"), []byte("step 1\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(runningDir, "output"), now.Add(-40*time.Minute), now.Add(-40*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
 
 	rows, err := Collect(testStore(), baseDir, []string{"demo"}, now, 24*time.Hour)
 	if err != nil {
@@ -169,6 +182,12 @@ func TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts(t *testing.T) {
 	}
 	if row := actual["running"]; !row.StartedAt.Equal(now.Add(-48*time.Hour)) || !row.FinishedAt.IsZero() {
 		t.Errorf("running attempt timestamps = %#v, want wrapper start and no finish", row)
+	}
+	if row := actual["running"]; row.RunTime != (jobstatus.RunTime{Elapsed: 48 * time.Hour, Running: true, Quiet: 40 * time.Minute}) {
+		t.Errorf("running attempt run time = %+v, want 48h, quiet 40m", row.RunTime)
+	}
+	if row := actual["waiting"]; row.RunTime != (jobstatus.RunTime{Elapsed: 48 * time.Hour, Running: true, Quiet: -1}) {
+		t.Errorf("waiting attempt run time = %+v, want 48h without output", row.RunTime)
 	}
 	if row := actual["unknown"]; !row.StartedAt.IsZero() || row.Elapsed >= 0 {
 		t.Errorf("unknown attempt without timestamps = %#v, want missing times", row)
@@ -254,6 +273,22 @@ func TestFormatElapsed(t *testing.T) {
 	for input, want := range cases {
 		if got := FormatElapsed(input); got != want {
 			t.Errorf("FormatElapsed(%s) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestFormatRunTime(t *testing.T) {
+	for _, test := range []struct {
+		runTime jobstatus.RunTime
+		want    string
+	}{
+		{jobstatus.RunTime{Elapsed: 10 * time.Minute, Quiet: -1}, "10m 00s"},
+		{jobstatus.RunTime{Elapsed: 12*time.Minute + 3*time.Second, Running: true, Quiet: 11*time.Minute + 58*time.Second}, "12m 03s, quiet 11m 58s"},
+		{jobstatus.RunTime{Elapsed: 12 * time.Minute, Running: true, Quiet: -1}, "12m 00s, no output"},
+		{jobstatus.RunTime{Elapsed: -1, Quiet: -1}, "-"},
+	} {
+		if got := FormatRunTime(test.runTime); got != test.want {
+			t.Errorf("FormatRunTime(%+v) = %q, want %q", test.runTime, got, test.want)
 		}
 	}
 }

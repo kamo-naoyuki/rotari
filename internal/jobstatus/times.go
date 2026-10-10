@@ -25,6 +25,40 @@ func Timestamps(runDir, jobID string, origin *model.JobOrigin, carried bool) (su
 	})
 }
 
+// RunTime is how long a job has run and, while it runs, how long ago it last
+// wrote output.
+type RunTime struct {
+	// Elapsed runs from submission to the finish, or to now while the job
+	// runs. It is negative when either end is unknown.
+	Elapsed time.Duration
+	// Running is true for a submitted job that has not finished.
+	Running bool
+	// Quiet is, for a running job, how long ago it last wrote output. It is
+	// negative when the job has written none, or is not running.
+	Quiet time.Duration
+}
+
+// MeasureRunTime measures the attempt in jobDir from its submission and
+// finish times; a zero time is unknown. Every view of a job's run time,
+// `show` and `jobs` alike, measures through it.
+func MeasureRunTime(jobDir string, submitted, finished time.Time, done bool, now time.Time) RunTime {
+	unknown := RunTime{Elapsed: -1, Quiet: -1}
+	if submitted.IsZero() {
+		return unknown
+	}
+	if done {
+		if finished.IsZero() {
+			return unknown
+		}
+		return RunTime{Elapsed: finished.Sub(submitted), Quiet: -1}
+	}
+	runTime := RunTime{Elapsed: now.Sub(submitted), Running: true, Quiet: -1}
+	if lastOutput, ok := LastOutputAt(jobDir); ok {
+		runTime.Quiet = max(now.Sub(lastOutput), 0)
+	}
+	return runTime
+}
+
 // LastOutputAt returns when the attempt in jobDir last wrote to its output
 // logs, the latest modification time of its merged or separate stdout and
 // stderr files, and false when it has written none. A running job whose last

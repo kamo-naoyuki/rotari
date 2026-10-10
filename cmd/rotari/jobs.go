@@ -129,6 +129,7 @@ type jobsJSON struct {
 	StartedAt      string   `json:"started_at,omitempty"`
 	FinishedAt     string   `json:"finished_at,omitempty"`
 	ElapsedSeconds *float64 `json:"elapsed_seconds"`
+	QuietSeconds   *float64 `json:"quiet_seconds,omitempty"`
 }
 
 func printJobsJSON(rows []joblist.Row) int {
@@ -147,6 +148,10 @@ func printJobsJSON(rows []joblist.Row) int {
 		if row.Elapsed >= 0 {
 			seconds := row.Elapsed.Seconds()
 			job.ElapsedSeconds = &seconds
+		}
+		if row.Running && row.Quiet >= 0 {
+			seconds := row.Quiet.Seconds()
+			job.QuietSeconds = &seconds
 		}
 		jobs = append(jobs, job)
 	}
@@ -266,7 +271,7 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 		}
 		return joblist.FormatTimestamp(row.FinishedAt)
 	case 'e':
-		return joblist.FormatElapsed(row.Elapsed)
+		return joblist.FormatRunTime(row.RunTime)
 	default:
 		return ""
 	}
