@@ -43,3 +43,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** documentation only; no tests run.
 
 **Remaining:** Phases 1–3; tune the lane threshold on real data.
+
+## Mockup and colour decisions
+
+- `01652576` (2026-10-11 02:40:01 +0900): colour decisions and the mockup link.
+
+**Change:** [plan.md](plan.md) rewrites "Colours" in the page design, adds a colour decision, and links the sample-data mockup (a private artifact, not in the repository).
+
+**Reason:** the user wanted to check the look with sample data before implementation.
+
+**Plan impact:** bars stay coloured by result; project identity uses eight colours given to the month's busiest projects, the rest grey, computed from all runs so the actor filter does not repaint. The page keeps the Web UI's dark theme.
+
+**Validation:** the mockup's script passed `node --check`; it was not opened in a browser by the agent. The user reviewed the published page and accepted the look.
+
+**Remaining:** Phases 1–3.
