@@ -26,8 +26,8 @@ service.
 
 ### Enabling browser notifications
 
-Open `rotari web` and click `Enable notifications` in the sidebar. 
-After browser permission is
+Open a run, project, All projects, or Job activity page in `rotari web` and
+click `Enable notifications` in the sidebar. After browser permission is
 granted, the button becomes a `Notification on`/`Notification off` toggle.
 The toggle is stored in the browser's `localStorage`, scoped by protocol,
 host, and port.
