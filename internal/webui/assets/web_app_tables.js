@@ -34,7 +34,6 @@ function sortTable(table, key, stateKey) {
   rows.forEach((row) => body.append(row));
   headers.forEach((header) => {
     if (!header.dataset.sort) return;
-    header.style.cursor = "pointer";
     const label = header.dataset.label || header.textContent.trim();
     header.dataset.label = label;
     header.textContent =
@@ -82,11 +81,6 @@ function paginateTable(table, key) {
   if (!controls || !controls.classList.contains("table-pagination")) {
     controls = document.createElement("div");
     controls.className = "table-pagination";
-    controls.style.alignItems = "center";
-    controls.style.gap = "10px";
-    controls.style.margin = "10px 0";
-    controls.style.color = "var(--muted)";
-    controls.style.fontSize = "13px";
     table.after(controls);
   }
   const prev = document.createElement("button");

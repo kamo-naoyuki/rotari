@@ -17,366 +17,40 @@ function runLoadSummary(run) {
   );
 }
 
-function addRunStatistics() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const app = document.getElementById("app");
-  if (!run || !app || app.querySelector(".run-statistics")) return;
-  const counts = { success: 0, failed: 0, blocked: 0, running: 0, pending: 0 };
-  (run.jobs || []).forEach((job) => {
-    const result = job.result;
-    const status = !result
-      ? run.running
-        ? "running"
-        : "pending"
-      : result.error === "blocked by failed dependency"
-        ? "blocked"
-        : result.exit_code === 0
-          ? "success"
-          : "failed";
-    counts[status]++;
-  });
-  const total = (run.jobs || []).length;
-  const completed = counts.success + counts.failed;
-  const successRate = completed
-    ? Math.round((counts.success / completed) * 100)
-    : 0;
-  const colors = statusTintMap([
-    "success",
-    "failed",
-    "blocked",
-    "running",
-    "pending",
-  ]);
+// The run page's sections: statistics, job timeline, load average, and
+// output word cloud. renderRunGraphics draws them whole, above the jobs
+// table; each starts collapsed and remembers, while the page is open,
+// whether it was opened (expandedRunGraphics).
+function runGraphicSection(kind, title, note) {
   const section = document.createElement("section");
-  section.className = "run-statistics";
-  section.style.background = "var(--surface)";
-  section.style.border = "1px solid var(--line)";
-  section.style.padding = "12px 18px";
-  section.style.margin = "10px 0 12px";
+  section.className = "run-graphic " + kind;
   const heading = document.createElement("div");
-  heading.style.display = "flex";
-  heading.style.justifyContent = "space-between";
-  heading.style.alignItems = "baseline";
-  heading.style.gap = "12px";
-  const title = document.createElement("h2");
-  title.textContent = "Run statistics";
-  title.style.margin = "0";
+  heading.className = "graphic-heading";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "graphic-toggle";
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+  heading.append(toggle, h2);
+  if (note) heading.append(note);
+  section.append(heading);
+  const apply = (expanded) => {
+    section.classList.toggle("collapsed", !expanded);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.textContent = expanded ? "-" : "+";
+    expandedRunGraphics[kind] = expanded;
+  };
+  toggle.onclick = () => apply(!expandedRunGraphics[kind]);
+  apply(!!expandedRunGraphics[kind]);
+  return section;
+}
+function graphicNote(text, className) {
   const note = document.createElement("span");
-  note.textContent = total + " jobs";
-  note.style.color = "var(--muted)";
-  note.style.fontSize = "12px";
-  heading.append(title, note);
-  const metrics = document.createElement("div");
-  metrics.style.display = "grid";
-  metrics.style.gridTemplateColumns = "repeat(auto-fit,minmax(140px,1fr))";
-  metrics.style.gap = "12px";
-  metrics.style.margin = "16px 0";
-  [
-    ["Success rate", successRate + "%"],
-    ["Succeeded", counts.success],
-    ["Failed", counts.failed],
-    ["In progress", counts.running],
-    ["Pending", counts.pending],
-  ].forEach(([label, value]) => {
-    const metric = document.createElement("div");
-    metric.style.borderLeft = "3px solid var(--line)";
-    metric.style.paddingLeft = "10px";
-    const valueElement = document.createElement("strong");
-    valueElement.textContent = value;
-    valueElement.style.display = "block";
-    valueElement.style.fontSize = "22px";
-    const labelElement = document.createElement("span");
-    labelElement.textContent = label;
-    labelElement.style.color = "var(--muted)";
-    labelElement.style.fontSize = "12px";
-    metric.append(valueElement, labelElement);
-    metrics.append(metric);
-  });
-  const bar = document.createElement("div");
-  bar.style.display = "flex";
-  bar.style.height = "14px";
-  bar.style.overflow = "hidden";
-  bar.style.borderRadius = "3px";
-  bar.title = "Job status distribution";
-  ["success", "failed", "blocked", "running", "pending"].forEach((status) => {
-    if (!counts[status]) return;
-    const segment = document.createElement("span");
-    segment.style.width = (counts[status] / Math.max(total, 1)) * 100 + "%";
-    segment.style.background = colors[status][0];
-    segment.title = status + ": " + counts[status];
-    bar.append(segment);
-  });
-  const legend = document.createElement("div");
-  legend.style.display = "flex";
-  legend.style.flexWrap = "wrap";
-  legend.style.gap = "12px";
-  legend.style.marginTop = "10px";
-  ["success", "failed", "blocked", "running", "pending"].forEach((status) => {
-    if (!counts[status]) return;
-    const item = document.createElement("span");
-    item.textContent = status + " " + counts[status];
-    item.style.color = colors[status][1];
-    item.style.fontSize = "12px";
-    legend.append(item);
-  });
-  section.append(heading, metrics, bar, legend);
-  const table = app.querySelector("table.runs");
-  if (table) app.insertBefore(section, table);
-  else app.prepend(section);
+  note.className = "graphic-note" + (className ? " " + className : "");
+  note.textContent = text;
+  return note;
 }
-function addRunEnvironment() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const app = document.getElementById("app");
-  if (!run || !app || app.querySelector(".run-environment")) return;
-  const section = document.createElement("section");
-  section.className = "run-environment";
-  section.style.background = "var(--surface)";
-  section.style.border = "1px solid var(--line)";
-  section.style.padding = "12px 18px";
-  section.style.margin = "10px 0 12px";
-  section.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><h2 style="margin:0">Load average</h2><span class="meta">' +
-    esc(runLoadSummary(run)) +
-    "</span></div>";
-  const load = app.querySelector(".run-environment");
-  if (load) load.after(section);
-  else {
-    const stats = app.querySelector(".run-statistics");
-    if (stats) stats.after(section);
-    else app.prepend(section);
-  }
-}
-
-let outputWordCloudData = null;
-let outputWordCloudKey = "";
-
-function renderOutputWordCloud(details, cloud) {
-  const content = details.querySelector(".output-word-cloud-content");
-  const status = details.querySelector(".output-word-cloud-status");
-  const terms = cloud.terms || [];
-  content.textContent = "";
-  if (!terms.length) {
-    content.textContent = "No output words found.";
-  } else {
-    const maxCount = Math.max(...terms.map((term) => term.count), 1);
-    const colors = [
-      "var(--c1)",
-      "var(--c2)",
-      "var(--c3)",
-      "var(--c4)",
-      "var(--c5)",
-    ];
-    terms.forEach((term, index) => {
-      const word = document.createElement("span");
-      word.textContent = term.word;
-      word.title = term.count + " occurrences in " + term.jobs + " jobs";
-      word.style.fontSize =
-        14 + Math.round((term.count / maxCount) * 28) + "px";
-      word.style.color = colors[index % colors.length];
-      word.style.lineHeight = "1.15";
-      word.style.margin = "4px 7px";
-      word.style.display = "inline-block";
-      content.append(word);
-    });
-  }
-  status.textContent =
-    cloud.total_jobs +
-    " jobs / " +
-    cloud.total_bytes.toLocaleString() +
-    " bytes / generated " +
-    new Date(cloud.generated_at).toLocaleString();
-  const button = details.querySelector(".output-word-cloud-regenerate");
-  if (button) button.textContent = "Regenerate";
-}
-
-async function loadOutputWordCloud(details, projectName, runID, refresh) {
-  const status = details.querySelector(".output-word-cloud-status");
-  const content = details.querySelector(".output-word-cloud-content");
-  const button = details.querySelector(".output-word-cloud-regenerate");
-  status.textContent = refresh ? "Regenerating..." : "Loading...";
-  button.disabled = true;
-  try {
-    const query =
-      "/api/output-word-cloud?project_name=" +
-      encodeURIComponent(projectName) +
-      "&run_id=" +
-      encodeURIComponent(runID) +
-      (refresh ? "&refresh=1" : "");
-    const response = await fetch(query);
-    if (!response.ok) throw new Error(await response.text());
-    outputWordCloudData = await response.json();
-    outputWordCloudKey = projectName + "/" + runID;
-    renderOutputWordCloud(details, outputWordCloudData);
-  } catch (error) {
-    content.textContent = "Unable to generate output word cloud.";
-    status.textContent = String(error);
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function addOutputWordCloud() {
-  const isStatic = typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const runID = decodeURIComponent(parts[3]);
-  const run = queue && queue.runs.find((item) => item.run_id === runID);
-  const app = document.getElementById("app");
-  if (!run || !app || app.querySelector(".output-word-cloud")) return;
-  const wordCloudKey = queue.project_name + "/" + runID;
-  const section = document.createElement("section");
-  section.className = "output-word-cloud";
-  section.dataset.wordCloudProject = queue.project_name;
-  section.dataset.wordCloudRun = runID;
-  section.style.background = "var(--surface)";
-  section.style.border = "1px solid var(--line)";
-  section.style.padding = "12px 18px";
-  section.style.margin = "10px 0 12px";
-  const heading = document.createElement("div");
-  const title = document.createElement("h2");
-  title.textContent = "Output word cloud";
-  title.style.margin = "0";
-  const status = document.createElement("div");
-  status.className = "output-word-cloud-status meta";
-  status.textContent = "Not generated";
-  heading.append(title, status);
-  const body = document.createElement("div");
-  const regenerate = document.createElement("button");
-  regenerate.className = "output-word-cloud-regenerate";
-  regenerate.textContent = "Generate";
-  regenerate.type = "button";
-  regenerate.onclick = () =>
-    loadOutputWordCloud(section, queue.project_name, runID, true);
-  const content = document.createElement("div");
-  content.className = "output-word-cloud-content";
-  content.style.margin = "10px -4px 0";
-  content.style.textAlign = "center";
-  body.append(regenerate, content);
-  section.append(heading, body);
-  if (isStatic) {
-    regenerate.hidden = true;
-    const cloud =
-      window.__ROTARI_STATIC_WORD_CLOUDS__[queue.project_name + "/" + runID];
-    if (cloud) {
-      section.dataset.wordCloudLoaded = "true";
-      renderOutputWordCloud(section, cloud);
-    } else {
-      status.textContent = "No output word cloud available";
-    }
-  }
-  if (outputWordCloudData && outputWordCloudKey === wordCloudKey) {
-    section.dataset.wordCloudLoaded = "true";
-    renderOutputWordCloud(section, outputWordCloudData);
-  }
-  const load = app.querySelector(".run-environment");
-  if (load) load.after(section);
-  else {
-    const stats = app.querySelector(".run-statistics");
-    if (stats) stats.after(section);
-    else app.prepend(section);
-  }
-}
-function collapseRunGraphics() {
-  document.querySelectorAll(".run-statistics").forEach((section) => {
-    const content = section.children[1];
-    if (content) {
-      content.style.display = "grid";
-      content.style.gridTemplateColumns = "repeat(5,minmax(0,1fr))";
-      content.style.gap = "12px";
-    }
-  });
-  document
-    .querySelectorAll(
-      ".run-statistics,.run-environment,.job-timeline,.output-word-cloud",
-    )
-    .forEach((section) => {
-      if (section.dataset.collapsible) return;
-      section.dataset.collapsible = "true";
-      const heading = section.firstElementChild;
-      if (!heading) return;
-      const key = section.className;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.style.marginRight = "8px";
-      button.setAttribute("aria-expanded", String(!!expandedRunGraphics[key]));
-      const apply = (expanded) => {
-        [...section.children].slice(1).forEach((child, index) => {
-          const isTimelinePlot =
-            section.classList.contains("job-timeline") && index === 0;
-          child.style.display = expanded
-            ? isTimelinePlot
-              ? "flex"
-              : index === 0 && section.classList.contains("run-statistics")
-                ? "grid"
-                : ""
-            : "none";
-        });
-        button.setAttribute("aria-expanded", String(expanded));
-        button.textContent = expanded ? "-" : "+";
-        expandedRunGraphics[key] = expanded;
-      };
-      button.onclick = () => {
-        const expanded = !expandedRunGraphics[key];
-        apply(expanded);
-      };
-      heading.style.display = "flex";
-      heading.style.alignItems = "center";
-      heading.insertBefore(button, heading.firstChild);
-      apply(!!expandedRunGraphics[key]);
-    });
-}
-function spaceGraphicLegends() {
-  document
-    .querySelectorAll(
-      ".run-statistics > div:last-child,.job-timeline > div:last-child",
-    )
-    .forEach((legend) => {
-      legend.style.display = "flex";
-      legend.style.flexWrap = "wrap";
-      legend.style.columnGap = "24px";
-      legend.style.rowGap = "8px";
-      legend.querySelectorAll("span").forEach((item) => {
-        const failed = item.textContent.trim().startsWith("failed");
-        if (failed) {
-          item.style.color = statusColor("failed");
-        }
-        item.style.display = "inline-flex";
-        item.style.whiteSpace = "nowrap";
-        item.style.borderLeft = "3px solid " + item.style.color;
-        item.style.paddingLeft = "10px";
-        item.style.paddingRight = "8px";
-        item.style.marginRight = "4px";
-      });
-    });
-}
-function renderJobTimelineScratch() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const app = document.getElementById("app");
-  if (!run || !app || app.querySelector(".job-timeline")) return;
+function jobTimelineSection(run) {
   const rawPoints = run.timeline || [];
   const maxPoints = 10;
   const points =
@@ -409,7 +83,7 @@ function renderJobTimelineScratch() {
     return index === 0 ? "start · " + label : label;
   });
   const keys = ["pending", "running", "success", "failed"];
-  const colors = statusColorMap(["pending", "running", "success", "failed"]);
+  const colors = statusColorMap(keys);
   const total = Math.max(1, (run.jobs || []).length);
   const width = Math.max(560, points.length * 100 + 70),
     height = 260,
@@ -419,35 +93,22 @@ function renderJobTimelineScratch() {
     bottom = 58,
     plotWidth = width - left - right,
     plotHeight = height - top - bottom;
-  const section = document.createElement("section");
-  section.className = "job-timeline";
-  section.style.background = "var(--surface)";
-  section.style.border = "1px solid var(--line)";
-  section.style.padding = "12px 18px";
-  section.style.margin = "10px 0 12px";
-  const heading = document.createElement("div");
-  heading.style.display = "flex";
-  heading.style.alignItems = "baseline";
-  heading.style.gap = "12px";
-  const title = document.createElement("h2");
-  title.textContent = "Job timeline";
-  title.style.margin = "0";
-  const note = document.createElement("span");
-  note.className = "meta";
-  note.style.marginLeft = "auto";
-  note.textContent =
-    (rawPoints.length > maxPoints
-      ? "sampled to " + maxPoints + " points / "
-      : "") + "time → / share ↑";
-  heading.append(title, note);
+  const section = runGraphicSection(
+    "job-timeline",
+    "Job timeline",
+    graphicNote(
+      (rawPoints.length > maxPoints
+        ? "sampled to " + maxPoints + " points / "
+        : "") + "time → / share ↑",
+      "meta",
+    ),
+  );
   const chart = document.createElement("div");
-  chart.style.overflowX = "auto";
-  chart.style.marginTop = "14px";
+  chart.className = "job-timeline-chart";
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 " + width + " " + height);
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "Job timeline chart");
-  svg.style.display = "block";
   svg.style.width = width + "px";
   svg.style.height = height + "px";
   const line = (x1, y1, x2, y2, color = "var(--line)", dash = "") => {
@@ -522,128 +183,95 @@ function renderJobTimelineScratch() {
   svg.append(yLabel);
   chart.append(svg);
   const legend = document.createElement("div");
-  legend.style.display = "flex";
-  legend.style.flexWrap = "wrap";
-  legend.style.gap = "18px";
-  legend.style.marginTop = "10px";
+  legend.className = "graphic-legend";
   keys.forEach((key) => {
     const item = document.createElement("span");
     item.textContent = key;
-    item.style.display = "inline-flex";
     item.style.color = colors[key];
-    item.style.borderLeft = "3px solid " + colors[key];
-    item.style.paddingLeft = "8px";
+    item.style.borderLeftColor = colors[key];
     legend.append(item);
   });
-  section.append(heading, chart, legend);
-  const env = app.querySelector(".run-environment");
-  if (env) env.after(section);
-  else app.prepend(section);
+  section.append(chart, legend);
+  return section;
 }
-function syncTimelineBar() {}
-function fixTimelineBarWidths() {
-  document.querySelectorAll(".timeline-plot").forEach((plot) => {
-    plot.style.display = "flex";
-    plot.style.flexDirection = "row";
-    plot.style.flexWrap = "nowrap";
-    plot.style.alignItems = "flex-end";
-    plot.style.overflowX = "auto";
-    plot.style.height = "230px";
-    plot.style.paddingBottom = "46px";
+function runStatisticsSection(run) {
+  const keys = ["success", "failed", "blocked", "running", "pending"];
+  const counts = Object.fromEntries(keys.map((key) => [key, 0]));
+  (run.jobs || []).forEach((job) => {
+    const result = job.result;
+    const status = !result
+      ? run.running
+        ? "running"
+        : "pending"
+      : result.error === "blocked by failed dependency"
+        ? "blocked"
+        : result.exit_code === 0
+          ? "success"
+          : "failed";
+    counts[status]++;
   });
-  document.querySelectorAll(".timeline-plot>div").forEach((column) => {
-    column.style.flex = "0 0 92px";
-    column.style.width = "92px";
-    column.style.minWidth = "92px";
-    column.style.height = "180px";
-    const bar = column.querySelector(".timeline-bar");
-    if (bar) {
-      bar.style.width = "28px";
-      bar.style.height = "160px";
-      bar.style.flex = "0 0 160px";
-      bar.style.marginLeft = "auto";
-      bar.style.marginRight = "auto";
-    }
-    const label = column.querySelector(".timeline-bar+span");
-    if (label) {
-      label.style.display = "block";
-      label.style.width = "92px";
-      label.style.whiteSpace = "nowrap";
-      label.style.textAlign = "center";
-      label.style.transform = "none";
-      label.style.position = "static";
-      label.style.fontSize = "10px";
-    }
-  });
-}
-function alignTimelineHeading() {
-  document
-    .querySelectorAll(".job-timeline>div:first-child")
-    .forEach((heading) => {
-      heading.style.paddingLeft = "0";
-    });
-}
-function alignGraphicHeadings() {
-  document
-    .querySelectorAll(
-      ".run-statistics>div:first-child,.run-environment>div:first-child,.job-timeline>div:first-child,.output-word-cloud>div:first-child",
-    )
-    .forEach((heading) => {
-      heading.style.display = "flex";
-      heading.style.justifyContent = "flex-start";
-      heading.style.alignItems = "center";
-      const title = heading.querySelector("h2");
-      const note =
-        heading.querySelector(".meta") || heading.querySelector("span");
-      if (title) title.style.margin = "0";
-      if (note) note.style.marginLeft = "auto";
-    });
-}
-function fixTimelineLegendColors() {
-  const colors = statusColorMap(["pending", "running", "success", "failed"]);
-  document.querySelectorAll(".job-timeline span").forEach((item) => {
-    const key = item.textContent.trim();
-    if (colors[key]) {
-      item.style.color = colors[key];
-      item.style.borderLeftColor = colors[key];
-    }
-  });
-}
-function fixRunStatisticsColors() {
-  const colors = statusColorMap([
-    "succeeded",
-    "failed",
-    "in progress",
-    "pending",
-  ]);
-  document.querySelectorAll(".run-statistics strong").forEach((value) => {
-    const metric = value.parentElement;
-    const label = metric ? metric.textContent.toLowerCase() : "";
-    const key = Object.keys(colors).find((name) => label.includes(name));
-    if (key) value.style.color = colors[key];
-  });
-  document
-    .querySelectorAll(".run-statistics .meta,.run-statistics div span")
-    .forEach((label) => {
-      label.style.color = "var(--muted)";
-    });
-}
-function addLoadTimeline() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
+  const total = (run.jobs || []).length;
+  const completed = counts.success + counts.failed;
+  const successRate = completed
+    ? Math.round((counts.success / completed) * 100)
+    : 0;
+  const tints = statusTintMap(keys);
+  const section = runGraphicSection(
+    "run-statistics",
+    "Run statistics",
+    graphicNote(total + " jobs"),
   );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const section = document.querySelector(".run-environment");
-  const samples = (
-    (run && run.context && run.context.load_samples) ||
-    []
-  ).filter((sample) => sample.at);
-  if (!section || samples.length < 2 || section.querySelector(".load-timeline"))
-    return;
+  const metrics = document.createElement("div");
+  metrics.className = "stat-metrics";
+  [
+    ["Success rate", successRate + "%", ""],
+    ["Succeeded", counts.success, "succeeded"],
+    ["Failed", counts.failed, "failed"],
+    ["In progress", counts.running, "in progress"],
+    ["Pending", counts.pending, "pending"],
+  ].forEach(([label, value, status]) => {
+    const metric = document.createElement("div");
+    metric.className = "stat-metric";
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = value;
+    if (status) valueElement.style.color = statusColor(status);
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    metric.append(valueElement, labelElement);
+    metrics.append(metric);
+  });
+  // The bar and legend share the counts; each part of the bar is a status's
+  // share of the run's jobs.
+  const bar = document.createElement("div");
+  bar.className = "status-bar";
+  bar.title = "Job status distribution";
+  const legend = document.createElement("div");
+  legend.className = "graphic-legend";
+  keys.forEach((status) => {
+    if (!counts[status]) return;
+    const segment = document.createElement("span");
+    segment.style.width = (counts[status] / Math.max(total, 1)) * 100 + "%";
+    segment.style.background = tints[status][0];
+    segment.title = status + ": " + counts[status];
+    bar.append(segment);
+    const item = document.createElement("span");
+    item.textContent = status + " " + counts[status];
+    item.style.borderLeftColor = statusColor(status);
+    legend.append(item);
+  });
+  section.append(metrics, bar, legend);
+  return section;
+}
+function loadAverageSection(run) {
+  const section = runGraphicSection(
+    "run-environment",
+    "Load average",
+    graphicNote(runLoadSummary(run), "meta"),
+  );
+  const samples = ((run.context && run.context.load_samples) || []).filter(
+    (sample) => sample.at,
+  );
+  if (samples.length < 2) return section;
   const width = 640,
     height = 230,
     left = 42,
@@ -670,12 +298,8 @@ function addLoadTimeline() {
   const labels = { one: "1 min", five: "5 min", fifteen: "15 min" };
   const wrap = document.createElement("div");
   wrap.className = "load-timeline";
-  wrap.style.marginTop = "16px";
-  wrap.style.overflowX = "auto";
   const legend = document.createElement("div");
-  legend.style.display = "flex";
-  legend.style.gap = "20px";
-  legend.style.marginBottom = "8px";
+  legend.className = "load-legend";
   Object.keys(colors).forEach((key) => {
     const item = document.createElement("span");
     item.className = "meta";
@@ -687,9 +311,6 @@ function addLoadTimeline() {
   svg.setAttribute("viewBox", "0 0 " + width + " " + height);
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "Host load average over time");
-  svg.style.display = "block";
-  svg.style.width = "100%";
-  svg.style.minWidth = "520px";
   const add = (name, attrs, text) => {
     const node = document.createElementNS("http://www.w3.org/2000/svg", name);
     Object.entries(attrs).forEach(([key, value]) =>
@@ -749,14 +370,135 @@ function addLoadTimeline() {
   );
   wrap.append(legend, svg);
   section.append(wrap);
+  return section;
 }
-function simplifyRunStatistics() {
-  document.querySelectorAll(".run-statistics").forEach((section) => {
-    [...section.children].slice(1).forEach((child) => {
-      child.style.display = "none";
+
+let outputWordCloudData = null;
+let outputWordCloudKey = "";
+
+function renderOutputWordCloud(details, cloud) {
+  const content = details.querySelector(".output-word-cloud-content");
+  const status = details.querySelector(".output-word-cloud-status");
+  const terms = cloud.terms || [];
+  content.textContent = "";
+  if (!terms.length) {
+    content.textContent = "No output words found.";
+  } else {
+    const maxCount = Math.max(...terms.map((term) => term.count), 1);
+    const colors = [
+      "var(--c1)",
+      "var(--c2)",
+      "var(--c3)",
+      "var(--c4)",
+      "var(--c5)",
+    ];
+    terms.forEach((term, index) => {
+      const word = document.createElement("span");
+      word.textContent = term.word;
+      word.title = term.count + " occurrences in " + term.jobs + " jobs";
+      word.style.fontSize =
+        14 + Math.round((term.count / maxCount) * 28) + "px";
+      word.style.color = colors[index % colors.length];
+      content.append(word);
     });
-  });
+  }
+  status.textContent =
+    cloud.total_jobs +
+    " jobs / " +
+    cloud.total_bytes.toLocaleString() +
+    " bytes / generated " +
+    new Date(cloud.generated_at).toLocaleString();
+  const button = details.querySelector(".output-word-cloud-regenerate");
+  if (button) button.textContent = "Regenerate";
 }
+
+async function loadOutputWordCloud(details, projectName, runID, refresh) {
+  const status = details.querySelector(".output-word-cloud-status");
+  const content = details.querySelector(".output-word-cloud-content");
+  const button = details.querySelector(".output-word-cloud-regenerate");
+  status.textContent = refresh ? "Regenerating..." : "Loading...";
+  button.disabled = true;
+  try {
+    const query =
+      "/api/output-word-cloud?project_name=" +
+      encodeURIComponent(projectName) +
+      "&run_id=" +
+      encodeURIComponent(runID) +
+      (refresh ? "&refresh=1" : "");
+    const response = await fetch(query);
+    if (!response.ok) throw new Error(await response.text());
+    outputWordCloudData = await response.json();
+    outputWordCloudKey = projectName + "/" + runID;
+    renderOutputWordCloud(details, outputWordCloudData);
+  } catch (error) {
+    content.textContent = "Unable to generate output word cloud.";
+    status.textContent = String(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function outputWordCloudSection(queue, runID) {
+  const isStatic = typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
+  const wordCloudKey = queue.project_name + "/" + runID;
+  const status = document.createElement("div");
+  status.className = "graphic-note output-word-cloud-status meta";
+  status.textContent = "Not generated";
+  const section = runGraphicSection(
+    "output-word-cloud",
+    "Output word cloud",
+    status,
+  );
+  section.dataset.wordCloudProject = queue.project_name;
+  section.dataset.wordCloudRun = runID;
+  const body = document.createElement("div");
+  const regenerate = document.createElement("button");
+  regenerate.className = "output-word-cloud-regenerate";
+  regenerate.textContent = "Generate";
+  regenerate.type = "button";
+  regenerate.onclick = () =>
+    loadOutputWordCloud(section, queue.project_name, runID, true);
+  const content = document.createElement("div");
+  content.className = "output-word-cloud-content";
+  body.append(regenerate, content);
+  section.append(body);
+  if (isStatic) {
+    regenerate.hidden = true;
+    const cloud = window.__ROTARI_STATIC_WORD_CLOUDS__[wordCloudKey];
+    if (cloud) {
+      section.dataset.wordCloudLoaded = "true";
+      renderOutputWordCloud(section, cloud);
+    } else {
+      status.textContent = "No output word cloud available";
+    }
+  }
+  if (outputWordCloudData && outputWordCloudKey === wordCloudKey) {
+    section.dataset.wordCloudLoaded = "true";
+    renderOutputWordCloud(section, outputWordCloudData);
+  }
+  return section;
+}
+function renderRunGraphics() {
+  const parts = pageParts();
+  if (parts[0] !== "project" || parts[2] !== "run") return;
+  const queue = state.projects.find(
+    (item) => item.project_name === decodeURIComponent(parts[1]),
+  );
+  const runID = decodeURIComponent(parts[3]);
+  const run = queue && queue.runs.find((item) => item.run_id === runID);
+  const app = document.getElementById("app");
+  if (!run || !app || app.querySelector(".run-graphic")) return;
+  const sections = [
+    runStatisticsSection(run),
+    jobTimelineSection(run),
+    loadAverageSection(run),
+    outputWordCloudSection(queue, runID),
+  ];
+  const table = app.querySelector("table.runs");
+  if (table) sections.forEach((section) => app.insertBefore(section, table));
+  else app.prepend(...sections);
+}
+
 function addProjectRuntime() {
   const parts = pageParts();
   if (parts.length !== 2 || parts[0] !== "project") return;
@@ -787,7 +529,7 @@ function addProjectRuntime() {
     esc(runner) +
     "</span></div><details" +
     (projectRuntimeDetailsOpen ? " open" : "") +
-    '><summary>Internal state</summary><div class="meta" style="margin-top:10px">Runner lock: ' +
+    '><summary>Internal state</summary><div class="meta runtime-details">Runner lock: ' +
     (active ? "present" : "absent") +
     (queue.runner_started_at
       ? " | Started: " + esc(queue.runner_started_at)

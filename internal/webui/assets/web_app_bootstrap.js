@@ -1,21 +1,7 @@
 const originalEnhancePage = enhancePage;
 enhancePage = function () {
   originalEnhancePage();
-  addRunStatistics();
-  addRunEnvironment();
-  addLoadTimeline();
-  renderJobTimelineScratch();
-  const load = document.querySelector(".run-environment");
-  const timeline = document.querySelector(".job-timeline");
-  if (load && timeline) load.before(timeline);
-  spaceGraphicLegends();
-  simplifyRunStatistics();
-  fixTimelineBarWidths();
-  syncTimelineBar();
-  addOutputWordCloud();
-  collapseRunGraphics();
-  alignTimelineHeading();
-  alignGraphicHeadings();
+  renderRunGraphics();
 };
 function esc(v) {
   return String(v == null ? "" : v).replace(
@@ -280,8 +266,6 @@ render = function () {
   arrangeRunControls();
   enableTableSorting();
   restoreSelectedOutput();
-  fixRunStatisticsColors();
-  fixTimelineLegendColors();
   addConfigButton();
   openRequestedConfigAction();
   addAIButtons();

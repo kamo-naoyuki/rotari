@@ -55,14 +55,13 @@ func TestJobTimelineRendersOneBarPerPoint(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
-	start := strings.LastIndex(webAppChartsJS, "function renderJobTimelineScratch() {")
-	if start < 0 {
+	// The section frame and the timeline section are adjacent in the script.
+	start := strings.Index(webAppChartsJS, "function runGraphicSection(")
+	end := strings.Index(webAppChartsJS, "function runStatisticsSection(")
+	if start < 0 || end <= start {
 		t.Fatal("job timeline renderer was not found")
 	}
-	end := strings.Index(webAppChartsJS[start:], "function syncTimelineBar() {")
-	if end <= 0 {
-		t.Fatal("job timeline renderer was not found")
-	}
+	end -= start
 	// The renderer colours statuses through the shared mapping in the core script.
 	toneStart := strings.Index(webAppCoreJS, "const statusTones = __ROTARI_STATUS_TONES__;")
 	toneEnd := strings.Index(webAppCoreJS, "function basedirURL(")
@@ -71,19 +70,19 @@ func TestJobTimelineRendersOneBarPerPoint(t *testing.T) {
 	}
 	script := `
 const { JSDOM } = require('jsdom');
-const dom = new JSDOM('<div id="app"><div class="run-environment"></div></div>');
+const dom = new JSDOM('<div id="app"></div>');
 const document = dom.window.document;
-function pageParts() { return ['project', 'demo', 'run', 'run-1']; }
-const state = { projects: [{ project_name: 'demo', runs: [{
+const expandedRunGraphics = {};
+const run = {
   run_id: 'run-1', jobs: [{}, {}], timeline: [
     {at: '2026-10-01T10:00:00Z', pending: 2},
     {at: '2026-10-01T10:00:01Z', pending: 1, running: 1},
     {at: '2026-10-01T10:00:02Z', success: 1, running: 1},
     {at: '2026-10-02T10:00:00Z', success: 2},
   ]
-}]}]};
+};
 ` + strings.Replace(webAppCoreJS[toneStart:toneEnd], "__ROTARI_STATUS_TONES__", statusTonesJSON(), 1) + webAppChartsJS[start:start+end] + `
-renderJobTimelineScratch();
+document.getElementById('app').append(jobTimelineSection(run));
 const bars = document.querySelectorAll('.job-timeline svg rect');
 const barPositions = new Set([...bars].map(bar => bar.getAttribute('x')));
 if (bars.length !== 6 || barPositions.size !== 4) {

@@ -1793,7 +1793,7 @@ func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function renderQueueCommands(queue)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function addOutputWordCloud()", "addOutputWordCloud();"} {
+	for _, marker := range []string{"function renderQueueCommands(queue)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function outputWordCloudSection(queue,runID)", "renderRunGraphics();"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
 		}

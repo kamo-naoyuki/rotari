@@ -1644,3 +1644,118 @@ pre,
   margin: 0;
   vertical-align: top;
 }
+
+/* Run page sections, drawn whole by renderRunGraphics (web_app_charts.js). */
+#app section.run-graphic {
+  margin: 10px 0 12px;
+  padding: 12px 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.run-graphic.collapsed > :not(.graphic-heading) {
+  display: none;
+}
+.graphic-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.output-word-cloud .graphic-heading {
+  gap: 0;
+}
+.graphic-heading h2 {
+  margin: 0;
+}
+.graphic-heading > .graphic-note {
+  margin-left: auto;
+}
+.graphic-toggle {
+  margin-right: 8px;
+}
+.run-statistics .graphic-heading > .graphic-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stat-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.stat-metric {
+  padding-left: 10px;
+  border-left: 3px solid var(--line);
+}
+.stat-metric strong {
+  display: block;
+  font-size: 22px;
+}
+.stat-metric span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.status-bar {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+.graphic-legend {
+  margin-top: 10px;
+}
+.graphic-legend > span {
+  display: inline-flex;
+  margin-right: 4px;
+  padding-right: 8px;
+  padding-left: 10px;
+  border-left: 3px solid;
+  white-space: nowrap;
+}
+.run-statistics .graphic-legend > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.job-timeline-chart {
+  display: flex;
+  margin-top: 14px;
+  overflow-x: auto;
+}
+.job-timeline-chart svg {
+  display: block;
+}
+.load-timeline {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+.load-legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+.load-timeline svg {
+  display: block;
+  width: 100%;
+  min-width: 520px;
+}
+.output-word-cloud-content {
+  margin: 10px -4px 0;
+  text-align: center;
+}
+.output-word-cloud-content > span {
+  display: inline-block;
+  margin: 4px 7px;
+  line-height: 1.15;
+}
+
+/* Paging below a long table (paginateTable); shown only when needed. */
+.table-pagination {
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.project-runtime .runtime-details {
+  margin-top: 10px;
+}
