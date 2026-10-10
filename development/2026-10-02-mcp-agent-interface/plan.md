@@ -238,6 +238,7 @@ Validation: rerun s1 to s4 on fresh fixtures and compare calls, output size, and
 - The guide does not recommend `--json` to agents: it is the Python client's full-detail output, and the default text is what agents should read.
 - The [zero-information trial](agent-trial-2026-10-10-zero-info.md) gave agents no prior information and three scenarios. Its fixes (CLI-14, CLI-22 to CLI-24: grouped completion messages, implicit `--basedir` left out of hints, a short top-level help, elapsed and quiet time, a fitted `show` table, `show --tail`) took the scenarios from 27, 41, and 44 KB to 13, 35, and 24 KB.
 - M8's elapsed and quiet time reach `show`, `jobs`, and the Web jobs page through one measurement; its liveness and recovery items are deferred.
+- New agent-related work is chosen in the [shared experiment record plan](../2026-10-10-shared-experiment-record/plan.md), which evaluates rotari by what its record lets a human or another agent reconstruct.
 
 ## Open decisions
 
