@@ -141,9 +141,17 @@ bookmarked and the browser's back button works.
   "where was I working?".
 - **Following an agent.** The actor filter (Phase 3) narrows both the
   calendar and the timeline; unlabelled runs stay visible under "all".
-- **Colours.** Each project gets a stable colour derived from its basedir and
-  name, so it keeps the same colour across days and reloads; status uses the
-  existing result colours. Both work in light and dark themes.
+- **Colours.** Timeline bars are coloured by result (the existing result
+  colours plus a striped "running"), never by project. Project identity uses
+  eight distinguishable colours, shown only as calendar dots, lane chips, and
+  the project list, always beside the project's name. The eight projects with
+  the most running time in the displayed month get them, in that order, and
+  the rest share grey. The assignment is computed from all runs, so the actor
+  filter does not repaint projects. The page follows the Web UI's existing
+  dark theme.
+
+A sample-data mockup of this design was published as a private artifact on
+2026-10-11: <https://claude.ai/artifact/TbRCZbvZyNZLKdtwZjSyva>.
 
 ### Phase 3: how a run was started
 
@@ -172,6 +180,8 @@ is shown as unlabelled, not as "human".
   `running.lock`), so a lane's bars never overlap and need no stacking. How
   the page stays readable with many projects is under "Many projects" in
   [Page design](#page-design); the thresholds are to be tuned on real data.
+- **Colours (2026-10-11).** After seeing the mockup, the user kept bars
+  coloured by result and accepted grey for projects beyond the eighth colour.
 
 ## Contracts and documentation
 
