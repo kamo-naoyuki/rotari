@@ -163,7 +163,7 @@ func CompareGrid(runs []Run) GridResult {
 	lastJobs := make([]*Job, 0)
 	lastRunIndexes := make([]int, 0)
 	for _, run := range runs {
-		result.Runs = append(result.Runs, runInfo(run))
+		result.Runs = append(result.Runs, Info(run))
 	}
 	for runIndex, run := range runs {
 		for _, job := range run.Jobs {
@@ -208,7 +208,7 @@ func CompareGrid(runs []Run) GridResult {
 // Compare compares from with to. Jobs are listed in to's order, followed by
 // removed jobs in from's order.
 func Compare(from, to Run) Result {
-	result := Result{From: runInfo(from), To: runInfo(to), Jobs: []JobDiff{}, Sources: CompareSources(from.Sources, to.Sources)}
+	result := Result{From: Info(from), To: Info(to), Jobs: []JobDiff{}, Sources: CompareSources(from.Sources, to.Sources)}
 	fromByKey := make(map[string]Job, len(from.Jobs))
 	fromByID := make(map[string]Job, len(from.Jobs))
 	for _, job := range from.Jobs {
@@ -283,7 +283,9 @@ func matchingJob(from Run, byKey map[string]Job, byID map[string]Job, job Job) (
 	return old, ok
 }
 
-func runInfo(run Run) RunInfo {
+// Info identifies run for a summary or comparison: its ID, name, sources,
+// notes, and the time from its start to its finish.
+func Info(run Run) RunInfo {
 	info := RunInfo{ID: run.ID, Name: run.Name}
 	if run.Sources != nil {
 		info.Sources = run.Sources.Sources
@@ -510,7 +512,7 @@ type LineageEntry struct {
 func Lineage(runs []Run) []LineageEntry {
 	entries := make([]LineageEntry, 0, len(runs))
 	for index, run := range runs {
-		entry := LineageEntry{Run: runInfo(run), Counts: Summarize(run)}
+		entry := LineageEntry{Run: Info(run), Counts: Summarize(run)}
 		if index > 0 {
 			comparison := Compare(runs[index-1], run)
 			entry.Changes = &comparison.Summary

@@ -131,7 +131,7 @@ func buildLineageSummary(summary model.RunSummary, jobs []Job) runlineage.RunSum
 			Status: status, Origin: job.Origin, DiagnosisStatus: diagnosisStatus, Diagnoses: diagnoses, Result: result, Carried: job.Carried,
 		})
 	}
-	return runlineage.RunSummary{Run: runlineage.RunInfo{ID: summary.RunID, Name: summary.RunName}, Counts: runlineage.Summarize(run), Diagnoses: runlineage.SummarizeDiagnoses(run), Failures: runlineage.FailureGroups(run), Origins: runlineage.SummarizeOrigins(run)}
+	return runlineage.RunSummary{Run: runlineage.Info(run), Counts: runlineage.Summarize(run), Diagnoses: runlineage.SummarizeDiagnoses(run), Failures: runlineage.FailureGroups(run), Origins: runlineage.SummarizeOrigins(run)}
 }
 
 // newerStateVersion reports whether err is a run file from a newer rotari.

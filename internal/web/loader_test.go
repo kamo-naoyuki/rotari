@@ -420,3 +420,15 @@ func TestLoadJobsResolvesSummaryOnlyResultsThroughJobstatus(t *testing.T) {
 		}
 	}
 }
+
+// A run's summary carries its wall time, which the run page shows in its
+// Wall time card; the rule is runlineage.Info's, as for the CLI.
+func TestLineageSummaryCarriesElapsed(t *testing.T) {
+	summary := buildLineageSummary(model.RunSummary{RunID: "run-1", StartedAt: "2026-10-11T05:52:22.500+09:00", FinishedAt: "2026-10-11T05:53:24+09:00"}, nil)
+	if summary.Run.Elapsed != "1m1.5s" {
+		t.Fatalf("Elapsed = %q, want 1m1.5s", summary.Run.Elapsed)
+	}
+	if unfinished := buildLineageSummary(model.RunSummary{RunID: "run-2", StartedAt: "2026-10-11T05:52:22+09:00"}, nil); unfinished.Run.Elapsed != "" {
+		t.Fatalf("an unfinished run has Elapsed %q", unfinished.Run.Elapsed)
+	}
+}
