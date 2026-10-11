@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phases 0–3 done; Phase 4 page bodies done (run, project, overview, Job activity, history search); open: per-job timeline lanes (user decision), Settings menu config buttons rendered with the frame
+**Status:** Done (2026-10-11). Phases 0–4 complete; see [work-log.md](work-log.md).
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose
@@ -289,6 +289,9 @@ Phase 1 should land before the activity plan's Phase 2.
   Prettier and jsdom, run in CI), starting with the files Phase 2 rewrites
   and widening from there. A full TypeScript build is reconsidered only if
   the front end grows well beyond today's ~10,000 lines.
+- **Lane timeline (2026-10-11).** The run page's job timeline is one lane
+  per job, as in the mockup, replacing the share-over-time chart; the
+  timeline points stay in the API.
 - **Run page sections (2026-10-11).** The job timeline is open by default;
   the other sections remember their open state per browser.
 

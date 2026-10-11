@@ -250,3 +250,16 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** Job activity measured 1053px in a 1053px body at 1400px wide (1165px before) and has no sideways page scroll at 390px; a live history search for job names inspected. `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, pre-commit, and the full `scripts/check.sh` passed before each commit.
 
 **Remaining:** `addConfigButton` still fills the Settings menu after rendering; the job timeline is still the share-over-time chart, while the mockup drew one lane per job, which is a new chart for the user to decide on.
+
+### Job timeline lanes and close
+
+- `514a7654` (2026-10-11 21:58:19 +0900): the job timeline drawn as one lane per job.
+
+**Change:**
+- The user chose the mockup's lane timeline over the share-over-time chart. `internal/web`: `JobLane` and `BuildJobLanes` (the timeline's inputs, now with `JobID`, and its finish rule, `jobFinishedAt`, shared with `BuildTimeline`); `Run.Lanes` set beside `Run.Timeline` in the loader. `web_app_charts.js`: `jobTimelineSection` draws lanes in job order coloured by status, running spans to now, open-ended faint spans for jobs with no recorded finish, notes for jobs not started or carried, an axis from the timeline's initial point (dated when the run crosses a day) with offsets after it, a legend, labels that show the job's row (`focusMatrixJob`), and at most 50 lanes. `statusColorMap`, used only by the old chart, removed. The timeline points stay in the API (WEB-1 data).
+- Tests: `TestBuildJobLanes`; `TestJobTimelineDrawsOneLanePerJob` replaces `TestJobTimelineRendersOneBarPerPoint`. Contract: WEB-1's display sentence describes the lanes.
+- The Settings menu's config buttons (`addConfigButton`) were left as they are: one function rebuilds the panel's contents on each render rather than patching another renderer's output, so the Phase 2 rule holds.
+
+**Validation:** a five-job run with 1–3 s jobs, captured in light, OS dark, and chosen dark (a white Refresh button in the chosen-dark capture was a headless background-tab transition that never ran; with transitions off the button is dark). The final `scripts/screenshot-web.sh` on the demo state: every page in light and dark, no phone capture wider than 390px. `go test ./internal/web ./internal/webui`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before the commit.
+
+**Plan impact:** Phase 4 done; the plan is done.
