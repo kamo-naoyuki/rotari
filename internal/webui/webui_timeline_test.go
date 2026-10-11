@@ -135,3 +135,78 @@ setTimeout(() => {
 		t.Fatalf("job timeline lanes check failed: %v\n%s", err, output)
 	}
 }
+
+// Past 16 lanes' worth of jobs the timeline keeps its height bounded: thin
+// unlabelled lanes in one SVG, every started job drawn, failed bars drawn
+// last so they stay visible; hovering a row lists its jobs and clicking it
+// shows the most notable one in the table.
+func TestJobTimelineCompressesManyJobs(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const assert = require('node:assert/strict');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const at = minute => new Date(Date.UTC(2026, 9, 1, 10, minute)).toISOString();
+const lanes = [], jobs = [];
+for (let i = 0; i < 40; i++) {
+  const id = 'j' + i;
+  if (i === 38) { lanes.push({ job_id: id, carried: true }); jobs.push({ id, name: 'job-' + i, result: { exit_code: 0 }, origin: { run_id: 'run-0' } }); continue; }
+  if (i === 39) { lanes.push({ job_id: id }); jobs.push({ id, name: 'job-' + i }); continue; }
+  lanes.push({ job_id: id, start: at(i), end: at(i + 5) });
+  jobs.push({ id, name: 'job-' + i, result: { exit_code: i === 20 ? 1 : 0 } });
+}
+const run = { run_id: 'run-1', status: 'failed', lifecycle: 'failed', timeline: [{ at: at(0) }], lanes, jobs };
+const state = { base_dir: '/state', projects: [{ project_name: 'default', queue: { commands: [] }, runs: [run] }] };
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.setInterval = () => 1;
+    window.fetch = async (url) => {
+      if (url === '/api/state') return { ok: true, json: async () => state };
+      throw new Error('unexpected fetch: ' + url);
+    };
+  },
+});
+setTimeout(() => {
+  try {
+    const window = dom.window, document = window.document;
+    const section = document.querySelector('#app section.job-timeline');
+    assert(!section.querySelector('.lane-label'), 'many jobs still get one labelled lane each');
+    const svg = section.querySelector('.lane-dense svg');
+    assert.equal(svg.getAttribute('viewBox'), '0 0 1000 260');
+    const rects = [...svg.querySelectorAll('rect.lane-rect')];
+    assert.equal(rects.length, 38, 'every started job is drawn');
+    assert(rects[rects.length - 1].classList.contains('tone-bad'), 'the failed bar is not drawn last');
+    assert.deepEqual([...section.querySelectorAll('.lane-ends span')].map(span => span.textContent), ['job-0', 'job-39']);
+    assert(section.querySelector('.graphic-note').textContent.startsWith('40 jobs · '));
+    // job-20 sits at y = 20 * 6.5 = 130.
+    svg.dispatchEvent(new window.MouseEvent('pointermove', { clientY: 131, bubbles: true }));
+    const tip = section.querySelector('.lane-tip');
+    assert(!tip.hidden && tip.textContent.includes('job-20'), tip.textContent);
+    let focused = '';
+    window.focusMatrixJob = id => { focused = id; };
+    svg.dispatchEvent(new window.MouseEvent('click', { clientY: 131, bubbles: true }));
+    assert.equal(focused, 'j20');
+    if (errors.length) throw new Error(errors.join('\\n'));
+  } catch (error) {
+    console.error(error.stack || String(error));
+    process.exit(1);
+  }
+  process.exit(0);
+}, 100);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+		t.Fatalf("compressed job timeline check failed: %v\n%s", err, output)
+	}
+}

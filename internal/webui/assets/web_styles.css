@@ -2064,7 +2064,7 @@ pre,
 }
 .lane-track {
   position: relative;
-  height: 18px;
+  height: min(18px, 100%);
   border-radius: 3px;
   background: repeating-linear-gradient(
     90deg,
@@ -2131,6 +2131,88 @@ pre,
 }
 .lane-axis > span:last-child {
   transform: translateX(-100%);
+}
+/* Many jobs: thin unlabelled lanes in one SVG of bounded height. */
+.lane-dense {
+  align-items: stretch;
+}
+.lane-ends {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.lane-ends > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lane-plot {
+  position: relative;
+  min-width: 0;
+}
+.lane-plot svg {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+.lane-grid {
+  fill: var(--line-soft);
+}
+.lane-hover {
+  fill: var(--link);
+  opacity: 0.18;
+}
+.lane-rect.tone-ok {
+  fill: var(--s-ok);
+}
+.lane-rect.tone-bad {
+  fill: var(--s-bad);
+}
+.lane-rect.tone-run {
+  fill: var(--s-run);
+}
+.lane-rect.tone-warn {
+  fill: var(--s-warn);
+}
+.lane-rect.tone-off {
+  fill: var(--s-off);
+}
+.lane-rect.open {
+  opacity: 0.45;
+}
+.lane-tip {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-size: 12px;
+  pointer-events: none;
+}
+.lane-tip-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.lane-tip-row > span:nth-child(2) {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lane-tip-row > span:last-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .lane-legend {
   display: flex;

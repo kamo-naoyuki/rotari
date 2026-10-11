@@ -101,7 +101,19 @@ function graphicNote(text, className) {
 // carried from an earlier run. The axis starts at the run timeline's initial
 // point and marks the rest as offsets from it. A lane's label shows the
 // job's row in the table.
-const timelineLaneLimit = 50;
+//
+// The timeline's height is bounded whatever the job count or parallelism:
+// rows shrink from 22px to fit 260px. While a row is at least 16px each lane
+// carries its job's name; below that the lanes are drawn as thin rows
+// without names, down to 2px, and past that one pixel row holds several
+// jobs, drawn failed over running over success. Hovering a row lists its
+// jobs; clicking it shows the most notable one's row in the table.
+const laneBudget = 260;
+const laneMaxHeight = 22;
+const laneLabelledHeight = 16;
+const laneMinHeight = 2;
+/** @type {Record<string, number>} */
+const lanePriority = { ok: 0, off: 0, warn: 1, run: 2, bad: 3 };
 /**
  * @param {number} origin the axis start, milliseconds since the epoch
  * @param {number} span the axis length in milliseconds
@@ -163,61 +175,47 @@ function jobTimelineSection(run) {
   const percent = (value) =>
     Math.min(100, Math.max(0, ((value - origin) / span) * 100));
   const byID = new Map(jobs.map((job) => [job.id, job]));
-  const shown = lanes.slice(0, timelineLaneLimit);
-  const tones = new Set();
-  const rows = shown
-    .map((lane) => {
-      const job = byID.get(lane.job_id) || { id: lane.job_id };
-      const name = job.name || job.id;
-      const status = jobDisplayStatus(job, run);
-      const tone = statusTone(status);
-      const start = time(lane.start);
-      let track;
-      if (lane.carried) {
-        track = '<span class="lane-note">carried from an earlier run</span>';
-      } else if (!Number.isFinite(start)) {
-        track = '<span class="lane-note">' + esc(status) + "</span>";
-      } else {
-        tones.add(tone);
-        const finish = time(lane.end);
-        const open = !Number.isFinite(finish);
-        const left = percent(start);
-        const right = open
-          ? run.running
-            ? percent(Date.now())
-            : 100
-          : percent(finish);
-        track =
-          '<span class="lane-bar tone-' +
-          tone +
-          (open && !run.running ? " open" : "") +
-          '" style="left:' +
-          left.toFixed(2) +
-          "%;width:" +
-          Math.max(right - left, 0.6).toFixed(2) +
-          '%" title="' +
-          esc(
-            name +
-              " · " +
-              status +
-              (job.elapsed ? " · " + job.elapsed : "") +
-              (open && !run.running ? " · no finish recorded" : ""),
-          ) +
-          '"></span>';
-      }
-      return (
-        '<div class="lane-row"><button type="button" class="lane-label" title="Show ' +
-        esc(name) +
-        ' in the table" onclick="focusMatrixJob(' +
-        esc(JSON.stringify(lane.job_id)) +
-        ')">' +
-        esc(name) +
-        '</button><div class="lane-track">' +
-        track +
-        "</div></div>"
-      );
-    })
-    .join("");
+  const entries = lanes.map((lane) => {
+    const job = byID.get(lane.job_id) || { id: lane.job_id };
+    const status = jobDisplayStatus(job, run);
+    const start = time(lane.start);
+    const finish = time(lane.end);
+    const drawn = !lane.carried && Number.isFinite(start);
+    const open = drawn && !Number.isFinite(finish);
+    const left = drawn ? percent(start) : 0;
+    const right = !drawn
+      ? 0
+      : open
+        ? run.running
+          ? percent(Date.now())
+          : 100
+        : percent(finish);
+    // A bar keeps a visible width; one that ends at the axis end grows
+    // leftward instead of past it.
+    const width = Math.max(right - left, 0.6);
+    return {
+      lane,
+      job,
+      name: job.name || job.id,
+      status,
+      tone: statusTone(status),
+      drawn,
+      faint: open && !run.running,
+      left: Math.min(left, 100 - width),
+      width,
+    };
+  });
+  const tones = new Set(
+    entries.filter((entry) => entry.drawn).map((entry) => entry.tone),
+  );
+  const rowHeight = Math.min(
+    laneMaxHeight,
+    Math.max(laneBudget / Math.max(entries.length, 1), laneMinHeight),
+  );
+  const labelled = rowHeight >= laneLabelledHeight;
+  const rows = labelled
+    ? laneRowsHTML(entries, rowHeight)
+    : denseLanesHTML(entries, rowHeight);
   const ticks = [0, 0.25, 0.5, 0.75, 1];
   const labels = timelineAxisLabels(origin, span, ticks);
   const axis =
@@ -254,13 +252,14 @@ function jobTimelineSection(run) {
       )
       .join("") +
     "</div>";
+  const perRow = entries.length / Math.floor(laneBudget / laneMinHeight);
   const section = runGraphicSection(
     "job-timeline",
     "Job timeline",
     graphicNote(
-      (lanes.length > timelineLaneLimit
-        ? "first " + timelineLaneLimit + " of " + lanes.length + " jobs"
-        : lanes.length + (lanes.length === 1 ? " job" : " jobs")) +
+      entries.length +
+        (entries.length === 1 ? " job" : " jobs") +
+        (perRow > 1 ? " · 1 row ≈ " + Math.ceil(perRow) + " jobs" : "") +
         " · " +
         formatSpan(span),
       "meta",
@@ -268,11 +267,200 @@ function jobTimelineSection(run) {
   );
   const chart = document.createElement("div");
   chart.className = "lane-chart";
-  chart.innerHTML = lanes.length
+  chart.innerHTML = entries.length
     ? rows + axis + (tones.size > 1 ? legend : "")
     : '<div class="meta">No jobs.</div>';
   section.append(chart);
+  const dense = chart.querySelector(".lane-dense svg");
+  if (dense instanceof SVGSVGElement) followDenseLanes(dense, entries);
   return section;
+}
+/**
+ * @typedef {{lane: WebJobLane, job: WebJob, name: string, status: string,
+ *   tone: string, drawn: boolean, faint: boolean, left: number,
+ *   width: number}} LaneEntry
+ */
+/**
+ * One labelled lane per job.
+ * @param {LaneEntry[]} entries
+ * @param {number} rowHeight
+ */
+function laneRowsHTML(entries, rowHeight) {
+  return entries
+    .map((entry) => {
+      const track = entry.lane.carried
+        ? '<span class="lane-note">carried from an earlier run</span>'
+        : !entry.drawn
+          ? '<span class="lane-note">' + esc(entry.status) + "</span>"
+          : '<span class="lane-bar tone-' +
+            entry.tone +
+            (entry.faint ? " open" : "") +
+            '" style="left:' +
+            entry.left.toFixed(2) +
+            "%;width:" +
+            entry.width.toFixed(2) +
+            '%" title="' +
+            esc(laneTitle(entry)) +
+            '"></span>';
+      return (
+        '<div class="lane-row" style="height:' +
+        rowHeight.toFixed(1) +
+        'px"><button type="button" class="lane-label" title="Show ' +
+        esc(entry.name) +
+        ' in the table" onclick="focusMatrixJob(' +
+        esc(JSON.stringify(entry.lane.job_id)) +
+        ')">' +
+        esc(entry.name) +
+        '</button><div class="lane-track">' +
+        track +
+        "</div></div>"
+      );
+    })
+    .join("");
+}
+/** @param {LaneEntry} entry */
+function laneTitle(entry) {
+  return (
+    entry.name +
+    " · " +
+    entry.status +
+    (entry.job.elapsed ? " · " + entry.job.elapsed : "") +
+    (entry.faint ? " · no finish recorded" : "")
+  );
+}
+/**
+ * Thin unlabelled lanes in one SVG of at most laneBudget pixels, its width
+ * stretched to the plot. Bars are drawn in priority order so a failed job
+ * stays visible when it shares a pixel row.
+ * @param {LaneEntry[]} entries
+ * @param {number} rowHeight
+ */
+function denseLanesHTML(entries, rowHeight) {
+  const height = Math.min(laneBudget, Math.ceil(entries.length * rowHeight));
+  const unit = height / entries.length;
+  const barHeight = Math.max(1, unit - (unit >= 4 ? 1 : 0));
+  const bars = entries
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.drawn)
+    .sort(
+      (a, b) =>
+        (lanePriority[a.entry.tone] || 0) - (lanePriority[b.entry.tone] || 0),
+    )
+    .map(
+      ({ entry, index }) =>
+        '<rect class="lane-rect tone-' +
+        entry.tone +
+        (entry.faint ? " open" : "") +
+        '" x="' +
+        (entry.left * 10).toFixed(1) +
+        '" y="' +
+        (index * unit).toFixed(2) +
+        '" width="' +
+        (entry.width * 10).toFixed(1) +
+        '" height="' +
+        barHeight.toFixed(2) +
+        '"></rect>',
+    )
+    .join("");
+  const grid = [250, 500, 750]
+    .map(
+      (x) =>
+        '<rect class="lane-grid" x="' +
+        x +
+        '" y="0" width="1" height="' +
+        height +
+        '"></rect>',
+    )
+    .join("");
+  return (
+    '<div class="lane-row lane-dense"><div class="lane-ends"><span>' +
+    esc(entries[0].name) +
+    "</span><span>" +
+    esc(entries[entries.length - 1].name) +
+    '</span></div><div class="lane-plot"><svg viewBox="0 0 1000 ' +
+    height +
+    '" preserveAspectRatio="none" shape-rendering="crispEdges" style="height:' +
+    height +
+    'px" role="img" aria-label="Job timeline of ' +
+    entries.length +
+    ' jobs">' +
+    grid +
+    '<rect class="lane-hover" x="0" y="0" width="1000" height="0"></rect>' +
+    bars +
+    '</svg><div class="lane-tip" hidden></div></div></div>'
+  );
+}
+/**
+ * Hovering the thin lanes lists the jobs in the pointer's row; clicking
+ * shows the most notable of them in the table.
+ * @param {SVGSVGElement} svg
+ * @param {LaneEntry[]} entries
+ */
+function followDenseLanes(svg, entries) {
+  const plot = /** @type {HTMLElement} */ (svg.parentElement);
+  const tip = /** @type {HTMLElement} */ (plot.querySelector(".lane-tip"));
+  const band = svg.querySelector(".lane-hover");
+  const height = Number(svg.getAttribute("viewBox")?.split(" ")[3]) || 1;
+  /** @param {PointerEvent | MouseEvent} event */
+  const rowAt = (event) => {
+    const y = event.clientY - svg.getBoundingClientRect().top;
+    const per = entries.length / height;
+    const from = Math.max(0, Math.floor((y - 1) * per));
+    const to = Math.min(
+      entries.length,
+      Math.max(from + 1, Math.ceil((y + 1) * per)),
+    );
+    return { y, hits: entries.slice(from, to) };
+  };
+  /** @param {LaneEntry[]} hits */
+  const notable = (hits) =>
+    hits
+      .slice()
+      .sort(
+        (a, b) => (lanePriority[b.tone] || 0) - (lanePriority[a.tone] || 0),
+      );
+  svg.addEventListener("pointermove", (event) => {
+    const { y, hits } = rowAt(event);
+    if (!hits.length) return;
+    band?.setAttribute("y", String(Math.max(0, y - 1.5)));
+    band?.setAttribute("height", "3");
+    const shown = notable(hits).slice(0, 6);
+    tip.innerHTML =
+      '<div class="meta">' +
+      (hits.length > 1 ? hits.length + " jobs in this row" : "1 job") +
+      "</div>" +
+      shown
+        .map(
+          (entry) =>
+            '<div class="lane-tip-row"><i class="lane-swatch tone-' +
+            entry.tone +
+            '"></i><span>' +
+            esc(entry.name) +
+            "</span><span>" +
+            esc(
+              entry.drawn
+                ? entry.job.elapsed || entry.status
+                : entry.lane.carried
+                  ? "carried"
+                  : entry.status,
+            ) +
+            "</span></div>",
+        )
+        .join("") +
+      (hits.length > shown.length
+        ? '<div class="meta">+' + (hits.length - shown.length) + " more</div>"
+        : "");
+    tip.hidden = false;
+    tip.style.top = Math.min(y + 12, height + 4) + "px";
+  });
+  svg.addEventListener("pointerleave", () => {
+    tip.hidden = true;
+    band?.setAttribute("height", "0");
+  });
+  svg.addEventListener("click", (event) => {
+    const [first] = notable(rowAt(event).hits);
+    if (first) focusMatrixJob(first.lane.job_id);
+  });
 }
 /**
  * @param {number} milliseconds

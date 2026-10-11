@@ -29,12 +29,15 @@ recorded a late start. The run page draws the timeline as one lane per job
 an executed job spans its submission to its finish, a carried job and a job
 not yet started are noted instead, and the axis starts at the initial point,
 labelled with its clock time (and date when the run crosses a day), with the
-rest marked as offsets from it. The shared
+rest marked as offsets from it. Its height stays within 260px whatever the job
+count or parallelism: past 16 lanes' worth of jobs the lanes lose their names
+and thin down to 2px, then share pixel rows, drawn failed over running over
+success, and hovering a row lists its jobs. The shared
 carried-result decision is in
 [internal/runlineage](../internal/runlineage/runlineage.go); timeline
 projection is in [internal/web](../internal/web/timeline.go) and display is in
 [web_app_charts.js](../internal/webui/assets/web_app_charts.js) (`TestBuildJobLanes`,
-`TestJobTimelineDrawsOneLanePerJob`), covered by
+`TestJobTimelineDrawsOneLanePerJob`, `TestJobTimelineCompressesManyJobs`), covered by
 [`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go) and
 [`TestRunTimelineStartsAtActualRunStart`](../conformance/02-lifecycle/lifecycle_test.go).
 
