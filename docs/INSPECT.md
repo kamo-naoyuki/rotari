@@ -108,8 +108,10 @@ time window. To choose its displayed fields, use `--format`; see the
 `runs --json` print the same rows as JSON arrays. Each job has its `state`,
 IDs, command, start and finish times, `elapsed_seconds` (`null` when
 unknown), and, for a running job that has written output, `quiet_seconds`; `--json` cannot be combined with `--format`. Each run has its
-`lifecycle`, `client_status`, exit code (`null` until the run finishes), and
-recorded start and finish times.
+`lifecycle`, `client_status`, exit code (`null` until the run finishes),
+recorded start and finish times, the working directory (`cwd`) and `host` it
+ran from, the recorded source revisions (`sources`), and the number of notes on
+the run itself (`note_count`).
 
 The project list shows each project's last run and its result, such as
 `failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the

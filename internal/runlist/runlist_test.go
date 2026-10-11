@@ -277,3 +277,60 @@ func TestCollectActiveRunWithoutSummaryUsesLockDetails(t *testing.T) {
 		})
 	}
 }
+
+// A run's details come from its context, sources, and its own notes; a run
+// that wrote none of those files has empty details, and an unreadable file
+// is an error rather than an empty fact.
+func TestReadDetails(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := writeListsRun(t, baseDir, "demo", "run-full")
+	writeListsRun(t, baseDir, "demo", "run-bare")
+	runDir := filepath.Join(paths.RunsDir, "run-full")
+	if err := state.WriteJSON(filepath.Join(runDir, "context.json"), model.RunContext{CWD: "/work/repo", Hostname: "node7"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.SaveRunSources(runDir, model.RunSources{Sources: []model.SourceRevision{
+		{Root: "/work/repo", VCS: "git", CommitID: "0123456789abcdef"},
+		{Root: "/work/lib", VCS: "jj", CommitID: "fedcba9876543210", ChangeID: "zyxwvutsrqponmlk"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, note := range []model.RunNote{
+		{At: "1", JobID: "job-1", Text: "a job's note"},
+		{At: "2", Text: "Raise the beam\nto 8"},
+		{At: "3", Text: "second run note"},
+	} {
+		if err := state.AppendRunNote(runDir, note); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runs, err := Collect([]string{baseDir}, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]Run{}
+	for _, run := range runs {
+		byID[run.RunID] = run
+	}
+	details, err := ReadDetails(byID["run-full"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Details{
+		WorkingDirectory: "/work/repo", Host: "node7",
+		Sources:   []string{"git 0123456789ab (clean) in /work/repo", "jj fedcba987654 (change zyxwvutsrqpo) in /work/lib"},
+		NoteCount: 2, FirstNote: "Raise the beam",
+	}
+	if !reflect.DeepEqual(details, want) {
+		t.Fatalf("details = %#v, want %#v", details, want)
+	}
+	if details, err := ReadDetails(byID["run-bare"]); err != nil || !reflect.DeepEqual(details, Details{}) {
+		t.Fatalf("bare run details = %#v, %v; want empty", details, err)
+	}
+	if err := writeTestFile(filepath.Join(runDir, "context.json"), []byte("{broken")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadDetails(byID["run-full"]); err == nil || !strings.Contains(err.Error(), "run-full") {
+		t.Fatalf("broken context error = %v, want one naming the run", err)
+	}
+}

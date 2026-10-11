@@ -100,6 +100,11 @@ type runListJSON struct {
 	ExitCode     *int                  `json:"exit_code"`
 	StartedAt    string                `json:"started_at,omitempty"`
 	FinishedAt   string                `json:"finished_at,omitempty"`
+	// Where the run ran, which code it ran, and its own notes.
+	CWD       string   `json:"cwd,omitempty"`
+	Host      string   `json:"host,omitempty"`
+	Sources   []string `json:"sources,omitempty"`
+	NoteCount int      `json:"note_count"`
 }
 
 // cmdRuns lists active and interrupted runs plus recently finished runs across
@@ -171,10 +176,16 @@ func valueIfSet(fs *flag.FlagSet, name, value string) string {
 func printRunRowsJSON(runs []runlist.Run) int {
 	rows := make([]runListJSON, 0, len(runs))
 	for _, run := range runs {
+		details, err := runlist.ReadDetails(run)
+		if err != nil {
+			printError(err)
+			return 1
+		}
 		rows = append(rows, runListJSON{
 			BaseDir: run.BaseDir, Project: run.Project, RunID: run.RunID, RunName: run.RunName,
 			Lifecycle: run.Lifecycle, ClientStatus: run.ClientStatus, ClientLabel: run.ClientLabel,
 			ExitCode: run.ExitCode, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
+			CWD: details.WorkingDirectory, Host: details.Host, Sources: details.Sources, NoteCount: details.NoteCount,
 		})
 	}
 	encoder := json.NewEncoder(os.Stdout)

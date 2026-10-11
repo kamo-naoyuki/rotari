@@ -191,6 +191,12 @@ func TestListsRunsJSON(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-done", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientCompleted, Reason: model.RunClientReasonAsync}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-done", "context.json"), model.RunContext{CWD: "/work/repo", Hostname: "node7"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.AppendRunNote(filepath.Join(paths.RunsDir, "run-done"), model.RunNote{At: "1", Text: "baseline"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-active"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +227,9 @@ func TestListsRunsJSON(t *testing.T) {
 		ExitCode     *int                  `json:"exit_code"`
 		StartedAt    string                `json:"started_at"`
 		FinishedAt   string                `json:"finished_at"`
+		CWD          string                `json:"cwd"`
+		Host         string                `json:"host"`
+		NoteCount    int                   `json:"note_count"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &runs); err != nil {
 		t.Fatalf("runs --json is not JSON: %v\n%s", err, output.String())
@@ -233,7 +242,8 @@ func TestListsRunsJSON(t *testing.T) {
 		t.Errorf("active run = %+v", active)
 	}
 	if done.RunID != "run-done" || done.Lifecycle != "finished" || done.ExitCode == nil || *done.ExitCode != 0 || done.FinishedAt != finishedAt.Format(time.RFC3339Nano) ||
-		done.ClientStatus.Mode != model.RunClientModeAsync || done.ClientLabel != "async (completed)" {
+		done.ClientStatus.Mode != model.RunClientModeAsync || done.ClientLabel != "async (completed)" ||
+		done.CWD != "/work/repo" || done.Host != "node7" || done.NoteCount != 1 {
 		t.Errorf("finished run = %+v", done)
 	}
 

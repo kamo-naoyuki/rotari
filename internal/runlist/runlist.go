@@ -4,10 +4,12 @@
 package runlist
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -183,4 +185,58 @@ func DescribeScope(baseDirs []string, projectFilter string) string {
 		scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
 	}
 	return scope
+}
+
+// Details are the facts shown beside a listed run, read from its context,
+// sources, and notes files: where it ran, which code it ran, and what was
+// noted about it. A file the run did not write leaves its facts empty.
+type Details struct {
+	WorkingDirectory string
+	Host             string
+	// Sources are the recorded repositories' labels (model.SourceLabel).
+	Sources []string
+	// NoteCount counts the run's own notes, not its jobs'; FirstNote is the
+	// first line of the earliest.
+	NoteCount int
+	FirstNote string
+}
+
+// ReadDetails reads run's details. Callers read them only for the runs they
+// show, so listing many old runs stays cheap.
+func ReadDetails(run Run) (Details, error) {
+	paths, err := state.ResolveProjectPaths(run.BaseDir, run.Project)
+	if err != nil {
+		return Details{}, err
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, run.RunID)
+	if err != nil {
+		return Details{}, err
+	}
+	var details Details
+	context, err := state.LoadContext(state.NewStore(state.DirectoryMode(), state.FileMode()), runDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Details{}, fmt.Errorf("failed to read the context of run %q: %w", run.RunID, err)
+	}
+	details.WorkingDirectory, details.Host = context.CWD, context.Hostname
+	sources, _, err := state.LoadRunSources(runDir)
+	if err != nil {
+		return Details{}, fmt.Errorf("failed to read the sources of run %q: %w", run.RunID, err)
+	}
+	for _, source := range sources.Sources {
+		details.Sources = append(details.Sources, model.SourceLabel(source))
+	}
+	notes, err := state.LoadRunNotes(runDir)
+	if err != nil {
+		return Details{}, fmt.Errorf("failed to read the notes of run %q: %w", run.RunID, err)
+	}
+	for _, note := range notes {
+		if note.JobID != "" {
+			continue
+		}
+		if details.NoteCount == 0 {
+			details.FirstNote, _, _ = strings.Cut(note.Text, "\n")
+		}
+		details.NoteCount++
+	}
+	return details, nil
 }
