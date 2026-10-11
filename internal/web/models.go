@@ -33,7 +33,9 @@ type Run struct {
 	// behind the job's Notes button, from Job.NoteLabels.
 	Notes    []model.RunNote `json:"notes,omitempty"`
 	Timeline []TimelinePoint `json:"timeline,omitempty"`
-	Running  bool            `json:"running"`
+	// Lanes are the jobs' spans for the run page's job timeline.
+	Lanes   []JobLane `json:"lanes,omitempty"`
+	Running bool      `json:"running"`
 	// Unreadable, when set, is why the run's files cannot be read: they come
 	// from a newer rotari. The run then has status "unreadable" and no jobs.
 	Unreadable string `json:"unreadable,omitempty"`

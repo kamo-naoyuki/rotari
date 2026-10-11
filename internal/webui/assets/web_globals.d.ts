@@ -25,6 +25,7 @@ interface WebJobResult {
 interface WebJob {
   id: string;
   name?: string;
+  elapsed?: string;
   result?: WebJobResult | null;
 }
 interface WebTimelinePoint {
@@ -33,6 +34,12 @@ interface WebTimelinePoint {
   running?: number;
   success?: number;
   failed?: number;
+}
+interface WebJobLane {
+  job_id: string;
+  start?: string;
+  end?: string;
+  carried?: boolean;
 }
 interface WebLoadAverage {
   one: number;
@@ -48,6 +55,7 @@ interface WebRun {
   running?: boolean;
   jobs?: WebJob[];
   timeline?: WebTimelinePoint[];
+  lanes?: WebJobLane[];
   context?: {
     load_samples?: WebLoadSample[];
     started_load?: WebLoadAverage;

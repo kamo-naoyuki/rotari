@@ -38,11 +38,8 @@ function statusPill(status, text = status) {
     '<span class="' + statusPillClass(status) + '">' + esc(text) + "</span>"
   );
 }
-// statusColorMap and statusTintMap build a view's colour table for its
-// status keys: a colour, or a [background, foreground] pair.
-function statusColorMap(keys) {
-  return Object.fromEntries(keys.map((key) => [key, statusColor(key)]));
-}
+// statusTintMap builds a view's colour table for its status keys: a
+// [background, foreground] pair for each.
 function statusTintMap(keys) {
   return Object.fromEntries(
     keys.map((key) => [

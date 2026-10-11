@@ -3,6 +3,7 @@ package web
 import "sort"
 
 type JobTimelineInput struct {
+	JobID       string
 	Finished    bool
 	Carried     bool
 	SubmittedAt string
@@ -49,11 +50,7 @@ func BuildTimeline(startedAt, runFinishedAt string, jobs []JobTimelineInput) []T
 		if job.SubmittedAt != "" {
 			events = append(events, event{at: job.SubmittedAt, pending: -1, running: 1})
 		}
-		finishedAt := job.FinishedAt
-		if finishedAt == "" && job.Finished {
-			finishedAt = runFinishedAt
-		}
-		if finishedAt != "" {
+		if finishedAt := jobFinishedAt(job, runFinishedAt); finishedAt != "" {
 			finished := event{at: finishedAt, finished: 1}
 			if job.SubmittedAt != "" {
 				finished.running = -1
@@ -90,4 +87,43 @@ func BuildTimeline(startedAt, runFinishedAt string, jobs []JobTimelineInput) []T
 		points = append(points, TimelinePoint{At: at, Pending: pending, Running: running, Finished: finished, Success: success, Failed: failed})
 	}
 	return points
+}
+
+// jobFinishedAt is when a job executed in the run finished: its own finish
+// time, or the run's for a finished job that recorded none.
+func jobFinishedAt(job JobTimelineInput, runFinishedAt string) string {
+	if job.FinishedAt == "" && job.Finished {
+		return runFinishedAt
+	}
+	return job.FinishedAt
+}
+
+// JobLane is one job's span on the run page's job timeline, in RFC 3339:
+// from its submission to its finish, by the same rules as BuildTimeline.
+// Start is empty for a job not yet submitted and End for one still
+// running. A carried job ran in an earlier run, so it has no span here.
+type JobLane struct {
+	JobID   string `json:"job_id"`
+	Start   string `json:"start,omitempty"`
+	End     string `json:"end,omitempty"`
+	Carried bool   `json:"carried,omitempty"`
+}
+
+// BuildJobLanes returns one lane per job, in the jobs' order.
+func BuildJobLanes(runFinishedAt string, jobs []JobTimelineInput) []JobLane {
+	lanes := make([]JobLane, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Finished && job.Carried {
+			lanes = append(lanes, JobLane{JobID: job.JobID, Carried: true})
+			continue
+		}
+		end := jobFinishedAt(job, runFinishedAt)
+		if job.SubmittedAt == "" {
+			// A job never submitted has no span, though BuildTimeline counts
+			// its finish.
+			end = ""
+		}
+		lanes = append(lanes, JobLane{JobID: job.JobID, Start: job.SubmittedAt, End: end})
+	}
+	return lanes
 }

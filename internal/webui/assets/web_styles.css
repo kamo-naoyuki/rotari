@@ -2033,13 +2033,120 @@ pre,
   color: var(--muted);
   font-size: 12px;
 }
-.job-timeline-chart {
-  display: flex;
-  margin-top: 14px;
-  overflow-x: auto;
+/* The job timeline's lanes (jobTimelineSection in web_app_charts.js). */
+.lane-chart {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
 }
-.job-timeline-chart svg {
-  display: block;
+.lane-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.lane-label {
+  min-height: 0;
+  padding: 1px 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: 12.5px/1.4 var(--font-sans);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lane-label:hover {
+  background: none;
+  color: var(--link);
+  text-decoration: underline;
+}
+.lane-track {
+  position: relative;
+  height: 18px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--line-soft) 0 1px,
+    transparent 1px 25%
+  );
+}
+.lane-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  min-width: 3px;
+  border-radius: 3px;
+}
+/* A job that recorded no finish: its span is drawn faint and open-ended. */
+.lane-bar.open {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  opacity: 0.45;
+}
+.lane-bar.tone-ok,
+.lane-swatch.tone-ok {
+  background: var(--s-ok);
+}
+.lane-bar.tone-bad,
+.lane-swatch.tone-bad {
+  background: var(--s-bad);
+}
+.lane-bar.tone-run,
+.lane-swatch.tone-run {
+  background: var(--s-run);
+}
+.lane-bar.tone-warn,
+.lane-swatch.tone-warn {
+  background: var(--s-warn);
+}
+.lane-bar.tone-off,
+.lane-swatch.tone-off {
+  background: var(--s-off);
+}
+.lane-note {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+.lane-axis {
+  position: relative;
+  height: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.lane-axis > span {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.lane-axis > span:first-child {
+  transform: none;
+}
+.lane-axis > span:last-child {
+  transform: translateX(-100%);
+}
+.lane-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.lane-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
 }
 .load-timeline {
   margin-top: 16px;

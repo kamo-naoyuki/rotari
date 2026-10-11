@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -68,5 +69,30 @@ func TestBuildTimelineUsesRunEndWhenFinishedJobHasNoTimestamps(t *testing.T) {
 	}
 	if points[1].At != "finish" || points[1].Pending != 0 || points[1].Finished != 1 || points[1].Success != 1 {
 		t.Fatalf("finish point = %#v, want one finished success", points[1])
+	}
+}
+
+// Each job gets a lane in job order: an executed job spans its submission to
+// its finish (the run's finish when it recorded none), a running job has no
+// end, a job never submitted no span, and a carried job is marked instead.
+func TestBuildJobLanes(t *testing.T) {
+	lanes := BuildJobLanes("run-end", []JobTimelineInput{
+		{JobID: "done", Finished: true, SubmittedAt: "10", FinishedAt: "20", Success: true},
+		{JobID: "running", SubmittedAt: "11"},
+		{JobID: "pending"},
+		{JobID: "carried", Finished: true, Carried: true, Success: true},
+		{JobID: "no-finish-time", Finished: true, SubmittedAt: "12"},
+		{JobID: "never-submitted", Finished: true},
+	})
+	want := []JobLane{
+		{JobID: "done", Start: "10", End: "20"},
+		{JobID: "running", Start: "11"},
+		{JobID: "pending"},
+		{JobID: "carried", Carried: true},
+		{JobID: "no-finish-time", Start: "12", End: "run-end"},
+		{JobID: "never-submitted"},
+	}
+	if !reflect.DeepEqual(lanes, want) {
+		t.Fatalf("lanes = %#v, want %#v", lanes, want)
 	}
 }

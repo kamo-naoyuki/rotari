@@ -1,9 +1,9 @@
 package webui
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -51,54 +51,87 @@ func TestFinishedRunWithoutJobTimestampsStillHasTimelineEnd(t *testing.T) {
 	}
 }
 
-func TestJobTimelineRendersOneBarPerPoint(t *testing.T) {
+// The job timeline draws one lane per job in job order: an executed job's
+// span coloured by its status, a note for a job not started or carried, an
+// axis that starts at the run timeline's initial point (dated when the run
+// crosses a day) and marks offsets from it, and labels that show the job's
+// row.
+func TestJobTimelineDrawsOneLanePerJob(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
-	// The section frame and the timeline section are adjacent in the script.
-	start := strings.Index(webAppChartsJS, "function runGraphicSection(")
-	end := strings.Index(webAppChartsJS, "function runStatisticsSection(")
-	if start < 0 || end <= start {
-		t.Fatal("job timeline renderer was not found")
-	}
-	end -= start
-	// The renderer colours statuses through the shared mapping in the core script.
-	toneStart := strings.Index(webAppCoreJS, "const statusTones = __ROTARI_STATUS_TONES__;")
-	toneEnd := strings.Index(webAppCoreJS, "function basedirURL(")
-	if toneStart < 0 || toneEnd <= toneStart {
-		t.Fatal("status colour mapping was not found")
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	script := `
-const { JSDOM } = require('jsdom');
-const dom = new JSDOM('<div id="app"></div>');
-const document = dom.window.document;
-const expandedRunGraphics = {};
+const fs = require('fs');
+const assert = require('node:assert/strict');
+const { JSDOM, VirtualConsole } = require('jsdom');
 const run = {
-  run_id: 'run-1', jobs: [{}, {}], timeline: [
-    {at: '2026-10-01T10:00:00Z', pending: 2},
-    {at: '2026-10-01T10:00:01Z', pending: 1, running: 1},
-    {at: '2026-10-01T10:00:02Z', success: 1, running: 1},
-    {at: '2026-10-02T10:00:00Z', success: 2},
-  ]
+  run_id: 'run-1', status: 'failed', lifecycle: 'failed',
+  timeline: [{ at: '2026-10-01T10:00:00Z', pending: 3 }, { at: '2026-10-02T10:00:00Z', success: 1, failed: 1 }],
+  lanes: [
+    { job_id: 'a', start: '2026-10-01T10:00:00Z', end: '2026-10-01T22:00:00Z' },
+    { job_id: 'b', start: '2026-10-01T22:00:00Z', end: '2026-10-02T10:00:00Z' },
+    { job_id: 'c' },
+    { job_id: 'd', carried: true },
+  ],
+  jobs: [
+    { id: 'a', name: 'train', result: { exit_code: 0 } },
+    { id: 'b', name: 'eval', result: { exit_code: 3 } },
+    { id: 'c', name: 'report' },
+    { id: 'd', name: 'prepare', result: { exit_code: 0 }, origin: { run_id: 'run-0', job_id: 'd' } },
+  ],
 };
-` + strings.Replace(webAppCoreJS[toneStart:toneEnd], "__ROTARI_STATUS_TONES__", statusTonesJSON(), 1) + webAppChartsJS[start:start+end] + `
-document.getElementById('app').append(jobTimelineSection(run));
-const bars = document.querySelectorAll('.job-timeline svg rect');
-const barPositions = new Set([...bars].map(bar => bar.getAttribute('x')));
-if (bars.length !== 6 || barPositions.size !== 4) {
-  console.error('rendered bars = ' + bars.length + ' across ' + barPositions.size + ' time points, want 6 segments across 4 points');
-  process.exit(1);
-}
-const timeLabels = [...document.querySelectorAll('.job-timeline svg text')]
-  .filter(label => label.getAttribute('y') === '236')
-  .map(label => label.textContent);
-if (timeLabels.length !== 4 || !timeLabels[0].startsWith('start · ') || timeLabels[0] === timeLabels[3]) {
-  console.error('timeline labels = ' + JSON.stringify(timeLabels) + ', want a distinct start label and disambiguated repeated clock times');
-  process.exit(3);
-}
-if (document.querySelector('.job-timeline .meta').textContent !== 'time → / share ↑') process.exit(2);
+const state = { base_dir: '/state', projects: [{ project_name: 'default', queue: { commands: [] }, runs: [run] }] };
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.setInterval = () => 1;
+    window.fetch = async (url) => {
+      if (url === '/api/state') return { ok: true, json: async () => state };
+      throw new Error('unexpected fetch: ' + url);
+    };
+  },
+});
+setTimeout(() => {
+  try {
+    const document = dom.window.document;
+    const section = document.querySelector('#app section.job-timeline');
+    assert(!section.classList.contains('collapsed'), 'the job timeline is not open');
+    const rows = [...section.querySelectorAll('.lane-row:not(.lane-axis-row)')];
+    assert.deepEqual(rows.map(row => row.querySelector('.lane-label').textContent), ['train', 'eval', 'report', 'prepare']);
+    const bar = index => rows[index].querySelector('.lane-bar');
+    assert(bar(0).classList.contains('tone-ok') && bar(1).classList.contains('tone-bad'));
+    const at = (index, side) => parseFloat(bar(index).style[side]);
+    assert.deepEqual([at(0, 'left'), at(0, 'width'), at(1, 'left'), at(1, 'width')], [0, 50, 50, 50]);
+    assert(!bar(2) && rows[2].querySelector('.lane-note'), 'a job not started has a note, not a span');
+    assert.equal(rows[3].querySelector('.lane-note').textContent, 'carried from an earlier run');
+    const labels = [...section.querySelectorAll('.lane-axis > span')].map(span => span.textContent);
+    assert.equal(labels.length, 5);
+    assert(labels[0].startsWith('start · ') && /Oct|10/.test(labels[0]), 'a start in a run that crosses a day lacks its date: ' + labels[0]);
+    assert.deepEqual(labels.slice(1), ['+6h 00m', '+12h 00m', '+18h 00m', '+24h 00m']);
+    assert(section.querySelector('.graphic-note').textContent.startsWith('4 jobs · 24h 00m'));
+    assert.deepEqual([...section.querySelectorAll('.lane-legend > span')].map(item => item.textContent), ['success', 'failed']);
+    let focused = '';
+    dom.window.focusMatrixJob = id => { focused = id; };
+    rows[1].querySelector('.lane-label').click();
+    assert.equal(focused, 'b');
+    if (errors.length) throw new Error(errors.join('\n'));
+  } catch (error) {
+    console.error(error.stack || String(error));
+    process.exit(1);
+  }
+  process.exit(0);
+}, 100);
 `
-	if output, err := exec.Command("node", "-e", script).CombinedOutput(); err != nil {
-		t.Fatalf("job timeline render failed: %v\n%s", err, output)
+	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+		t.Fatalf("job timeline lanes check failed: %v\n%s", err, output)
 	}
 }

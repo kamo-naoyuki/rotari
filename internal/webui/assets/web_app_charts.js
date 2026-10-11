@@ -94,150 +94,202 @@ function graphicNote(text, className) {
   note.textContent = text;
   return note;
 }
+// The job timeline draws one lane per job, in the jobs' order, against the
+// run's time: each executed job's span (run.lanes, from the server) coloured
+// by its status, a running job's span up to now, an open-ended span for a
+// job that recorded no finish, and a note for a job not yet started or
+// carried from an earlier run. The axis starts at the run timeline's initial
+// point and marks the rest as offsets from it. A lane's label shows the
+// job's row in the table.
+const timelineLaneLimit = 50;
+/**
+ * @param {number} origin the axis start, milliseconds since the epoch
+ * @param {number} span the axis length in milliseconds
+ * @param {number[]} ticks fractions of the span
+ * @returns {string[]} the start's clock time, with its date when the span
+ *   crosses a day, then each tick as an offset from the start
+ */
+function timelineAxisLabels(origin, span, ticks) {
+  const start = new Date(origin);
+  const crossesDay =
+    start.toDateString() !== new Date(origin + span).toDateString();
+  return ticks.map((tick) => {
+    if (tick === 0)
+      return (
+        "start · " +
+        (crossesDay
+          ? start.toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })
+          : start.toLocaleTimeString())
+      );
+    const offset = tick * span;
+    return (
+      "+" +
+      (offset < 10000 ? (offset / 1000).toFixed(1) + "s" : formatSpan(offset))
+    );
+  });
+}
 /** @param {WebRun} run */
 function jobTimelineSection(run) {
-  const rawPoints = run.timeline || [];
-  const maxPoints = 10;
-  const points =
-    rawPoints.length > maxPoints
-      ? Array.from(
-          { length: maxPoints },
-          (_, index) =>
-            rawPoints[
-              Math.round((index * (rawPoints.length - 1)) / (maxPoints - 1))
-            ],
-        )
-      : rawPoints;
-  const clockLabels = points.map((point) =>
-    new Date(point.at).toLocaleTimeString(),
+  const jobs = run.jobs || [];
+  const lanes = run.lanes || [];
+  /** @param {string | undefined} value */
+  const time = (value) => (value ? Date.parse(value) : NaN);
+  const finite = (/** @type {number[]} */ values) =>
+    values.filter((value) => Number.isFinite(value));
+  const starts = finite(lanes.map((lane) => time(lane.start)));
+  const ends = finite(lanes.map((lane) => time(lane.end)));
+  const points = run.timeline || [];
+  const first = time(points[0]?.at);
+  const origin = Number.isFinite(first)
+    ? first
+    : starts.length
+      ? Math.min(...starts)
+      : Date.now();
+  let end = Math.max(
+    origin,
+    ...starts,
+    ...ends,
+    ...finite([time(points[points.length - 1]?.at)]),
   );
-  const hasRepeatedClockLabels =
-    new Set(clockLabels).size !== clockLabels.length;
-  const timeLabels = points.map((point, index) => {
-    const date = new Date(point.at);
-    const label = hasRepeatedClockLabels
-      ? date.toLocaleString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
-      : clockLabels[index];
-    return index === 0 ? "start · " + label : label;
-  });
-  const keys = ["pending", "running", "success", "failed"];
-  const colors = statusColorMap(keys);
-  const total = Math.max(1, (run.jobs || []).length);
-  const width = Math.max(560, points.length * 100 + 70),
-    height = 260,
-    left = 42,
-    top = 18,
-    right = 14,
-    bottom = 58,
-    plotWidth = width - left - right,
-    plotHeight = height - top - bottom;
+  if (run.running) end = Math.max(end, Date.now());
+  const span = Math.max(end - origin, 1000);
+  /** @param {number} value */
+  const percent = (value) =>
+    Math.min(100, Math.max(0, ((value - origin) / span) * 100));
+  const byID = new Map(jobs.map((job) => [job.id, job]));
+  const shown = lanes.slice(0, timelineLaneLimit);
+  const tones = new Set();
+  const rows = shown
+    .map((lane) => {
+      const job = byID.get(lane.job_id) || { id: lane.job_id };
+      const name = job.name || job.id;
+      const status = jobDisplayStatus(job, run);
+      const tone = statusTone(status);
+      const start = time(lane.start);
+      let track;
+      if (lane.carried) {
+        track = '<span class="lane-note">carried from an earlier run</span>';
+      } else if (!Number.isFinite(start)) {
+        track = '<span class="lane-note">' + esc(status) + "</span>";
+      } else {
+        tones.add(tone);
+        const finish = time(lane.end);
+        const open = !Number.isFinite(finish);
+        const left = percent(start);
+        const right = open
+          ? run.running
+            ? percent(Date.now())
+            : 100
+          : percent(finish);
+        track =
+          '<span class="lane-bar tone-' +
+          tone +
+          (open && !run.running ? " open" : "") +
+          '" style="left:' +
+          left.toFixed(2) +
+          "%;width:" +
+          Math.max(right - left, 0.6).toFixed(2) +
+          '%" title="' +
+          esc(
+            name +
+              " · " +
+              status +
+              (job.elapsed ? " · " + job.elapsed : "") +
+              (open && !run.running ? " · no finish recorded" : ""),
+          ) +
+          '"></span>';
+      }
+      return (
+        '<div class="lane-row"><button type="button" class="lane-label" title="Show ' +
+        esc(name) +
+        ' in the table" onclick="focusMatrixJob(' +
+        esc(JSON.stringify(lane.job_id)) +
+        ')">' +
+        esc(name) +
+        '</button><div class="lane-track">' +
+        track +
+        "</div></div>"
+      );
+    })
+    .join("");
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const labels = timelineAxisLabels(origin, span, ticks);
+  const axis =
+    '<div class="lane-row lane-axis-row"><span></span><div class="lane-axis">' +
+    ticks
+      .map(
+        (tick, index) =>
+          '<span style="left:' +
+          tick * 100 +
+          '%">' +
+          esc(labels[index]) +
+          "</span>",
+      )
+      .join("") +
+    "</div></div>";
+  const toneLabels = {
+    ok: "success",
+    bad: "failed",
+    run: "running",
+    warn: "blocked / interrupted",
+    off: "other",
+  };
+  const legend =
+    '<div class="lane-legend">' +
+    ["ok", "bad", "run", "warn", "off"]
+      .filter((tone) => tones.has(tone))
+      .map(
+        (tone) =>
+          '<span><i class="lane-swatch tone-' +
+          tone +
+          '"></i>' +
+          toneLabels[tone] +
+          "</span>",
+      )
+      .join("") +
+    "</div>";
   const section = runGraphicSection(
     "job-timeline",
     "Job timeline",
     graphicNote(
-      (rawPoints.length > maxPoints
-        ? "sampled to " + maxPoints + " points / "
-        : "") + "time → / share ↑",
+      (lanes.length > timelineLaneLimit
+        ? "first " + timelineLaneLimit + " of " + lanes.length + " jobs"
+        : lanes.length + (lanes.length === 1 ? " job" : " jobs")) +
+        " · " +
+        formatSpan(span),
       "meta",
     ),
   );
   const chart = document.createElement("div");
-  chart.className = "job-timeline-chart";
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Job timeline chart");
-  svg.style.width = width + "px";
-  svg.style.height = height + "px";
-  const line = (x1, y1, x2, y2, color = "var(--line)", dash = "") => {
-    const element = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "line",
-    );
-    Object.entries({
-      x1,
-      y1,
-      x2,
-      y2,
-      stroke: color,
-      "stroke-width": "1",
-    }).forEach(([key, value]) => element.setAttribute(key, value));
-    if (dash) element.setAttribute("stroke-dasharray", dash);
-    svg.append(element);
-  };
-  const text = (x, y, value, anchor = "end") => {
-    const element = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "text",
-    );
-    element.setAttribute("x", x);
-    element.setAttribute("y", y);
-    element.setAttribute("fill", "var(--muted)");
-    element.setAttribute("font-size", "11");
-    element.setAttribute("text-anchor", anchor);
-    element.textContent = value;
-    svg.append(element);
-  };
-  [0, 50, 100].forEach((percent) => {
-    const y = top + plotHeight - (percent / 100) * plotHeight;
-    line(left, y, width - right, y, "var(--line)", percent ? "4 4" : "");
-    text(left - 7, y + 4, percent + "%");
-  });
-  line(left, top, left, top + plotHeight, "var(--muted)");
-  line(left, top + plotHeight, width - right, top + plotHeight, "var(--muted)");
-  points.forEach((point, index) => {
-    const x = left + ((index + 0.5) / Math.max(points.length, 1)) * plotWidth;
-    let y = top + plotHeight;
-    keys.forEach((key) => {
-      const count = point[key] || 0;
-      if (!count) return;
-      const segmentHeight = (count / total) * plotHeight;
-      y -= segmentHeight;
-      const rect = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "rect",
-      );
-      rect.setAttribute("x", String(x - 14));
-      rect.setAttribute("y", String(y));
-      rect.setAttribute("width", "28");
-      rect.setAttribute("height", String(segmentHeight));
-      rect.setAttribute("fill", colors[key]);
-      rect.setAttribute("rx", "2");
-      rect.setAttribute("title", key + ": " + count);
-      svg.append(rect);
-    });
-    line(x, top + plotHeight, x, top + plotHeight + 4, "var(--muted)");
-    text(x, height - 24, point.at ? timeLabels[index] : "-", "middle");
-  });
-  text(width / 2, height - 4, "time", "middle");
-  const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  yLabel.setAttribute("x", "12");
-  yLabel.setAttribute("y", String(height / 2));
-  yLabel.setAttribute("fill", "var(--muted)");
-  yLabel.setAttribute("font-size", "11");
-  yLabel.setAttribute("text-anchor", "middle");
-  yLabel.setAttribute("transform", "rotate(-90 12 " + height / 2 + ")");
-  yLabel.textContent = "share";
-  svg.append(yLabel);
-  chart.append(svg);
-  const legend = document.createElement("div");
-  legend.className = "graphic-legend";
-  keys.forEach((key) => {
-    const item = document.createElement("span");
-    item.textContent = key;
-    item.style.color = colors[key];
-    item.style.borderLeftColor = colors[key];
-    legend.append(item);
-  });
-  section.append(chart, legend);
+  chart.className = "lane-chart";
+  chart.innerHTML = lanes.length
+    ? rows + axis + (tones.size > 1 ? legend : "")
+    : '<div class="meta">No jobs.</div>';
+  section.append(chart);
   return section;
+}
+/**
+ * @param {number} milliseconds
+ * @returns {string} a duration as rotari prints one ("5s", "3m 05s", "2h 07m")
+ */
+function formatSpan(milliseconds) {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return seconds + "s";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60)
+    return minutes + "m " + String(seconds % 60).padStart(2, "0") + "s";
+  return (
+    Math.floor(minutes / 60) +
+    "h " +
+    String(minutes % 60).padStart(2, "0") +
+    "m"
+  );
 }
 /** @param {WebRun} run */
 function runStatisticsSection(run) {
