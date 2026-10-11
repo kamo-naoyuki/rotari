@@ -51,7 +51,7 @@ JSDOM.fromFile(path, {
     console.log(JSON.stringify({
       headers: table ? [...table.querySelectorAll('thead th')].map(text) : [],
       rowActions: table ? [...table.querySelectorAll('tbody tr')].map((row) =>
-        [...row.children[0].querySelectorAll('button')].map(text)) : [],
+        [...(row.querySelector('td.actions')?.querySelectorAll('button') || [])].map(text)) : [],
       latestBadges: document.querySelectorAll('#app .latest-badge').length,
       headings: [...document.querySelectorAll('#app h2')].map(text),
     }));

@@ -1435,7 +1435,7 @@ setTimeout(async () => {
     assert(row(), 'job row was not rendered');
 	const headers = [...row().closest('table').querySelectorAll('thead th')];
 	const identityIndexes = ['name', 'id', 'attempt'].map(key => headers.findIndex(header => header.dataset.sort === key));
-	assert(identityIndexes[0] >= 0 && identityIndexes[1] === identityIndexes[0] + 1 && identityIndexes[2] === identityIndexes[1] + 1, 'job identity columns are not separated');
+	assert(identityIndexes.every(index => index >= 0) && new Set(identityIndexes).size === 3, 'job identity columns are not separated');
 	assert(row().children.length === headers.length, 'job row does not match separated identity columns');
 	assert(row().querySelector('[title="Copy job name"]'), 'job name copy button is missing');
 	assert(row().querySelector('[title="Copy job ID"]'), 'job ID copy button is missing');
@@ -3134,7 +3134,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function actionsCell(buttons)", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", `<td class="actions"><div class="action-buttons">`} {
+	for _, want := range []string{"function actionsCell(buttons)", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const diagnosisControl=!failed", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", `<td class="actions"><div class="action-buttons">`} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
@@ -3163,7 +3163,7 @@ func TestWebRunGraphicsShowLoadSummary(t *testing.T) {
 
 func TestWebProvidesAttemptSelector(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"selectedAttemptByJob", "openAttemptMenuByJob", "function selectJobAttempt", "function setAttemptMenuOpen", "function closeAttemptMenus", "document.addEventListener(\"pointerdown\"", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
+	for _, want := range []string{"selectedAttemptByJob", "openPopupMenus", "function selectJobAttempt", "function setAttemptMenuOpen", "function closePopupMenus", "document.addEventListener(\"pointerdown\"", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
@@ -3216,7 +3216,7 @@ func TestWebReportModalOutputScrollsWithinPanel(t *testing.T) {
 }
 
 func TestWebHostsColumnIsSortable(t *testing.T) {
-	if !webContains(testSite().webHTML(), `<th class="job-host-header" data-sort="hosts">Hosts</th>`) {
+	if !webContains(testSite().webHTML(), `{ key: "hosts", label: "Hosts", show: "shown" }`) {
 		t.Fatal("web page Hosts column is not sortable")
 	}
 }
@@ -3227,7 +3227,6 @@ func TestWebQueueWorkingDirectoryUsesSeparateEditableColumn(t *testing.T) {
 		"function renderQueueCommands(queue)",
 		`input("working-directory-input",j.working_directory||"","working directory")`,
 		`input("command-input",JSON.stringify(j.command))`,
-		"<td>'+esc(j.working_directory||'-')+'</td><td class=\"command\">",
 		"data-sort=\"working_directory\">Working directory</th><th data-sort=\"command\">Command",
 	} {
 		if !webContains(html, want) {

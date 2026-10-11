@@ -117,7 +117,6 @@ let sidebarScrollActive = false;
 let sidebarRenderDeferred = false;
 let sidebarScrollTimer = 0;
 const selectedAttemptByJob = {};
-const openAttemptMenuByJob = {};
 let sortState = {
   queue: { key: "name", direction: 1 },
   run: { key: "started", direction: -1 },
@@ -1528,232 +1527,11 @@ function renderRun(q, runID) {
       '<div class="empty">Loading run details…</div>';
     return;
   }
-  const attemptKey = (jobID) => q.project_name + "/" + runID + "/" + jobID;
-  const selectAttempt = (job, attemptID) => {
-    const attempt = (job.attempts || []).find((item) => item.id === attemptID);
-    // The job row already shows the latest attempt with its summary result.
-    if (!attempt || attempt === job.attempts[0]) return;
-    job.attempt_id = attempt.id;
-    job.result = attempt.result;
-    job.execution_status = attempt.execution_status;
-    job.diagnosis_outdated = false;
-    job.submitted_at = attempt.submitted_at;
-    job.finished_at = attempt.finished_at;
-    job.scheduler_state = attempt.scheduler_state;
-  };
   (run.jobs || []).forEach((job) => {
-    const selectedAttempt = selectedAttemptByJob[attemptKey(job.id)];
-    if (selectedAttempt) selectAttempt(job, selectedAttempt);
+    const attemptID =
+      selectedAttemptByJob[q.project_name + "/" + runID + "/" + job.id];
+    if (attemptID) selectJobAttemptFields(job, attemptID);
   });
-  const jobs = (run.jobs || [])
-    .map((j) => {
-      const result = j.result;
-      const options = (j.executor_options || []).join(" ");
-      const dependencies = formatDependencies(j);
-      const stage = j.stage || "-";
-      const exit = result ? esc(result.exit_code) : "-";
-      const error =
-        result && result.error
-          ? '<div class="error">' + esc(result.error) + "</div>"
-          : "";
-      const carried =
-        j.origin &&
-        (!j.attempt_id || j.attempt_id === (j.origin.attempt_id || ""));
-      const logRun = carried ? j.origin.run_id : runID;
-      const logJob = carried ? j.origin.job_id : j.id;
-      const logAttemptID = carried ? "" : j.attempt_id;
-      const logMode = j.log_mode || "merge";
-      const diagnoses = (result && result.diagnoses) || [];
-      const diagnosisStatus = (result && result.diagnosis_status) || "";
-      const canDiagnose = !!(
-        result &&
-        result.exit_code !== 0 &&
-        (diagnosisStatus || diagnoses.length)
-      );
-      const diagnosisControl = canDiagnose
-        ? ' <button class="diagnosis" data-diagnoses="' +
-          esc(
-            JSON.stringify({
-              status: diagnosisStatus,
-              note: result.diagnosis_note || "",
-              outdated: !!j.diagnosis_outdated,
-              diagnoses: diagnoses,
-            }),
-          ) +
-          '" onclick="showDiagnosis(this)">Diagnosis</button>'
-        : ' <button class="diagnosis" disabled title="Available after a finalized failed result with saved analysis">Diagnosis</button>';
-      const noteLabels = j.note_labels || [];
-      const notesControl = noteLabels.length
-        ? ' <button class="view-notes" data-notes="' +
-          esc(JSON.stringify(noteLabels)) +
-          '" onclick="showNotes(this)">Notes (' +
-          noteLabels.length +
-          ")</button>"
-        : ' <button class="view-notes" disabled title="No notes on this job; add one with rotari note ATTEMPT_ID TEXT">Notes</button>';
-      const jobData =
-        ' data-project="' +
-        esc(q.project_name) +
-        '" data-run="' +
-        esc(runID) +
-        '" data-job="' +
-        esc(j.id) +
-        '"';
-      // A finished job's log is its result's attempt, in the origin run for
-      // a carried job; an unfinished job's log is its current attempt.
-      const started = !!j.submitted_at || !!result || run.running;
-      const viewLog = result
-        ? '<button class="view-log" data-project="' +
-          esc(q.project_name) +
-          '" data-log-run="' +
-          esc(logRun) +
-          '" data-log-job="' +
-          esc(logJob) +
-          '" data-attempt="' +
-          esc(logAttemptID) +
-          '" data-log-mode="' +
-          esc(logMode) +
-          '" onclick="log(this.dataset.project, this.dataset.logRun, this.dataset.logJob, this.dataset.attempt, this.dataset.logMode)">View log</button>'
-        : '<button class="view-log"' +
-          jobData +
-          ' data-attempt="' +
-          esc(j.attempt_id || "") +
-          '" data-log-mode="' +
-          esc(j.log_mode || "") +
-          '"' +
-          (started ? "" : ' disabled title="Job has not started yet"') +
-          " onclick=\"showLog(this.dataset.project, this.dataset.run, this.dataset.job, this.dataset.attempt, 'stdout', this.dataset.logMode)\">View log</button>";
-      const artifacts = result
-        ? '<button class="view-artifacts" onclick="showArtifacts(\'' +
-          esc(q.project_name) +
-          "','" +
-          esc(logRun) +
-          "','" +
-          esc(logJob) +
-          "','" +
-          esc(logAttemptID) +
-          "')\">Artifacts</button>"
-        : "";
-      const actions = actionsCell([
-        viewLog,
-        '<button class="job-ai" title="Prepare job report"' +
-          jobData +
-          ' onclick="showJobReport(this)">Report</button>',
-        diagnosisControl.trim(),
-        pathButton(
-          state.base_dir +
-            "/projects/" +
-            q.project_name +
-            "/runs/" +
-            runID +
-            "/" +
-            j.id,
-        ),
-        artifacts,
-        notesControl.trim(),
-      ]);
-      const status = jobDisplayStatus(j, run);
-      const hosts = (result && result.hosts) || [];
-      const jobName = esc(j.name || "-");
-      const carriedFrom = carried
-        ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
-        : "";
-      const copyIcon = (value, label) =>
-        '<button class="table-copy identity-copy" type="button" title="Copy ' +
-        label +
-        '" aria-label="Copy ' +
-        label +
-        '" data-copy-value="' +
-        esc(value) +
-        '" data-copy-title="Copy ' +
-        label +
-        '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
-      const jobNameCopy = j.name ? copyIcon(j.name, "job name") : "";
-      const jobIDCopy = copyIcon(j.id, "job ID");
-      const stageCopy = j.stage ? copyIcon(j.stage, "stage name") : "";
-      const attemptCopy = j.attempt_id
-        ? copyIcon(j.attempt_id, "attempt ID")
-        : "";
-      const attemptMenu =
-        (j.attempts || []).length > 1
-          ? '<details class="attempt-menu"' +
-            (openAttemptMenuByJob[attemptKey(j.id)] ? " open" : "") +
-            " ontoggle=\"setAttemptMenuOpen('" +
-            esc(q.project_name) +
-            "','" +
-            esc(runID) +
-            "','" +
-            esc(j.id) +
-            '\',this.open)"><summary title="Select attempt" aria-label="Select attempt"><svg view="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
-            j.attempts
-              .map(
-                (attempt, index) =>
-                  '<button type="button" class="' +
-                  (attempt.id === j.attempt_id ? "selected" : "") +
-                  '" onclick="selectJobAttempt(\'' +
-                  esc(q.project_name) +
-                  "','" +
-                  esc(runID) +
-                  "','" +
-                  esc(j.id) +
-                  "','" +
-                  esc(attempt.id) +
-                  "')\">" +
-                  (index === 0 ? "Latest: " : "") +
-                  esc(attempt.id) +
-                  "</button>",
-              )
-              .join("") +
-            "</div></details>"
-          : "";
-      const commandText = (j.command || []).join(" ");
-      const commandCopy = copyIcon(commandText, "command");
-      return (
-        '<tr data-job-id="' +
-        esc(j.id) +
-        '">' +
-        actions +
-        '<td><input class="job-selection" type="checkbox" aria-label="Select ' +
-        esc(j.id) +
-        '"></td><td><strong>' +
-        jobName +
-        jobNameCopy +
-        carriedFrom +
-        "</strong></td><td>" +
-        esc(j.id) +
-        jobIDCopy +
-        "</td><td>" +
-        esc(j.attempt_id || "-") +
-        attemptCopy +
-        attemptMenu +
-        "</td><td>" +
-        statusPill(status) +
-        "</td><td>" +
-        esc(j.executor || "default") +
-        "</td><td>" +
-        esc(options || "-") +
-        "</td><td>" +
-        esc(stage) +
-        stageCopy +
-        "</td><td>" +
-        esc(dependencies || "-") +
-        "</td><td>" +
-        esc(j.working_directory || "-") +
-        '</td><td class="command">' +
-        esc(commandText) +
-        commandCopy +
-        "</td><td>" +
-        esc(hosts.length ? hosts.join(",") : "-") +
-        "</td><td>" +
-        esc(j.submitted_at || "-") +
-        "</td><td>" +
-        esc(j.finished_at || "-") +
-        "</td><td>" +
-        exit +
-        error +
-        "</td></tr>"
-      );
-    })
-    .join("");
   const latest = latestRun(q.runs);
   const retry =
     "# To retry failed or unfinished jobs from this run\n" +
@@ -1767,11 +1545,408 @@ function renderRun(q, runID) {
     runNotesHTML(run) +
     commandGuideHTML(retry) +
     runCardsHTML(run) +
-    (jobs
-      ? '<table class="runs run-jobs"><thead><tr><th class="actions">Actions</th><th></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th class="job-status-header" data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th class="job-host-header" data-sort="hosts">Hosts</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th></tr></thead><tbody>' +
-        jobs +
-        "</tbody></table>"
+    ((run.jobs || []).length
+      ? runJobsHTML(q, run, runID)
       : '<div class="empty">No job definitions yet.</div>');
+}
+// selectJobAttemptFields shows an older attempt in a job's row: the row
+// already shows the latest attempt with the job's summary result.
+function selectJobAttemptFields(job, attemptID) {
+  const attempt = (job.attempts || []).find((item) => item.id === attemptID);
+  if (!attempt || attempt === job.attempts[0]) return;
+  job.attempt_id = attempt.id;
+  job.result = attempt.result;
+  job.execution_status = attempt.execution_status;
+  job.diagnosis_outdated = false;
+  job.submitted_at = attempt.submitted_at;
+  job.finished_at = attempt.finished_at;
+  job.elapsed = attempt.elapsed;
+  job.scheduler_state = attempt.scheduler_state;
+}
+// runJobColumns are the run page's job table columns between the selection
+// box and the row's actions. A column is "fixed" (always shown), "shown" or
+// "hidden" by default, or "auto": shown only when its value differs between
+// jobs. The Columns menu overrides the default per browser.
+const runJobColumns = [
+  { key: "name", label: "Job", show: "fixed" },
+  { key: "status", label: "Status", show: "fixed" },
+  { key: "exit", label: "Exit", show: "fixed" },
+  { key: "attempt", label: "Attempt", show: "shown" },
+  { key: "id", label: "Job ID", show: "auto" },
+  { key: "hosts", label: "Hosts", show: "shown" },
+  { key: "executor", label: "Executor", show: "auto" },
+  { key: "options", label: "Executor options", show: "auto" },
+  { key: "stage", label: "Stage", show: "auto" },
+  { key: "depends", label: "Dependencies", show: "auto" },
+  { key: "working_directory", label: "Working directory", show: "auto" },
+  { key: "started", label: "Started", show: "shown" },
+  { key: "finished", label: "Finished", show: "hidden" },
+  { key: "duration", label: "Duration", show: "shown" },
+];
+const runColumnsKey = "rotari-run-columns";
+function runColumnChoices() {
+  try {
+    const value = JSON.parse(localStorage.getItem(runColumnsKey) || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+function setRunColumn(input) {
+  const choices = runColumnChoices();
+  choices[input.dataset.column] = input.checked;
+  try {
+    localStorage.setItem(runColumnsKey, JSON.stringify(choices));
+  } catch {
+    // The choice then lasts until the next render.
+  }
+  render();
+}
+// runJobsHTML draws a run's jobs table and its Columns menu. Every column is
+// in the table, so sorting and clamping find it by its data-sort key; a
+// column that is turned off carries the hidden attribute.
+function runJobsHTML(q, run, runID) {
+  const rows = run.jobs.map((job) => ({
+    job,
+    cells: runJobCells(q, run, runID, job),
+  }));
+  const choices = runColumnChoices();
+  const columns = runJobColumns.map((column) => {
+    const same =
+      new Set(rows.map((row) => row.cells[column.key].html)).size <= 1;
+    const auto =
+      column.show === "fixed" ||
+      column.show === "shown" ||
+      (column.show === "auto" && !same);
+    const shown =
+      column.show === "fixed" || (choices[column.key] ?? auto) === true;
+    return { ...column, same, shown };
+  });
+  const hidden = (column) => (column.shown ? "" : " hidden");
+  const menu =
+    '<details class="popup-menu columns-menu"' +
+    popupMenuAttributes("run-columns") +
+    '><summary>Columns</summary><div class="popup-menu-items"><p class="meta">Columns whose values are the same for every job start hidden.</p>' +
+    columns
+      .filter((column) => column.show !== "fixed")
+      .map(
+        (column) =>
+          '<label><input type="checkbox" data-column="' +
+          column.key +
+          '"' +
+          (column.shown ? " checked" : "") +
+          ' onchange="setRunColumn(this)"> ' +
+          column.label +
+          (column.show === "auto" && column.same
+            ? ' <span class="meta">same for all</span>'
+            : "") +
+          "</label>",
+      )
+      .join("") +
+    "</div></details>";
+  return (
+    '<div class="table-bar run-jobs-bar"><h2>Jobs</h2>' +
+    menu +
+    '</div><table class="runs run-jobs"><thead><tr><th class="selection"></th>' +
+    columns
+      .map(
+        (column) =>
+          '<th data-sort="' +
+          column.key +
+          '"' +
+          hidden(column) +
+          ">" +
+          column.label +
+          "</th>",
+      )
+      .join("") +
+    '<th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>' +
+    rows
+      .map(
+        ({ job, cells }) =>
+          '<tr data-job-id="' +
+          esc(job.id) +
+          '"><td class="selection"><input class="job-selection" type="checkbox" aria-label="Select ' +
+          esc(job.id) +
+          '"></td>' +
+          columns
+            .map((column) => {
+              const cell = cells[column.key];
+              return (
+                "<td" +
+                (cell.className ? ' class="' + cell.className + '"' : "") +
+                (cell.sort !== undefined
+                  ? ' data-sort-value="' + esc(cell.sort) + '"'
+                  : "") +
+                hidden(column) +
+                ">" +
+                cell.html +
+                "</td>"
+              );
+            })
+            .join("") +
+          runJobActions(q, run, runID, job) +
+          "</tr>",
+      )
+      .join("") +
+    "</tbody></table>"
+  );
+}
+// copyButtonHTML is a small icon that copies value; label names it.
+function copyButtonHTML(value, label) {
+  return (
+    '<button class="table-copy identity-copy" type="button" title="Copy ' +
+    label +
+    '" aria-label="Copy ' +
+    label +
+    '" data-copy-value="' +
+    esc(value) +
+    '" data-copy-title="Copy ' +
+    label +
+    '" onclick="copyIdentityValue(this)">' +
+    copyIconSVG +
+    "</button>"
+  );
+}
+// shortID keeps the end of a long ID, which tells a run's attempts apart;
+// the full ID is in its title and copy button.
+function shortID(id) {
+  return id.length > 18 ? "…" + id.slice(-15) : id;
+}
+// runTimeCell shows a job's time without the date when it is the run's start
+// date; the full time is in its title and sorts the column.
+function runTimeCell(value, run) {
+  if (!value) return { className: "time-cell", html: "-" };
+  const day = (run.started_at || "").slice(0, 11);
+  const short =
+    day.length === 11 && value.startsWith(day)
+      ? value.slice(11).replace(/ [A-Z]+$/, "")
+      : value;
+  return {
+    className: "time-cell",
+    sort: value,
+    html: '<span title="' + esc(value) + '">' + esc(short) + "</span>",
+  };
+}
+// elapsedSeconds reads a duration as rotari formats it ("5s", "3m 05s",
+// "2h 07m") for sorting.
+function elapsedSeconds(text) {
+  const units = { h: 3600, m: 60, s: 1 };
+  let total = 0;
+  for (const match of String(text).matchAll(/(\d+)([hms])/g))
+    total += Number(match[1]) * units[match[2]];
+  return total;
+}
+// runJobCells is a job's cell in each of runJobColumns: its HTML, and its
+// sort value when that differs from the text.
+function runJobCells(q, run, runID, j) {
+  const result = j.result;
+  const carried =
+    j.origin && (!j.attempt_id || j.attempt_id === (j.origin.attempt_id || ""));
+  const hosts = (result && result.hosts) || [];
+  const commandText = (j.command || []).join(" ");
+  const plain = (value, copyLabel) => ({
+    html:
+      esc(value || "-") +
+      (value && copyLabel ? copyButtonHTML(value, copyLabel) : ""),
+  });
+  const attemptMenu =
+    (j.attempts || []).length > 1
+      ? '<details class="popup-menu attempt-menu"' +
+        popupMenuAttributes(attemptMenuKey(q.project_name, runID, j.id)) +
+        '><summary title="Select attempt" aria-label="Select attempt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
+        j.attempts
+          .map(
+            (attempt, index) =>
+              '<button type="button" class="' +
+              (attempt.id === j.attempt_id ? "selected" : "") +
+              '" onclick="selectJobAttempt(\'' +
+              esc(q.project_name) +
+              "','" +
+              esc(runID) +
+              "','" +
+              esc(j.id) +
+              "','" +
+              esc(attempt.id) +
+              "')\">" +
+              (index === 0 ? "Latest: " : "") +
+              esc(attempt.id) +
+              "</button>",
+          )
+          .join("") +
+        "</div></details>"
+      : "";
+  const status = jobDisplayStatus(j, run);
+  return {
+    name: {
+      className: "job-cell",
+      sort: j.name || j.id,
+      html:
+        '<div class="job-title"><strong>' +
+        esc(j.name || "-") +
+        "</strong>" +
+        (j.name ? copyButtonHTML(j.name, "job name") : "") +
+        "</div>" +
+        (carried
+          ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
+          : "") +
+        '<div class="job-command" data-clamp="command">' +
+        esc(commandText) +
+        copyButtonHTML(commandText, "command") +
+        "</div>",
+    },
+    status: { sort: status, html: statusPill(status) },
+    exit: {
+      html:
+        (result ? esc(result.exit_code) : "-") +
+        (result && result.error
+          ? '<div class="error">' + esc(result.error) + "</div>"
+          : ""),
+    },
+    attempt: {
+      className: "id-cell",
+      sort: j.attempt_id || "-",
+      html: j.attempt_id
+        ? '<span class="mono" title="' +
+          esc(j.attempt_id) +
+          '">' +
+          esc(shortID(j.attempt_id)) +
+          "</span>" +
+          copyButtonHTML(j.attempt_id, "attempt ID") +
+          attemptMenu
+        : "-" + attemptMenu,
+    },
+    id: {
+      className: "id-cell",
+      html:
+        '<span class="mono">' +
+        esc(j.id) +
+        "</span>" +
+        copyButtonHTML(j.id, "job ID"),
+    },
+    hosts: plain(hosts.join(",")),
+    executor: plain(j.executor || "default"),
+    options: plain((j.executor_options || []).join(" ")),
+    stage: plain(j.stage, "stage name"),
+    depends: plain(formatDependencies(j)),
+    working_directory: plain(j.working_directory),
+    started: runTimeCell(j.submitted_at, run),
+    finished: runTimeCell(j.finished_at, run),
+    duration: {
+      className: "time-cell",
+      sort: j.elapsed ? String(elapsedSeconds(j.elapsed)) : "-",
+      html: esc(j.elapsed || "-"),
+    },
+  };
+}
+// runJobActions is a job row's actions cell, last in the row: the log, the
+// diagnosis of a failed job, the job's notes when it has some, and the rest
+// in a "⋯" menu.
+function runJobActions(q, run, runID, j) {
+  const result = j.result;
+  const carried =
+    j.origin && (!j.attempt_id || j.attempt_id === (j.origin.attempt_id || ""));
+  const logRun = carried ? j.origin.run_id : runID;
+  const logJob = carried ? j.origin.job_id : j.id;
+  const logAttemptID = carried ? "" : j.attempt_id;
+  const jobData =
+    ' data-project="' +
+    esc(q.project_name) +
+    '" data-run="' +
+    esc(runID) +
+    '" data-job="' +
+    esc(j.id) +
+    '"';
+  // A finished job's log is its result's attempt, in the origin run for a
+  // carried job; an unfinished job's log is its current attempt.
+  const started = !!j.submitted_at || !!result || run.running;
+  const viewLog = result
+    ? '<button class="view-log" data-project="' +
+      esc(q.project_name) +
+      '" data-log-run="' +
+      esc(logRun) +
+      '" data-log-job="' +
+      esc(logJob) +
+      '" data-attempt="' +
+      esc(logAttemptID) +
+      '" data-log-mode="' +
+      esc(j.log_mode || "merge") +
+      '" onclick="log(this.dataset.project, this.dataset.logRun, this.dataset.logJob, this.dataset.attempt, this.dataset.logMode)">Log</button>'
+    : '<button class="view-log"' +
+      jobData +
+      ' data-attempt="' +
+      esc(j.attempt_id || "") +
+      '" data-log-mode="' +
+      esc(j.log_mode || "") +
+      '"' +
+      (started ? "" : ' disabled title="Job has not started yet"') +
+      " onclick=\"showLog(this.dataset.project, this.dataset.run, this.dataset.job, this.dataset.attempt, 'stdout', this.dataset.logMode)\">Log</button>";
+  const diagnoses = (result && result.diagnoses) || [];
+  const diagnosisStatus = (result && result.diagnosis_status) || "";
+  const failed = !!(result && result.exit_code !== 0);
+  const diagnosisControl = !failed
+    ? ""
+    : diagnosisStatus || diagnoses.length
+      ? '<button class="diagnosis" data-diagnoses="' +
+        esc(
+          JSON.stringify({
+            status: diagnosisStatus,
+            note: result.diagnosis_note || "",
+            outdated: !!j.diagnosis_outdated,
+            diagnoses: diagnoses,
+          }),
+        ) +
+        '" onclick="showDiagnosis(this)">Diagnosis</button>'
+      : '<button class="diagnosis" disabled title="Available after a finalized failed result with saved analysis">Diagnosis</button>';
+  const noteLabels = j.note_labels || [];
+  const notesControl = noteLabels.length
+    ? '<button class="view-notes" data-notes="' +
+      esc(JSON.stringify(noteLabels)) +
+      '" onclick="showNotes(this)">Notes (' +
+      noteLabels.length +
+      ")</button>"
+    : '<button class="view-notes" disabled title="No notes on this job; add one with rotari note ATTEMPT_ID TEXT">Notes</button>';
+  const artifacts = result
+    ? '<button class="view-artifacts" onclick="showArtifacts(\'' +
+      esc(q.project_name) +
+      "','" +
+      esc(logRun) +
+      "','" +
+      esc(logJob) +
+      "','" +
+      esc(logAttemptID) +
+      "')\">Artifacts</button>"
+    : "";
+  const more = [
+    '<button class="job-ai" title="Prepare job report"' +
+      jobData +
+      ' onclick="showJobReport(this)">Report</button>',
+    pathButton(
+      state.base_dir +
+        "/projects/" +
+        q.project_name +
+        "/runs/" +
+        runID +
+        "/" +
+        j.id,
+    ),
+    artifacts,
+    noteLabels.length ? "" : notesControl,
+  ].filter(Boolean);
+  return actionsCell([
+    viewLog,
+    diagnosisControl,
+    noteLabels.length ? notesControl : "",
+    '<details class="popup-menu row-menu"' +
+      popupMenuAttributes(
+        "job-actions:" + q.project_name + "/" + runID + "/" + j.id,
+      ) +
+      '><summary title="More actions" aria-label="More actions for ' +
+      esc(j.name || j.id) +
+      '">⋯</summary><div class="popup-menu-items">' +
+      more.join("") +
+      "</div></details>",
+  ]);
 }
 // fact is one "Label: value" entry of a page's facts line; valueHTML is
 // already escaped.
@@ -1915,24 +2090,72 @@ function clientStatusLabel(status) {
       return status.mode === "async" ? "async (unknown)" : "unknown";
   }
 }
+function attemptMenuKey(projectName, runID, jobID) {
+  return "attempt:" + projectName + "/" + runID + "/" + jobID;
+}
 function selectJobAttempt(projectName, runID, jobID, attemptID) {
-  const key = projectName + "/" + runID + "/" + jobID;
-  selectedAttemptByJob[key] = attemptID;
-  openAttemptMenuByJob[key] = false;
+  selectedAttemptByJob[projectName + "/" + runID + "/" + jobID] = attemptID;
+  setPopupMenuOpen(attemptMenuKey(projectName, runID, jobID), false);
   render();
 }
 function setAttemptMenuOpen(projectName, runID, jobID, open) {
-  openAttemptMenuByJob[projectName + "/" + runID + "/" + jobID] = open;
+  setPopupMenuOpen(attemptMenuKey(projectName, runID, jobID), open);
 }
-function closeAttemptMenus() {
-  document.querySelectorAll(".attempt-menu[open]").forEach((menu) => {
+// A popup menu in a table (a job's attempts or other actions, the Columns
+// menu) is a <details class="popup-menu"> whose open state is kept by key,
+// so the periodic re-render leaves it open; a press outside closes it. Its
+// items are placed in the viewport beside the menu's button, so the
+// sideways-scrolling #app does not clip them.
+const openPopupMenus = new Set();
+function popupMenuAttributes(key) {
+  return (
+    ' data-menu-key="' +
+    esc(key) +
+    '" ontoggle="popupMenuToggled(this)"' +
+    (openPopupMenus.has(key) ? " open" : "")
+  );
+}
+function setPopupMenuOpen(key, open) {
+  if (open) openPopupMenus.add(key);
+  else openPopupMenus.delete(key);
+}
+function popupMenuToggled(menu) {
+  setPopupMenuOpen(menu.dataset.menuKey, menu.open);
+  placePopupMenu(menu);
+}
+// placePopupMenu puts an open menu's items under its button, aligned to the
+// button's right edge, or above the button when there is no room below.
+function placePopupMenu(menu) {
+  const items = menu.querySelector(":scope > div");
+  const button = menu.querySelector(":scope > summary");
+  if (!menu.open || !items || !button) return;
+  const rect = button.getBoundingClientRect();
+  items.style.position = "fixed";
+  items.style.left = "auto";
+  items.style.right =
+    Math.max(8, document.documentElement.clientWidth - rect.right) + "px";
+  const height = items.offsetHeight;
+  const below = rect.bottom + 4;
+  items.style.top =
+    below + height > window.innerHeight && rect.top - 4 - height > 0
+      ? rect.top - 4 - height + "px"
+      : below + "px";
+}
+function placePopupMenus() {
+  document.querySelectorAll("details.popup-menu[open]").forEach(placePopupMenu);
+}
+document.addEventListener("scroll", placePopupMenus, true);
+window.addEventListener("resize", placePopupMenus);
+function closePopupMenus(except) {
+  document.querySelectorAll("details.popup-menu[open]").forEach((menu) => {
+    if (menu === except) return;
     menu.open = false;
+    setPopupMenuOpen(menu.dataset.menuKey, false);
   });
 }
 document.addEventListener("pointerdown", (event) => {
-  if (event.target instanceof Element && event.target.closest(".attempt-menu"))
-    return;
-  closeAttemptMenus();
+  const target = event.target instanceof Element ? event.target : null;
+  closePopupMenus(target && target.closest("details.popup-menu"));
 });
 function renderMissing(message) {
   setCrumbs([["Not found"]], "");

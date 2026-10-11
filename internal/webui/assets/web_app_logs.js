@@ -467,11 +467,8 @@ function arrangeRunControls() {
       cancel,
     ].filter(Boolean),
   );
-  const load = document.querySelector(".run-environment");
-  const wordCloud = document.querySelector(".output-word-cloud");
-  if (wordCloud) wordCloud.after(controls);
-  else if (load) load.after(controls);
-  else table.before(controls);
+  // The controls act on the selected jobs, so they sit just above the table.
+  table.before(controls);
   const headerSelect = document.getElementById("select-all-jobs");
   if (headerSelect) headerSelect.remove();
   updateSelectedRunJobs();

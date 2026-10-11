@@ -4,6 +4,7 @@ function sortTable(table, key, stateKey) {
   if (index < 0) return;
   const state = sortState[stateKey];
   const cellValue = (cell) => {
+    if (cell.dataset.sortValue !== undefined) return cell.dataset.sortValue;
     const field = cell.querySelector("input,select");
     return field ? field.value.trim() : cell.textContent.trim();
   };
@@ -157,10 +158,11 @@ function jobDisplayStatus(job, run) {
   if (result.error === "blocked by failed dependency") return "blocked";
   return result.exit_code === 0 ? "success" : "failed";
 }
-// Long values in these job and queue table columns start clamped to a few
-// lines. Clicking the text, or pressing Enter or Space on it, expands or
-// collapses it; a click that ends a text selection does not. Expanded cells
-// stay open across re-renders.
+// Long values in these job and queue table columns, and in a cell's
+// element marked data-clamp (the command under a run's job name), start
+// clamped to a few lines. Clicking the text, or pressing Enter or Space on
+// it, expands or collapses it; a click that ends a text selection does not.
+// Expanded values stay open across re-renders.
 const clampedTableColumns = [
   "command",
   "working_directory",
@@ -174,10 +176,16 @@ function clampLongTableCells() {
     const columns = [...table.querySelectorAll("thead th")]
       .map((header, index) => ({ index, key: header.dataset.sort }))
       .filter((column) => clampedTableColumns.includes(column.key));
-    if (!columns.length) return;
     table.querySelectorAll("tbody tr").forEach((row, rowIndex) => {
-      columns.forEach(({ index, key }) => {
-        const cell = row.children[index];
+      const targets = columns
+        .map(({ index, key }) => ({ cell: row.children[index], key }))
+        .concat(
+          [...row.querySelectorAll("[data-clamp]")].map((cell) => ({
+            cell,
+            key: cell.dataset.clamp,
+          })),
+        );
+      targets.forEach(({ cell, key }) => {
         if (
           !cell ||
           cell.querySelector("input,select,textarea,.cell-clamp") ||

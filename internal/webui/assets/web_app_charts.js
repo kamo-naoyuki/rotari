@@ -511,7 +511,8 @@ function renderRunGraphics() {
     loadAverageSection(run),
     outputWordCloudSection(queue, runID),
   ];
-  const table = app.querySelector("table.runs");
+  const table =
+    app.querySelector(".run-jobs-bar") || app.querySelector("table.runs");
   if (table) sections.forEach((section) => app.insertBefore(section, table));
   else app.prepend(...sections);
 }

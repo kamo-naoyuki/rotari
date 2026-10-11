@@ -308,8 +308,8 @@ discovery notes instead of logs; `show -j JOB --json` includes them as
 `artifacts`. Older runs from before artifact recording show `(not recorded)`.
 A carried job shows candidates from the attempt that produced its result.
 
-In the live Web UI, the Artifacts button opens the listing for the attempt
-shown by Output. Files under the job's working directory can be previewed in
+In the live Web UI, Artifacts in a job's "⋯" menu opens the listing for the
+attempt shown by Log. Files under the job's working directory can be previewed in
 supported formats (including images, audio/video, NumPy arrays, CSV/TSV, and
 text) or downloaded; directories show their immediate contents. Other paths
 are listed but not opened unless allowed by `rotari web --artifact-root DIR`.
@@ -404,9 +404,9 @@ Notes are only ever added; they never change a run's results. `show` for a
 run lists its notes, `show -j` the job's, and `lineage RUN_ID` and
 `lineage RUN_A RUN_B` each run's. On the Web run page, the `Report` button
 shows the run's notes, rendered as Markdown, in the run report (see "JSON and
-reports" above), and each job has a `Notes`
-button beside `Output` and `Artifacts`, showing the number of its notes, and
-disabled when it has none. The run history,
+reports" above), the run's own notes appear at the top of the page, and a
+job with notes has a `Notes` button beside `Log` showing their number; a job
+without notes has a disabled `Notes` item in its "⋯" menu. The run history,
 `lineage -p PROJECT`, shows
 each run's first note in its `NOTE` column, and in its `CODE` column whether
 the code changed since the run before (see below).

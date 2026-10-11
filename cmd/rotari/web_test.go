@@ -276,11 +276,8 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
 });
 setTimeout(() => {
   const document = dom.window.document;
-  const commandCell = () => {
-    const table = document.querySelector('#app table.runs');
-    const index = [...table.querySelectorAll('thead th')].findIndex(th => th.dataset.sort === 'command');
-    return table.querySelector('tbody tr').children[index];
-  };
+  // The command is shown under the job name.
+  const commandCell = () => document.querySelector('#app table.runs tbody tr .job-command');
   let cell = commandCell();
   const clamp = cell.querySelector('.cell-clamp');
   if (!clamp || !clamp.classList.contains('collapsed') || clamp.getAttribute('aria-expanded') !== 'false' || cell.querySelector('.cell-toggle')) { console.error(cell.innerHTML); process.exit(2); }

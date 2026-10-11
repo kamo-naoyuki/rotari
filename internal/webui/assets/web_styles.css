@@ -712,8 +712,8 @@ section {
     flex-wrap: wrap;
     gap: 10px;
   }
-  .runs th:nth-child(3),
-  .runs td:nth-child(3) {
+  .runs:not(.run-jobs) th:nth-child(3),
+  .runs:not(.run-jobs) td:nth-child(3) {
     display: none;
   }
 }
@@ -1643,6 +1643,198 @@ pre,
   width: auto;
   margin: 0;
   vertical-align: top;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* A run's jobs table (runJobsHTML in web_app_core.js): the command under
+   the job name, short IDs, and the row's actions last. */
+.table-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 18px 0 8px;
+}
+.table-bar h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.run-jobs th,
+.run-jobs td {
+  white-space: nowrap;
+}
+.run-jobs th,
+.run-jobs td {
+  padding: 9px 8px;
+}
+.run-jobs button {
+  min-height: 0;
+}
+.run-jobs th.selection,
+.run-jobs td.selection {
+  width: 1%;
+  padding-right: 0;
+}
+.run-jobs td.job-cell {
+  min-width: 22ch;
+  max-width: 60ch;
+  white-space: normal;
+}
+.job-title strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.job-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.job-command {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 2px;
+  color: var(--text-2);
+  font: 12px/1.45 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.job-command .cell-clamp.collapsed {
+  -webkit-line-clamp: 2;
+}
+.run-jobs .identity-copy {
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  margin-left: 2px;
+  opacity: 0;
+}
+.run-jobs tr:hover .identity-copy,
+.run-jobs .identity-copy:focus-visible,
+.run-jobs .identity-copy.copied {
+  opacity: 1;
+}
+.run-jobs .mono,
+.run-jobs td.id-cell {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.run-jobs td.time-cell {
+  font-variant-numeric: tabular-nums;
+}
+.run-jobs td.actions .action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.run-jobs td.actions .row-menu {
+  margin-left: auto;
+}
+.run-jobs td.actions button {
+  min-height: 28px;
+  padding: 3px 9px;
+  font-size: 12.5px;
+}
+
+/* A popup menu in a table or above one (popupMenuAttributes). */
+.popup-menu {
+  position: relative;
+  display: inline-block;
+}
+.popup-menu[open] > div {
+  z-index: 30;
+}
+.popup-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.popup-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.row-menu > summary,
+.columns-menu > summary {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.row-menu > summary {
+  border-color: transparent;
+  background: none;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.row-menu > summary:hover,
+.row-menu[open] > summary {
+  background: var(--surface-2);
+}
+.columns-menu > summary::after {
+  content: " ▾";
+  color: var(--muted);
+}
+.popup-menu-items {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+}
+.popup-menu-items button {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 500;
+  text-align: left;
+}
+.popup-menu-items button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.columns-menu .popup-menu-items {
+  min-width: 240px;
+}
+.columns-menu .popup-menu-items p {
+  margin: 4px 8px 6px;
+  white-space: normal;
+}
+.columns-menu input {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+}
+.columns-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.columns-menu label:hover {
+  background: var(--surface-2);
+}
+.columns-menu label .meta {
+  margin-left: auto;
+  font-size: 11.5px;
 }
 
 /* Run page sections, drawn whole by renderRunGraphics (web_app_charts.js). */

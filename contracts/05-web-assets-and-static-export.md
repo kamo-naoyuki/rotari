@@ -156,9 +156,10 @@ status-to-tone rule: Go renders the Job activity page with it and injects it
 into the application script, which normalises labels the same way
 (`TestStatusToneMatchesInGoAndJS`).
 
-A table renderer emits its table whole: columns, labels, and a first
-`Actions` cell built with `actionsCell` in `web_app_core.js`, whose buttons
-carry their arguments in `data-` attributes. No later render step renames,
+A table renderer emits its table whole: columns, labels, and an `Actions`
+cell built with `actionsCell` in `web_app_core.js`, whose buttons carry their
+arguments in `data-` attributes. The cell is first in a row, except on the
+run page's jobs table, where it is last. No later render step renames,
 moves, or restyles a table's columns, and the run page's sections are drawn
 whole by `renderRunGraphics` in `web_app_charts.js`. Layout lives in the
 stylesheets; only data-driven sizes and colours are set inline.
@@ -359,6 +360,16 @@ not transmit or submit the report. Covered by
 `TestRenderMarkdownRendersReportsAndEscapesText`, and
 `TestStaticWebReportRedactionToggle`.
 
+The run page's jobs table (`runJobsHTML` in `web_app_core.js`) shows each
+job's command under its name. Every column stays in the table; a column whose
+values are the same for every job, and Finished, start hidden, and the Columns
+menu above the table turns any column but Job, Status, and Exit on or off,
+remembered per browser. A row ends with its actions: Log, Diagnosis on a
+failed job, Notes when the job has notes, and a "⋯" menu with Report, Path,
+Artifacts, and an empty job's disabled Notes. Covered by
+`TestWebRunJobsTable` in
+[run_jobs_test.go](../internal/webui/run_jobs_test.go).
+
 Run job projections include each persisted attempt. The jobs table defaults to
 the latest attempt, but stores a browser-local selection per job so rows can
 independently display a prior attempt's result, timestamps, and log. The log
@@ -405,7 +416,8 @@ partial copy or change appear only in the table. Covered by `TestWebRunViewDraws
 [cmd/rotari/web_test.go](../cmd/rotari/web_test.go).
 
 Long values in the Command, Working directory, Dependencies, and Executor
-options columns of the job and queue tables start clamped to three lines
+options columns of the job and queue tables start clamped to three lines, and
+the command under a run page's job name to two
 (`clampLongTableCells` in
 [web_app_tables.js](../internal/webui/assets/web_app_tables.js)). Clicking the
 text, which highlights on hover, or pressing Enter or Space on it expands or
@@ -482,8 +494,8 @@ markers are rendered by [internal/webui/assets.go](../internal/webui/assets.go)
 and checked by `TestCLIFlagPairWebNotificationsEffect` in
 [conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
 
-**WEB-5** A job row's Artifacts button shows the artifact candidates of the
-attempt its Output button shows, laid out as `show -j JOB --artifacts`
+**WEB-5** A job row's Artifacts action shows the artifact candidates of the
+attempt its Log button shows, laid out as `show -j JOB --artifacts`
 prints them (CLI-16). `GET /api/artifacts?project_name=P&run_id=R&job_id=J`
 (with an optional `attempt_id` of that job) returns the same
 `jobstatus.ListArtifacts` JSON that `show -j J --json` carries, and rejects
