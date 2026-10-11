@@ -233,10 +233,6 @@ button {
   cursor: pointer;
 }
 
-.web-copy-controls > button {
-  min-width: 100px;
-}
-
 button:hover {
   border-color: var(--muted);
 }
@@ -1665,8 +1661,37 @@ pre,
   margin: 18px 0 8px;
 }
 .table-bar h2 {
-  margin: 0;
+  margin: 0 8px 0 0;
   font-size: 16px;
+}
+.table-bar .columns-menu {
+  margin-left: auto;
+}
+/* The run page's selection buttons and toolbar (runSelectionHTML,
+   runActionsHTML): one row each, compact, wrapping on narrow screens. */
+.run-selection,
+.run-toolbar {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.run-toolbar {
+  margin: 0 0 10px;
+}
+.run-selection button,
+.run-toolbar button {
+  min-height: 30px;
+  padding: 4px 11px;
+  font-size: 12.5px;
+}
+.selection-count {
+  margin-left: 4px;
+  font-size: 12.5px;
+}
+.toolbar-gap {
+  flex: 1;
+}
+.run-toolbar .delete-run:not(:disabled) {
+  color: var(--s-bad);
 }
 .run-jobs th,
 .run-jobs td {

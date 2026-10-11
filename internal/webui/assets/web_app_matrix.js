@@ -249,7 +249,7 @@ function addMatrixPanels() {
   if (!run || !app) return;
   app.querySelectorAll(".matrix-panel").forEach((panel) => panel.remove());
   const anchor =
-    app.querySelector(".web-copy-controls") || app.querySelector("table.runs");
+    app.querySelector(".run-jobs-bar") || app.querySelector("table.runs");
   matrixGroups(run.jobs || []).forEach((group) => {
     const groupID = group.matrix.group_id;
     const states = group.jobs.map((job) => matrixJobState(job, !!run.running));

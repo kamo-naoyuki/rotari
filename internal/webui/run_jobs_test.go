@@ -102,6 +102,21 @@ setTimeout(() => {
     document.body.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true }));
     assert(!menu('a').open, 'the row menu did not close on a press outside');
 
+    // The toolbar: selection buttons above, actions on the checked jobs
+    // below, enabled and counted as jobs are checked.
+    const button = label => [...document.querySelectorAll('#app .toolbar button')].find(b => b.textContent === label);
+    const count = () => document.querySelector('.run-jobs-bar .selection-count').textContent;
+    assert(button('Create queue').disabled && button('Unselect all').disabled && count() === '');
+    assert(!button('Delete run').disabled && !button('Cancel run'), 'a finished run can be deleted, not cancelled');
+    button('Select failed').click();
+    assert.equal(count(), '1 selected');
+    assert(row('b').querySelector('.job-selection').checked);
+    button('Select all').click();
+    assert.equal(count(), '3 selected');
+    assert(!button('Create queue').disabled && !button('Append to queue').disabled && !button('Report').disabled);
+    button('Unselect all').click();
+    assert(button('Create queue').disabled && count() === '');
+
     // The Columns menu turns columns on and off, and remembers the choice.
     const columnsMenu = document.querySelector('.run-jobs-bar .columns-menu');
     const choice = key => columnsMenu.querySelector('input[data-column="' + key + '"]');

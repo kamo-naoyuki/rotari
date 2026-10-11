@@ -377,6 +377,9 @@ endpoint validates that an optional attempt ID belongs to its requested run and
 job before reading that attempt directory.
 
 The run page keeps Cancel and Suspend/Resume out of individual job rows.
+The selection buttons and a count of checked jobs sit beside the Jobs heading,
+and the toolbar under it (`runSelectionHTML` and `runActionsHTML` in
+`web_app_core.js`) is rendered with the table.
 The toolbar actions between Report and Delete run operate on the checked jobs:
 Cancel includes selected pending, running, and suspended jobs; Suspend targets
 selected running jobs; Resume targets selected suspended jobs. Cancel and

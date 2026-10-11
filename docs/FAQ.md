@@ -467,9 +467,9 @@ is independent of notification monitoring. Choose a time window and add
 field/word conditions joined by AND or OR. The static Web export includes an
 explanation page; history search requires the live Web UI.
 
-### What do Create and Append do on a run page?
+### What do Create queue and Append to queue do on a run page?
 
-`Create` replaces the queue with selected jobs; `Append` adds them to the current queue. A separate runner executes the queue.
+`Create queue` replaces the queue with the selected jobs; `Append to queue` adds them to the current queue. A separate runner executes the queue.
 
 ### Can I create a config file from the Web UI?
 

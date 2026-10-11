@@ -1646,8 +1646,11 @@ function runJobsHTML(q, run, runID) {
     "</div></details>";
   return (
     '<div class="table-bar run-jobs-bar"><h2>Jobs</h2>' +
+    runSelectionHTML() +
     menu +
-    '</div><table class="runs run-jobs"><thead><tr><th class="selection"></th>' +
+    "</div>" +
+    runActionsHTML(q, run, runID) +
+    '<table class="runs run-jobs"><thead><tr><th class="selection"></th>' +
     columns
       .map(
         (column) =>
@@ -1691,6 +1694,60 @@ function runJobsHTML(q, run, runID) {
       .join("") +
     "</tbody></table>"
   );
+}
+// runSelectionHTML is the jobs table's selection buttons and count. They
+// change only the check boxes; updateSelectedRunJobs (web_app_actions.js)
+// enables them and keeps the count.
+function runSelectionHTML() {
+  return (
+    '<div class="toolbar run-selection" role="group" aria-label="Select jobs">' +
+    '<button type="button" onclick="selectAllRunJobs()" title="Select every job">Select all</button>' +
+    '<button type="button" class="select-failed" onclick="selectFailedJobs()">Select failed</button>' +
+    '<button type="button" class="select-failed-unfinished" onclick="selectFailedUnfinishedJobs()">Select failed + unfinished</button>' +
+    '<button type="button" class="unselect-all" disabled onclick="clearSelectedJobs()" title="Clear all selected jobs">Unselect all</button>' +
+    '<span class="selection-count meta" aria-live="polite"></span></div>'
+  );
+}
+// runActionsHTML is the run page's toolbar: actions on the checked jobs,
+// then Cancel run while the run is running and Delete run. Buttons that
+// need a selection start disabled until updateSelectedRunJobs enables them.
+function runActionsHTML(q, run, runID) {
+  const data =
+    ' data-project="' + esc(q.project_name) + '" data-run="' + esc(runID) + '"';
+  return (
+    '<div class="toolbar web-copy-controls run-toolbar">' +
+    '<button type="button" class="create-selected" disabled' +
+    data +
+    ' onclick="copySelectedJobs(this.dataset.project, this.dataset.run, false)" title="Replace the queue with the selected jobs">Create queue</button>' +
+    '<button type="button" class="append-selected" disabled' +
+    data +
+    ' onclick="copySelectedJobs(this.dataset.project, this.dataset.run, true)" title="Add the selected jobs to the queue">Append to queue</button>' +
+    '<button type="button" class="run-ai" disabled title="Prepare run report"' +
+    data +
+    ' onclick="showRunReport(this)">Report</button>' +
+    '<button type="button" class="cancel-selected-jobs" disabled onclick="controlSelectedRunJobs(\'cancel\')">Cancel selected</button>' +
+    '<button type="button" class="suspend-resume-selected-jobs" disabled onclick="controlSelectedRunJobs(\'suspend-resume\')">Suspend selected</button>' +
+    '<span class="toolbar-gap"></span>' +
+    (run.running
+      ? '<button type="button" class="cancel-run"' +
+        data +
+        ' onclick="cancelRun(this.dataset.project, this.dataset.run)">Cancel run</button>'
+      : "") +
+    '<button type="button" class="delete-run"' +
+    data +
+    (run.running
+      ? ' disabled title="Running runs cannot be deleted"'
+      : ' title="Delete run history"') +
+    ' onclick="deleteRun(this.dataset.project, this.dataset.run)">Delete run</button></div>'
+  );
+}
+function showRunReport(button) {
+  const project = state.projects.find(
+    (item) => item.project_name === button.dataset.project,
+  );
+  const run =
+    project && project.runs.find((item) => item.run_id === button.dataset.run);
+  if (run) showAIReport(project, run, null, selectedRunJobIDs());
 }
 // copyButtonHTML is a small icon that copies value; label names it.
 function copyButtonHTML(value, label) {
@@ -2202,7 +2259,7 @@ async function copyIdentityValue(button) {
 }
 function enhancePage() {
   document
-    .querySelectorAll(".web-copy-controls,.web-queue-commands,.web-origin")
+    .querySelectorAll(".web-queue-commands,.web-origin")
     .forEach((e) => e.remove());
   const parts = pageParts();
   if (parts[0] !== "project") return;
@@ -2210,32 +2267,7 @@ function enhancePage() {
     (q) => q.project_name === decodeURIComponent(parts[1]),
   );
   if (!queue) return;
-  if (parts[2] === "run") {
-    const runID = decodeURIComponent(parts[3]);
-    const run = queue.runs.find((item) => item.run_id === runID);
-    const controls = document.createElement("div");
-    controls.className = "toolbar web-copy-controls";
-    controls.innerHTML =
-      "<button onclick=\"copyRun('" +
-      esc(queue.project_name) +
-      "','" +
-      esc(runID) +
-      "','failed')\">Copy failed jobs</button><button onclick=\"copyRun('" +
-      esc(queue.project_name) +
-      "','" +
-      esc(runID) +
-      "','all')\">Copy all jobs</button>" +
-      (run && run.running
-        ? "<button onclick=\"cancelRun('" +
-          esc(queue.project_name) +
-          "','" +
-          esc(runID) +
-          "')\">Cancel run</button>"
-        : "");
-    document.getElementById("app").prepend(controls);
-    syncRunControls();
-    return;
-  }
+  if (parts[2] === "run") return;
   renderQueueCommands(queue);
 }
 // renderQueueCommands draws a project's queue as one table: the Actions cell

@@ -117,6 +117,14 @@ function updateSelectedRunJobs() {
     .querySelectorAll(".unselect-all")
     .forEach((button) => (button.disabled = selected.length === 0));
   document
+    .querySelectorAll(".selection-count")
+    .forEach(
+      (count) =>
+        (count.textContent = selected.length
+          ? selected.length + " selected"
+          : ""),
+    );
+  document
     .querySelectorAll(".run-ai")
     .forEach((button) => (button.disabled = selected.length === 0));
   updateSelectedRunControlButtons();
@@ -204,6 +212,12 @@ function selectJobsByStatus(statuses) {
   });
   updateSelectedRunJobs();
 }
+function selectAllRunJobs() {
+  document
+    .querySelectorAll(".job-selection")
+    .forEach((input) => (input.checked = true));
+  updateSelectedRunJobs();
+}
 function selectFailedJobs() {
   selectJobsByStatus(["failed"]);
 }
@@ -215,73 +229,6 @@ function clearSelectedJobs() {
     .querySelectorAll(".job-selection,#select-all-jobs")
     .forEach((input) => (input.checked = false));
   updateSelectedRunJobs();
-}
-function syncRunControls() {
-  const controls = document.querySelector(".web-copy-controls");
-  if (!controls) return;
-  const parts = pageParts();
-  const project = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const runID = decodeURIComponent(parts[3]);
-  const buttons = controls.querySelectorAll("button");
-  if (buttons.length >= 2) {
-    buttons[0].outerHTML =
-      '<button class="create-selected" disabled onclick="copySelectedJobs(\'' +
-      esc(project.project_name) +
-      "','" +
-      esc(runID) +
-      "',false)\">Create</button>";
-    buttons[1].outerHTML =
-      '<button class="append-selected" disabled onclick="copySelectedJobs(\'' +
-      esc(project.project_name) +
-      "','" +
-      esc(runID) +
-      "',true)\">Append</button>";
-  }
-  if (!controls.querySelector(".select-failed")) {
-    const select = document.createElement("button");
-    select.className = "select-failed";
-    select.textContent = "Select failed";
-    select.onclick = selectFailedJobs;
-    controls.append(select);
-  }
-  if (!controls.querySelector(".select-failed-unfinished")) {
-    const select = document.createElement("button");
-    select.className = "select-failed-unfinished";
-    select.textContent = "Select failed + unfinished";
-    select.onclick = selectFailedUnfinishedJobs;
-    const clear = document.createElement("button");
-    clear.textContent = "Clear selection";
-    clear.onclick = clearSelectedJobs;
-    controls.append(select, clear);
-  }
-}
-async function copyRun(queue, run, selection) {
-  const q = state.projects.find((item) => item.project_name === queue);
-  const existing = ((q && q.queue.commands) || []).length;
-  if (
-    existing &&
-    !confirm("This will replace " + existing + " queued jobs. Continue?")
-  )
-    return;
-  const response = await fetch("/api/copy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project_name: queue,
-      run_id: run,
-      selection: selection,
-      overwrite: existing > 0,
-    }),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    alert(text);
-    return;
-  }
-  alert(JSON.parse(text).message);
-  window.location.href = appURL("/project/" + encodeURIComponent(queue));
 }
 async function cancelRun(queue, run) {
   if (!confirm("Cancel this run and all running jobs?")) return;
@@ -342,28 +289,6 @@ async function copyCommandGuide(guide, button) {
   } catch (error) {
     alert(error.message);
   }
-}
-function addDeleteRunButton() {
-  const parts = pageParts();
-  if (parts[0] !== "project" || parts[2] !== "run") return;
-  const controls = document.querySelector(".web-copy-controls");
-  if (!controls) return;
-  const queue = state.projects.find(
-    (item) => item.project_name === decodeURIComponent(parts[1]),
-  );
-  const run =
-    queue &&
-    queue.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
-  const button = document.createElement("button");
-  button.className = "delete-run";
-  button.textContent = "Delete run";
-  button.disabled = !!(run && run.running);
-  button.title = button.disabled
-    ? "Running runs cannot be deleted"
-    : "Delete run history";
-  button.onclick = () =>
-    deleteRun(decodeURIComponent(parts[1]), decodeURIComponent(parts[3]));
-  controls.append(button);
 }
 async function deleteRun(queue, run) {
   if (!confirm("Delete run history " + run + "?")) return;

@@ -1684,7 +1684,7 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 			t.Fatalf("web command guidance is missing copy control %q", marker)
 		}
 	}
-	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "suspend-resume-selected-jobs", "controlSelectedRunJobs", "job_ids:targets.map"} {
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, `class="unselect-all" disabled`, ">Create queue</button>", ">Append to queue</button>", "Cancel selected", "Suspend selected", "Resume selected", "suspend-resume-selected-jobs", "controlSelectedRunJobs", "job_ids:targets.map"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
@@ -1756,9 +1756,9 @@ func TestNotificationMaxJobsLabelDoesNotWrap(t *testing.T) {
 	}
 }
 
-func TestRunToolbarButtonsUseConsistentMinimumWidth(t *testing.T) {
-	if !strings.Contains(webStylesCSS, ".web-copy-controls > button {\n  min-width: 100px;\n}") {
-		t.Fatal("run toolbar buttons do not share a minimum width")
+func TestRunToolbarButtonsShareOneSize(t *testing.T) {
+	if !strings.Contains(webStylesCSS, ".run-selection button,\n.run-toolbar button {\n  min-height: 30px;") {
+		t.Fatal("run toolbar buttons do not share one size")
 	}
 }
 
@@ -1795,7 +1795,7 @@ func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function renderQueueCommands(queue)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function outputWordCloudSection(queue,runID)", "renderRunGraphics();"} {
+	for _, marker := range []string{"function renderQueueCommands(queue)", "function copySelectedJobs(queue,run,append)", "function runActionsHTML(q,run,runID)", "function outputWordCloudSection(queue,runID)", "renderRunGraphics();"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
 		}
@@ -3184,10 +3184,10 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`id="report-note"`,
 		`Copy gives the Markdown, which an AI assistant can read too. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,
-		`function addAIButtons()`,
+		`function showRunReport(button)`,
 		`onclick="showJobReport(this)">Report</button>`,
 		`function showJobReport(button)`,
-		`button.textContent='Report'`,
+		`onclick="showRunReport(this)">Report</button>`,
 		`Prepare run report`,
 		`Prepare job report`,
 		`redactToggle.hidden=view!=='ai'`,

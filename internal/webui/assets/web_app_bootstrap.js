@@ -251,16 +251,11 @@ render = function () {
     }
   }
   addProjectRuntime();
-  addDeleteRunButton();
-  renameCopyButtons();
   addRunJobSelection();
-  arrangeRunControls();
   enableTableSorting();
   restoreSelectedOutput();
   addConfigButton();
   openRequestedConfigAction();
-  addAIButtons();
-  arrangeRunControls();
   clampLongTableCells();
   addMatrixPanels();
   applyBasedirLinks();
