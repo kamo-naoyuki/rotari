@@ -196,3 +196,18 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** At 1400×1000 the demo's shards run table measured 1205px in a 1053px body before the widths were tuned, and fits after; desktop light and dark, phone, and both menus open were inspected in headless Chrome. `scripts/web-structure.sh` on the shared demo state: non-run pages differ from `after-p4a` only by the removed `.empty` container; run pages show the new table and a Jobs heading; static and live pages agree as before (the overview's live "—" queued counts excepted). `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0 before `7b08f2f1`.
 
 **Remaining:** run toolbar; Job timeline open by default with other sections remembering their state; project, overview, Job activity, and search page bodies; runtime panel; config buttons.
+
+### Run toolbar and sections
+
+- `59109976` (2026-10-11 18:13:30 +0900): the run toolbar rendered with the table.
+- `5c9661b3` (2026-10-11 18:19:02 +0900): the job timeline open by default; sections remembered per browser.
+
+**Change:**
+- `runSelectionHTML` (Select all, Select failed, Select failed + unfinished, Unselect all, and a "N selected" count beside the Jobs heading) and `runActionsHTML` (Create queue, Append to queue, Report, Cancel selected, Suspend selected, then Cancel run while running and Delete run) in `web_app_core.js`; `showRunReport` and `selectAllRunJobs` replace closures. Removed: `enhancePage`'s run branch, `syncRunControls`, `addDeleteRunButton`, `copyRun` (only behind the Copy all/failed jobs buttons those steps replaced), `renameCopyButtons`, `addAIButtons`, `arrangeRunControls`, `equalizeRunControlHeights`. Matrix panels are inserted before the Jobs heading.
+- `runSectionOpen` / `setRunSectionOpen` in `web_app_charts.js`: `rotari-run-sections` in localStorage, the job timeline open when nothing is stored.
+- Tests: `TestWebRunJobsTable` covers the toolbar's count and enabling and the sections' default and stored state; marker tests follow `runActionsHTML`, `showRunReport`, the rendered Unselect all and Create queue / Append to queue labels, and the toolbar's shared button size (`TestRunToolbarButtonsShareOneSize`, was `...UseConsistentMinimumWidth`).
+- Docs: contract (toolbar renderers, section state), `docs/FAQ.md` (Create queue / Append to queue labels, which the toolbar already showed).
+
+**Validation:** `scripts/web-structure.sh` on the demo state: run toolbars list the same buttons in the same states, split into the selection row and the action row; the sweep run's matrix heading moved before Jobs; static and live agree as before. Desktop and 390px captures inspected (no sideways page scroll). `go test ./internal/webui ./cmd/rotari`, `npm run typecheck`, pre-commit, full `scripts/check.sh` before `59109976`, and `scripts/check.sh --short` before `5c9661b3` passed.
+
+**Remaining:** project, overview, Job activity, and search page bodies; runtime panel; config buttons. The mockup drew the job timeline as one lane per job; the page still draws the share-over-time chart, which is a new chart, not a restyle, so it is left for the user to decide.
