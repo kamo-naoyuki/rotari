@@ -274,13 +274,11 @@ function renderHistorySearchPage() {
   document.getElementById("summary").textContent =
     "Search project, run, and job history in the ranges you choose.";
   if (typeof rewriteStaticLinks === "function") {
-    app.className = "empty";
-    app.textContent =
-      "Cross-basedir history search is available in the live Web UI only.";
+    app.innerHTML =
+      '<div class="empty">Cross-basedir history search is available in the live Web UI only.</div>';
     return;
   }
   if (document.getElementById("history-search-form")) return;
-  app.className = "";
   app.innerHTML = historySearchPageHTML();
   document
     .getElementById("history-search-form")
