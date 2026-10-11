@@ -221,8 +221,8 @@ sidebar is a drawer opened from the top bar, and no page scrolls sideways.
 The basedir list is introduced by a `Registered basedirs` heading so the tree
 is self-describing. Each basedir entry is collapsible and only the basedir
 currently mounted starts expanded; collapsing or expanding another entry is a
-user choice the sidebar keeps. An entry, and the breadcrumb naming a page's
-basedir, labels the basedir by its parent directory in bold and its own name,
+user choice the sidebar keeps. An entry, the breadcrumb naming a page's
+basedir, and the history search's basedir choice label the basedir by its parent directory in bold and its own name,
 with the full path in its tooltip, because basedirs usually share a name such
 as `.rotari-state`; `newWebBaseDir` in [assets.go](../internal/webui/assets.go)
 computes the label once for both page kinds

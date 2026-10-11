@@ -401,6 +401,11 @@ function sidebarRunLinksHTML(q, isActive, activeRun, basedirID) {
 // basedirLabelHTML labels a basedir by its parent directory, in bold, and
 // its own name, from the label newWebBaseDir (assets.go) computes; it is the
 // same markup as Go's basedirLabelHTML.
+// basedirLabelText is basedirLabelHTML as plain text, for a select option.
+function basedirLabelText(entry) {
+  const name = entry.name || entry.path;
+  return entry.parent ? entry.parent + "/" + name : name;
+}
 function basedirLabelHTML(entry) {
   const name = esc(entry.name || entry.path);
   return entry.parent
@@ -470,7 +475,9 @@ function sidebarBasedirHTML(
   activeRun,
 ) {
   const isActive = entry.id === activeID;
-  const isJobsPage = pageParts()[0] === "jobs";
+  const page = pageParts()[0];
+  const isJobsPage = page === "jobs";
+  const isOverview = !activeProject && page !== "jobs" && page !== "search";
   if (!Object.hasOwn(expandedSidebarBasedirs, entry.id))
     expandedSidebarBasedirs[entry.id] = isActive;
   const isExpanded = !!expandedSidebarBasedirs[entry.id];
@@ -516,7 +523,7 @@ function sidebarBasedirHTML(
     '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
     (allProjectsExpanded ? "true" : "false") +
     '" aria-label="Toggle project list" onclick="toggleSidebarAllProjects(this)"></button><a class="sidebar-project-link basedir-switch' +
-    (isActive && !activeProject && !isJobsPage ? " active" : "") +
+    (isActive && isOverview ? " active" : "") +
     '" href="' +
     basedirURL(entry.id, "/") +
     '">All projects</a></div><div class="sidebar-projects project-list"' +
@@ -536,6 +543,9 @@ function renderSidebar(queues) {
   const sidebar = container.closest(".sidebar");
   const scrollTop = sidebar.scrollTop;
   const parts = pageParts();
+  sidebar
+    .querySelector(".sidebar-search-link")
+    ?.classList.toggle("active", parts[0] === "search");
   const activeProject =
     parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
   const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";

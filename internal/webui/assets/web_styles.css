@@ -1367,6 +1367,16 @@ pre,
   background: var(--surface-sunken);
 }
 
+/* The search page's one primary action. */
+.history-search-form button.primary {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--surface);
+}
+.history-search-form button.primary:hover {
+  border-color: var(--text-2);
+  background: var(--text-2);
+}
 .history-search-time-row {
   display: flex;
   flex-wrap: wrap;
@@ -1407,13 +1417,35 @@ pre,
 .history-search-table {
   width: 100%;
   min-width: 640px;
-  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.history-search-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.history-search-command {
+  max-width: 72ch;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-2);
+  font: 12px/1.45 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-search-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .history-search-table th,
 .history-search-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
   text-align: left;
   vertical-align: top;
 }

@@ -189,7 +189,7 @@ function historySearchScopeHTML() {
   const basedirOptions = registeredBasedirs
     .map(
       (entry) =>
-        `<option value="${esc(entry.id)}" ${entry.id === currentBasedirID ? "selected" : ""}>${esc(entry.path)}</option>`,
+        `<option title="${esc(entry.path)}" value="${esc(entry.id)}" ${entry.id === currentBasedirID ? "selected" : ""}>${esc(basedirLabelText(entry))}</option>`,
     )
     .join("");
   return `<div class="history-search-scope-row">
@@ -572,6 +572,7 @@ function historySearchRenderResults(rows) {
             );
       let title;
       let details;
+      let command = "";
       if (row.target === "project") {
         title = row.project_name;
         details = row.basedir_path;
@@ -580,7 +581,8 @@ function historySearchRenderResults(rows) {
         details = row.project_name;
       } else {
         title = row.job_name || row.job_id;
-        details = `${row.project_name} / ${row.run_name || row.run_id} · ${row.job_id} · ${row.command || ""}`;
+        details = `${row.project_name} / ${row.run_name || row.run_id} · ${row.job_id}`;
+        command = row.command || "";
       }
       const status = row.job_status || row.run_status || "";
       const timestamp = row.timestamp
@@ -588,9 +590,9 @@ function historySearchRenderResults(rows) {
         : "";
       return `<tr>
         <td><span class="history-search-kind">${esc(row.target)}</span></td>
-        <td><a href="${esc(targetURL)}">${esc(title)}</a><div class="history-search-detail">${esc(details)}</div></td>
-        <td>${esc(status)}</td>
-        <td>${esc(timestamp)}</td>
+        <td><a href="${esc(targetURL)}">${esc(title)}</a><div class="history-search-detail">${esc(details)}</div>${command ? `<div class="history-search-command" title="${esc(command)}">${esc(command)}</div>` : ""}</td>
+        <td>${status ? statusPill(status) : ""}</td>
+        <td class="history-search-time">${esc(timestamp)}</td>
       </tr>`;
     })
     .join("");

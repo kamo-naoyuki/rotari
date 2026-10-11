@@ -317,6 +317,8 @@ const context = {
 	paginateTable: (table, key) => { context.paginatedTable = table; context.paginatedKey = key; },
 	esc: value => String(value),
 	basedirURL: (_id, path) => path,
+	basedirLabelText: entry => entry.path,
+	statusPill: status => status,
 	setCrumbs: (trail, copyPath) => { context.crumbs = trail; context.crumbsCopyPath = copyPath; },
 	document: {
 		querySelector(selector) {
@@ -387,9 +389,9 @@ vm.runInContext(code, context);
 	context.focusHistorySearchJob();
 	if (context.paginationState.job.page !== 1 || scrolledJob !== 'job-21' || !context.paginatedKey) throw new Error('run page did not scroll to the matching job row');
 	const scopeHTML = context.historySearchScopeHTML();
-	if (!scopeHTML.includes('<option value="base-b" selected>')) throw new Error('mounted basedir was not selected by default');
+	if (!scopeHTML.includes('value="base-b" selected>')) throw new Error('mounted basedir was not selected by default');
 	context.mountedBasedirID = '';
-	if (!context.historySearchScopeHTML().includes('<option value="base-a" selected>')) throw new Error('current basedir was not selected by default');
+	if (!context.historySearchScopeHTML().includes('value="base-a" selected>')) throw new Error('current basedir was not selected by default');
 	context.renderHistorySearchPage();
 	if (!context.crumbs || context.crumbs.at(-1)[0] !== 'History search') throw new Error('history search page is not named in the breadcrumbs');
 	if (pageTitle.textContent !== 'History search') throw new Error('history search page title is not set');
