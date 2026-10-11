@@ -370,7 +370,12 @@ remembered per browser. A row ends with its actions: Log, Diagnosis on a
 failed job, Notes when the job has notes, and a "⋯" menu with Report, Path,
 Artifacts, and an empty job's disabled Notes. Covered by
 `TestWebRunJobsTable` in
-[run_jobs_test.go](../internal/webui/run_jobs_test.go).
+[run_jobs_test.go](../internal/webui/run_jobs_test.go). The project's queue
+table follows the same column rule, implemented once in `columnTable`: Job
+name / ID and Command always shown, the source times hidden, and the rest
+shown when they differ; a hidden column's editors stay in the row, so Save
+still sends their values. Covered by `TestWebQueueTable` in
+[queue_table_test.go](../internal/webui/queue_table_test.go).
 
 Run job projections include each persisted attempt. The jobs table defaults to
 the latest attempt, but stores a browser-local selection per job so rows can

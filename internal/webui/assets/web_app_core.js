@@ -1613,10 +1613,8 @@ function selectJobAttemptFields(job, attemptID) {
   job.elapsed = attempt.elapsed;
   job.scheduler_state = attempt.scheduler_state;
 }
-// runJobColumns are the run page's job table columns between the selection
-// box and the row's actions. A column is "fixed" (always shown), "shown" or
-// "hidden" by default, or "auto": shown only when its value differs between
-// jobs. The Columns menu overrides the default per browser.
+// runJobColumns are the run page's job table columns (columnTable) between
+// the selection box and the row's actions.
 const runJobColumns = [
   { key: "name", label: "Job", show: "fixed" },
   { key: "status", label: "Status", show: "fixed" },
@@ -1633,37 +1631,25 @@ const runJobColumns = [
   { key: "finished", label: "Finished", show: "hidden" },
   { key: "duration", label: "Duration", show: "shown" },
 ];
-const runColumnsKey = "rotari-run-columns";
-function runColumnChoices() {
-  try {
-    const value = JSON.parse(localStorage.getItem(runColumnsKey) || "{}");
-    return value && typeof value === "object" ? value : {};
-  } catch {
-    return {};
-  }
-}
-function setRunColumn(input) {
-  const choices = runColumnChoices();
-  choices[input.dataset.column] = input.checked;
-  try {
-    localStorage.setItem(runColumnsKey, JSON.stringify(choices));
-  } catch {
-    // The choice then lasts until the next render.
-  }
-  render();
-}
-// runJobsHTML draws a run's jobs table and its Columns menu. Every column is
-// in the table, so sorting and clamping find it by its data-sort key; a
-// column that is turned off carries the hidden attribute.
-function runJobsHTML(q, run, runID) {
-  const rows = run.jobs.map((job) => ({
-    job,
-    cells: runJobCells(q, run, runID, job),
-  }));
-  const choices = runColumnChoices();
-  const columns = runJobColumns.map((column) => {
+// columnTable draws a table whose columns the viewer can turn on and off
+// from a Columns menu (a run's jobs, a project's queue). A column is "fixed"
+// (always shown), "shown" or "hidden" by default, or "auto": shown only when
+// its value differs between rows (cell.same, or else its HTML). The viewer's
+// choices are kept per browser under rotari-NAME-columns. Every column stays
+// in the table, so sorting and clamping find it by its data-sort key; one
+// that is turned off carries the hidden attribute. Each row gives its
+// attributes, its cells by column key, and the HTML of its cells before
+// (lead) and after (trail) the columns; header gives the matching headers.
+function columnTable(name, columns, rows, header, className) {
+  const choices = tableColumnChoices(name);
+  const shownColumns = columns.map((column) => {
     const same =
-      new Set(rows.map((row) => row.cells[column.key].html)).size <= 1;
+      new Set(
+        rows.map((row) => {
+          const cell = row.cells[column.key];
+          return cell.same !== undefined ? cell.same : cell.html;
+        }),
+      ).size <= 1;
     const auto =
       column.show === "fixed" ||
       column.show === "shown" ||
@@ -1675,17 +1661,19 @@ function runJobsHTML(q, run, runID) {
   const hidden = (column) => (column.shown ? "" : " hidden");
   const menu =
     '<details class="popup-menu columns-menu"' +
-    popupMenuAttributes("run-columns") +
-    '><summary>Columns</summary><div class="popup-menu-items"><p class="meta">Columns whose values are the same for every job start hidden.</p>' +
-    columns
+    popupMenuAttributes(name + "-columns") +
+    '><summary>Columns</summary><div class="popup-menu-items"><p class="meta">Columns whose values are the same for every row start hidden.</p>' +
+    shownColumns
       .filter((column) => column.show !== "fixed")
       .map(
         (column) =>
-          '<label><input type="checkbox" data-column="' +
+          '<label><input type="checkbox" data-table="' +
+          name +
+          '" data-column="' +
           column.key +
           '"' +
           (column.shown ? " checked" : "") +
-          ' onchange="setRunColumn(this)"> ' +
+          ' onchange="setTableColumn(this)"> ' +
           column.label +
           (column.show === "auto" && column.same
             ? ' <span class="meta">same for all</span>'
@@ -1694,14 +1682,12 @@ function runJobsHTML(q, run, runID) {
       )
       .join("") +
     "</div></details>";
-  return (
-    '<div class="table-bar run-jobs-bar"><h2>Jobs</h2>' +
-    runSelectionHTML() +
-    menu +
-    "</div>" +
-    runActionsHTML(q, run, runID) +
-    '<table class="runs run-jobs"><thead><tr><th class="selection"></th>' +
-    columns
+  const table =
+    '<table class="runs ' +
+    className +
+    '"><thead><tr>' +
+    (header.lead || "") +
+    shownColumns
       .map(
         (column) =>
           '<th data-sort="' +
@@ -1713,18 +1699,18 @@ function runJobsHTML(q, run, runID) {
           "</th>",
       )
       .join("") +
-    '<th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>' +
+    (header.trail || "") +
+    "</tr></thead><tbody>" +
     rows
       .map(
-        ({ job, cells }) =>
-          '<tr data-job-id="' +
-          esc(job.id) +
-          '"><td class="selection"><input class="job-selection" type="checkbox" aria-label="Select ' +
-          esc(job.id) +
-          '"></td>' +
-          columns
+        (row) =>
+          "<tr" +
+          (row.attributes || "") +
+          ">" +
+          (row.lead || "") +
+          shownColumns
             .map((column) => {
-              const cell = cells[column.key];
+              const cell = row.cells[column.key];
               return (
                 "<td" +
                 (cell.className ? ' class="' + cell.className + '"' : "") +
@@ -1738,11 +1724,65 @@ function runJobsHTML(q, run, runID) {
               );
             })
             .join("") +
-          runJobActions(q, run, runID, job) +
+          (row.trail || "") +
           "</tr>",
       )
       .join("") +
-    "</tbody></table>"
+    "</tbody></table>";
+  return { menu, table };
+}
+function tableColumnChoices(name) {
+  try {
+    const value = JSON.parse(
+      localStorage.getItem("rotari-" + name + "-columns") || "{}",
+    );
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+function setTableColumn(input) {
+  const choices = tableColumnChoices(input.dataset.table);
+  choices[input.dataset.column] = input.checked;
+  try {
+    localStorage.setItem(
+      "rotari-" + input.dataset.table + "-columns",
+      JSON.stringify(choices),
+    );
+  } catch {
+    // The choice then lasts until the next render.
+  }
+  render();
+}
+// runJobsHTML draws a run's jobs table under its Jobs heading, selection
+// buttons, Columns menu, and toolbar.
+function runJobsHTML(q, run, runID) {
+  const { menu, table } = columnTable(
+    "run",
+    runJobColumns,
+    run.jobs.map((job) => ({
+      attributes: ' data-job-id="' + esc(job.id) + '"',
+      lead:
+        '<td class="selection"><input class="job-selection" type="checkbox" aria-label="Select ' +
+        esc(job.id) +
+        '"></td>',
+      cells: runJobCells(q, run, runID, job),
+      trail: runJobActions(q, run, runID, job),
+    })),
+    {
+      lead: '<th class="selection"></th>',
+      trail:
+        '<th class="actions"><span class="visually-hidden">Actions</span></th>',
+    },
+    "run-jobs",
+  );
+  return (
+    '<div class="table-bar run-jobs-bar"><h2>Jobs</h2>' +
+    runSelectionHTML() +
+    menu +
+    "</div>" +
+    runActionsHTML(q, run, runID) +
+    table
   );
 }
 // runSelectionHTML is the jobs table's selection buttons and count. They
@@ -2307,6 +2347,98 @@ async function copyIdentityValue(button) {
     alert(error.message);
   }
 }
+// queueJobColumns are the queue table's columns (columnTable) after its
+// actions. Hidden editors stay in the row, so Save still reads them.
+const queueJobColumns = [
+  { key: "name", label: "Job name / ID", show: "fixed" },
+  { key: "array", label: "Array", show: "auto" },
+  { key: "status", label: "Status", show: "auto" },
+  { key: "executor", label: "Executor", show: "auto" },
+  { key: "options", label: "Executor options", show: "auto" },
+  { key: "stage", label: "Stage", show: "auto" },
+  { key: "depends", label: "Dependencies", show: "auto" },
+  { key: "working_directory", label: "Working directory", show: "auto" },
+  { key: "command", label: "Command", show: "fixed" },
+  { key: "source_run", label: "Source run", show: "auto" },
+  { key: "source_status", label: "Source status", show: "shown" },
+  { key: "source_started", label: "Source started", show: "hidden" },
+  { key: "source_finished", label: "Source finished", show: "hidden" },
+];
+// queueJobActions is a queued job's actions cell, first in its row beside
+// the editors: its source attempt's log, Save, and Remove.
+function queueJobActions(queue, j) {
+  const origin = j.origin;
+  const jobData =
+    ' data-project="' +
+    esc(queue.project_name) +
+    '" data-job="' +
+    esc(j.id) +
+    '"';
+  return actionsCell([
+    origin
+      ? '<button class="view-log" data-run="' +
+        esc(origin.run_id) +
+        '" data-job="' +
+        esc(origin.job_id) +
+        '" onclick="showOriginalOutput(this.dataset.run, this.dataset.job, this)">View log</button>'
+      : "",
+    '<button class="save-job"' +
+      jobData +
+      " disabled onclick=\"saveQueueJob(this.dataset.project, this.dataset.job, this.closest('tr'))\">Save</button>",
+    '<button class="remove-job"' +
+      jobData +
+      ' data-label="' +
+      esc(j.name || j.id) +
+      '" onclick="removeQueueJob(this.dataset.project, this.dataset.job, this.dataset.label)">Remove</button>',
+  ]);
+}
+// queueJobCells is a queued job's cell in each of queueJobColumns.
+function queueJobCells(j, executorOptions, input) {
+  const origin = j.origin;
+  const recorded = queuedStatusText(
+    origin ? origin.status : "",
+    j.marked_status,
+  );
+  const options = JSON.stringify(j.executor_options || []);
+  const depends = JSON.stringify(j.depends_on || []);
+  return {
+    name: {
+      html:
+        input("job-name-input", j.name || "") +
+        '<div class="meta">' +
+        esc(j.id) +
+        "</div>",
+    },
+    array: { html: j.array ? esc(j.array.first + "-" + j.array.last) : "-" },
+    status: { html: statusPill("pending") },
+    executor: {
+      same: j.executor || "local",
+      html: '<select class="executor-input">' + executorOptions + "</select>",
+    },
+    options: { same: options, html: input("executor-option-input", options) },
+    stage: {
+      html:
+        esc(j.stage || "-") +
+        (j.stage ? copyIconForValue(j.stage, "stage name") : ""),
+    },
+    depends: { same: depends, html: input("depends-input", depends) },
+    working_directory: {
+      same: j.working_directory || "",
+      html: input(
+        "working-directory-input",
+        j.working_directory || "",
+        "working directory",
+      ),
+    },
+    command: { html: input("command-input", JSON.stringify(j.command)) },
+    source_run: {
+      html: origin ? esc(origin.run_id + "/" + origin.job_id) : "-",
+    },
+    source_status: { html: recorded === "-" ? "-" : statusPill(recorded) },
+    source_started: { html: esc((origin && origin.submitted_at) || "-") },
+    source_finished: { html: esc((origin && origin.finished_at) || "-") },
+  };
+}
 // renderQueueCommands returns a project's queue section: the jobs' source,
 // one table with the Actions cell first (the source run's log, Save,
 // Remove), editors for the fields a queued job can change, and the run each
@@ -2328,80 +2460,19 @@ function renderQueueCommands(queue) {
     ' value="' +
     esc(value) +
     '">';
-  const rows = commands
-    .map((j) => {
-      const origin = j.origin;
-      const recorded = queuedStatusText(
-        origin ? origin.status : "",
-        j.marked_status,
-      );
-      const jobData =
-        ' data-project="' +
-        esc(queue.project_name) +
-        '" data-job="' +
-        esc(j.id) +
-        '"';
-      return (
-        '<tr data-job-id="' +
-        esc(j.id) +
-        '">' +
-        actionsCell([
-          origin
-            ? '<button class="view-log" data-run="' +
-              esc(origin.run_id) +
-              '" data-job="' +
-              esc(origin.job_id) +
-              '" onclick="showOriginalOutput(this.dataset.run, this.dataset.job, this)">View log</button>'
-            : "",
-          '<button class="save-job"' +
-            jobData +
-            " disabled onclick=\"saveQueueJob(this.dataset.project, this.dataset.job, this.closest('tr'))\">Save</button>",
-          '<button class="remove-job"' +
-            jobData +
-            ' data-label="' +
-            esc(j.name || j.id) +
-            '" onclick="removeQueueJob(this.dataset.project, this.dataset.job, this.dataset.label)">Remove</button>',
-        ]) +
-        "<td>" +
-        input("job-name-input", j.name || "") +
-        '<div class="meta">' +
-        esc(j.id) +
-        "</div></td><td>" +
-        (j.array ? esc(j.array.first + "-" + j.array.last) : "-") +
-        "</td><td>" +
-        statusPill("pending") +
-        '</td><td><select class="executor-input">' +
-        executorOptions +
-        "</select></td><td>" +
-        input(
-          "executor-option-input",
-          JSON.stringify(j.executor_options || []),
-        ) +
-        "</td><td>" +
-        esc(j.stage || "-") +
-        (j.stage ? copyIconForValue(j.stage, "stage name") : "") +
-        "</td><td>" +
-        input("depends-input", JSON.stringify(j.depends_on || [])) +
-        "</td><td>" +
-        input(
-          "working-directory-input",
-          j.working_directory || "",
-          "working directory",
-        ) +
-        "</td><td>" +
-        input("command-input", JSON.stringify(j.command)) +
-        "</td><td>" +
-        (origin ? esc(origin.run_id + "/" + origin.job_id) : "-") +
-        "</td><td>" +
-        (recorded === "-" ? "-" : statusPill(recorded)) +
-        "</td><td>" +
-        esc((origin && origin.submitted_at) || "-") +
-        "</td><td>" +
-        esc((origin && origin.finished_at) || "-") +
-        "</td></tr>"
-      );
-    })
-    .join("");
+  const { menu, table } = columnTable(
+    "queue",
+    queueJobColumns,
+    commands.map((j) => ({
+      attributes: ' data-job-id="' + esc(j.id) + '"',
+      lead: queueJobActions(queue, j),
+      cells: queueJobCells(j, executorOptions, input),
+    })),
+    {
+      lead: '<th class="actions">Actions</th>',
+    },
+    "web-queue-jobs",
+  );
   const origins = commands.filter((job) => job.origin);
   const sourceRuns = [...new Set(origins.map((job) => job.origin.run_id))];
   const sourceDirectories = [
@@ -2411,7 +2482,9 @@ function renderQueueCommands(queue) {
     '<div class="table-bar"><h2>Queue</h2><span class="meta">' +
     commands.length +
     (commands.length === 1 ? " job" : " jobs") +
-    "</span></div>" +
+    "</span>" +
+    (commands.length ? menu : "") +
+    "</div>" +
     (origins.length
       ? '<p class="meta queue-source">Source run: ' +
         esc(sourceRuns.join(", ")) +
@@ -2419,11 +2492,7 @@ function renderQueueCommands(queue) {
         esc(sourceDirectories.join(", ") || "-") +
         "</p>"
       : "") +
-    (commands.length
-      ? '<table class="runs web-queue-jobs"><thead><tr><th class="actions">Actions</th><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="source_run">Source run</th><th data-sort="source_status">Source status</th><th data-sort="source_started">Source started</th><th data-sort="source_finished">Source finished</th></tr></thead><tbody>' +
-        rows +
-        "</tbody></table>"
-      : '<div class="empty">Queue is empty.</div>');
+    (commands.length ? table : '<div class="empty">Queue is empty.</div>');
   const directories = [
     ...new Set(
       commands.map((job) => job.origin && job.origin.cwd).filter(Boolean),

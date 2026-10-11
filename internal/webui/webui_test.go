@@ -3227,7 +3227,7 @@ func TestWebQueueWorkingDirectoryUsesSeparateEditableColumn(t *testing.T) {
 		"function renderQueueCommands(queue)",
 		`input("working-directory-input",j.working_directory||"","working directory")`,
 		`input("command-input",JSON.stringify(j.command))`,
-		"data-sort=\"working_directory\">Working directory</th><th data-sort=\"command\">Command",
+		`{ key: "working_directory", label: "Working directory", show: "auto" },{ key: "command", label: "Command", show: "fixed" }`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web queue table does not contain %q", want)
