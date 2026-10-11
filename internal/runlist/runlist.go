@@ -1,0 +1,186 @@
+// Package runlist collects the runs that `rotari runs` lists, across state
+// directories: which runs are listed, their lifecycle and client status, and
+// their order. It returns recorded values; callers format them.
+package runlist
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
+	"github.com/kamo-naoyuki/rotari/internal/state"
+)
+
+// Run is one listed run.
+type Run struct {
+	BaseDir string
+	Project string
+	RunID   string
+	RunName string
+	// Lifecycle is runview.RunLifecycleLabel: running, interrupted,
+	// incomplete, finished, or failed.
+	Lifecycle    string
+	ClientStatus model.RunClientStatus
+	ClientLabel  string
+	// ExitCode is nil until the run has a summary.
+	ExitCode *int
+	// StartedAt and FinishedAt are as recorded (RFC 3339), empty when
+	// unknown; Started and Finished are their parsed times.
+	StartedAt  string
+	FinishedAt string
+	Started    time.Time
+	Finished   time.Time
+	// Order sorts runs newest first: the start time, or the run
+	// directory's modification time when the start is unknown.
+	Order int64
+}
+
+// Collect lists the runs of every project in baseDirs, or of projectFilter
+// only, newest first. A projectFilter found in none of them is an error,
+// unless no basedir has any project.
+func Collect(baseDirs []string, projectFilter string) ([]Run, error) {
+	if projectFilter != "" && !state.IsValidPathElement(projectFilter) {
+		return nil, fmt.Errorf("invalid project name %q", projectFilter)
+	}
+	runs := make([]Run, 0)
+	hasProjects, foundProject := false, false
+	for _, baseDir := range baseDirs {
+		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list projects in %q: %w", baseDir, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
+				continue
+			}
+			hasProjects = true
+			if projectFilter != "" && entry.Name() != projectFilter {
+				continue
+			}
+			foundProject = true
+			projectRuns, err := collectProject(baseDir, entry.Name())
+			if err != nil {
+				return nil, err
+			}
+			runs = append(runs, projectRuns...)
+		}
+	}
+	// Keep the empty-state-directory result, but distinguish a misspelled
+	// selector from an existing project that simply has no runs yet.
+	if projectFilter != "" && hasProjects && !foundProject {
+		return nil, fmt.Errorf("project %q not found in %s", projectFilter, DescribeScope(baseDirs, ""))
+	}
+	sort.Slice(runs, func(i, j int) bool {
+		if runs[i].Order != runs[j].Order {
+			return runs[i].Order > runs[j].Order
+		}
+		if runs[i].BaseDir != runs[j].BaseDir {
+			return runs[i].BaseDir < runs[j].BaseDir
+		}
+		if runs[i].Project != runs[j].Project {
+			return runs[i].Project < runs[j].Project
+		}
+		return runs[i].RunID < runs[j].RunID
+	})
+	return runs, nil
+}
+
+func collectProject(baseDir, projectName string) ([]Run, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve project %q: %w", projectName, err)
+	}
+	entries, err := os.ReadDir(paths.RunsDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read runs for project %q: %w", projectName, err)
+	}
+	runs := make([]Run, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		run, err := readRun(paths, projectName, entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read run %q for project %q: %w", entry.Name(), projectName, err)
+		}
+		runs = append(runs, run)
+	}
+	return runs, nil
+}
+
+func readRun(paths state.ProjectPaths, projectName string, entry os.DirEntry) (Run, error) {
+	runID := entry.Name()
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return Run{}, err
+	}
+	run := Run{BaseDir: paths.BaseDir, Project: projectName, RunID: runID}
+	if info, _ := entry.Info(); info != nil {
+		run.Order = info.ModTime().UnixNano()
+	}
+	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	if err != nil && !os.IsNotExist(err) {
+		return Run{}, err
+	}
+	if err == nil {
+		run.RunName = summary.RunName
+		run.ExitCode = &summary.ExitCode
+		run.StartedAt, run.FinishedAt = summary.StartedAt, summary.FinishedAt
+	} else if lock, lockErr := state.LoadLock(paths.LockFile); lockErr == nil && lock.RunID == runID {
+		// An active or interrupted run has no summary yet; its lock records
+		// the name and start time.
+		run.RunName = lock.RunName
+		run.StartedAt = lock.StartedAt
+	}
+	run.Started, _ = time.Parse(time.RFC3339Nano, run.StartedAt)
+	run.Finished, _ = time.Parse(time.RFC3339Nano, run.FinishedAt)
+	if !run.Started.IsZero() {
+		run.Order = run.Started.UnixNano()
+	}
+	run.Lifecycle, err = runview.RunLifecycleLabel(paths, runID)
+	if err != nil {
+		return Run{}, err
+	}
+	run.ClientStatus, err = runview.ClientStatus(paths, runID)
+	if err != nil {
+		run.ClientStatus = model.RunClientStatus{State: "unknown"}
+	}
+	run.ClientLabel = runview.ClientStatusLabel(run.ClientStatus)
+	return run, nil
+}
+
+// Recent keeps the runs `rotari runs` shows: running, interrupted, and
+// incomplete runs, runs with no recorded finish, and runs that finished at
+// or after cutoff.
+func Recent(runs []Run, cutoff time.Time) []Run {
+	recent := make([]Run, 0, len(runs))
+	for _, run := range runs {
+		if run.Lifecycle == "running" || run.Lifecycle == "interrupted" || run.Lifecycle == "incomplete" || run.Finished.IsZero() || !run.Finished.Before(cutoff) {
+			recent = append(recent, run)
+		}
+	}
+	return recent
+}
+
+// DescribeScope names the listed state directories, and the project when
+// one was selected, for messages.
+func DescribeScope(baseDirs []string, projectFilter string) string {
+	scope := fmt.Sprintf("%d state directories", len(baseDirs))
+	if len(baseDirs) == 1 {
+		scope = "state directory " + baseDirs[0]
+	}
+	if projectFilter != "" {
+		scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
+	}
+	return scope
+}

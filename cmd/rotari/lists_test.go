@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/runlist"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -35,28 +35,6 @@ func writeListsRunAt(t *testing.T, baseDir, projectName, runID string, finishedA
 	return paths
 }
 
-func TestListsRunsShowClientModeAndDetachReason(t *testing.T) {
-	paths := writeListsRun(t, t.TempDir(), "demo", "run-async")
-	if err := writeJSON(filepath.Join(paths.RunsDir, "run-async", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeAsync, State: model.RunClientCompleted, Reason: model.RunClientReasonAsync}); err != nil {
-		t.Fatal(err)
-	}
-	paths = writeListsRun(t, paths.BaseDir, "demo", "run-ctrl-d")
-	if err := writeJSON(filepath.Join(paths.RunsDir, "run-ctrl-d", state.RunClientStatusFileName), model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientCompleted, Reason: model.RunClientReasonCtrlD}); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := collectRunRows([]string{paths.BaseDir}, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	labels := map[string]string{}
-	for _, row := range rows {
-		labels[row.RunID] = row.Client
-	}
-	if labels["run-async"] != "async (completed)" || labels["run-ctrl-d"] != "sync (completed; Ctrl-D detached)" {
-		t.Fatalf("client labels = %#v", labels)
-	}
-}
-
 func TestListsAndShowDetachedClientLabels(t *testing.T) {
 	for _, test := range []struct {
 		name, mode, reason, label string
@@ -67,8 +45,8 @@ func TestListsAndShowDetachedClientLabels(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			const runID = "20261009-120000-12345678"
 			paths := writeListsDetachedRun(t, runID, test.mode, test.reason)
-			rows, err := collectRunRows([]string{paths.BaseDir}, "demo")
-			if err != nil || len(rows) != 1 || rows[0].Client != test.label {
+			rows, err := runlist.Collect([]string{paths.BaseDir}, "demo")
+			if err != nil || len(rows) != 1 || rows[0].ClientLabel != test.label {
 				t.Fatalf("run rows = %#v, %v; want %q", rows, err, test.label)
 			}
 			var output bytes.Buffer
@@ -123,178 +101,6 @@ func TestListsRunsRejectsExplicitInvalidProject(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestListsRunsReadsOnlySelectedProject(t *testing.T) {
-	baseDir := t.TempDir()
-	selected := writeListsRun(t, baseDir, "selected", "run-selected")
-	broken := writeListsRun(t, baseDir, "aaa-broken", "run-broken")
-	for _, file := range []string{selected.QueueFile, broken.QueueFile, broken.MetaFile,
-		filepath.Join(broken.RunsDir, "run-broken", "summary.json")} {
-		if err := writeTestFile(file, []byte("{broken")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	rows, err := collectRunRows([]string{baseDir}, "selected")
-	if err != nil || len(rows) != 1 || rows[0].RunID != "run-selected" {
-		t.Fatalf("rows = %#v, err = %v", rows, err)
-	}
-}
-
-func TestListsRunsDoesNotReadQueues(t *testing.T) {
-	baseDir := t.TempDir()
-	paths := writeListsRun(t, baseDir, "selected", "run-selected")
-	if err := writeTestFile(paths.QueueFile, []byte("{broken")); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := collectRunRows([]string{baseDir}, "")
-	if err != nil || len(rows) != 1 {
-		t.Fatalf("rows = %#v, err = %v", rows, err)
-	}
-}
-
-func TestListsRunsSummaryErrors(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		data string
-		want string
-	}{
-		{"malformed", "{broken", ""},
-		{"newer-version", `{"state_version":999999,"run_id":"run-bad"}`, "upgrade"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			baseDir := t.TempDir()
-			paths := writeListsRun(t, baseDir, "selected", "run-bad")
-			if err := writeTestFile(filepath.Join(paths.RunsDir, "run-bad", "summary.json"), []byte(test.data)); err != nil {
-				t.Fatal(err)
-			}
-			for _, active := range []bool{false, true} {
-				if active {
-					if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-bad"}); err != nil {
-						t.Fatal(err)
-					}
-				}
-				_, err := collectRunRows([]string{baseDir}, "selected")
-				if err == nil || !strings.Contains(err.Error(), "run-bad") || !strings.Contains(err.Error(), "selected") || !strings.Contains(err.Error(), test.want) {
-					t.Fatalf("active = %v, err = %v", active, err)
-				}
-			}
-		})
-	}
-}
-
-func TestListsRunsPhaseOverridesSummary(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		pid  int
-		want string
-	}{
-		{"active", os.Getpid(), "running"},
-		{"interrupted", -1, "interrupted"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			baseDir := t.TempDir()
-			paths := writeListsRun(t, baseDir, "selected", "run-current")
-			writeListsRun(t, baseDir, "selected", "run-old")
-			host, err := os.Hostname()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-current"}); err != nil {
-				t.Fatal(err)
-			}
-			if err := writeJSON(paths.LockFile, model.LockInfo{PID: test.pid, RunID: "run-current", Host: host}); err != nil {
-				t.Fatal(err)
-			}
-			for _, missing := range []bool{false, true} {
-				if missing {
-					if err := os.Remove(filepath.Join(paths.RunsDir, "run-current", "summary.json")); err != nil {
-						t.Fatal(err)
-					}
-				}
-				rows, err := collectRunRows([]string{baseDir}, "selected")
-				if err != nil {
-					t.Fatal(err)
-				}
-				for _, row := range rows {
-					want := "finished"
-					if row.RunID == "run-current" {
-						want = test.want
-						if !missing && (row.Name != "saved run" || row.ExitCode != "0") {
-							t.Errorf("summary details lost: %#v", row)
-						}
-					}
-					if row.Status != want {
-						t.Errorf("missing summary = %v, row = %#v, want status %q", missing, row, want)
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestListsRunsEmptyAndMissingScopes(t *testing.T) {
-	baseDir := t.TempDir()
-	for _, filter := range []string{"", "selected"} {
-		if rows, err := collectRunRows([]string{baseDir}, filter); err != nil || len(rows) != 0 {
-			t.Fatalf("no projects: rows = %#v, err = %v", rows, err)
-		}
-	}
-	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "selected"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if rows, err := collectRunRows([]string{baseDir}, "selected"); err != nil || len(rows) != 0 {
-		t.Fatalf("no runs: rows = %#v, err = %v", rows, err)
-	}
-	if _, err := collectRunRows([]string{baseDir}, "missing"); err == nil || !strings.Contains(err.Error(), `project "missing" not found`) {
-		t.Fatalf("missing named project: %v", err)
-	}
-	otherBase := t.TempDir()
-	paths := writeListsRun(t, otherBase, "elsewhere", "run-incomplete")
-	if err := os.Remove(filepath.Join(paths.RunsDir, "run-incomplete", "summary.json")); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := collectRunRows([]string{baseDir, otherBase}, "elsewhere")
-	if err != nil || len(rows) != 1 || rows[0].Status != "incomplete" {
-		t.Fatalf("named project in another basedir: rows = %#v, err = %v", rows, err)
-	}
-}
-
-func TestListsRunsOrderTiesByRunID(t *testing.T) {
-	baseDir := t.TempDir()
-	for _, runID := range []string{"run-z", "run-a", "run-m"} {
-		writeListsRun(t, baseDir, "selected", runID)
-	}
-	// Repeating a scope prevents ReadDir's alphabetical order from masking
-	// a missing RunID tie-breaker in the final sort.
-	rows, err := collectRunRows([]string{baseDir, baseDir}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, want := range []string{"run-a", "run-a", "run-m", "run-m", "run-z", "run-z"} {
-		if rows[i].RunID != want {
-			t.Fatalf("rows = %#v", rows)
-		}
-	}
-}
-
-func TestFilterRunRowsKeepsActiveAndRecentRuns(t *testing.T) {
-	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	rows := []runListRow{
-		{RunID: "recent", Status: "finished", FinishedAt: now.Add(-23 * time.Hour)},
-		{RunID: "old", Status: "failed", FinishedAt: now.Add(-25 * time.Hour)},
-		{RunID: "running-old", Status: "running", FinishedAt: now.Add(-48 * time.Hour)},
-		{RunID: "interrupted-old", Status: "interrupted", FinishedAt: now.Add(-48 * time.Hour)},
-		{RunID: "incomplete", Status: "incomplete"},
-	}
-	filtered := filterRunRows(rows, now.Add(-24*time.Hour))
-	var got []string
-	for _, row := range filtered {
-		got = append(got, row.RunID)
-	}
-	if !reflect.DeepEqual(got, []string{"recent", "running-old", "interrupted-old", "incomplete"}) {
-		t.Fatalf("filtered run IDs = %v", got)
 	}
 }
 
@@ -374,51 +180,6 @@ func TestListsRunsTableAlignmentAndHint(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestListsRunsActiveRunWithoutSummaryUsesLockDetails(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		pid  int
-		want string
-	}{
-		{"active", os.Getpid(), "running"},
-		{"interrupted", -1, "interrupted"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			baseDir := t.TempDir()
-			paths, err := state.ResolveProjectPaths(baseDir, "selected")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-current"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			host, err := os.Hostname()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-current"}); err != nil {
-				t.Fatal(err)
-			}
-			startedAt := time.Date(2026, 10, 8, 10, 0, 0, 0, time.UTC)
-			lock := model.LockInfo{PID: test.pid, RunID: "run-current", RunName: "sweep", Host: host, StartedAt: startedAt.Format(time.RFC3339Nano)}
-			if err := writeJSON(paths.LockFile, lock); err != nil {
-				t.Fatal(err)
-			}
-			rows, err := collectRunRows([]string{baseDir}, "selected")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(rows) != 1 {
-				t.Fatalf("rows = %#v", rows)
-			}
-			row := rows[0]
-			if row.Status != test.want || row.Name != "sweep" || row.StartedAt != model.FormatDisplayTimestamp(lock.StartedAt) || row.Order != startedAt.UnixNano() {
-				t.Fatalf("row = %#v, want status %q, name sweep, and the lock start time", row, test.want)
-			}
-		})
 	}
 }
 
