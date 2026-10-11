@@ -195,7 +195,7 @@
 .sidebar-project-link {
   flex: 1;
   min-width: 0;
-  padding: 4px 6px 4px 0;
+  padding: 4px 6px 4px 8px;
   color: var(--text);
   font-size: 13px;
   overflow: hidden;
