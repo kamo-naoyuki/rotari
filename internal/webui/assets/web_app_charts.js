@@ -20,8 +20,8 @@ function runLoadSummary(run) {
 
 // The run page's sections: statistics, job timeline, load average, and
 // output word cloud. renderRunGraphics draws them whole, above the jobs
-// table; each starts collapsed and remembers, while the page is open,
-// whether it was opened (expandedRunGraphics).
+// table. The job timeline starts open and the others closed; a section the
+// viewer opens or closes stays so in this browser (runSectionOpen).
 /**
  * @param {string} kind the section's class, which also keys its open state
  * @param {string} title
@@ -40,15 +40,49 @@ function runGraphicSection(kind, title, note) {
   heading.append(toggle, h2);
   if (note) heading.append(note);
   section.append(heading);
+  /** @param {boolean} expanded */
   const apply = (expanded) => {
     section.classList.toggle("collapsed", !expanded);
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.textContent = expanded ? "-" : "+";
-    expandedRunGraphics[kind] = expanded;
   };
-  toggle.onclick = () => apply(!expandedRunGraphics[kind]);
-  apply(!!expandedRunGraphics[kind]);
+  toggle.onclick = () => {
+    const expanded = !runSectionOpen(kind);
+    setRunSectionOpen(kind, expanded);
+    apply(expanded);
+  };
+  apply(runSectionOpen(kind));
   return section;
+}
+const runSectionsKey = "rotari-run-sections";
+/** @returns {Record<string, boolean>} */
+function storedRunSections() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(runSectionsKey) || "{}");
+    return stored && typeof stored === "object" ? stored : {};
+  } catch {
+    return {};
+  }
+}
+/** @param {string} kind */
+function runSectionOpen(kind) {
+  if (kind in expandedRunGraphics) return expandedRunGraphics[kind];
+  const stored = storedRunSections()[kind];
+  return typeof stored === "boolean" ? stored : kind === "job-timeline";
+}
+/**
+ * @param {string} kind
+ * @param {boolean} open
+ */
+function setRunSectionOpen(kind, open) {
+  expandedRunGraphics[kind] = open;
+  const stored = storedRunSections();
+  stored[kind] = open;
+  try {
+    localStorage.setItem(runSectionsKey, JSON.stringify(stored));
+  } catch {
+    // The choice then lasts while the page is open.
+  }
 }
 /**
  * @param {string} text

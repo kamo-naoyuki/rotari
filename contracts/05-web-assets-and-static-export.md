@@ -161,7 +161,9 @@ cell built with `actionsCell` in `web_app_core.js`, whose buttons carry their
 arguments in `data-` attributes. The cell is first in a row, except on the
 run page's jobs table, where it is last. No later render step renames,
 moves, or restyles a table's columns, and the run page's sections are drawn
-whole by `renderRunGraphics` in `web_app_charts.js`. Layout lives in the
+whole by `renderRunGraphics` in `web_app_charts.js`. Of those sections the
+job timeline starts open and the others closed; one the viewer opens or closes
+stays so in that browser (`runSectionOpen`). Layout lives in the
 stylesheets; only data-driven sizes and colours are set inline.
 
 The static export bootstrap is kept separately in `web_static_bootstrap.js`

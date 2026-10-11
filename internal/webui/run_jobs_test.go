@@ -10,7 +10,8 @@ import (
 // A run's jobs table shows each command under its job name, leaves out
 // columns that are the same for every job until the Columns menu turns them
 // on, and ends each row with its actions: the log, the diagnosis of a failed
-// job, and a menu with the rest.
+// job, and a menu with the rest. The toolbar and the run's sections around
+// it keep the viewer's choices.
 func TestWebRunJobsTable(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -45,6 +46,7 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
   url: 'http://127.0.0.1/project/default/run/run-1',
   virtualConsole,
   beforeParse(window) {
+    window.localStorage.setItem('rotari-run-sections', JSON.stringify({ 'run-environment': true }));
     window.setInterval = () => 1;
     window.fetch = async (url) => {
       if (url === '/api/state') return { ok: true, json: async () => state };
@@ -116,6 +118,16 @@ setTimeout(() => {
     assert(!button('Create queue').disabled && !button('Append to queue').disabled && !button('Report').disabled);
     button('Unselect all').click();
     assert(button('Create queue').disabled && count() === '');
+
+    // The job timeline starts open, a section opened before stays open, and
+    // a section opened now is remembered.
+    const section = kind => document.querySelector('#app section.run-graphic.' + kind);
+    const open = kind => !section(kind).classList.contains('collapsed');
+    assert(open('job-timeline') && open('run-environment') && !open('run-statistics'));
+    section('run-statistics').querySelector('.graphic-toggle').click();
+    window.render();
+    assert(open('run-statistics'), 'the opened section closed on re-render');
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('rotari-run-sections')), { 'run-environment': true, 'run-statistics': true });
 
     // The Columns menu turns columns on and off, and remembers the choice.
     const columnsMenu = document.querySelector('.run-jobs-bar .columns-menu');

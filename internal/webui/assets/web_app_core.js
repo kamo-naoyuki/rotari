@@ -108,6 +108,8 @@ let projectRuntimeDetailsOpen = false;
 let stateJSON = "";
 const projectStateCache = new Map();
 const runDetailCache = new Map();
+// A run section's open state chosen on this page (runSectionOpen).
+/** @type {Record<string, boolean>} */
 const expandedRunGraphics = {};
 let selectedOutput = "";
 let selectedLog = null;
