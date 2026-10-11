@@ -211,3 +211,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `scripts/web-structure.sh` on the demo state: run toolbars list the same buttons in the same states, split into the selection row and the action row; the sweep run's matrix heading moved before Jobs; static and live agree as before. Desktop and 390px captures inspected (no sideways page scroll). `go test ./internal/webui ./cmd/rotari`, `npm run typecheck`, pre-commit, full `scripts/check.sh` before `59109976`, and `scripts/check.sh --short` before `5c9661b3` passed.
 
 **Remaining:** project, overview, Job activity, and search page bodies; runtime panel; config buttons. The mockup drew the job timeline as one lane per job; the page still draws the share-over-time chart, which is a new chart, not a restyle, so it is left for the user to decide.
+
+### Project page and overview
+
+- `f52576b6` (2026-10-11 18:33:47 +0900): the project page rendered whole; overview and runs rows end with their actions.
+
+**Change:**
+- `renderQueue` draws the project page in one pass: the queue section (`renderQueueCommands` returns it, with the source line that `enhanceQueueSourceContext` used to prepend), a Runs section (`projectRunsHTML`), and the runtime panel (`projectRuntimeHTML`, was `addProjectRuntime`). Removed: the "All projects" link, `enhancePage` and its wrapper (the render step calls `renderRunGraphics`), `enhanceQueueSourceContext`, `addProjectRuntime`.
+- Runs table: Run (name link, LATEST badge, ID under it with a copy button), Status, Client, Exit, Started, Finished, then Path and Delete. Overview: Path moved to the row end; project names bold. `.runs th` no longer wraps. The queue and runs sections lost their card frames; their tables are the cards.
+- `actionsCell` and the contract: the actions cell is last in a row, except in the queue table beside its editors.
+- Tests: `TestWebHTMLIncludesProjectRuntime` follows `projectRuntimeHTML`; conformance `TestStaticExportPagesShowWhatLivePagesShow` (WEB-9) expects the new live column order (the rule, static equals live, is unchanged; the contract's actions-cell sentence changed with it).
+
+**Validation:** `scripts/web-structure.sh` on the demo state: run pages unchanged; overview and queue tables hold the same cells; the runs table holds the same facts (name and ID now in one cell, plus a copy button); headings Queue, Runs, Project runtime; static and live agree as before. Desktop captures inspected. `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before the commit.
+
+**Remaining:** the queue editor table still runs past the content width; Job activity and search page bodies; config buttons.
