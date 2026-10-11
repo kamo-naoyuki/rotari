@@ -49,7 +49,7 @@ function activityClock(date) {
   );
 }
 function activityDate(date) {
-  return date.toLocaleDateString(undefined, {
+  return formatDate(date, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -411,8 +411,10 @@ function activityProjectName(key) {
 function activityDrawCalendar(page, runs, colors) {
   const month = activityView.month;
   const today = activityDayStart(new Date());
-  page.querySelector(".activity-month-title").textContent =
-    month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  page.querySelector(".activity-month-title").textContent = formatDate(month, {
+    month: "long",
+    year: "numeric",
+  });
   page.querySelector(".activity-next-month").disabled =
     month.getFullYear() === today.getFullYear() &&
     month.getMonth() === today.getMonth();
@@ -529,7 +531,7 @@ function activityDrawDay(page, runs, colors) {
   const head =
     '<div class="activity-day-head"><div><h2>' +
     esc(
-      day.toLocaleDateString(undefined, {
+      formatDate(day, {
         weekday: "long",
         year: "numeric",
         month: "long",

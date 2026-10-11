@@ -130,14 +130,10 @@ function timelineAxisLabels(origin, span, ticks) {
       return (
         "start · " +
         (crossesDay
-          ? start.toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })
-          : start.toLocaleTimeString())
+          ? formatDate(start, { month: "short", day: "numeric" }) +
+            " " +
+            formatClock(start)
+          : formatClock(start))
       );
     const offset = tick * span;
     return (
@@ -569,7 +565,7 @@ function loadAverageSection(run) {
       "stroke-linecap": "round",
     }),
   );
-  const format = (value) => new Date(value).toLocaleTimeString();
+  const format = (value) => formatClock(value);
   add(
     "text",
     { x: left, y: height - 12, fill: "var(--muted)", "font-size": 11 },
@@ -623,9 +619,9 @@ function renderOutputWordCloud(details, cloud) {
   status.textContent =
     cloud.total_jobs +
     " jobs / " +
-    cloud.total_bytes.toLocaleString() +
+    cloud.total_bytes.toLocaleString(uiLocale) +
     " bytes / generated " +
-    new Date(cloud.generated_at).toLocaleString();
+    formatDateTime(cloud.generated_at);
   const button = details.querySelector(".output-word-cloud-regenerate");
   if (button) button.textContent = "Regenerate";
 }

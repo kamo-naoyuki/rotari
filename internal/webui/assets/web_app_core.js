@@ -10,6 +10,40 @@ const sidebarScrollKey =
 // Status tones (ok, bad, run, warn, off) name a status's colour and icon.
 // The table is statusTones in internal/webui/status.go, the Web UI's one
 // status-to-colour rule; statusBase normalises a label the same way Go does.
+// The Web UI writes dates in English whatever the browser's language, as
+// all its other text is English; every client-side date goes through these.
+const uiLocale = "en-US";
+/** A local date and time as the server writes them, "2026-10-11 05:52:22". */
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(+date)) return "";
+  const two = (number) => String(number).padStart(2, "0");
+  return (
+    date.getFullYear() +
+    "-" +
+    two(date.getMonth() + 1) +
+    "-" +
+    two(date.getDate()) +
+    " " +
+    formatClock(date)
+  );
+}
+/** A local time of day, "05:52:22". */
+function formatClock(value) {
+  const date = new Date(value);
+  const two = (number) => String(number).padStart(2, "0");
+  return (
+    two(date.getHours()) +
+    ":" +
+    two(date.getMinutes()) +
+    ":" +
+    two(date.getSeconds())
+  );
+}
+/** A local date with English names, such as "Sun, Oct 11" or "October 2026". */
+function formatDate(value, options) {
+  return new Date(value).toLocaleDateString(uiLocale, options);
+}
 const statusTones = __ROTARI_STATUS_TONES__;
 function statusBase(status) {
   let base = String(status).trim().toLowerCase();
@@ -2144,7 +2178,7 @@ function runNotesHTML(run) {
       .map(
         (note) =>
           '<div class="run-note"><div class="run-note-meta">Note · ' +
-          esc(note.at ? new Date(note.at).toLocaleString() : "") +
+          esc(note.at ? formatDateTime(note.at) : "") +
           '</div><div class="run-note-body">' +
           renderMarkdown(note.text) +
           "</div></div>",

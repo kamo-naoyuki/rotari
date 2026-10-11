@@ -585,9 +585,7 @@ function historySearchRenderResults(rows) {
         command = row.command || "";
       }
       const status = row.job_status || row.run_status || "";
-      const timestamp = row.timestamp
-        ? new Date(row.timestamp).toLocaleString()
-        : "";
+      const timestamp = row.timestamp ? formatDateTime(row.timestamp) : "";
       return `<tr>
         <td><span class="history-search-kind">${esc(row.target)}</span></td>
         <td><a href="${esc(targetURL)}">${esc(title)}</a><div class="history-search-detail">${esc(details)}</div>${command ? `<div class="history-search-command" title="${esc(command)}">${esc(command)}</div>` : ""}</td>
