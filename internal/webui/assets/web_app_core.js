@@ -530,9 +530,12 @@ function renderSidebar(queues) {
   const sidebar = container.closest(".sidebar");
   const scrollTop = sidebar.scrollTop;
   const parts = pageParts();
-  sidebar
-    .querySelector(".sidebar-search-link")
-    ?.classList.toggle("active", parts[0] === "search");
+  const searchLink = sidebar.querySelector(".sidebar-search-link");
+  if (searchLink) {
+    searchLink.classList.toggle("active", parts[0] === "search");
+    // History search runs on the server; a static export has none.
+    searchLink.hidden = typeof rewriteStaticLinks === "function";
+  }
   const activeProject =
     parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
   const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";

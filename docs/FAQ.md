@@ -464,8 +464,8 @@ Yes. Open `History search` in the Web sidebar to search project, run, and job
 history in selected scopes. Choose a basedir, then optionally narrow it to a
 project and run; add more scopes to include additional ranges. Scope selection
 is independent of notification monitoring. Choose a time window and add
-field/word conditions joined by AND or OR. The static Web export includes an
-explanation page; history search requires the live Web UI.
+field/word conditions joined by AND or OR. History search runs on the
+`rotari web` server, so a static Web export leaves it out of the sidebar.
 
 ### What do Create queue and Append to queue do on a run page?
 

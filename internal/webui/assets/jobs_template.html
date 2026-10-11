@@ -214,6 +214,11 @@
         });
 
       const jobsPageIsLive = __ROTARI_JOBS_LIVE__;
+      // History search runs on the server; a static export has none.
+      if (!jobsPageIsLive)
+        document
+          .querySelector(".sidebar-search-link")
+          ?.setAttribute("hidden", "");
       const jobsNotificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
       const jobsNotificationIcon = "__ROTARI_NOTIFICATION_ICON__";
       const jobsNotificationsEnabledKey = "rotari-notifications-enabled";

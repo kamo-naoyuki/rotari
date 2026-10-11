@@ -429,7 +429,7 @@ func TestGenerateStaticWebIncludesHistorySearchPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(page), "Cross-basedir history search is available in the live Web UI only.") {
+	if !strings.Contains(string(page), "History search runs on the rotari web server, so this static export cannot search.") {
 		t.Fatal("static history search page does not explain that search requires the live Web UI")
 	}
 	if _, err := os.Stat(filepath.Join(outputDir, "search", "web_styles.css")); err != nil {

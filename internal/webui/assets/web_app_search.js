@@ -275,7 +275,7 @@ function renderHistorySearchPage() {
     "Search project, run, and job history in the ranges you choose.";
   if (typeof rewriteStaticLinks === "function") {
     app.innerHTML =
-      '<div class="empty">Cross-basedir history search is available in the live Web UI only.</div>';
+      '<div class="empty">History search runs on the rotari web server, so this static export cannot search. Run <code>rotari web</code> to search this state directory.</div>';
     return;
   }
   if (document.getElementById("history-search-form")) return;
