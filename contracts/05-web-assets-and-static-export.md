@@ -158,8 +158,8 @@ into the application script, which normalises labels the same way
 
 A table renderer emits its table whole: columns, labels, and an `Actions`
 cell built with `actionsCell` in `web_app_core.js`, whose buttons carry their
-arguments in `data-` attributes. The cell is first in a row, except on the
-run page's jobs table, where it is last. No later render step renames,
+arguments in `data-` attributes. The cell is last in a row, except on the
+project's queue table, where it comes first beside the row's editors. No later render step renames,
 moves, or restyles a table's columns, and the run page's sections are drawn
 whole by `renderRunGraphics` in `web_app_charts.js`. Of those sections the
 job timeline starts open and the others closed; one the viewer opens or closes

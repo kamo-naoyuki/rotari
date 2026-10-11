@@ -51,9 +51,9 @@ function statusTintMap(keys) {
     ]),
   );
 }
-// Row actions. A table renderer emits its actions cell itself, first in the
-// row; its buttons carry their arguments in data- attributes and call one of
-// these handlers.
+// Row actions. A table renderer emits its actions cell itself, last in the
+// row (first only in the queue table, beside its editors); its buttons carry
+// their arguments in data- attributes and call one of these handlers.
 function actionsCell(buttons) {
   return (
     '<td class="actions"><div class="action-buttons">' +
@@ -1351,11 +1351,7 @@ function renderOverview(queues) {
     .map((q) => {
       const latest = latestRun(q.runs);
       return (
-        "<tr>" +
-        actionsCell([
-          pathButton(state.base_dir + "/projects/" + q.project_name),
-        ]) +
-        '<td><a class="link" href="/project/' +
+        '<tr><td><a class="link project-name" href="/project/' +
         encodeURIComponent(q.project_name) +
         '">' +
         esc(q.project_name) +
@@ -1377,17 +1373,21 @@ function renderOverview(queues) {
           : "-") +
         "</td><td>" +
         (latest ? statusPill(latest.status) : "-") +
-        "</td><td>" +
+        '</td><td class="time-cell">' +
         esc(latest ? latest.started_at : "-") +
-        "</td></tr>"
+        "</td>" +
+        actionsCell([
+          pathButton(state.base_dir + "/projects/" + q.project_name),
+        ]) +
+        "</tr>"
       );
     })
     .join("");
   document.getElementById("app").innerHTML = queues.length
-    ? '<table class="runs queue-overview"><thead><tr><th class="actions">Actions</th><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th></tr></thead><tbody>' +
+    ? '<table class="runs queue-overview"><thead><tr><th data-sort="name">Project</th><th data-sort="queued">Queued</th><th data-sort="runs">Runs</th><th data-sort="running">Running</th><th>Latest run</th><th data-sort="status">Status</th><th data-sort="started">Started</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>' +
       rows +
       "</tbody></table>"
-    : "No projects found.";
+    : '<div class="empty">No projects found.</div>';
 }
 function renderQueue(q) {
   setCrumbs(
@@ -1403,13 +1403,46 @@ function renderQueue(q) {
     " runs</span><span>" +
     q.runs.filter((r) => r.running).length +
     " running</span>";
+  const app = document.getElementById("app");
+  app.innerHTML = projectRunsHTML(q) + projectRuntimeHTML(q);
+  app.prepend(renderQueueCommands(q));
+}
+// projectRunsHTML is a project page's runs: name over ID, status, client,
+// exit code, and times, with Path and Delete last in each row.
+function projectRunsHTML(q) {
   const latest = latestRun(q.runs);
   const rows = q.runs
     .map(
       (r) =>
         "<tr" +
         (r === latest ? ' class="latest-run"' : "") +
-        ">" +
+        '><td class="run-cell" data-sort-value="' +
+        esc(r.run_name || r.run_id) +
+        '"><a class="link run-name" href="/project/' +
+        encodeURIComponent(q.project_name) +
+        "/run/" +
+        encodeURIComponent(r.run_id) +
+        '">' +
+        esc(r.run_name || r.run_id) +
+        "</a>" +
+        (r === latest ? '<span class="latest-badge">latest</span>' : "") +
+        '<div class="run-id mono">' +
+        esc(r.run_id) +
+        copyButtonHTML(r.run_id, "run ID") +
+        "</div></td><td>" +
+        statusPill(
+          r.lifecycle || r.status,
+          (r.lifecycle || r.status) + (r.running ? " ..." : ""),
+        ) +
+        "</td><td>" +
+        esc(r.client_label || clientStatusLabel(r.client_status)) +
+        "</td><td>" +
+        (r.finished_at ? esc(r.exit_code) : "-") +
+        '</td><td class="time-cell">' +
+        esc(r.started_at || "-") +
+        '</td><td class="time-cell">' +
+        esc(r.finished_at || "-") +
+        "</td>" +
         actionsCell([
           pathButton(
             state.base_dir +
@@ -1420,39 +1453,54 @@ function renderQueue(q) {
           ),
           deleteRunButton(q.project_name, r.run_id),
         ]) +
-        "<td>" +
-        esc(r.run_name || "-") +
-        '</td><td><a class="link run-id" href="/project/' +
-        encodeURIComponent(q.project_name) +
-        "/run/" +
-        encodeURIComponent(r.run_id) +
-        '">' +
-        esc(r.run_id) +
-        "</a>" +
-        (r === latest ? '<span class="latest-badge">latest</span>' : "") +
-        "</td><td>" +
-        statusPill(
-          r.lifecycle || r.status,
-          (r.lifecycle || r.status) + (r.running ? " ..." : ""),
-        ) +
-        "</td><td>" +
-        esc(r.client_label || clientStatusLabel(r.client_status)) +
-        "</td><td>" +
-        (r.finished_at ? esc(r.exit_code) : "-") +
-        "</td><td>" +
-        esc(r.started_at || "-") +
-        "</td><td>" +
-        esc(r.finished_at || "-") +
-        "</td></tr>",
+        "</tr>",
     )
     .join("");
-  document.getElementById("app").innerHTML =
-    '<div class="toolbar"><a class="link" href="/">All projects</a></div>' +
+  return (
+    '<section class="project-runs-section"><div class="table-bar"><h2>Runs</h2><span class="meta">' +
+    q.runs.length +
+    (q.runs.length === 1 ? " run" : " runs") +
+    "</span></div>" +
     (rows
-      ? '<table class="runs project-runs"><thead><tr><th class="actions">Actions</th><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
+      ? '<table class="runs project-runs"><thead><tr><th data-sort="run_name">Run</th><th data-sort="status">Status</th><th data-sort="client">Client</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
-      : '<div class="empty">No runs found.</div>');
+      : '<div class="empty">No runs found.</div>') +
+    "</section>"
+  );
+}
+// projectRuntimeHTML shows whether a runner holds the project, with the
+// lock and coordinator records behind Internal state.
+function projectRuntimeHTML(queue) {
+  const active = !!queue.running_run_id;
+  const runner = active
+    ? "Active runner: " +
+      queue.running_run_id +
+      (queue.runner_host ? " on " + queue.runner_host : "") +
+      (queue.runner_pid ? " (PID " + queue.runner_pid + ")" : "")
+    : "No runner lock";
+  const server = queue.server || {};
+  const coordinator = server.pid_file_exists
+    ? server.pid
+      ? "PID " + server.pid
+      : "PID record unreadable"
+    : "no PID record";
+  return (
+    '<section class="project-runtime"><div class="table-bar"><h2>Project runtime</h2><span class="' +
+    (active ? statusPillClass("running") : "meta") +
+    '">' +
+    esc(runner) +
+    "</span></div><details" +
+    (projectRuntimeDetailsOpen ? " open" : "") +
+    '><summary>Internal state</summary><div class="meta runtime-details">Runner lock: ' +
+    (active ? "present" : "absent") +
+    (queue.runner_started_at
+      ? " | Started: " + esc(queue.runner_started_at)
+      : "") +
+    "<br>Coordinator record: " +
+    esc(coordinator) +
+    "<br>State lock: advisory and intentionally not probed</div></details></section>"
+  );
 }
 // lineageDiagnosisText lists a run's rule diagnoses as the CLI summary does,
 // leaving out no_match, which only says that no rule applied.
@@ -2259,22 +2307,10 @@ async function copyIdentityValue(button) {
     alert(error.message);
   }
 }
-function enhancePage() {
-  document
-    .querySelectorAll(".web-queue-commands,.web-origin")
-    .forEach((e) => e.remove());
-  const parts = pageParts();
-  if (parts[0] !== "project") return;
-  const queue = state.projects.find(
-    (q) => q.project_name === decodeURIComponent(parts[1]),
-  );
-  if (!queue) return;
-  if (parts[2] === "run") return;
-  renderQueueCommands(queue);
-}
-// renderQueueCommands draws a project's queue as one table: the Actions cell
-// first (the source run's log, Save, Remove), editors for the fields a queued
-// job can change, and the run each job was copied from.
+// renderQueueCommands returns a project's queue section: the jobs' source,
+// one table with the Actions cell first (the source run's log, Save,
+// Remove), editors for the fields a queued job can change, and the run each
+// job was copied from, then the command that runs the queue.
 function renderQueueCommands(queue) {
   const commands = queue.queue.commands || [];
   const section = document.createElement("section");
@@ -2366,8 +2402,23 @@ function renderQueueCommands(queue) {
       );
     })
     .join("");
+  const origins = commands.filter((job) => job.origin);
+  const sourceRuns = [...new Set(origins.map((job) => job.origin.run_id))];
+  const sourceDirectories = [
+    ...new Set(origins.map((job) => job.origin.cwd).filter(Boolean)),
+  ];
   section.innerHTML =
-    "<h2>Current queue</h2>" +
+    '<div class="table-bar"><h2>Queue</h2><span class="meta">' +
+    commands.length +
+    (commands.length === 1 ? " job" : " jobs") +
+    "</span></div>" +
+    (origins.length
+      ? '<p class="meta queue-source">Source run: ' +
+        esc(sourceRuns.join(", ")) +
+        " · Source working directory: " +
+        esc(sourceDirectories.join(", ") || "-") +
+        "</p>"
+      : "") +
     (commands.length
       ? '<table class="runs web-queue-jobs"><thead><tr><th class="actions">Actions</th><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="source_run">Source run</th><th data-sort="source_status">Source status</th><th data-sort="source_started">Source started</th><th data-sort="source_finished">Source finished</th></tr></thead><tbody>' +
         rows +
@@ -2391,9 +2442,8 @@ function renderQueueCommands(queue) {
         shellQuote(queue.project_name),
     ),
   );
-  document.getElementById("app").prepend(section);
-  // A select's value can be set only once it is in the page; each field
-  // remembers its first value so Save is enabled only after an edit.
+  // Each field remembers its first value so Save is enabled only after an
+  // edit.
   section.querySelectorAll("tbody tr").forEach((row, index) => {
     row.querySelector(".executor-input").value =
       commands[index].executor || "local";
@@ -2403,6 +2453,7 @@ function renderQueueCommands(queue) {
       field.addEventListener("change", () => updateDirtyField(field));
     });
   });
+  return section;
 }
 // formatDependencies lists a job's prerequisites, marking those that only
 // need to finish (depends_on_finished) with a "finished:" prefix, like the CLI.

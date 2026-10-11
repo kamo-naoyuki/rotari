@@ -2120,7 +2120,7 @@ func TestLoadWebConfigFilesRejectsUnsafeInputs(t *testing.T) {
 
 func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
+	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function projectRuntimeHTML(queue)", "projectRuntimeHTML(q)", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}

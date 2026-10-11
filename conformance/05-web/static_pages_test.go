@@ -82,7 +82,7 @@ JSDOM.fromFile(path, {
 	}
 
 	home := render("index.html")
-	if want := []string{"Actions", "Project", "Queued", "Runs", "Running", "Latest run", "Status", "Started"}; !reflect.DeepEqual(home.Headers, want) {
+	if want := []string{"Project", "Queued", "Runs", "Running", "Latest run", "Status", "Started", "Actions"}; !reflect.DeepEqual(home.Headers, want) {
 		t.Errorf("exported overview columns = %q, want %q", home.Headers, want)
 	}
 	if want := [][]string{{"Path"}, {"Path"}}; !reflect.DeepEqual(home.RowActions, want) {
@@ -90,7 +90,7 @@ JSDOM.fromFile(path, {
 	}
 
 	project := render(filepath.Join("project", "first", "index.html"))
-	if want := []string{"Actions", "run-name", "run-id", "Status", "Client", "Exit", "Started", "Finished"}; len(project.Headers) < len(want) || !reflect.DeepEqual(project.Headers[len(project.Headers)-len(want):], want) {
+	if want := []string{"Run", "Status", "Client", "Exit", "Started", "Finished", "Actions"}; len(project.Headers) < len(want) || !reflect.DeepEqual(project.Headers[len(project.Headers)-len(want):], want) {
 		t.Errorf("exported project run columns = %q, want them to end with %q", project.Headers, want)
 	}
 	if project.LatestBadges != 1 {

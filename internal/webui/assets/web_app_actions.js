@@ -251,24 +251,6 @@ function queuedStatusText(recorded, marked) {
   if (marked === "success") return "success (accepted)";
   return marked + " (marked)";
 }
-function enhanceQueueSourceContext(commands) {
-  const section = document.querySelector(".web-queue-commands");
-  if (!section) return;
-  const origins = commands.filter((job) => job.origin);
-  if (!origins.length) return;
-  const runs = [...new Set(origins.map((job) => job.origin.run_id))];
-  const cwds = [
-    ...new Set(origins.map((job) => job.origin.cwd).filter(Boolean)),
-  ];
-  const context = document.createElement("p");
-  context.className = "meta";
-  context.textContent =
-    "Source run: " +
-    runs.join(", ") +
-    " | Source working directory: " +
-    (cwds.join(", ") || "-");
-  section.prepend(context);
-}
 async function copyCommandGuide(guide, button) {
   try {
     await copyText(guide.dataset.copyText || "");

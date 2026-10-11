@@ -1664,6 +1664,24 @@ pre,
   margin: 0 8px 0 0;
   font-size: 16px;
 }
+.table-bar > .meta {
+  font-size: 12.5px;
+}
+/* The project page's queue and runs: their tables are the cards. */
+#app > section.web-queue-commands,
+#app > section.project-runs-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.project-runtime .table-bar {
+  margin-top: 0;
+}
+.queue-source {
+  margin: 0 0 8px;
+}
 .table-bar .columns-menu {
   margin-left: auto;
 }
@@ -1755,6 +1773,46 @@ pre,
 .run-jobs td.time-cell {
   font-variant-numeric: tabular-nums;
 }
+.runs th {
+  white-space: nowrap;
+}
+.queue-overview .project-name {
+  font-weight: 600;
+}
+.queue-overview td.time-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.project-runs .run-cell {
+  white-space: nowrap;
+}
+.project-runs .run-name {
+  font-weight: 600;
+}
+.project-runs .run-id {
+  margin-top: 2px;
+  text-decoration: none;
+  color: var(--muted);
+  font: 12px/1.45 var(--font-mono);
+}
+.project-runs .identity-copy {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 3px;
+  opacity: 0;
+}
+.project-runs tr:hover .identity-copy,
+.project-runs .identity-copy:focus-visible,
+.project-runs .identity-copy.copied {
+  opacity: 1;
+}
+.project-runs td.time-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.queue-overview td.actions .action-buttons,
+.project-runs td.actions .action-buttons,
 .run-jobs td.actions .action-buttons {
   display: flex;
   align-items: center;
@@ -1763,6 +1821,8 @@ pre,
 .run-jobs td.actions .row-menu {
   margin-left: auto;
 }
+.queue-overview td.actions button,
+.project-runs td.actions button,
 .run-jobs td.actions button {
   min-height: 28px;
   padding: 3px 9px;

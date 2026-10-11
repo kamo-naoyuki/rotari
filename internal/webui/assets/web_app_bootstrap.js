@@ -1,8 +1,3 @@
-const originalEnhancePage = enhancePage;
-enhancePage = function () {
-  originalEnhancePage();
-  renderRunGraphics();
-};
 function esc(v) {
   return String(v == null ? "" : v).replace(
     /[&<>"']/g,
@@ -240,17 +235,7 @@ render = function () {
   originalRender();
   const parts = pageParts();
   if (parts[0] === "search") return;
-  enhancePage();
-  if (parts[0] === "project" && !parts[2]) {
-    const queue = state.projects.find(
-      (q) => q.project_name === decodeURIComponent(parts[1]),
-    );
-    if (queue) {
-      const commands = queue.queue.commands || [];
-      enhanceQueueSourceContext(commands);
-    }
-  }
-  addProjectRuntime();
+  renderRunGraphics();
   addRunJobSelection();
   enableTableSorting();
   restoreSelectedOutput();
