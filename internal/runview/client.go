@@ -18,13 +18,27 @@ func ClientStatus(paths state.ProjectPaths, runID string) (model.RunClientStatus
 	if err != nil {
 		return model.RunClientStatus{}, err
 	}
-	status, statusErr := state.LoadRunClientStatus(state.NewStore(state.DirectoryMode(), state.FileMode()), runDir)
-	if statusErr != nil && !errors.Is(statusErr, os.ErrNotExist) {
-		status = model.RunClientStatus{State: "unknown"}
-	}
 	phase, err := project.RunPhaseOf(paths, runID)
 	if err != nil {
 		return model.RunClientStatus{}, err
+	}
+	return clientStatusIn(paths, runDir, runID, phase)
+}
+
+// ClientStatusIn is ClientStatus for a run whose phase a caller already
+// read (project.PhaseFrom).
+func ClientStatusIn(paths state.ProjectPaths, runID string, phase project.RunPhase) (model.RunClientStatus, error) {
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return model.RunClientStatus{}, err
+	}
+	return clientStatusIn(paths, runDir, runID, phase)
+}
+
+func clientStatusIn(paths state.ProjectPaths, runDir, runID string, phase project.RunPhase) (model.RunClientStatus, error) {
+	status, statusErr := state.LoadRunClientStatus(state.NewStore(state.DirectoryMode(), state.FileMode()), runDir)
+	if statusErr != nil && !errors.Is(statusErr, os.ErrNotExist) {
+		status = model.RunClientStatus{State: "unknown"}
 	}
 	switch phase {
 	case project.RunPhaseRunning:
@@ -155,29 +169,36 @@ func RunLifecycleLabel(paths state.ProjectPaths, runID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	switch phase {
-	case project.RunPhaseRunning:
-		return "running", nil
-	case project.RunPhaseInterrupted:
-		return "interrupted", nil
-	case project.RunPhaseFinished:
+	var summary model.RunSummary
+	if phase == project.RunPhaseFinished {
 		runDir, err := state.SafeJoin(paths.RunsDir, runID)
 		if err != nil {
 			return "", err
 		}
-		path := filepath.Join(runDir, "summary.json")
-		summary, err := state.LoadRunSummary(path)
-		if err != nil {
+		if summary, err = state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err != nil {
 			return "", err
 		}
+	}
+	return LifecycleLabel(phase, summary), nil
+}
+
+// LifecycleLabel is RunLifecycleLabel from facts a caller already read: the
+// run's phase and, for a finished run, its summary.
+func LifecycleLabel(phase project.RunPhase, summary model.RunSummary) string {
+	switch phase {
+	case project.RunPhaseRunning:
+		return "running"
+	case project.RunPhaseInterrupted:
+		return "interrupted"
+	case project.RunPhaseFinished:
 		if summary.ExitCode == 0 {
-			return "finished", nil
+			return "finished"
 		}
 		if summary.Status == model.StatusCancelled {
-			return model.StatusCancelled, nil
+			return model.StatusCancelled
 		}
-		return "failed", nil
+		return "failed"
 	default:
-		return "incomplete", nil
+		return "incomplete"
 	}
 }

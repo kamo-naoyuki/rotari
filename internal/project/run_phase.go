@@ -32,20 +32,32 @@ func RunPhaseOf(paths state.ProjectPaths, runID string) (RunPhase, error) {
 	if err != nil {
 		return "", err
 	}
-	if inspection.RunID == runID {
-		switch inspection.State {
-		case Running:
-			return RunPhaseRunning, nil
-		case Interrupted:
-			return RunPhaseInterrupted, nil
-		}
+	if phase := PhaseFrom(inspection, runID, false); phase == RunPhaseRunning || phase == RunPhaseInterrupted {
+		return phase, nil
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return "", err
 	}
-	if _, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		return RunPhaseFinished, nil
+	_, err = state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	return PhaseFrom(inspection, runID, err == nil), nil
+}
+
+// PhaseFrom is RunPhaseOf from facts a caller already read: the project's
+// inspection, read before the run's summary as RunPhaseOf reads them, and
+// whether the run has a valid summary. A reader of many runs inspects the
+// project once.
+func PhaseFrom(inspection Inspection, runID string, hasSummary bool) RunPhase {
+	if inspection.RunID == runID {
+		switch inspection.State {
+		case Running:
+			return RunPhaseRunning
+		case Interrupted:
+			return RunPhaseInterrupted
+		}
 	}
-	return RunPhaseEnded, nil
+	if hasSummary {
+		return RunPhaseFinished
+	}
+	return RunPhaseEnded
 }

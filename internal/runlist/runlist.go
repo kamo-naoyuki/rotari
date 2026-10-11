@@ -124,15 +124,15 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read runs for project %q: %w", projectName, err)
 	}
+	// The project is inspected once, before any run's summary is read, as
+	// project.RunPhaseOf reads them for one run.
+	inspection, err := project.Inspect(paths, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect project %q: %w", projectName, err)
+	}
 	current := ""
-	if bounds != nil {
-		inspection, err := project.Inspect(paths, false)
-		if err != nil {
-			return nil, fmt.Errorf("failed to inspect project %q: %w", projectName, err)
-		}
-		if inspection.State == project.Running || inspection.State == project.Interrupted {
-			current = inspection.RunID
-		}
+	if inspection.State == project.Running || inspection.State == project.Interrupted {
+		current = inspection.RunID
 	}
 	runs := make([]Run, 0, len(entries))
 	for _, entry := range entries {
@@ -142,7 +142,7 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 		if bounds != nil && entry.Name() != current && !bounds.mayMeet(entry) {
 			continue
 		}
-		run, err := readRun(paths, projectName, entry)
+		run, err := readRun(paths, projectName, entry, inspection)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read run %q for project %q: %w", entry.Name(), projectName, err)
 		}
@@ -151,7 +151,10 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 	return runs, nil
 }
 
-func readRun(paths state.ProjectPaths, projectName string, entry os.DirEntry) (Run, error) {
+// readRun reads one run, its summary once, deciding its lifecycle and client
+// status with the shared rules (project.PhaseFrom, runview.LifecycleLabel,
+// runview.ClientStatusIn) from the project's inspection.
+func readRun(paths state.ProjectPaths, projectName string, entry os.DirEntry, inspection project.Inspection) (Run, error) {
 	runID := entry.Name()
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
@@ -161,7 +164,7 @@ func readRun(paths state.ProjectPaths, projectName string, entry os.DirEntry) (R
 	if info, _ := entry.Info(); info != nil {
 		run.Order = info.ModTime().UnixNano()
 	}
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, err := state.LoadRunSummaryHead(filepath.Join(runDir, "summary.json"))
 	if err != nil && !os.IsNotExist(err) {
 		return Run{}, err
 	}
@@ -180,11 +183,9 @@ func readRun(paths state.ProjectPaths, projectName string, entry os.DirEntry) (R
 	if !run.Started.IsZero() {
 		run.Order = run.Started.UnixNano()
 	}
-	run.Lifecycle, err = runview.RunLifecycleLabel(paths, runID)
-	if err != nil {
-		return Run{}, err
-	}
-	run.ClientStatus, err = runview.ClientStatus(paths, runID)
+	phase := project.PhaseFrom(inspection, runID, run.ExitCode != nil)
+	run.Lifecycle = runview.LifecycleLabel(phase, summary)
+	run.ClientStatus, err = runview.ClientStatusIn(paths, runID, phase)
 	if err != nil {
 		run.ClientStatus = model.RunClientStatus{State: "unknown"}
 	}

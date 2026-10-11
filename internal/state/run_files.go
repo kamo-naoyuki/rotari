@@ -70,6 +70,29 @@ func LoadRunSummary(path string) (model.RunSummary, error) {
 	return summary, nil
 }
 
+// LoadRunSummaryHead is LoadRunSummary without the per-job results, which
+// it leaves nil: a listing of many runs needs only their times, names,
+// status, and exit code, and a run of many jobs has a large summary.
+func LoadRunSummaryHead(path string) (model.RunSummary, error) {
+	var head struct {
+		StateVersion int    `json:"state_version"`
+		RunID        string `json:"run_id"`
+		RunName      string `json:"run_name"`
+		Status       string `json:"status"`
+		StartedAt    string `json:"started_at"`
+		FinishedAt   string `json:"finished_at"`
+		ExitCode     int    `json:"exit_code"`
+	}
+	if err := NewStore(0o700, 0o600).ReadJSON(path, &head); err != nil {
+		return model.RunSummary{}, err
+	}
+	if err := checkStateVersion(path, head.StateVersion); err != nil {
+		return model.RunSummary{}, err
+	}
+	return model.RunSummary{StateVersion: head.StateVersion, RunID: head.RunID, RunName: head.RunName, Status: head.Status,
+		StartedAt: head.StartedAt, FinishedAt: head.FinishedAt, ExitCode: head.ExitCode}, nil
+}
+
 // RunSourcesFileName is the run file in which a run records, before it
 // dispatches any job, the version-control revisions its executed jobs run
 // from. A run started before rotari recorded sources has none.
