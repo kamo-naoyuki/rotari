@@ -1990,34 +1990,6 @@ pre,
 .graphic-toggle {
   margin-right: 8px;
 }
-.run-statistics .graphic-heading > .graphic-note {
-  color: var(--muted);
-  font-size: 12px;
-}
-.stat-metrics {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin: 16px 0;
-}
-.stat-metric {
-  padding-left: 10px;
-  border-left: 3px solid var(--line);
-}
-.stat-metric strong {
-  display: block;
-  font-size: 22px;
-}
-.stat-metric span {
-  color: var(--muted);
-  font-size: 12px;
-}
-.status-bar {
-  display: flex;
-  height: 14px;
-  overflow: hidden;
-  border-radius: 3px;
-}
 .graphic-legend {
   margin-top: 10px;
 }
@@ -2028,10 +2000,6 @@ pre,
   padding-left: 10px;
   border-left: 3px solid;
   white-space: nowrap;
-}
-.run-statistics .graphic-legend > span {
-  color: var(--muted);
-  font-size: 12px;
 }
 /* The job timeline's lanes (jobTimelineSection in web_app_charts.js). */
 .lane-chart {

@@ -38,16 +38,6 @@ function statusPill(status, text = status) {
     '<span class="' + statusPillClass(status) + '">' + esc(text) + "</span>"
   );
 }
-// statusTintMap builds a view's colour table for its status keys: a
-// [background, foreground] pair for each.
-function statusTintMap(keys) {
-  return Object.fromEntries(
-    keys.map((key) => [
-      key,
-      ["var(--s-" + statusTone(key) + "-bg)", statusColor(key)],
-    ]),
-  );
-}
 // Row actions. A table renderer emits its actions cell itself, last in the
 // row (first only in the queue table, beside its editors); its buttons carry
 // their arguments in data- attributes and call one of these handlers.
@@ -2136,12 +2126,30 @@ function runNotesHTML(run) {
     "</div>"
   );
 }
+// jobCountGroups are the Jobs card's groups, in the order its bar and
+// counts list them.
+const jobCountGroups = [
+  ["ok", "succeeded"],
+  ["bad", "failed"],
+  ["run", "in progress"],
+  ["pending", "pending"],
+  ["warn", "blocked"],
+  ["off", "other"],
+];
+// jobCountGroup groups a job's displayed status (jobDisplayStatus) by its
+// tone, telling jobs waiting to start from the rest of the "off" tone.
+function jobCountGroup(status) {
+  const tone = statusTone(status);
+  if (tone !== "off") return tone;
+  const base = statusBase(status);
+  return base === "pending" || base === "waiting" ? "pending" : "off";
+}
 // runCardsHTML summarises a run in four cards: its jobs by result, its
 // failure causes, its wall time, and the host load when it ended.
 function runCardsHTML(run) {
   const jobs = run.jobs || [];
-  const counts = { ok: 0, bad: 0, run: 0, warn: 0, off: 0 };
-  jobs.forEach((job) => counts[statusTone(jobDisplayStatus(job, run))]++);
+  const counts = { ok: 0, bad: 0, run: 0, pending: 0, warn: 0, off: 0 };
+  jobs.forEach((job) => counts[jobCountGroup(jobDisplayStatus(job, run))]++);
   const lineage = run.lineage_summary;
   const failures = (lineage && lineage.failures) || [];
   const failureCount = failures.reduce((sum, group) => sum + group.count, 0);
@@ -2163,26 +2171,23 @@ function runCardsHTML(run) {
     "</div>";
   const bar =
     '<div class="run-card-bar" aria-hidden="true">' +
-    ["ok", "bad", "warn", "run", "off"]
-      .filter((tone) => counts[tone])
+    jobCountGroups
+      .filter(([group]) => counts[group])
       .map(
-        (tone) =>
+        ([group]) =>
           '<span class="tone-' +
-          tone +
+          (group === "pending" ? "off" : group) +
           '" style="flex:' +
-          counts[tone] +
+          counts[group] +
           '"></span>',
       )
       .join("") +
     "</div>";
-  const jobDetail = [
-    counts.ok ? counts.ok + " ok" : "",
-    counts.bad ? counts.bad + " failed" : "",
-    counts.warn ? counts.warn + " blocked" : "",
-    counts.run ? counts.run + " running" : "",
-    counts.off ? counts.off + " other" : "",
-  ]
-    .filter(Boolean)
+  // Succeeded, failed, in progress, and pending are always counted; blocked
+  // and other only when a job is.
+  const jobDetail = jobCountGroups
+    .filter(([group]) => counts[group] || !["warn", "off"].includes(group))
+    .map(([group, label]) => counts[group] + " " + label)
     .join(" · ");
   return (
     '<div class="run-cards">' +

@@ -18,8 +18,8 @@ function runLoadSummary(run) {
   );
 }
 
-// The run page's sections: statistics, job timeline, load average, and
-// output word cloud. renderRunGraphics draws them whole, above the jobs
+// The run page's sections: job timeline, load average, and output word
+// cloud. renderRunGraphics draws them whole, above the jobs
 // table. The job timeline starts open and the others closed; a section the
 // viewer opens or closes stays so in this browser (runSectionOpen).
 /**
@@ -480,75 +480,6 @@ function formatSpan(milliseconds) {
   );
 }
 /** @param {WebRun} run */
-function runStatisticsSection(run) {
-  const keys = ["success", "failed", "blocked", "running", "pending"];
-  const counts = Object.fromEntries(keys.map((key) => [key, 0]));
-  (run.jobs || []).forEach((job) => {
-    const result = job.result;
-    const status = !result
-      ? run.running
-        ? "running"
-        : "pending"
-      : result.error === "blocked by failed dependency"
-        ? "blocked"
-        : result.exit_code === 0
-          ? "success"
-          : "failed";
-    counts[status]++;
-  });
-  const total = (run.jobs || []).length;
-  const completed = counts.success + counts.failed;
-  const successRate = completed
-    ? Math.round((counts.success / completed) * 100)
-    : 0;
-  const tints = statusTintMap(keys);
-  const section = runGraphicSection(
-    "run-statistics",
-    "Run statistics",
-    graphicNote(total + " jobs"),
-  );
-  const metrics = document.createElement("div");
-  metrics.className = "stat-metrics";
-  [
-    ["Success rate", successRate + "%", ""],
-    ["Succeeded", counts.success, "succeeded"],
-    ["Failed", counts.failed, "failed"],
-    ["In progress", counts.running, "in progress"],
-    ["Pending", counts.pending, "pending"],
-  ].forEach(([label, value, status]) => {
-    const metric = document.createElement("div");
-    metric.className = "stat-metric";
-    const valueElement = document.createElement("strong");
-    valueElement.textContent = String(value);
-    if (status) valueElement.style.color = statusColor(status);
-    const labelElement = document.createElement("span");
-    labelElement.textContent = String(label);
-    metric.append(valueElement, labelElement);
-    metrics.append(metric);
-  });
-  // The bar and legend share the counts; each part of the bar is a status's
-  // share of the run's jobs.
-  const bar = document.createElement("div");
-  bar.className = "status-bar";
-  bar.title = "Job status distribution";
-  const legend = document.createElement("div");
-  legend.className = "graphic-legend";
-  keys.forEach((status) => {
-    if (!counts[status]) return;
-    const segment = document.createElement("span");
-    segment.style.width = (counts[status] / Math.max(total, 1)) * 100 + "%";
-    segment.style.background = tints[status][0];
-    segment.title = status + ": " + counts[status];
-    bar.append(segment);
-    const item = document.createElement("span");
-    item.textContent = status + " " + counts[status];
-    item.style.borderLeftColor = statusColor(status);
-    legend.append(item);
-  });
-  section.append(metrics, bar, legend);
-  return section;
-}
-/** @param {WebRun} run */
 function loadAverageSection(run) {
   const section = runGraphicSection(
     "run-environment",
@@ -780,7 +711,6 @@ function renderRunGraphics() {
   const app = document.getElementById("app");
   if (!run || !app || app.querySelector(".run-graphic")) return;
   const sections = [
-    runStatisticsSection(run),
     jobTimelineSection(run),
     loadAverageSection(run),
     outputWordCloudSection(queue, runID),

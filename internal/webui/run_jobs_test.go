@@ -46,7 +46,7 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
   url: 'http://127.0.0.1/project/default/run/run-1',
   virtualConsole,
   beforeParse(window) {
-    window.localStorage.setItem('rotari-run-sections', JSON.stringify({ 'run-environment': true }));
+    window.localStorage.setItem('rotari-run-sections', JSON.stringify({ 'job-timeline': false }));
     window.setInterval = () => 1;
     window.fetch = async (url) => {
       if (url === '/api/state') return { ok: true, json: async () => state };
@@ -120,15 +120,16 @@ setTimeout(() => {
     button('Unselect all').click();
     assert(button('Create queue').disabled && count() === '');
 
-    // The job timeline starts open, a section opened before stays open, and
-    // a section opened now is remembered.
+    // A section closed before stays closed (the job timeline otherwise starts
+    // open), the others start closed, and a section opened now is remembered.
     const section = kind => document.querySelector('#app section.run-graphic.' + kind);
     const open = kind => !section(kind).classList.contains('collapsed');
-    assert(open('job-timeline') && open('run-environment') && !open('run-statistics'));
-    section('run-statistics').querySelector('.graphic-toggle').click();
+    assert(!open('job-timeline') && !open('run-environment'));
+    assert(!section('run-statistics'), 'Run statistics repeats the Jobs card');
+    section('run-environment').querySelector('.graphic-toggle').click();
     window.render();
-    assert(open('run-statistics'), 'the opened section closed on re-render');
-    assert.deepEqual(JSON.parse(window.localStorage.getItem('rotari-run-sections')), { 'run-environment': true, 'run-statistics': true });
+    assert(open('run-environment'), 'the opened section closed on re-render');
+    assert.deepEqual(JSON.parse(window.localStorage.getItem('rotari-run-sections')), { 'job-timeline': false, 'run-environment': true });
 
     // The Columns menu turns columns on and off, and remembers the choice.
     const columnsMenu = document.querySelector('.run-jobs-bar .columns-menu');

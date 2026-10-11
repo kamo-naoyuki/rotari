@@ -70,7 +70,7 @@ setTimeout(() => {
     const cards = Object.fromEntries([...document.querySelectorAll('#app .run-card')].map(card => [
       card.querySelector('.run-card-label').textContent, card.querySelector('.run-card-value').textContent]));
     assert.deepEqual(Object.keys(cards), ['Jobs', 'Failure causes', 'Wall time', 'Load at end']);
-    assert.equal(cards['Jobs'], '3 2 ok · 1 failed');
+    assert.equal(cards['Jobs'], '3 2 succeeded · 1 failed · 0 in progress · 0 pending');
     assert.equal(cards['Failure causes'], '1 exit 2 1');
     assert.equal(cards['Wall time'], '1.2s');
     assert.equal(cards['Load at end'], '1.50 / 2.00 / 2.25');
@@ -78,6 +78,18 @@ setTimeout(() => {
     assert(guide && guide.dataset.copyText.includes("rotari retry -r 'run-1'"), 'the retry command is missing');
     assert(guide.querySelector('.command-guide-copy'), 'the retry command has no copy button');
     assert(!document.querySelector('#app .toolbar a'), 'the breadcrumbs replace the Back link');
+    // A running run counts its jobs in progress and those waiting to start.
+    window.renderRun({ project_name: 'default', queue: { commands: [] }, runs: [{
+      run_id: 'run-2', status: 'running', lifecycle: 'running', running: true,
+      jobs: [
+        { id: 'k1', command: ['true'], result: { exit_code: 0 } },
+        { id: 'k2', command: ['true'] },
+        { id: 'k3', command: ['true'], scheduler_state: 'pending' },
+        { id: 'k4', command: ['true'], result: { exit_code: 1, error: 'blocked by failed dependency' } },
+      ],
+    }] }, 'run-2');
+    const jobsCard = [...document.querySelectorAll('#app .run-card')].find(card => card.querySelector('.run-card-label').textContent === 'Jobs');
+    assert.equal(jobsCard.querySelector('.run-card-value').textContent, '4 1 succeeded · 0 failed · 1 in progress · 1 pending · 1 blocked');
     if (errors.length) throw new Error(errors.join('\n'));
   } catch (error) {
     console.error(error.stack || String(error));
