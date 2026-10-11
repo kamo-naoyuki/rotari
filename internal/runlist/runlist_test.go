@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -363,5 +364,76 @@ func TestSpanAndOverlapping(t *testing.T) {
 	}
 	if want := []string{"crosses-midnight", "inside", "running-from-yesterday", "interrupted"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("overlapping = %v, want %v", got, want)
+	}
+}
+
+// CollectBetween reads only runs that may meet the window: it skips a run
+// whose ID says it started at or after the window's end and one whose
+// directory last changed before its start, but always reads the project's
+// running run; a run whose ID is not a timestamp is judged by its
+// directory's time alone. Skipped runs here have
+// unreadable summaries, so reading one would fail.
+func TestCollectBetweenSkipsRunsOutsideTheWindow(t *testing.T) {
+	baseDir := t.TempDir()
+	from := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+	write := func(runID string, started time.Time, broken bool) string {
+		paths := writeListsRunAt(t, baseDir, "demo", runID, started.Add(time.Hour))
+		dir := filepath.Join(paths.RunsDir, runID)
+		if broken {
+			if err := writeTestFile(filepath.Join(dir, "summary.json"), []byte("{broken")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		finished := started.Add(time.Hour)
+		for _, path := range []string{filepath.Join(dir, "summary.json"), dir} {
+			if err := os.Chtimes(path, finished, finished); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir
+	}
+	write("20261009-100000-00000001", from.Add(-38*time.Hour), true) // ended before the window
+	write("20261012-030000-00000002", to.Add(3*time.Hour), true)     // starts after the window
+	write("20261011-100000-00000003", from.Add(10*time.Hour), false) // inside
+	write("named-run", from.Add(10*time.Hour), false)                // not a timestamp, changed in the window
+	write("named-old", from.Add(-48*time.Hour), true)                // not a timestamp, ended before it
+	// The running run started before the window and its directory is old.
+	running := "20261008-100000-00000004"
+	runningDir := write(running, from.Add(-62*time.Hour), false)
+	if err := os.Remove(filepath.Join(runningDir, "summary.json")); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: running}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: running, Host: host, StartedAt: from.Add(-62 * time.Hour).Format(time.RFC3339Nano)}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := CollectBetween([]string{baseDir}, "", from, to)
+	if err != nil {
+		t.Fatalf("CollectBetween read a run outside the window: %v", err)
+	}
+	var got []string
+	for _, run := range runs {
+		got = append(got, run.RunID)
+	}
+	sort.Strings(got)
+	if want := []string{"20261008-100000-00000004", "20261011-100000-00000003", "named-run"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("collected %v, want %v", got, want)
+	}
+	if latest, ok := LatestStart([]string{baseDir}, to.Add(24*time.Hour)); !ok || !latest.Equal(time.Date(2026, 10, 12, 3, 0, 0, 0, time.UTC)) {
+		t.Fatalf("LatestStart = %v, %v", latest, ok)
+	}
+	if latest, ok := LatestStart([]string{baseDir}, to); !ok || !latest.Equal(time.Date(2026, 10, 11, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("LatestStart before now = %v, %v; want the latest run that already started", latest, ok)
 	}
 }

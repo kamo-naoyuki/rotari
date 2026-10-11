@@ -20,11 +20,15 @@ const activityMaxRange = 45 * 24 * time.Hour
 // marked when it is missing or could not be read, and the runs across them
 // whose span (runlist.Run.Span) meets the requested range.
 type activityResponse struct {
-	From     string            `json:"from"`
-	To       string            `json:"to"`
-	Now      string            `json:"now"`
-	BaseDirs []activityBaseDir `json:"basedirs"`
-	Runs     []activityRun     `json:"runs"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	Now  string `json:"now"`
+	// LatestStartedAt is the latest start of a run, in any basedir and at
+	// any time, so the page can open on the latest day with runs without
+	// searching month by month.
+	LatestStartedAt string            `json:"latest_started_at,omitempty"`
+	BaseDirs        []activityBaseDir `json:"basedirs"`
+	Runs            []activityRun     `json:"runs"`
 }
 
 type activityBaseDir struct {
@@ -106,6 +110,7 @@ func loadActivity(entries []webBaseDir, from, to, now time.Time) activityRespons
 		From: from.Format(time.RFC3339), To: to.Format(time.RFC3339), Now: now.Format(time.RFC3339),
 		BaseDirs: []activityBaseDir{}, Runs: []activityRun{},
 	}
+	var paths []string
 	for _, entry := range entries {
 		item := activityBaseDir{webBaseDir: entry}
 		if _, err := os.Stat(entry.Path); errors.Is(err, os.ErrNotExist) {
@@ -113,7 +118,8 @@ func loadActivity(entries []webBaseDir, from, to, now time.Time) activityRespons
 			response.BaseDirs = append(response.BaseDirs, item)
 			continue
 		}
-		runs, err := runlist.Collect([]string{entry.Path}, "")
+		paths = append(paths, entry.Path)
+		runs, err := runlist.CollectBetween([]string{entry.Path}, "", from, to)
 		if err == nil {
 			var listed []activityRun
 			for _, run := range runlist.Overlapping(runs, from, to, now) {
@@ -139,6 +145,9 @@ func loadActivity(entries []webBaseDir, from, to, now time.Time) activityRespons
 			item.Error = err.Error()
 		}
 		response.BaseDirs = append(response.BaseDirs, item)
+	}
+	if latest, ok := runlist.LatestStart(paths, now); ok {
+		response.LatestStartedAt = latest.Format(time.RFC3339)
 	}
 	return response
 }

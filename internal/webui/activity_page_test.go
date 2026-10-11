@@ -32,6 +32,7 @@ const run = (basedir, project, id, start, end, lifecycle, extra = {}) => ({
 });
 const activity = {
   now: new Date().toISOString(),
+  latest_started_at: at(15),
   basedirs: [
     { id: 'A', path: '/work/asr/.rotari-state', parent: 'asr', name: '.rotari-state', current: true },
     { id: 'B', path: '/work/tts/.rotari-state', parent: 'tts', name: '.rotari-state' },
@@ -67,7 +68,9 @@ setTimeout(() => {
     const document = dom.window.document;
     const page = document.querySelector('#app .activity-page');
     assert(page, 'the Activity page is not drawn');
-    assert(requests.length >= 1 && /from=.*&to=/.test(requests[0]), requests.join());
+    assert(/from=.*&to=/.test(requests[0]), requests.join());
+    // Today has no runs; the latest start leads straight to its month.
+    assert(requests.length <= 2, 'the page searched month by month: ' + requests.length + ' requests');
     assert(document.querySelector('.sidebar-activity-link').classList.contains('active'));
     // Today has no runs: the latest day with runs is selected, and said so.
     assert(page.querySelector('.activity-day .activity-notice').textContent.includes('the latest day with runs'));

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -45,6 +46,23 @@ type Run struct {
 // only, newest first. A projectFilter found in none of them is an error,
 // unless no basedir has any project.
 func Collect(baseDirs []string, projectFilter string) ([]Run, error) {
+	return collect(baseDirs, projectFilter, nil)
+}
+
+// CollectBetween is Collect for the runs whose span may meet [from, to),
+// as Overlapping decides; callers still apply Overlapping. It skips, without
+// reading their files, runs whose run ID says they started at or after to
+// and runs whose directory last changed before from (a run writes its
+// summary there when it ends), except the project's running or interrupted
+// run. A run whose ID is not a timestamp is judged by its directory's time
+// alone.
+func CollectBetween(baseDirs []string, projectFilter string, from, to time.Time) ([]Run, error) {
+	return collect(baseDirs, projectFilter, &window{from: from, to: to})
+}
+
+type window struct{ from, to time.Time }
+
+func collect(baseDirs []string, projectFilter string, bounds *window) ([]Run, error) {
 	if projectFilter != "" && !state.IsValidPathElement(projectFilter) {
 		return nil, fmt.Errorf("invalid project name %q", projectFilter)
 	}
@@ -67,7 +85,7 @@ func Collect(baseDirs []string, projectFilter string) ([]Run, error) {
 				continue
 			}
 			foundProject = true
-			projectRuns, err := collectProject(baseDir, entry.Name())
+			projectRuns, err := collectProject(baseDir, entry.Name(), bounds)
 			if err != nil {
 				return nil, err
 			}
@@ -94,7 +112,7 @@ func Collect(baseDirs []string, projectFilter string) ([]Run, error) {
 	return runs, nil
 }
 
-func collectProject(baseDir, projectName string) ([]Run, error) {
+func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve project %q: %w", projectName, err)
@@ -106,9 +124,22 @@ func collectProject(baseDir, projectName string) ([]Run, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read runs for project %q: %w", projectName, err)
 	}
+	current := ""
+	if bounds != nil {
+		inspection, err := project.Inspect(paths, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect project %q: %w", projectName, err)
+		}
+		if inspection.State == project.Running || inspection.State == project.Interrupted {
+			current = inspection.RunID
+		}
+	}
 	runs := make([]Run, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
+			continue
+		}
+		if bounds != nil && entry.Name() != current && !bounds.mayMeet(entry) {
 			continue
 		}
 		run, err := readRun(paths, projectName, entry)
@@ -276,4 +307,53 @@ func Overlapping(runs []Run, from, to, now time.Time) []Run {
 		}
 	}
 	return kept
+}
+
+// mayMeet reports whether the run in entry may have a span meeting the
+// window, judged from its ID and its directory's modification time only.
+func (bounds window) mayMeet(entry os.DirEntry) bool {
+	if started, ok := RunIDStart(entry.Name()); ok && !started.Before(bounds.to) {
+		return false
+	}
+	if info, err := entry.Info(); err == nil && info.ModTime().Before(bounds.from) {
+		return false
+	}
+	return true
+}
+
+// RunIDStart is the start time a run ID records: rotari names a run by its
+// UTC start, YYYYMMDD-HHMMSS-XXXXXXXX. ok is false for an ID in another form.
+func RunIDStart(runID string) (time.Time, bool) {
+	if len(runID) < len("20060102-150405") {
+		return time.Time{}, false
+	}
+	started, err := time.Parse("20060102-150405", runID[:len("20060102-150405")])
+	return started, err == nil
+}
+
+// LatestStart is the latest run start, by run ID, among the runs in
+// baseDirs that started before now, read from directory names alone; ok is
+// false when there is none.
+func LatestStart(baseDirs []string, now time.Time) (latest time.Time, ok bool) {
+	for _, baseDir := range baseDirs {
+		projects, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+		if err != nil {
+			continue
+		}
+		for _, projectEntry := range projects {
+			if !projectEntry.IsDir() || !state.IsValidPathElement(projectEntry.Name()) {
+				continue
+			}
+			runs, err := os.ReadDir(filepath.Join(baseDir, "projects", projectEntry.Name(), "runs"))
+			if err != nil {
+				continue
+			}
+			for _, run := range runs {
+				if started, found := RunIDStart(run.Name()); found && run.IsDir() && started.Before(now) && started.After(latest) {
+					latest, ok = started, true
+				}
+			}
+		}
+	}
+	return latest, ok
 }

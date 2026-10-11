@@ -71,7 +71,8 @@ flowchart LR
    project, and run scopes without expanding the lightweight `/api/state` index.
    The activity API (`/api/activity`) lists runs across every registered
    basedir through `internal/runlist`, as `rotari runs` does, for one bounded
-   time range, reading each listed run's details only.
+   time range: runs outside it are skipped by run ID and directory time
+   without being opened, and details are read for listed runs only.
    Expanding another basedir reads only its project directory names. Static
    export remains a complete snapshot. Its control endpoints (`/api/copy`,
    `/api/cancel-job`, ...) call the same internal operations as the CLI.

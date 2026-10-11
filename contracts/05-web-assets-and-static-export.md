@@ -54,7 +54,12 @@ run's working directory, host, source revisions, and own notes
 longer exists is marked `missing`, and one whose runs cannot be read carries
 its error while the others are still listed. A missing, malformed, reversed,
 or longer than 45-day range is rejected with 400 rather than clamped. The
-endpoint only reads. Implemented by `handleActivity` in
+endpoint only reads, and only the runs that may meet the range: it skips,
+without opening them, runs whose ID says they started at or after the range
+and runs whose directory last changed before it, except a project's running
+or interrupted run (`runlist.CollectBetween`). It also gives the latest run
+start in any basedir (`latest_started_at`, from run IDs alone), so the page
+opens on the latest day with runs in one more request. Implemented by `handleActivity` in
 [activity.go](../internal/webui/activity.go); covered by
 `TestActivityListsRunsAcrossBasedirs` and `TestActivityRejectsBadRanges` in
 [activity_test.go](../internal/webui/activity_test.go), and

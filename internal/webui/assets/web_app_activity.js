@@ -193,8 +193,8 @@ function renderActivityPage() {
 }
 
 // activityStart opens the requested day or month, or else today; when today
-// has no runs it opens the latest earlier day that has some, looking back
-// up to a year, and says so.
+// has no runs it opens the latest day with runs, found from the response's
+// latest run start in one more request, and says so.
 async function activityStart() {
   const today = activityDayStart(new Date());
   if (activityView.day) {
@@ -223,30 +223,23 @@ async function activityStart() {
     return activityDraw();
   }
   activityView.month = new Date(today.getFullYear(), today.getMonth(), 1);
-  for (let back = 0; back < 12; back++) {
-    await activityLoad();
-    const runs = activityRuns(activityView.data);
-    if (activityOnDay(runs, today).length) {
-      activityView.day = today;
-      return activityDraw();
-    }
-    const last = activityLastDay(runs, activityView.month, today);
-    if (last) {
-      activityView.day = last;
-      activityView.fallback = true;
-      return activityDraw();
-    }
-    // A static export holds every run at once; no earlier month adds any.
-    if (activityIsStatic()) break;
-    activityView.month = new Date(
-      activityView.month.getFullYear(),
-      activityView.month.getMonth() - 1,
-      1,
-    );
-  }
-  activityView.month = new Date(today.getFullYear(), today.getMonth(), 1);
   activityView.day = today;
   await activityLoad();
+  if (activityOnDay(activityRuns(activityView.data), today).length)
+    return activityDraw();
+  const latest = activityView.data.latest_started_at
+    ? new Date(activityView.data.latest_started_at)
+    : null;
+  if (latest) {
+    activityView.month = new Date(latest.getFullYear(), latest.getMonth(), 1);
+    await activityLoad();
+    const runs = activityRuns(activityView.data);
+    const last =
+      activityLastDay(runs, activityView.month, today) ||
+      activityDayStart(latest);
+    activityView.day = last;
+    activityView.fallback = true;
+  }
   activityDraw();
 }
 // activityLastDay is the latest day of month, not after today, with a run.
