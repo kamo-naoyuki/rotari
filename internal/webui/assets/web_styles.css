@@ -1794,6 +1794,7 @@ pre,
   -webkit-line-clamp: 2;
 }
 .run-jobs .identity-copy {
+  flex: none;
   width: 20px;
   height: 20px;
   padding: 3px;
