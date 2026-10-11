@@ -381,3 +381,76 @@ pre {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The Job activity table, laid out like the run page's jobs table: the
+   command under the job name, attempt IDs by their end, copy buttons on
+   hover. Its section is not a card; the table is. */
+.jobs-section {
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow-x: auto;
+}
+.jobs-table {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.jobs-table th {
+  padding: 11px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.jobs-table td {
+  padding: 9px 10px;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.jobs-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.jobs-table tbody tr:hover td {
+  background: var(--highlight);
+}
+.jobs-command {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 28ch;
+  margin-top: 2px;
+}
+.jobs-command code {
+  overflow: hidden;
+  color: var(--text-2);
+  font: 12px/1.45 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jobs-table .jobs-copy {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 3px;
+  border: 0;
+  opacity: 0;
+}
+.jobs-table tr:hover .jobs-copy,
+.jobs-table .jobs-copy:focus-visible,
+.jobs-table .jobs-copy.copied {
+  opacity: 1;
+}
+.jobs-attempt,
+.jobs-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.jobs-time {
+  font-size: 13px;
+}

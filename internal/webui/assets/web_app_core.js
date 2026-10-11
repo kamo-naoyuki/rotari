@@ -1855,10 +1855,17 @@ function copyButtonHTML(value, label) {
     "</button>"
   );
 }
-// shortID keeps the end of a long ID, which tells a run's attempts apart;
-// the full ID is in its title and copy button.
-function shortID(id) {
-  return id.length > 18 ? "…" + id.slice(-15) : id;
+// idTailHTML shows a long ID by its end, which tells a run's attempts
+// apart (.id-tail in web_shell.css); its text and title keep the whole ID.
+// assets.go writes the same markup on the Job activity page.
+function idTailHTML(id) {
+  return (
+    '<span class="id-tail" title="' +
+    esc(id) +
+    '"><bdi>' +
+    esc(id) +
+    "</bdi></span>"
+  );
 }
 // runTimeCell shows a job's time without the date when it is the run's start
 // date; the full time is in its title and sorts the column.
@@ -1954,11 +1961,7 @@ function runJobCells(q, run, runID, j) {
       className: "id-cell",
       sort: j.attempt_id || "-",
       html: j.attempt_id
-        ? '<span class="mono" title="' +
-          esc(j.attempt_id) +
-          '">' +
-          esc(shortID(j.attempt_id)) +
-          "</span>" +
+        ? idTailHTML(j.attempt_id) +
           copyButtonHTML(j.attempt_id, "attempt ID") +
           attemptMenu
         : "-" + attemptMenu,

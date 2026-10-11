@@ -363,7 +363,10 @@ not transmit or submit the report. Covered by
 `TestStaticWebReportRedactionToggle`.
 
 The run page's jobs table (`runJobsHTML` in `web_app_core.js`) shows each
-job's command under its name. Every column stays in the table; a column whose
+job's command under its name, as the Job activity page does. Both show an
+attempt ID by its end (`.id-tail` in `web_shell.css`, written by
+`idTailHTML` in `web_app_core.js` and `assets.go`), while its text, title,
+and copy button keep the whole ID. Every column stays in the table; a column whose
 values are the same for every job, and Finished, start hidden, and the Columns
 menu above the table turns any column but Job, Status, and Exit on or off,
 remembered per browser. A row ends with its actions: Log, Diagnosis on a

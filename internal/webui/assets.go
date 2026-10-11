@@ -228,7 +228,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		builder.WriteString(`<p class="meta">No unfinished or recently finished jobs found.</p>`)
 		return composeInfoHTML(template, homePath, builder.String())
 	}
-	builder.WriteString(`<section><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="command">Command</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
+	builder.WriteString(`<section class="jobs-section"><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
 		// A job that has not started has no attempt ID yet.
 		notificationID := row.AttemptID
@@ -260,19 +260,24 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		builder.WriteString(url.PathEscape(row.RunID))
 		builder.WriteString(`">`)
 		builder.WriteString(html.EscapeString(row.JobName))
-		builder.WriteString(`</a></td><td><code>`)
+		// The command is shown under the job name, as on the run page.
+		builder.WriteString(`</a><div class="jobs-command"><code title="`)
+		builder.WriteString(html.EscapeString(row.FullCommand))
+		builder.WriteString(`">`)
 		builder.WriteString(html.EscapeString(row.Command))
 		builder.WriteString(`</code>`)
 		writeJobsCopyButton(&builder, row.FullCommand, "command")
+		builder.WriteString(`</div>`)
 		if row.AttemptID == "" {
 			builder.WriteString(`</td><td>-`)
 		} else {
-			builder.WriteString(`</td><td><code>`)
+			builder.WriteString(`</td><td class="jobs-attempt" data-sort-value="`)
 			builder.WriteString(html.EscapeString(row.AttemptID))
-			builder.WriteString(`</code>`)
+			builder.WriteString(`">`)
+			builder.WriteString(idTailHTML(row.AttemptID))
 			writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
 		}
-		builder.WriteString(`</td><td data-sort-value="`)
+		builder.WriteString(`</td><td class="jobs-time" data-sort-value="`)
 		if !row.StartedAt.IsZero() {
 			builder.WriteString(html.EscapeString(row.StartedAt.Format(time.RFC3339Nano)))
 		}
@@ -282,7 +287,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 		} else {
 			builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.StartedAt)))
 		}
-		builder.WriteString(`</td><td data-sort-value="`)
+		builder.WriteString(`</td><td class="jobs-time" data-sort-value="`)
 		if !row.FinishedAt.IsZero() {
 			builder.WriteString(html.EscapeString(row.FinishedAt.Format(time.RFC3339Nano)))
 		}
@@ -429,6 +434,14 @@ func writeJobsSidebarProjects(builder *strings.Builder, homePath string, project
 		builder.WriteString(`</a></div>`)
 	}
 	builder.WriteString(`</div></div>`)
+}
+
+// idTailHTML shows a long ID by its end, which tells attempts apart, with a
+// leading ellipsis (.id-tail in web_shell.css); the text and title keep the
+// whole ID. web_app_core.js writes the same markup.
+func idTailHTML(id string) string {
+	escaped := html.EscapeString(id)
+	return `<span class="id-tail" title="` + escaped + `"><bdi>` + escaped + `</bdi></span>`
 }
 
 func writeJobsCopyButton(builder *strings.Builder, value, label string) {

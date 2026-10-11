@@ -608,3 +608,23 @@
     transition: none;
   }
 }
+
+/* A long ID shown by its end with a leading ellipsis; the text and title
+   keep the whole ID (idTailHTML in assets.go, idTailHTML in
+   web_app_core.js). The line height leaves room for underscores. */
+.id-tail {
+  display: inline-block;
+  max-width: 16ch;
+  overflow: hidden;
+  direction: rtl;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.id-tail > bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

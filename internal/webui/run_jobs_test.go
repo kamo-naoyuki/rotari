@@ -72,10 +72,11 @@ setTimeout(() => {
     assert.equal(cell('a', 'name').querySelector('.job-command').textContent, 'sh -c decode a');
     assert(cell('a', 'name').querySelector('.job-command [title="Copy command"]'), 'the command has no copy button');
 
-    // Attempt IDs are shortened, with the full ID in the title and copy.
+    // Attempt IDs are shown by their end, with the full ID kept in the text,
+    // title, and copy.
     const attempt = cell('a', 'attempt');
-    assert.equal(attempt.querySelector('.mono').title, run.jobs[0].attempt_id);
-    assert(attempt.querySelector('.mono').textContent.startsWith('…'));
+    assert.equal(attempt.querySelector('.id-tail').title, run.jobs[0].attempt_id);
+    assert.equal(attempt.querySelector('.id-tail').textContent, run.jobs[0].attempt_id, 'the ID is shortened only by CSS');
     assert.equal(attempt.querySelector('[title="Copy attempt ID"]').dataset.copyValue, run.jobs[0].attempt_id);
 
     // Times on the run's start date drop the date; Duration sorts by seconds.
