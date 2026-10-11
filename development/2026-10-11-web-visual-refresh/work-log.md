@@ -225,3 +225,13 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `scripts/web-structure.sh` on the demo state: run pages unchanged; overview and queue tables hold the same cells; the runs table holds the same facts (name and ID now in one cell, plus a copy button); headings Queue, Runs, Project runtime; static and live agree as before. Desktop captures inspected. `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before the commit.
 
 **Remaining:** the queue editor table still runs past the content width; Job activity and search page bodies; config buttons.
+
+### Queue table
+
+- `149f1c27` (2026-10-11 18:45:22 +0900): the queue table on the shared column rule.
+
+**Change:** `columnTable` in `web_app_core.js` now holds the column rule (fixed / shown / hidden / auto, the Columns menu, `rotari-NAME-columns` choices, `setTableColumn`), used by `runJobsHTML` and by the queue table (`queueJobColumns`, `queueJobActions`, `queueJobCells`). Queue: Job name / ID and Command fixed, Source status shown, Source started and Source finished hidden, the rest auto; editors compare by value (`cell.same`). The command editor is wider; `.table-bar` keeps counts beside headings. Tests: new `TestWebQueueTable` (hidden columns, Save sending hidden editors' values, the Columns menu); `TestWebQueueWorkingDirectoryUsesSeparateEditableColumn` follows the column definitions. Contract: the queue table sentence in the jobs table paragraph.
+
+**Validation:** the demo project's queue table measured 1053px in a 1053px body (it ran past the edge before); desktop capture inspected. `go test ./internal/webui ./cmd/rotari`, pre-commit, and the full `scripts/check.sh` passed before the commit.
+
+**Remaining:** Job activity and search page bodies; config buttons.
