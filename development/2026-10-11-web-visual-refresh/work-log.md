@@ -235,3 +235,18 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** the demo project's queue table measured 1053px in a 1053px body (it ran past the edge before); desktop capture inspected. `go test ./internal/webui ./cmd/rotari`, pre-commit, and the full `scripts/check.sh` passed before the commit.
 
 **Remaining:** Job activity and search page bodies; config buttons.
+
+### Job activity and history search
+
+- `e31bc1ae` (2026-10-11 18:59:02 +0900): the Job activity table laid out like the run page's.
+- `6bc12418` (2026-10-11 19:14:49 +0900): the history search page body.
+
+**Change:**
+- Job activity (`jobsHTMLWithSession` in `assets.go`, `web_info_styles.css`): the command under the job name (one line, full command in its title and copy button), the attempt ID by its end, no-wrap times, the table as the card, scrolling inside its section when narrow. Attempt IDs on both pages use one CSS rule, `.id-tail` in `web_shell.css` (written by `idTailHTML` in `assets.go` and `web_app_core.js`); the run page's `shortID` is gone, and the text, title, and copy button keep the whole ID.
+- History search: the sidebar marks History search active instead of All projects (`isOverview` in `sidebarBasedirHTML`); the basedir choice uses `basedirLabelText` (parent/name) with the path in its title; results as a card with status pills and each job's command on its own line; Search styled as the primary action.
+- Tests: new `TestJobsHTMLShowsCommandUnderJobAndAttemptByItsEnd`; `TestWebRunJobsTable` checks the ID is shortened only by CSS; `TestHistorySearchScopeSelectorsLoadHierarchically` supplies `basedirLabelText` and `statusPill` like its other core stubs and checks `value="…" selected` rather than the option's full markup.
+- Contract: the shared attempt-ID display; the history search's basedir label.
+
+**Validation:** Job activity measured 1053px in a 1053px body at 1400px wide (1165px before) and has no sideways page scroll at 390px; a live history search for job names inspected. `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, pre-commit, and the full `scripts/check.sh` passed before each commit.
+
+**Remaining:** `addConfigButton` still fills the Settings menu after rendering; the job timeline is still the share-over-time chart, while the mockup drew one lane per job, which is a new chart for the user to decide on.
