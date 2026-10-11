@@ -263,3 +263,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** a five-job run with 1–3 s jobs, captured in light, OS dark, and chosen dark (a white Refresh button in the chosen-dark capture was a headless background-tab transition that never ran; with transitions off the button is dark). The final `scripts/screenshot-web.sh` on the demo state: every page in light and dark, no phone capture wider than 390px. `go test ./internal/web ./internal/webui`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before the commit.
 
 **Plan impact:** Phase 4 done; the plan is done.
+
+## Follow-ups after close
+
+- `75bc279c` (2026-10-11 22:44:49 +0900): the job timeline's height bounded.
+- `59cff39e` (2026-10-11 22:50:18 +0900): Run statistics folded into the Jobs card.
+- `395b2f9b` (2026-10-11 22:55:13 +0900): room beside the sidebar's selected-project marker.
+- `24f7f505` (2026-10-11 22:55:13 +0900): the command copy button kept full size.
+
+**Change:**
+- The user noted that one lane per job grows tall with many jobs, and that packing by parallelism does not help when many jobs run at once. After a mockup (a private artifact), the user accepted a bounded timeline: rows shrink to fit 260px; at 16px or more each lane keeps its name, below that the lanes are thin unlabelled rows in one SVG (down to 2px, then several jobs per pixel row, failed drawn over running over success), with a hover list of a row's jobs and a click to the most notable job's row. The 50-lane limit is gone. Tests: `TestJobTimelineCompressesManyJobs`.
+- The user found Run statistics repeating the Jobs card. The section and its own status rule are gone; the Jobs card always counts succeeded, failed, in progress, and pending, plus blocked and other when present, grouping `jobDisplayStatus` by tone (`jobCountGroup`). `TestWebRunPageHeader` covers a running run's counts.
+- The sidebar's project link gains 8px of left padding, so the selected project's accent marker no longer touches its name; the run table's copy buttons no longer shrink in the command's flex row (the command's measured 10.4px wide, now 20px).
+
+**Validation:** captures of the demo sweep (19 jobs, compressed) and the sidebar at desktop width; `go test ./internal/webui ./cmd/rotari`, `npm run typecheck`, pre-commit, the full `scripts/check.sh` before `75bc279c`, and `scripts/check.sh --short` before the others.

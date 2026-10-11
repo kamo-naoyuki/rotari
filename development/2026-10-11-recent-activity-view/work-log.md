@@ -71,3 +71,21 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** documentation only; no tests run.
 
 **Remaining:** Phases 1–3.
+
+## Phase 1: one run-list collector
+
+- `a54fb30f` (2026-10-11 22:17:40 +0900): the collector moved into `internal/runlist`.
+- `d2e8870f` (2026-10-11 22:27:25 +0900): run details.
+
+**Change:**
+- `internal/runlist`: `Collect` (which runs are listed, their lifecycle, client status, and order, as recorded values), `Recent` (the `runs` window), and `DescribeScope`, moved from `cmd/rotari/lists.go` with their tests; `rotari runs` formats the rows. The one visible difference: a run whose summary has no start time shows `-` instead of an empty cell.
+- `runlist.ReadDetails`: working directory and host (`context.json`), source revision labels (`sources.json`), and the run's own notes (count and the first line of the earliest), read only for runs a caller shows; an unreadable file is an error naming the run. `rotari runs --json` gains `cwd`, `host`, `sources`, and `note_count` (`docs/INSPECT.md`).
+- `docs/ARCHITECTURE.md`: the package table lists `internal/runlist`.
+
+**Reason:** Phase 1 of the plan. The plan's "skip runs whose directory is older than the window" was not applied to listing, because `runs` lists old incomplete runs; the cost is bounded instead by reading details only for the runs shown.
+
+**Plan impact:** Phase 1 done. Phase 2 (`/api/activity` and the page) can call `runlist.Collect` and `ReadDetails` across registered basedirs.
+
+**Validation:** `go test ./internal/runlist ./cmd/rotari`, `go test ./conformance/...` unchanged and passing after `a54fb30f`, pre-commit, and the full `scripts/check.sh` before each commit.
+
+**Remaining:** Phases 2–3.

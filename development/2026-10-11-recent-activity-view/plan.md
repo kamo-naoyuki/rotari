@@ -1,7 +1,7 @@
 # Plan: Recent Activity View in the Web UI
 
 **Created:** 2026-10-11
-**Status:** Proposed; decisions made, implementation not started
+**Status:** Phase 1 done; Phases 2–3 next
 **Related:** [Shared experiment record](../2026-10-10-shared-experiment-record/plan.md) (candidate "marking whether a run was started by an agent")
 
 ## Purpose
