@@ -2341,3 +2341,479 @@ pre,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* The Activity page (web_app_activity.js): a month calendar, one day's
+   timeline, and the projects worked on, across registered basedirs. */
+.activity-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.activity-page > section {
+  margin: 0;
+}
+.activity-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.activity-problems:empty {
+  display: none;
+}
+.activity-notice {
+  padding: 8px 12px;
+  border: 1px solid color-mix(in oklab, var(--link) 40%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--link) 8%, var(--surface));
+  color: var(--text-2);
+  font-size: 13px;
+}
+.activity-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.activity-toolbar h2 {
+  min-width: 9.5em;
+  margin: 0;
+  font-size: 18px;
+  text-align: center;
+}
+.activity-page button {
+  min-height: 0;
+  padding: 4px 11px;
+  font-size: 12.5px;
+}
+.activity-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.activity-dow {
+  padding: 0 6px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.activity-page .activity-cell {
+  display: flex;
+  min-width: 0;
+  min-height: 84px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+.activity-cell.heat-1 {
+  background: color-mix(in oklab, var(--link) 8%, var(--surface));
+}
+.activity-cell.heat-2 {
+  background: color-mix(in oklab, var(--link) 15%, var(--surface));
+}
+.activity-cell.heat-3 {
+  background: color-mix(in oklab, var(--link) 23%, var(--surface));
+}
+.activity-cell.heat-4 {
+  background: color-mix(in oklab, var(--link) 32%, var(--surface));
+}
+.activity-cell.heat-5 {
+  background: color-mix(in oklab, var(--link) 42%, var(--surface));
+}
+.activity-cell.outside {
+  opacity: 0.45;
+}
+.activity-page .activity-cell:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.activity-cell:not(:disabled):hover {
+  border-color: var(--muted);
+}
+.activity-cell.selected {
+  border-color: var(--link);
+  box-shadow: 0 0 0 1px var(--link);
+}
+.activity-cell-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+}
+.activity-day-number {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.activity-cell.today .activity-day-number {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+}
+.activity-count {
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.activity-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.activity-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.activity-marks {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.activity-mark-bad {
+  color: var(--s-bad);
+}
+.activity-mark-run {
+  color: var(--s-run);
+}
+.activity-calendar-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 20px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.activity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.activity-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.activity-heat-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.activity-heat-key i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.activity-heat-key i.heat-1 {
+  background: color-mix(in oklab, var(--link) 8%, var(--surface));
+}
+.activity-heat-key i.heat-2 {
+  background: color-mix(in oklab, var(--link) 15%, var(--surface));
+}
+.activity-heat-key i.heat-3 {
+  background: color-mix(in oklab, var(--link) 23%, var(--surface));
+}
+.activity-heat-key i.heat-4 {
+  background: color-mix(in oklab, var(--link) 32%, var(--surface));
+}
+.activity-heat-key i.heat-5 {
+  background: color-mix(in oklab, var(--link) 42%, var(--surface));
+}
+.activity-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+.activity-day-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.activity-day-controls,
+.activity-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.activity-zoom button[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--surface);
+}
+.activity-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.activity-key i {
+  display: inline-block;
+  width: 14px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.activity-key i.tone-ok,
+.activity-bar.tone-ok {
+  background: var(--s-ok);
+}
+.activity-key i.tone-bad,
+.activity-bar.tone-bad {
+  background: var(--s-bad);
+}
+.activity-key i.tone-warn,
+.activity-bar.tone-warn {
+  background: var(--s-warn);
+}
+.activity-key i.tone-run,
+.activity-bar.tone-run {
+  background: var(--s-run);
+}
+.activity-bar.tone-off {
+  background: var(--s-off);
+}
+.activity-timeline-scroll {
+  overflow-x: auto;
+}
+.activity-timeline {
+  min-width: 640px;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+}
+.activity-track {
+  position: relative;
+  height: 28px;
+}
+.activity-lane .activity-track {
+  border-bottom: 1px solid var(--line-soft);
+}
+.activity-axis .activity-track {
+  height: 20px;
+}
+.activity-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-soft);
+}
+.activity-axis .activity-tick {
+  background: none;
+}
+.activity-tick span,
+.activity-now span {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.activity-tick.first span {
+  transform: none;
+}
+.activity-tick.last span {
+  transform: translateX(-100%);
+}
+.activity-now {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--link);
+}
+.activity-now span {
+  left: 4px;
+  transform: none;
+  color: var(--link);
+}
+.activity-page .activity-basedir {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.activity-caret {
+  display: inline-block;
+  width: 1em;
+  color: var(--muted);
+  transition: transform 120ms;
+}
+.activity-basedir[aria-expanded="false"] .activity-caret {
+  transform: rotate(-90deg);
+}
+.activity-lane-label,
+.activity-project-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  padding-right: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-chip {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.activity-bar {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  height: 18px;
+  min-width: 4px;
+  overflow: hidden;
+  padding: 0 6px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--surface);
+  color: var(--surface);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-bar:hover {
+  z-index: 3;
+  filter: brightness(1.1);
+}
+.activity-bar.running {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--s-run) 0 8px,
+    color-mix(in oklab, var(--s-run) 70%, var(--surface)) 8px 16px
+  );
+}
+.activity-bar.cut-start {
+  padding-left: 12px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.activity-bar.cut-start::before {
+  content: "‹";
+  position: absolute;
+  left: 3px;
+}
+.activity-bar.cut-end {
+  padding-right: 12px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.activity-bar.cut-end::after {
+  content: "›";
+  position: absolute;
+  right: 3px;
+}
+.activity-more {
+  margin-top: 10px;
+}
+.activity-empty {
+  padding: 18px 4px;
+}
+.activity-table-scroll {
+  overflow-x: auto;
+}
+.activity-project-table tbody tr {
+  cursor: pointer;
+}
+.activity-project-table td {
+  vertical-align: top;
+}
+.activity-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.activity-last-run,
+.activity-runs {
+  white-space: nowrap;
+}
+.activity-runs {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.activity-card {
+  position: fixed;
+  z-index: 40;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+  pointer-events: none;
+}
+.activity-card h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.activity-card dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 6px 0 0;
+}
+.activity-card dt {
+  color: var(--muted);
+}
+.activity-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.activity-card-note {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .activity-page .activity-cell {
+    min-height: 58px;
+    padding: 4px 5px;
+  }
+  .activity-count-unit,
+  .activity-more-dots {
+    display: none;
+  }
+  .activity-cell-head {
+    flex-wrap: wrap;
+  }
+  .activity-row {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+}

@@ -61,6 +61,21 @@ endpoint only reads. Implemented by `handleActivity` in
 `TestActivityListsRunsAcrossRegisteredBasedirs` in
 [conformance/05-web/activity_test.go](../conformance/05-web/activity_test.go).
 
+The Activity page (`/activity/`, [web_app_activity.js](../internal/webui/assets/web_app_activity.js))
+draws that response as a month calendar and one day's timeline. It sorts runs
+into the browser's days by each run's `ends_at` (the server's span end), and
+opens on today, or on the latest day with runs when today has none, saying so.
+A day's lanes are one per (basedir, project), grouped by basedir and
+collapsible, newest first, with lanes past twelve folded behind a "more"
+button; bars are coloured by result and link to the run page. The eight
+projects with the most running time in the shown month get the categorical
+colours `--c1`–`--c8`, always beside their names; the rest share grey. A
+missing or unreadable basedir is listed above the calendar. A static export
+embeds every run of its basedir for the page and says the page shows that
+basedir only. Covered by `TestActivityPage` in
+[activity_page_test.go](../internal/webui/activity_page_test.go) and
+`TestStaticExportIncludesActivity`.
+
 ## History search
 
 **WEB-2** The live Web UI provides a dedicated history search across projects

@@ -228,13 +228,13 @@ function initOrbitGame() {
 }
 const originalRender = render;
 render = function () {
-  if (pageParts()[0] !== "search")
+  if (pageParts()[0] !== "search" && pageParts()[0] !== "activity")
     document.getElementById("page-title").closest(".page-head").hidden = false;
   const runtimeDetails = document.querySelector(".project-runtime details");
   if (runtimeDetails) projectRuntimeDetailsOpen = runtimeDetails.open;
   originalRender();
   const parts = pageParts();
-  if (parts[0] === "search") return;
+  if (parts[0] === "search" || parts[0] === "activity") return;
   renderRunGraphics();
   addRunJobSelection();
   enableTableSorting();

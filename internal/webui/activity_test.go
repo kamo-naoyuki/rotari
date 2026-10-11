@@ -172,3 +172,28 @@ func TestActivityRejectsBadRanges(t *testing.T) {
 		t.Fatalf("a 45-day range: status = %d, body %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+// A static export carries an Activity page and every run of its basedir,
+// which the page sorts into days itself.
+func TestStaticExportIncludesActivity(t *testing.T) {
+	baseDir := t.TempDir()
+	day := time.Date(2026, 10, 11, 9, 0, 0, 0, time.UTC)
+	writeActivityRun(t, baseDir, "train", "run-old", "", day.AddDate(0, -3, 0), day.AddDate(0, -3, 0).Add(time.Hour))
+	writeActivityRun(t, baseDir, "train", "run-new", "", day, day.Add(time.Hour))
+	outputDir := filepath.Join(t.TempDir(), "site")
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(filepath.Join(outputDir, "activity", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"window.__ROTARI_STATIC_ACTIVITY__", `"run_id":"run-old"`, `"run_id":"run-new"`} {
+		if !strings.Contains(string(page), want) {
+			t.Errorf("static Activity page lacks %q", want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "activity", "web_styles.css")); err != nil {
+		t.Fatalf("static Activity stylesheet missing: %v", err)
+	}
+}

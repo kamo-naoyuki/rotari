@@ -288,6 +288,10 @@ function render() {
     renderHistorySearchPage();
     return;
   }
+  if (parts[0] === "activity") {
+    renderActivityPage();
+    return;
+  }
   if (parts[0] !== "project") {
     renderOverview(queues);
     return;
@@ -464,7 +468,11 @@ function sidebarBasedirHTML(
   const isActive = entry.id === activeID;
   const page = pageParts()[0];
   const isJobsPage = page === "jobs";
-  const isOverview = !activeProject && page !== "jobs" && page !== "search";
+  const isOverview =
+    !activeProject &&
+    page !== "jobs" &&
+    page !== "search" &&
+    page !== "activity";
   if (!Object.hasOwn(expandedSidebarBasedirs, entry.id))
     expandedSidebarBasedirs[entry.id] = isActive;
   const isExpanded = !!expandedSidebarBasedirs[entry.id];
@@ -530,6 +538,9 @@ function renderSidebar(queues) {
   const sidebar = container.closest(".sidebar");
   const scrollTop = sidebar.scrollTop;
   const parts = pageParts();
+  sidebar
+    .querySelector(".sidebar-activity-link")
+    ?.classList.toggle("active", parts[0] === "activity");
   const searchLink = sidebar.querySelector(".sidebar-search-link");
   if (searchLink) {
     searchLink.classList.toggle("active", parts[0] === "search");

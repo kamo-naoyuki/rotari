@@ -458,6 +458,16 @@ using the same default scope as `rotari jobs`. Select a job name to open its
 run page. `rotari jobs PROJECT` narrows the CLI list to one project. Enter a Go
 duration such as `6h` or `168h` in `Since` to change the completed-job window.
 
+### Where did I run jobs recently?
+
+Open `Activity` in the Web sidebar. It shows a month calendar of runs across
+every registered state directory, and for a selected day one lane per
+project with each run's span, coloured by result; hover a run for its working
+directory, host, source revision, and first note, and click it to open the run.
+It opens on today, or on the latest day with runs. Below it, `Where you worked`
+lists each project's last run, working directories, and source revision. From
+a terminal, `rotari runs --json` gives the same facts.
+
 ### Can I search old jobs across projects?
 
 Yes. Open `History search` in the Web sidebar to search project, run, and job

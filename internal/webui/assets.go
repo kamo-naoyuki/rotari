@@ -49,6 +49,9 @@ var webAppNotificationsJS string
 //go:embed assets/web_app_search.js
 var webAppSearchJS string
 
+//go:embed assets/web_app_activity.js
+var webAppActivityJS string
+
 //go:embed assets/web_app_bootstrap.js
 var webAppBootstrapJS string
 
@@ -136,7 +139,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 	basedirJSON, _ := json.Marshal(basedirs)
 	webAppJS := strings.Join([]string{
 		"const diagnosisGuidance = " + string(diagnosisGuidanceJSON) + ";",
-		webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppMarkdownJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS,
+		webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppMarkdownJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppActivityJS, webAppBootstrapJS,
 	}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_SHELL_SCRIPT__", webShellJS, 1)
 	template = strings.Replace(template, "__ROTARI_WEB_APP__", webAppJS, 1)
@@ -152,7 +155,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 	return template
 }
 
-func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordClouds, artifacts, artifactData string) string {
+func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordClouds, artifacts, artifactData, activity string) string {
 	bootstrap := webStaticBootstrapJS
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_STATE_DATA__", state, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LOGS_DATA__", logs, 1)
@@ -162,6 +165,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_WORD_CLOUDS_DATA__", wordClouds, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACTS_DATA__", artifacts, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__", artifactData, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ACTIVITY_DATA__", activity, 1)
 	return bootstrap
 }
 
@@ -174,6 +178,8 @@ func composeInfoHTML(template, homePath, content string) string {
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	searchPath := strings.TrimRight(homePath, "/") + "/search/"
 	template = strings.ReplaceAll(template, "__ROTARI_SEARCH_PATH__", html.EscapeString(searchPath))
+	activityPath := strings.TrimRight(homePath, "/") + "/activity/"
+	template = strings.ReplaceAll(template, "__ROTARI_ACTIVITY_PATH__", html.EscapeString(activityPath))
 	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
 	return template
 }

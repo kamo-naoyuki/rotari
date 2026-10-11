@@ -33,19 +33,23 @@ type activityBaseDir struct {
 }
 
 type activityRun struct {
-	BaseDirID  string   `json:"basedir_id"`
-	Project    string   `json:"project_name"`
-	RunID      string   `json:"run_id"`
-	RunName    string   `json:"run_name,omitempty"`
-	Lifecycle  string   `json:"lifecycle"`
-	ExitCode   *int     `json:"exit_code"`
-	StartedAt  string   `json:"started_at"`
-	FinishedAt string   `json:"finished_at,omitempty"`
-	CWD        string   `json:"cwd,omitempty"`
-	Host       string   `json:"host,omitempty"`
-	Sources    []string `json:"sources,omitempty"`
-	NoteCount  int      `json:"note_count"`
-	FirstNote  string   `json:"first_note,omitempty"`
+	BaseDirID  string `json:"basedir_id"`
+	Project    string `json:"project_name"`
+	RunID      string `json:"run_id"`
+	RunName    string `json:"run_name,omitempty"`
+	Lifecycle  string `json:"lifecycle"`
+	ExitCode   *int   `json:"exit_code"`
+	StartedAt  string `json:"started_at"`
+	FinishedAt string `json:"finished_at,omitempty"`
+	// EndsAt is the end of the run's span (runlist.Run.Span): its finish,
+	// the response's now while it runs, or its start when it recorded no
+	// finish.
+	EndsAt    string   `json:"ends_at"`
+	CWD       string   `json:"cwd,omitempty"`
+	Host      string   `json:"host,omitempty"`
+	Sources   []string `json:"sources,omitempty"`
+	NoteCount int      `json:"note_count"`
+	FirstNote string   `json:"first_note,omitempty"`
 }
 
 func (s site) handleActivity(writer http.ResponseWriter, request *http.Request) {
@@ -58,7 +62,7 @@ func (s site) handleActivity(writer http.ResponseWriter, request *http.Request) 
 		writeWebError(writer, err)
 		return
 	}
-	writeWebJSON(writer, s.loadActivity(from, to, time.Now()))
+	writeWebJSON(writer, loadActivity(s.basedirEntries(), from, to, time.Now()))
 }
 
 // parseActivityRange reads from and to (RFC 3339). A missing, malformed,
@@ -91,15 +95,15 @@ func parseActivityRange(query url.Values) (from, to time.Time, err error) {
 	return from, to, nil
 }
 
-// loadActivity lists the runs of every registered basedir that meet
-// [from, to). A missing basedir, or one whose runs cannot be read, is
-// reported on its entry rather than failing the others.
-func (s site) loadActivity(from, to, now time.Time) activityResponse {
+// loadActivity lists the runs of entries that meet [from, to). A missing
+// basedir, or one whose runs cannot be read, is reported on its entry
+// rather than failing the others.
+func loadActivity(entries []webBaseDir, from, to, now time.Time) activityResponse {
 	response := activityResponse{
 		From: from.Format(time.RFC3339), To: to.Format(time.RFC3339), Now: now.Format(time.RFC3339),
 		BaseDirs: []activityBaseDir{}, Runs: []activityRun{},
 	}
-	for _, entry := range s.basedirEntries() {
+	for _, entry := range entries {
 		item := activityBaseDir{webBaseDir: entry}
 		if _, err := os.Stat(entry.Path); errors.Is(err, os.ErrNotExist) {
 			item.Missing = true
@@ -110,6 +114,7 @@ func (s site) loadActivity(from, to, now time.Time) activityResponse {
 		if err == nil {
 			var listed []activityRun
 			for _, run := range runlist.Overlapping(runs, from, to, now) {
+				_, end, _ := run.Span(now)
 				details, detailErr := runlist.ReadDetails(run)
 				if detailErr != nil {
 					err = detailErr
@@ -118,7 +123,8 @@ func (s site) loadActivity(from, to, now time.Time) activityResponse {
 				listed = append(listed, activityRun{
 					BaseDirID: entry.ID, Project: run.Project, RunID: run.RunID, RunName: run.RunName,
 					Lifecycle: run.Lifecycle, ExitCode: run.ExitCode, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
-					CWD: details.WorkingDirectory, Host: details.Host, Sources: details.Sources,
+					EndsAt: end.Format(time.RFC3339Nano),
+					CWD:    details.WorkingDirectory, Host: details.Host, Sources: details.Sources,
 					NoteCount: details.NoteCount, FirstNote: details.FirstNote,
 				})
 			}
@@ -132,4 +138,10 @@ func (s site) loadActivity(from, to, now time.Time) activityResponse {
 		response.BaseDirs = append(response.BaseDirs, item)
 	}
 	return response
+}
+
+// staticActivity is a static export's activity: every run of the exported
+// basedir, which the page sorts into days itself.
+func staticActivity(entries []webBaseDir, now time.Time) activityResponse {
+	return loadActivity(entries, time.Unix(0, 0), now.Add(24*time.Hour), now)
 }

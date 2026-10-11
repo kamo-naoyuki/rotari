@@ -54,6 +54,9 @@
   --c3: #1baf7a;
   --c4: #eda100;
   --c5: #6250d6;
+  --c6: #1295a8;
+  --c7: #c93f7a;
+  --c8: #7a8a10;
 
   /* The logo's ink follows the theme; its red dot does not. */
   --logo-ink: #262626;
@@ -105,6 +108,9 @@
     --c3: #199e70;
     --c4: #c98500;
     --c5: #9085e9;
+    --c6: #1f9db0;
+    --c7: #d55181;
+    --c8: #8d9a1c;
     --logo-ink: #f2f2f2;
     --logo-fade: 0.55;
     --logo-ring: transparent;
@@ -150,6 +156,9 @@
   --c3: #199e70;
   --c4: #c98500;
   --c5: #9085e9;
+  --c6: #1f9db0;
+  --c7: #d55181;
+  --c8: #8d9a1c;
   --logo-ink: #f2f2f2;
   --logo-fade: 0.55;
   --logo-ring: transparent;

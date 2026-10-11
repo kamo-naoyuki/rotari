@@ -7,9 +7,16 @@ window.__ROTARI_STATIC_WORD_CLOUDS__ = __ROTARI_STATIC_WORD_CLOUDS_DATA__;
 window.__ROTARI_STATIC_ARTIFACTS__ = __ROTARI_STATIC_ARTIFACTS_DATA__;
 window.__ROTARI_STATIC_ARTIFACT_CONTENTS__ =
   __ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__;
+// Every run of the exported basedir; the Activity page sorts them into days.
+window.__ROTARI_STATIC_ACTIVITY__ = __ROTARI_STATIC_ACTIVITY_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
+  if (request.pathname.endsWith("/api/activity")) {
+    return new Response(JSON.stringify(window.__ROTARI_STATIC_ACTIVITY__), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (request.pathname.endsWith("/api/state")) {
     return new Response(JSON.stringify(window.__ROTARI_STATIC_STATE__), {
       headers: { "Content-Type": "application/json" },
@@ -211,13 +218,12 @@ function staticWordCloudKey(project, run) {
 function staticRootPath() {
   const pathname = window.location.pathname;
   const parts = pathname.split("/").filter(Boolean);
-  const searchIndex = parts.lastIndexOf("search");
-  if (
-    searchIndex >= 0 &&
-    (searchIndex === parts.length - 1 ||
-      (parts.at(-1) === "index.html" && searchIndex === parts.length - 2))
-  )
-    return "/" + parts.slice(0, searchIndex).join("/");
+  // The export's top-level pages besides the overview: /search/ and
+  // /activity/, each a directory of its own.
+  const page =
+    parts.at(-1) === "index.html" ? parts.length - 2 : parts.length - 1;
+  if (page >= 0 && (parts[page] === "search" || parts[page] === "activity"))
+    return "/" + parts.slice(0, page).join("/");
   const projectIndex = parts.indexOf("project");
   if (projectIndex >= 0) {
     return "/" + parts.slice(0, projectIndex).join("/");

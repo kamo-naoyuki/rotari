@@ -1724,7 +1724,18 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds, escapedArtifacts, escapedArtifactData bytes.Buffer
+	var staticBaseDirs []webBaseDir
+	for _, entry := range s.basedirEntries() {
+		if entry.Current {
+			staticBaseDirs = []webBaseDir{entry}
+			break
+		}
+	}
+	activityJSON, err := json.Marshal(staticActivity(staticBaseDirs, time.Now()))
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds, escapedArtifacts, escapedArtifactData, escapedActivity bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
@@ -1733,7 +1744,8 @@ func (s site) generateStaticWeb(outputDir string) error {
 	json.HTMLEscape(&escapedWordClouds, wordCloudsJSON)
 	json.HTMLEscape(&escapedArtifacts, artifactsJSON)
 	json.HTMLEscape(&escapedArtifactData, artifactDataJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String(), escapedArtifactData.String()) + "\n</script>"
+	json.HTMLEscape(&escapedActivity, activityJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String(), escapedArtifactData.String(), escapedActivity.String()) + "\n</script>"
 	baseTemplate := s.webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_fonts.css"`, `href="web_fonts.css"`, 1)
 	template = strings.Replace(template, `href="/web_tokens.css"`, `href="web_tokens.css"`, 1)
@@ -1767,6 +1779,13 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticStylesheet(outputDir, searchPath); err != nil {
 		return err
 	}
+	activityPath := filepath.Join(outputDir, "activity")
+	if err := writeStaticWebPage(filepath.Join(activityPath, "index.html"), template); err != nil {
+		return err
+	}
+	if err := writeStaticStylesheet(outputDir, activityPath); err != nil {
+		return err
+	}
 	projects, err := joblist.Projects(baseDir, "")
 	if err != nil {
 		return err
@@ -1776,13 +1795,6 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	joblist.Sort(jobs)
-	var staticBaseDirs []webBaseDir
-	for _, entry := range s.basedirEntries() {
-		if entry.Current {
-			staticBaseDirs = []webBaseDir{entry}
-			break
-		}
-	}
 	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTMLWithSession("../", projects, jobs, joblist.DefaultSinceText, false, s.Notifications, s.notificationSession, staticBaseDirs)); err != nil {
 		return err
 	}

@@ -717,8 +717,9 @@ setTimeout(() => {
 	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification config') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const viewsHeading = [...dom.window.document.querySelectorAll('.sidebar-section-heading')].find(heading => heading.textContent.trim() === 'Views');
-	const historySearchLink = viewsHeading?.nextElementSibling;
-	if (!historySearchLink || !historySearchLink.classList.contains('sidebar-search-link') || historySearchLink.textContent.trim() !== 'History search' || historySearchLink.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
+	const activityLink = viewsHeading?.nextElementSibling;
+	const historySearchLink = activityLink?.nextElementSibling;
+	if (!activityLink || !activityLink.classList.contains('sidebar-activity-link') || activityLink.textContent.trim() !== 'Activity' || !historySearchLink || !historySearchLink.classList.contains('sidebar-search-link') || historySearchLink.textContent.trim() !== 'History search' || historySearchLink.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
 	const settingsActions = dom.window.document.getElementById('settings-actions');
 	if (notificationConfigButtons[0].parentElement !== settingsActions || generateNotificationConfigButton.parentElement !== settingsActions) process.exit(37);
 	const toolbar = dom.window.document.querySelector('.topbar .toolbar');
