@@ -392,6 +392,7 @@ func (s site) baseHandler() http.Handler {
 		}
 		writeWebJSON(writer, run)
 	})
+	mux.HandleFunc("/api/activity", s.handleActivity)
 	mux.HandleFunc("/api/history-search", s.handleHistorySearch)
 	mux.HandleFunc("/api/history-search-options", s.handleHistorySearchOptions)
 	mux.HandleFunc("/api/history-search-diagnoses", s.handleHistorySearchDiagnoses)

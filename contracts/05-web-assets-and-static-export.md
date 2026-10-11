@@ -41,6 +41,26 @@ projection is in [internal/web](../internal/web/timeline.go) and display is in
 [`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go) and
 [`TestRunTimelineStartsAtActualRunStart`](../conformance/02-lifecycle/lifecycle_test.go).
 
+## Activity
+
+**WEB-10** `GET /api/activity?from=TIME&to=TIME` (RFC 3339) lists, across every
+registered basedir, the runs whose span meets the range: from a run's start to
+its finish, or to now while it runs, and only its start when it recorded no
+finish (`Run.Span` and `Overlapping` in
+[internal/runlist](../internal/runlist/runlist.go)). It lists the same runs,
+lifecycles, and recorded times as `rotari runs` (`runlist.Collect`), with each
+run's working directory, host, source revisions, and own notes
+(`runlist.ReadDetails`). Every registered basedir is listed: one that no
+longer exists is marked `missing`, and one whose runs cannot be read carries
+its error while the others are still listed. A missing, malformed, reversed,
+or longer than 45-day range is rejected with 400 rather than clamped. The
+endpoint only reads. Implemented by `handleActivity` in
+[activity.go](../internal/webui/activity.go); covered by
+`TestActivityListsRunsAcrossBasedirs` and `TestActivityRejectsBadRanges` in
+[activity_test.go](../internal/webui/activity_test.go), and
+`TestActivityListsRunsAcrossRegisteredBasedirs` in
+[conformance/05-web/activity_test.go](../conformance/05-web/activity_test.go).
+
 ## History search
 
 **WEB-2** The live Web UI provides a dedicated history search across projects

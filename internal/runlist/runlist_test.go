@@ -334,3 +334,33 @@ func TestReadDetails(t *testing.T) {
 		t.Fatalf("broken context error = %v, want one naming the run", err)
 	}
 }
+
+// A run spans its start to its finish, to now while running, and only its
+// start when it recorded no finish; Overlapping keeps the runs whose span
+// meets the range, including a running run started before it.
+func TestSpanAndOverlapping(t *testing.T) {
+	day := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+	now := day.Add(30 * time.Hour)
+	runs := []Run{
+		{RunID: "before", Lifecycle: "finished", Started: day.Add(-3 * time.Hour), Finished: day.Add(-time.Hour)},
+		{RunID: "crosses-midnight", Lifecycle: "failed", Started: day.Add(-time.Hour), Finished: day.Add(time.Hour)},
+		{RunID: "inside", Lifecycle: "finished", Started: day.Add(10 * time.Hour), Finished: day.Add(11 * time.Hour)},
+		{RunID: "running-from-yesterday", Lifecycle: "running", Started: day.Add(-5 * time.Hour)},
+		{RunID: "interrupted", Lifecycle: "interrupted", Started: day.Add(12 * time.Hour)},
+		{RunID: "after", Lifecycle: "finished", Started: day.Add(24 * time.Hour), Finished: day.Add(25 * time.Hour)},
+		{RunID: "no-start", Lifecycle: "incomplete"},
+	}
+	if _, end, ok := runs[3].Span(now); !ok || !end.Equal(now) {
+		t.Fatalf("running span end = %v, %v; want now", end, ok)
+	}
+	if start, end, ok := runs[4].Span(now); !ok || !start.Equal(end) {
+		t.Fatalf("interrupted span = %v..%v, %v; want a point", start, end, ok)
+	}
+	var got []string
+	for _, run := range Overlapping(runs, day, day.Add(24*time.Hour), now) {
+		got = append(got, run.RunID)
+	}
+	if want := []string{"crosses-midnight", "inside", "running-from-yesterday", "interrupted"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("overlapping = %v, want %v", got, want)
+	}
+}

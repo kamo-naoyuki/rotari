@@ -240,3 +240,37 @@ func ReadDetails(run Run) (Details, error) {
 	}
 	return details, nil
 }
+
+// Span is when run occupied its project: from its start to its finish, or
+// to now while it is running. A run that is not running and recorded no
+// finish (interrupted or incomplete) ends where it started. ok is false
+// when the run recorded no start.
+func (run Run) Span(now time.Time) (start, end time.Time, ok bool) {
+	if run.Started.IsZero() {
+		return time.Time{}, time.Time{}, false
+	}
+	switch {
+	case run.Lifecycle == "running":
+		end = now
+	case !run.Finished.IsZero():
+		end = run.Finished
+	default:
+		end = run.Started
+	}
+	if end.Before(run.Started) {
+		end = run.Started
+	}
+	return run.Started, end, true
+}
+
+// Overlapping keeps the runs whose span meets the range [from, to).
+func Overlapping(runs []Run, from, to, now time.Time) []Run {
+	kept := make([]Run, 0, len(runs))
+	for _, run := range runs {
+		start, end, ok := run.Span(now)
+		if ok && start.Before(to) && !end.Before(from) {
+			kept = append(kept, run)
+		}
+	}
+	return kept
+}

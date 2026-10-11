@@ -254,3 +254,4 @@ the IDs, this table, and those calls disagree.
 | WEB-7 | `--static-artifact-contents` copies servable artifact contents into a static export within size limits | conformance | `TestStaticExportCopiesArtifactContents` |
 | WEB-8 | A run report reads each job's log from the attempt that produced its result, following carried jobs | conformance | `TestRunReportReadsCarriedJobLogs` |
 | WEB-9 | A static export page shows the live page's tables, columns, row actions, and panels, also when opened from disk | partial | `TestStaticExportPagesShowWhatLivePagesShow` |
+| WEB-10 | `/api/activity` lists the runs of every registered basedir that meet a validated range, marks missing and unreadable basedirs, and rejects bad ranges | conformance | `TestActivityListsRunsAcrossRegisteredBasedirs` |

@@ -69,6 +69,9 @@ flowchart LR
    only for the selected run or active runs monitored for notifications.
    The dedicated history-search API scans only the user-selected basedir,
    project, and run scopes without expanding the lightweight `/api/state` index.
+   The activity API (`/api/activity`) lists runs across every registered
+   basedir through `internal/runlist`, as `rotari runs` does, for one bounded
+   time range, reading each listed run's details only.
    Expanding another basedir reads only its project directory names. Static
    export remains a complete snapshot. Its control endpoints (`/api/copy`,
    `/api/cancel-job`, ...) call the same internal operations as the CLI.
