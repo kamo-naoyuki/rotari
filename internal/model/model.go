@@ -648,9 +648,12 @@ type RunContext struct {
 	// runs its own parent started. Runs started by the Web UI or MCP have
 	// none.
 	LaunchOrigin *LaunchOrigin `json:"launch_origin,omitempty"`
-	StartedLoad  *LoadAverage  `json:"started_load,omitempty"`
-	FinishedLoad *LoadAverage  `json:"finished_load,omitempty"`
-	LoadSamples  []LoadSample  `json:"load_samples,omitempty"`
+	// StartedBy is how the run was started; runs from before it was
+	// recorded have none.
+	StartedBy    *StartedBy   `json:"started_by,omitempty"`
+	StartedLoad  *LoadAverage `json:"started_load,omitempty"`
+	FinishedLoad *LoadAverage `json:"finished_load,omitempty"`
+	LoadSamples  []LoadSample `json:"load_samples,omitempty"`
 }
 
 // LaunchOrigin identifies a process on a host. ProcessStart, when known,

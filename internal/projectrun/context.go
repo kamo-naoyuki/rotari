@@ -15,13 +15,13 @@ const LoadSampleInterval = 10 * time.Second
 // WriteContext records where and how a run starts: working directory, host,
 // the launching process, load, and snapshots of the loaded command and
 // notification configs.
-func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPath string, origin *model.LaunchOrigin, snapshots ...*model.FileConfigSnapshot) error {
+func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPath string, origin *model.LaunchOrigin, startedBy *model.StartedBy, snapshots ...*model.FileConfigSnapshot) error {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
 	hostname, _ := os.Hostname()
-	context := model.RunContext{CWD: cwd, Hostname: hostname, LaunchOrigin: origin, StartedLoad: readLoadAverage()}
+	context := model.RunContext{CWD: cwd, Hostname: hostname, LaunchOrigin: origin, StartedBy: startedBy, StartedLoad: readLoadAverage()}
 	var snapshot *model.FileConfigSnapshot
 	if len(snapshots) > 0 {
 		snapshot = snapshots[0]

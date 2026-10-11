@@ -50,6 +50,7 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	runName := cliString(fs, "run-name", "")
 	noteOption := cliString(fs, "note", "")
+	actorOption := cliString(fs, "actor", "")
 	localConcurrency := cliInt(fs, "local-concurrency", 8)
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
 	executorSettings := cliExecutorRunSettings(fs)
@@ -78,6 +79,11 @@ func runJobs(args []string, defaultSelection string) int {
 			return 1
 		}
 		note = text
+	}
+	actor, err := model.NormalizeActor(*actorOption)
+	if err != nil {
+		printError(err)
+		return 1
 	}
 	if *async && *guard.dryRun {
 		printError("--async cannot be combined with --dry-run, which starts no run; preview without --async, then start the run with --async --if-revision REVISION, taking REVISION from the preview")
@@ -305,6 +311,7 @@ func runJobs(args []string, defaultSelection string) int {
 	// wait without a selector follows the runs this command's parent started.
 	origin := attachment.CurrentLaunchOrigin()
 	request.LaunchOrigin = &origin
+	request.StartedBy = &model.StartedBy{Interface: model.StartedByCLI, Actor: actor}
 	request.HintLocation = hintLocation(paths)
 	var response serverinternal.Response
 	if *async {

@@ -61,6 +61,8 @@ type Run struct {
 	Sources *model.RunSources
 	// Notes are the notes on the run and its job attempts, oldest first.
 	Notes []model.RunNote
+	// StartedBy is how the run was started, nil when it was not recorded.
+	StartedBy *model.StartedBy
 }
 
 // IsCarried reports whether a job's result came from its origin rather than
@@ -115,6 +117,8 @@ type RunInfo struct {
 	Elapsed string                 `json:"elapsed,omitempty"`
 	Sources []model.SourceRevision `json:"sources,omitempty"`
 	Notes   []model.RunNote        `json:"notes,omitempty"`
+	// StartedBy is how the run was started: interface and actor label.
+	StartedBy *model.StartedBy `json:"started_by,omitempty"`
 }
 
 // Summary counts the transitions and changes.
@@ -291,6 +295,7 @@ func Info(run Run) RunInfo {
 		info.Sources = run.Sources.Sources
 	}
 	info.Notes = run.Notes
+	info.StartedBy = run.StartedBy
 	started, startErr := time.Parse(time.RFC3339, run.StartedAt)
 	finished, finishErr := time.Parse(time.RFC3339, run.FinishedAt)
 	if startErr == nil && finishErr == nil && !finished.Before(started) {

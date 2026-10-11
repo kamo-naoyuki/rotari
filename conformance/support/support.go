@@ -182,6 +182,18 @@ func NewEnv(t *testing.T) *Env {
 	return e
 }
 
+// Setenv sets name in the environment of e's later commands.
+func (e *Env) Setenv(name, value string) {
+	prefix := name + "="
+	for index, entry := range e.vars {
+		if strings.HasPrefix(entry, prefix) {
+			e.vars[index] = prefix + value
+			return
+		}
+	}
+	e.vars = append(e.vars, prefix+value)
+}
+
 func (e *Env) command(args ...string) *exec.Cmd {
 	TrackBuildInputs(e.T)
 	cmd := exec.Command(binary, args...)

@@ -199,6 +199,8 @@ type Details struct {
 	// first line of the earliest.
 	NoteCount int
 	FirstNote string
+	// StartedBy is how the run was started, nil when not recorded.
+	StartedBy *model.StartedBy
 }
 
 // ReadDetails reads run's details. Callers read them only for the runs they
@@ -218,6 +220,7 @@ func ReadDetails(run Run) (Details, error) {
 		return Details{}, fmt.Errorf("failed to read the context of run %q: %w", run.RunID, err)
 	}
 	details.WorkingDirectory, details.Host = context.CWD, context.Hostname
+	details.StartedBy = context.StartedBy
 	sources, _, err := state.LoadRunSources(runDir)
 	if err != nil {
 		return Details{}, fmt.Errorf("failed to read the sources of run %q: %w", run.RunID, err)

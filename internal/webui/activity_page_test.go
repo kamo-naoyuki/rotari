@@ -39,7 +39,7 @@ const activity = {
   ],
   runs: [
     run('A', 'train', 'r1', 9, 11, 'finished', { run_name: 'baseline', cwd: '/src/asr', sources: ['git 0123456789ab (clean) in /src/asr'] }),
-    run('A', 'train', 'r2', 13, 14, 'failed', { run_name: 'lr-3e-4', cwd: '/src/asr-wt/agent' }),
+    run('A', 'train', 'r2', 13, 14, 'failed', { run_name: 'lr-3e-4', cwd: '/src/asr-wt/agent', started_by: { interface: 'mcp', actor: 'claude-code' } }),
     run('A', 'eval', 'r3', 15, 16, 'finished'),
     run('B', 'default', 'r4', 10, 12, 'finished', { first_note: 'beam 8', note_count: 1 }),
   ],
@@ -82,7 +82,7 @@ setTimeout(() => {
     assert.deepEqual([...page.querySelectorAll('.activity-lane-label')].map(l => l.textContent), ['eval', 'train', 'default']);
     const bars = [...page.querySelectorAll('.activity-bar')];
     assert.equal(bars.length, 4);
-    const failed = bars.find(bar => bar.textContent === 'lr-3e-4');
+    const failed = bars.find(bar => bar.dataset.run === 'A/train/r2');
     assert(failed.classList.contains('tone-bad'));
     assert.equal(failed.getAttribute('href'), '/_basedir/A/project/train/run/r2');
     assert.equal(bars.find(bar => bar.dataset.run === 'B/default/r4').getAttribute('href'), '/_basedir/B/project/default/run/r4');
@@ -97,6 +97,18 @@ setTimeout(() => {
     // Hovering a bar shows its note.
     dom.window.document.querySelector('[data-run="B/default/r4"]').dispatchEvent(new dom.window.MouseEvent('pointerover', { bubbles: true }));
     assert(page.querySelector('.activity-card').textContent.includes('beam 8'));
+    // The actor filter narrows runs without repainting projects; an agent's
+    // run is marked.
+    assert(failed.querySelector('.activity-actor-mark'), 'the agent run is not marked');
+    const select = page.querySelector('.activity-actor-select');
+    assert.deepEqual([...select.options].map(o => o.textContent), ['all runs', 'claude-code', 'unlabelled']);
+    select.value = 'claude-code';
+    select.dispatchEvent(new dom.window.Event('change'));
+    assert.deepEqual([...page.querySelectorAll('.activity-bar')].map(bar => bar.textContent), ['◆lr-3e-4']);
+    assert.equal(chip('train'), 'var(--c1)', 'filtering repainted a project');
+    select.value = '-';
+    select.dispatchEvent(new dom.window.Event('change'));
+    assert.equal(page.querySelectorAll('.activity-bar').length, 3);
     if (errors.length) throw new Error(errors.join('\\n'));
   } catch (error) {
     console.error(error.stack || String(error));

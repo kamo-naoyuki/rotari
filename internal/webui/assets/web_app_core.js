@@ -1564,6 +1564,9 @@ function renderRun(q, runID) {
     fact("Started", esc(run.started_at || "-")),
     fact("Finished", esc(run.finished_at || "-")),
     host ? fact("Host", esc(host)) : "",
+    run.context && run.context.started_by
+      ? fact("Started by", esc(startedByLabel(run.context.started_by)))
+      : "",
     fact(
       "Working directory",
       "<code>" +
@@ -2108,6 +2111,13 @@ function runJobActions(q, run, runID, j) {
       more.join("") +
       "</div></details>",
   ]);
+}
+// startedByLabel shows how a run was started as model.StartedBy.Label
+// does: "cli", or "cli · claude-code" with an actor.
+function startedByLabel(startedBy) {
+  return startedBy.actor
+    ? startedBy.interface + " · " + startedBy.actor
+    : startedBy.interface;
 }
 // fact is one "Label: value" entry of a page's facts line; valueHTML is
 // already escaped.

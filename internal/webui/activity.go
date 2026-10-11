@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/runlist"
 )
 
@@ -50,6 +51,8 @@ type activityRun struct {
 	Sources   []string `json:"sources,omitempty"`
 	NoteCount int      `json:"note_count"`
 	FirstNote string   `json:"first_note,omitempty"`
+	// StartedBy is how the run was started, absent for older runs.
+	StartedBy *model.StartedBy `json:"started_by,omitempty"`
 }
 
 func (s site) handleActivity(writer http.ResponseWriter, request *http.Request) {
@@ -125,7 +128,7 @@ func loadActivity(entries []webBaseDir, from, to, now time.Time) activityRespons
 					Lifecycle: run.Lifecycle, ExitCode: run.ExitCode, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 					EndsAt: end.Format(time.RFC3339Nano),
 					CWD:    details.WorkingDirectory, Host: details.Host, Sources: details.Sources,
-					NoteCount: details.NoteCount, FirstNote: details.FirstNote,
+					NoteCount: details.NoteCount, FirstNote: details.FirstNote, StartedBy: details.StartedBy,
 				})
 			}
 			if err == nil {

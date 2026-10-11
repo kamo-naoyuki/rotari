@@ -105,6 +105,8 @@ type runListJSON struct {
 	Host      string   `json:"host,omitempty"`
 	Sources   []string `json:"sources,omitempty"`
 	NoteCount int      `json:"note_count"`
+	// StartedBy is how the run was started, absent for older runs.
+	StartedBy *model.StartedBy `json:"started_by,omitempty"`
 }
 
 // cmdRuns lists active and interrupted runs plus recently finished runs across
@@ -186,6 +188,7 @@ func printRunRowsJSON(runs []runlist.Run) int {
 			Lifecycle: run.Lifecycle, ClientStatus: run.ClientStatus, ClientLabel: run.ClientLabel,
 			ExitCode: run.ExitCode, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 			CWD: details.WorkingDirectory, Host: details.Host, Sources: details.Sources, NoteCount: details.NoteCount,
+			StartedBy: details.StartedBy,
 		})
 	}
 	encoder := json.NewEncoder(os.Stdout)

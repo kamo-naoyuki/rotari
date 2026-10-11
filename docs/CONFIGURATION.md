@@ -161,6 +161,15 @@ variable, when one is available. For the per-executor options, such as
 `ROTARI_RUN_<EXECUTOR>_CONCURRENCY`, where `<EXECUTOR>` is the executor in
 upper case, such as `SLURM`.
 
+To mark the runs a code agent starts, set `ROTARI_ACTOR` to a label in the
+agent's own environment, for example `"env": {"ROTARI_ACTOR": "claude-code"}`
+in Claude Code's settings, or in the shell profile it starts with. `run` and
+`retry` record it as the run's actor (`--actor LABEL` overrides it for one
+run), and `rotari mcp` records it for the runs it starts. `show`, `lineage`,
+`runs --json`, the MCP run summary, the Web run page, and the Activity page
+show it; the Activity page can narrow to one actor. rotari never guesses an
+actor: a run without one is unlabelled.
+
 See the [environment variable reference](ENVIRONMENT_VARIABLES.md) for the
 complete definitions and meanings. Use `rotari env` to print the same list with
 values from the current process.

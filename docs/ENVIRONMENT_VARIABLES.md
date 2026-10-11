@@ -40,6 +40,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_EXECUTOR` | yes | yes | yes | Current executor; --executor default. |
 | `ROTARI_EXECUTOR_OPTIONS` | yes | yes | yes | Default scheduler executor options. |
 | `ROTARI_RUN_NAME` | yes | yes | yes | Run name; --run-name default. |
+| `ROTARI_ACTOR` | yes | no | no | Who starts runs, such as an agent's name; --actor default and the actor of runs started through MCP. |
 | `ROTARI_RUN_LOCAL_CONCURRENCY` | yes | yes | yes | Local worker limit; --local-concurrency default. |
 | `ROTARI_RUN_BATCH_CONCURRENCY` | yes | yes | yes | Scheduler submission limit; --batch-concurrency default. |
 | `ROTARI_RUN_SSH_CONCURRENCY` | yes | no | no | SSH worker limit; --ssh-concurrency default. |

@@ -237,6 +237,20 @@
   is `queueops.AddNote` in
   [`internal/queueops/note.go`](../internal/queueops/note.go). Covered by
   [`conformance/02-lifecycle/notes_test.go`](../conformance/02-lifecycle/notes_test.go).
+- **RUN-17** A run records how it was started, as `started_by` in its
+  `context.json`: the interface its request came through (`cli` for `run` and
+  `retry`, `mcp` for `rotari_start_run`), always, and an actor label only
+  when the starter gave one. The CLI takes `--actor LABEL`, else
+  `ROTARI_ACTOR`; `rotari mcp` takes its own `ROTARI_ACTOR`. rotari never
+  detects an agent, and a run without an actor is unlabelled. A label is
+  trimmed, at most 64 characters, and without control characters
+  (`model.NormalizeActor`); an invalid one is rejected before the run starts.
+  `show` for a run and `lineage RUN` print `Started by:`, and `runs --json`,
+  `lineage --json`, the MCP run summary, the Web API run, and
+  `/api/activity` carry `started_by`; the Activity page marks labelled runs
+  and narrows to one actor or to unlabelled runs. Runs from before the record
+  have none. Covered by
+  [`conformance/03-interfaces/started_by_test.go`](../conformance/03-interfaces/started_by_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

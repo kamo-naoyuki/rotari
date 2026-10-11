@@ -19,6 +19,7 @@ const (
 	envExecutor                 = "ROTARI_EXECUTOR"
 	envExecutorOpts             = "ROTARI_EXECUTOR_OPTIONS"
 	envRunName                  = "ROTARI_RUN_NAME"
+	envActor                    = "ROTARI_ACTOR"
 	envRunLocalConc             = "ROTARI_RUN_LOCAL_CONCURRENCY"
 	envRunBatchConc             = "ROTARI_RUN_BATCH_CONCURRENCY"
 	envRunSSHConc               = "ROTARI_RUN_SSH_CONCURRENCY"
@@ -95,6 +96,7 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envExecutor, CLIDefault: true, Job: true, Array: true, Description: "Current executor; --executor default."},
 		{Name: envExecutorOpts, CLIDefault: true, Job: true, Array: true, Description: "Default scheduler executor options."},
 		{Name: envRunName, CLIDefault: true, Job: true, Array: true, Description: "Run name; --run-name default."},
+		{Name: envActor, CLIDefault: true, Description: "Who starts runs, such as an agent's name; --actor default and the actor of runs started through MCP."},
 		{Name: envRunLocalConc, CLIDefault: true, Job: true, Array: true, Description: "Local worker limit; --local-concurrency default."},
 		{Name: envRunBatchConc, CLIDefault: true, Job: true, Array: true, Description: "Scheduler submission limit; --batch-concurrency default."},
 		{Name: envRunSSHConc, CLIDefault: true, Description: "SSH worker limit; --ssh-concurrency default."},

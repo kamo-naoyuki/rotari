@@ -12,6 +12,9 @@ const activityView = {
   busyHours: false,
   expanded: false,
   collapsed: new Set(),
+  // actor narrows the page to runs with that actor label, "" to unlabelled
+  // runs, or null to every run.
+  actor: null,
 };
 const activityLaneLimit = 12;
 const activityProjectColors = 8;
@@ -152,7 +155,8 @@ function renderActivityPage() {
     '<div class="activity-toolbar"><button type="button" class="activity-prev-month" aria-label="Previous month">◀</button>' +
     '<h2 class="activity-month-title"></h2>' +
     '<button type="button" class="activity-next-month" aria-label="Next month">▶</button>' +
-    '<button type="button" class="activity-today">Today</button></div>' +
+    '<button type="button" class="activity-today">Today</button>' +
+    '<label class="activity-actor">Started by <select class="activity-actor-select"></select></label></div>' +
     '<section class="activity-calendar-panel" aria-label="Month calendar"><div class="activity-calendar"></div><div class="activity-calendar-foot"></div></section>' +
     '<section class="activity-day-panel" aria-label="Selected day"><div class="activity-day"></div></section>' +
     '<section class="activity-projects-panel" aria-label="Where you worked"><div class="activity-projects"></div></section>' +
@@ -164,6 +168,12 @@ function renderActivityPage() {
     activityShowMonth(1);
   page.querySelector(".activity-today").onclick = () =>
     activitySelectDay(new Date());
+  page.querySelector(".activity-actor-select").onchange = (event) => {
+    const value = event.target.value;
+    activityView.actor = value === "*" ? null : value === "-" ? "" : value;
+    activityView.expanded = false;
+    activityDraw();
+  };
   activityFollowPointer(page);
   const params = new URLSearchParams(location.search);
   const day = params.get("day");
@@ -298,12 +308,45 @@ async function activitySelectDay(day) {
 function activityDraw() {
   const page = document.querySelector(".activity-page");
   if (!page || !activityView.data) return;
-  const runs = activityRuns(activityView.data);
-  const colors = activityColors(runs, activityView.month);
+  const all = activityRuns(activityView.data);
+  // Colours come from every run, so narrowing by actor repaints nothing.
+  const colors = activityColors(all, activityView.month);
+  const runs =
+    activityView.actor === null
+      ? all
+      : all.filter(
+          (run) => (run.started_by?.actor || "") === activityView.actor,
+        );
+  activityDrawActors(page, all);
   activityDrawProblems(page);
   activityDrawCalendar(page, runs, colors);
   activityDrawDay(page, runs, colors);
   activityDrawProjects(page, runs, colors);
+}
+// activityDrawActors offers every actor label among the loaded runs, and
+// unlabelled runs; a run without an actor is unlabelled, never a person's.
+function activityDrawActors(page, runs) {
+  const actors = [
+    ...new Set(runs.map((run) => run.started_by?.actor).filter(Boolean)),
+  ].sort();
+  if (activityView.actor && !actors.includes(activityView.actor))
+    actors.push(activityView.actor);
+  const selected =
+    activityView.actor === null
+      ? "*"
+      : activityView.actor === ""
+        ? "-"
+        : activityView.actor;
+  page.querySelector(".activity-actor-select").innerHTML =
+    '<option value="*">all runs</option>' +
+    actors
+      .map(
+        (actor) =>
+          '<option value="' + esc(actor) + '">' + esc(actor) + "</option>",
+      )
+      .join("") +
+    '<option value="-">unlabelled</option>';
+  page.querySelector(".activity-actor-select").value = selected;
 }
 function activityDrawProblems(page) {
   const notes = [];
@@ -521,7 +564,9 @@ function activityDrawDay(page, runs, colors) {
     container.innerHTML =
       notice +
       head +
-      '<div class="meta activity-empty">No runs on this day.</div>';
+      '<div class="meta activity-empty">No runs on this day' +
+      (activityView.actor === null ? "" : " for this actor") +
+      ".</div>";
     activityBindDay(container, day);
     return;
   }
@@ -657,6 +702,11 @@ function activityDrawDay(page, runs, colors) {
                 (run.lifecycle === "running" ? "now" : activityClock(run.end)),
             ) +
             '">' +
+            (run.started_by?.actor
+              ? '<span class="activity-actor-mark" title="' +
+                esc(run.started_by.actor) +
+                '">◆</span>'
+              : "") +
             esc(run.run_name || run.run_id) +
             "</a>"
           );
@@ -690,7 +740,7 @@ function activityDrawDay(page, runs, colors) {
   container.innerHTML =
     notice +
     head +
-    '<div class="activity-key meta"><span><i class="tone-ok"></i>finished</span><span><i class="tone-bad"></i>failed</span><span><i class="tone-warn"></i>interrupted</span><span><i class="tone-run"></i>running</span><span>‹ › continues from or into another day</span></div>' +
+    '<div class="activity-key meta"><span><i class="tone-ok"></i>finished</span><span><i class="tone-bad"></i>failed</span><span><i class="tone-warn"></i>interrupted</span><span><i class="tone-run"></i>running</span><span>◆ has an actor label</span><span>‹ › continues from or into another day</span></div>' +
     '<div class="activity-timeline-scroll"><div class="activity-timeline">' +
     rows +
     "</div></div>" +
@@ -845,6 +895,9 @@ function activityFollowPointer(page) {
           "</dd>"
         : "") +
       (run.host ? "<dt>Host</dt><dd>" + esc(run.host) + "</dd>" : "") +
+      "<dt>Started by</dt><dd>" +
+      esc(run.started_by ? startedByLabel(run.started_by) : "not recorded") +
+      "</dd>" +
       (run.sources && run.sources.length
         ? '<dt>Source</dt><dd class="activity-mono">' +
           run.sources.map(esc).join("<br>") +

@@ -2193,6 +2193,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
+                    "description": "who starts the run, such as an agent's name; "
+                    "recorded with the run and shown by show, "
+                    "runs, lineage, and the Web Activity page",
+                    "environment": "ROTARI_ACTOR",
+                    "name": "actor",
+                    "value_name": "LABEL",
+                },
+                {
                     "command_line_only": True,
                     "description": "why this run is made; recorded with the run "
                     "and shown by show and lineage; add more "
@@ -2632,6 +2640,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_RUN_NAME",
                     "name": "run-name",
                     "value_name": "NAME",
+                },
+                {
+                    "description": "who starts the run, such as an agent's name; "
+                    "recorded with the run and shown by show, "
+                    "runs, lineage, and the Web Activity page",
+                    "environment": "ROTARI_ACTOR",
+                    "name": "actor",
+                    "value_name": "LABEL",
                 },
                 {
                     "command_line_only": True,
@@ -3261,6 +3277,14 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Run name; --run-name default.",
             "job": True,
             "name": "ROTARI_RUN_NAME",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Who starts runs, such as an agent's name; --actor "
+            "default and the actor of runs started through MCP.",
+            "job": False,
+            "name": "ROTARI_ACTOR",
         },
         {
             "array": True,

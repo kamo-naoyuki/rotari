@@ -900,6 +900,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		clientStatus = model.RunClientStatus{State: "unknown"}
 	}
 	fmt.Printf("%s %s\n%s %s\n", cyan("Lifecycle:"), colorRunLifecycle(lifecycle), cyan("Client:"), colorClientStatus(runview.ClientStatusLabel(clientStatus)))
+	if startedBy, err := state.LoadRunStartedBy(jsonStore(), runDir); err != nil {
+		fmt.Printf("%s unreadable (%v)\n", cyan("Started by:"), err)
+	} else if startedBy != nil {
+		fmt.Printf("%s %s\n", cyan("Started by:"), startedBy.Label())
+	}
 	if summaryOK {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}

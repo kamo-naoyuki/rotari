@@ -447,6 +447,9 @@ func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid runlineage.Gr
 func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runlineage.RunSummary) {
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	fmt.Fprintf(writer, "%s %s\n", cyan("Run:"), model.RunLabel(summary.Run.ID, summary.Run.Name))
+	if summary.Run.StartedBy != nil {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Started by:"), summary.Run.StartedBy.Label())
+	}
 	for _, source := range summary.Run.Sources {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Source:"), model.SourceLabel(source))
 	}

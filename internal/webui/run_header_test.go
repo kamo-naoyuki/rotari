@@ -39,7 +39,7 @@ setTimeout(() => {
     const run = {
       run_id: 'run-1', run_name: 'try1', status: 'failed', lifecycle: 'failed', exit_code: 1,
       started_at: '2026-10-11 05:52:22 JST', finished_at: '2026-10-11 05:52:23 JST', cwd: '/work',
-      context: { hostname: 'node7', load_samples: [{ at: '2026-10-11T05:52:22Z', one: 1.5, five: 2, fifteen: 2.25 }] },
+      context: { hostname: 'node7', started_by: { interface: 'cli', actor: 'claude-code' }, load_samples: [{ at: '2026-10-11T05:52:22Z', one: 1.5, five: 2, fifteen: 2.25 }] },
       notes: [
         { at: '2026-10-11T05:52:00Z', text: 'Raise the **beam** to 8 <script>' },
         { at: '2026-10-11T05:53:00Z', job_id: 'j2', text: 'job note' },
@@ -60,7 +60,7 @@ setTimeout(() => {
     assert.equal(title.firstChild.textContent.trim(), 'try1');
     assert(title.querySelector('.status-pill.tone-bad'), 'the title has no status pill');
     const summary = document.getElementById('summary').textContent;
-    for (const want of ['Run ID: run-1', 'Status: failed', 'Lifecycle: failed', 'Host: node7', 'Working directory: /work', 'Started: 2026-10-11 05:52:22 JST']) {
+    for (const want of ['Run ID: run-1', 'Status: failed', 'Lifecycle: failed', 'Host: node7', 'Started by: cli · claude-code', 'Working directory: /work', 'Started: 2026-10-11 05:52:22 JST']) {
       assert(summary.includes(want), 'facts lack ' + want + ': ' + summary);
     }
     const notes = [...document.querySelectorAll('#app .run-note')];

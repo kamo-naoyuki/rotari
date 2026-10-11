@@ -9,6 +9,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	rotarimcp "github.com/kamo-naoyuki/rotari/internal/mcp"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -33,7 +34,14 @@ func cmdMCP(args []string) int {
 		printErrorf("failed to resolve master directory: %v", err)
 		return 1
 	}
-	options := rotarimcp.Options{NewJobID: makeJobID, StartRun: startRunForMCP}
+	// An agent marks the runs it starts through MCP by setting ROTARI_ACTOR
+	// in the environment it starts this server with.
+	actor, err := model.NormalizeActor(os.Getenv(envActor))
+	if err != nil {
+		printErrorf("invalid %s: %v", envActor, err)
+		return 1
+	}
+	options := rotarimcp.Options{NewJobID: makeJobID, StartRun: startRunForMCP, Actor: actor}
 	if err := mcpStdioError(rotarimcp.NewServer(masterDir, options).Run(context.Background(), &mcpsdk.StdioTransport{})); err != nil {
 		printErrorf("MCP server failed: %v", err)
 		return 1

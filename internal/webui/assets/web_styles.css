@@ -2739,6 +2739,18 @@ pre,
   position: absolute;
   right: 3px;
 }
+.activity-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.activity-actor-mark {
+  margin-right: 3px;
+  font-size: 10px;
+}
 .activity-more {
   margin-top: 10px;
 }

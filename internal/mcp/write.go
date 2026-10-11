@@ -32,6 +32,9 @@ type Options struct {
 	// StartRun starts a supervisor for paths' project and sends it request,
 	// returning its response. Without it, runs cannot be started.
 	StartRun func(paths state.ProjectPaths, request server.Request) (server.Response, error)
+	// Actor labels the runs this server starts (ROTARI_ACTOR); empty leaves
+	// them unlabelled.
+	Actor string
 }
 
 type ImportInput struct {
@@ -246,6 +249,7 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 	response, err := tools.options.StartRun(paths, server.Request{
 		Op: server.OpRun, QueueName: paths.ProjectName, LocalConcurrency: 8, BatchMaxActive: 8, Async: true,
 		RunName: input.RunName, Note: note, EnvMode: model.EnvModeAll, CWD: cwd,
+		StartedBy: &model.StartedBy{Interface: model.StartedByMCP, Actor: tools.options.Actor},
 		Selection: request.Selection, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray, MatchBy: request.MatchBy,
 		SourcePolicy: string(request.SourcePolicy),
 		IfRevision:   input.IfRevision,

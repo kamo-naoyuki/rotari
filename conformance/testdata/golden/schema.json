@@ -1414,6 +1414,10 @@
           "value_name": "NAME"
         },
         {
+          "name": "actor",
+          "value_name": "LABEL"
+        },
+        {
           "name": "note",
           "value_name": "TEXT"
         },
@@ -1695,6 +1699,10 @@
         {
           "name": "run-name",
           "value_name": "NAME"
+        },
+        {
+          "name": "actor",
+          "value_name": "LABEL"
         },
         {
           "name": "note",

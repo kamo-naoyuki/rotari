@@ -71,12 +71,8 @@ func Summary(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if err != nil {
 		return runlineage.RunSummary{}, err
 	}
-	info := runlineage.RunInfo{ID: run.ID, Name: run.Name, Notes: run.Notes}
-	if run.Sources != nil {
-		info.Sources = run.Sources.Sources
-	}
 	return runlineage.RunSummary{
-		Run:       info,
+		Run:       runlineage.Info(run),
 		Counts:    runlineage.Summarize(run),
 		Diagnoses: runlineage.SummarizeDiagnoses(run),
 		Failures:  runlineage.FailureGroups(run),

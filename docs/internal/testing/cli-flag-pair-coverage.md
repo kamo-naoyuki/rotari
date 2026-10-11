@@ -214,7 +214,7 @@ invocations; one run took 43s on the edit loop alone.
 The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
 pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to
 list every `run` option it takes (61 flags, as `run` had then; 62 with
-`--note`). This excludes actual
+`--note`, 63 with `--actor`). This excludes actual
 execution, supervisor/async lifecycle, scheduler submission, and host effects.
 
 ## Remaining observation gaps

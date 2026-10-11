@@ -33,13 +33,15 @@ type Request struct {
 	// commands it prints for this project (CLI-22); empty names --basedir.
 	HintLocation string `json:"hint_location,omitempty"`
 	// LaunchOrigin is the process that ran the requesting rotari command.
-	LaunchOrigin    *model.LaunchOrigin `json:"launch_origin,omitempty"`
-	Quiet           bool                `json:"quiet,omitempty"`
-	Executor        string              `json:"executor,omitempty"`
-	ExecutorOptions []string            `json:"executor_options,omitempty"`
-	EnvMode         string              `json:"env_mode,omitempty"`
-	JobIDs          []string            `json:"job_ids,omitempty"`
-	Selection       string              `json:"selection,omitempty"`
+	LaunchOrigin *model.LaunchOrigin `json:"launch_origin,omitempty"`
+	// StartedBy is the interface and actor label of the requester.
+	StartedBy       *model.StartedBy `json:"started_by,omitempty"`
+	Quiet           bool             `json:"quiet,omitempty"`
+	Executor        string           `json:"executor,omitempty"`
+	ExecutorOptions []string         `json:"executor_options,omitempty"`
+	EnvMode         string           `json:"env_mode,omitempty"`
+	JobIDs          []string         `json:"job_ids,omitempty"`
+	Selection       string           `json:"selection,omitempty"`
 	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix, and
 	// Filter narrows it further.
 	ScopeStage   string           `json:"scope_stage,omitempty"`

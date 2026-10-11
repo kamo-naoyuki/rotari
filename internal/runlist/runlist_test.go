@@ -286,7 +286,7 @@ func TestReadDetails(t *testing.T) {
 	paths := writeListsRun(t, baseDir, "demo", "run-full")
 	writeListsRun(t, baseDir, "demo", "run-bare")
 	runDir := filepath.Join(paths.RunsDir, "run-full")
-	if err := state.WriteJSON(filepath.Join(runDir, "context.json"), model.RunContext{CWD: "/work/repo", Hostname: "node7"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(runDir, "context.json"), model.RunContext{CWD: "/work/repo", Hostname: "node7", StartedBy: &model.StartedBy{Interface: model.StartedByCLI, Actor: "codex"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := state.SaveRunSources(runDir, model.RunSources{Sources: []model.SourceRevision{
@@ -320,6 +320,7 @@ func TestReadDetails(t *testing.T) {
 		WorkingDirectory: "/work/repo", Host: "node7",
 		Sources:   []string{"git 0123456789ab (clean) in /work/repo", "jj fedcba987654 (change zyxwvutsrqpo) in /work/lib"},
 		NoteCount: 2, FirstNote: "Raise the beam",
+		StartedBy: &model.StartedBy{Interface: model.StartedByCLI, Actor: "codex"},
 	}
 	if !reflect.DeepEqual(details, want) {
 		t.Fatalf("details = %#v, want %#v", details, want)
