@@ -1,7 +1,7 @@
 # Plan: Recent Activity View in the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phases 1–2 done; Phase 3 (`started_by`, the actor filter) next
+**Status:** Done (2026-10-11). Phases 1–3 complete; see [work-log.md](work-log.md).
 **Related:** [Shared experiment record](../2026-10-10-shared-experiment-record/plan.md) (candidate "marking whether a run was started by an agent")
 
 ## Purpose

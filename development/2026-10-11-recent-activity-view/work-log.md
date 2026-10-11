@@ -108,3 +108,17 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** a live server over two basedirs (the demo state and a five-job run) checked in light, dark, and at 390px (no sideways page scroll); the static export opened from disk shows the exported basedir's runs and its notice. `go test ./internal/runlist ./internal/webui ./conformance/05-web`, `TestContractStatus`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before each commit.
 
 **Remaining:** Phase 3 (`started_by` and the actor filter).
+
+## Phase 3: how a run was started
+
+- `d862b4e4` (2026-10-12 00:00:58 +0900): `started_by` and the actor filter.
+
+**Change:**
+- `model.StartedBy` (`interface`, optional `actor`), `NormalizeActor` (trimmed, at most 64 characters, no control characters), and `Label`; `RunContext.StartedBy`. The request (`server.Request.StartedBy`) carries it through `projectrun.Start` to `WriteContext`.
+- CLI: `--actor LABEL` on `run` and `retry`, defaulting to the new `ROTARI_ACTOR`; interface `cli`. `rotari mcp` reads its own `ROTARI_ACTOR` (`mcp.Options.Actor`); interface `mcp`. The Web UI starts no runs, so no `web` interface is recorded.
+- Shown by `show` for a run and `lineage RUN` (`Started by:`), `runs --json`, `lineage --json` and the MCP run summary (`runlineage.RunInfo.StartedBy`; `runview.Summary` now uses `runlineage.Info`, which also gives the MCP summary its elapsed time), the Web run page facts, and `/api/activity`. The Activity page marks labelled runs (◆), shows Started by in the hover card, and narrows to one actor or to unlabelled runs, keeping project colours.
+- New contract rule RUN-17 with `TestRunRecordsHowItWasStarted` (conformance: CLI unlabelled, from the environment, `--actor` over the environment, an invalid label, and an MCP start; `show`, `lineage`, and the MCP summary). `conformance/support.Env.Setenv` added for it. The run/retry flag-pair inventory and samples include `--actor`; the golden schema, CLI and environment references, and the Python client are regenerated. `docs/CONFIGURATION.md` explains marking an agent's runs.
+
+**Plan impact:** the plan is done.
+
+**Validation:** `go test ./internal/model ./internal/runlist ./internal/webui ./cmd/rotari`, `go test ./conformance/03-interfaces/...` (flag pairs included), `TestContractStatus`, the generated-doc checks, pre-commit, and the full `scripts/check.sh` passed before the commit.
