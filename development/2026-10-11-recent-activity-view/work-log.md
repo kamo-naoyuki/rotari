@@ -89,3 +89,22 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `go test ./internal/runlist ./cmd/rotari`, `go test ./conformance/...` unchanged and passing after `a54fb30f`, pre-commit, and the full `scripts/check.sh` before each commit.
 
 **Remaining:** Phases 2–3.
+
+## Phase 2: the Activity API and page
+
+- `a5c3d379` (2026-10-11 23:08:51 +0900): `/api/activity`.
+- `9ddee467` (2026-10-11 23:37:59 +0900): the Activity page.
+
+**Change:**
+- `runlist.Run.Span` and `Overlapping`: a run spans its start to its finish, to now while running, and only its start when it recorded no finish.
+- `GET /api/activity?from=&to=` (`internal/webui/activity.go`): runs of every registered basedir meeting the range, with `runlist.ReadDetails` facts and `ends_at` (the span end); missing basedirs marked, unreadable ones carry their error; missing, malformed, reversed, or over-45-day ranges rejected with 400. New contract rule WEB-10 with `TestActivityListsRunsAcrossRegisteredBasedirs` (conformance) and `TestActivityListsRunsAcrossBasedirs`, `TestActivityRejectsBadRanges`.
+- `web_app_activity.js`: the page as designed in the plan and mockup (month calendar, day timeline grouped by basedir, Where you worked, hover card, fallback to the latest day with runs, `?day=` / `?month=` in the URL). New tokens `--c6`–`--c8` complete eight project colours, checked with the dataviz palette validator in both themes (the adjacent CVD separation of `--c6`/`--c7` is in the 6–8 band, acceptable because project colours always sit beside names). Views gains Activity in both sidebars.
+- Static export: `staticActivity` embeds every run of the exported basedir (`__ROTARI_STATIC_ACTIVITY__`), `activity/index.html` is written, and the static router treats `/activity/` as a top-level page like `/search/`; the page says it shows one basedir.
+- Tests: `TestActivityPage` (jsdom), `TestStaticExportIncludesActivity`, `TestSpanAndOverlapping`; `TestWebHTMLRendersState` expects Activity before History search under Views.
+- Docs: WEB-10 and the page paragraph in `contracts/05-web-assets-and-static-export.md`, `contracts/README.md`, `docs/FAQ.md` (Where did I run jobs recently?), `docs/ARCHITECTURE.md` (the activity API).
+
+**Plan impact:** Phase 2 done. Deviations: the actor filter waits for Phase 3; "Where you worked" covers the loaded calendar weeks up to the selected day rather than a fixed 30 days; `scripts/web-structure.sh` does not compare the Activity page, whose static view intentionally shows one basedir.
+
+**Validation:** a live server over two basedirs (the demo state and a five-job run) checked in light, dark, and at 390px (no sideways page scroll); the static export opened from disk shows the exported basedir's runs and its notice. `go test ./internal/runlist ./internal/webui ./conformance/05-web`, `TestContractStatus`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` passed before each commit.
+
+**Remaining:** Phase 3 (`started_by` and the actor filter).
