@@ -1,7 +1,7 @@
 # Plan: Visual Refresh of the Web UI
 
 **Created:** 2026-10-11
-**Status:** Phases 0–3 done; Phase 4 next
+**Status:** Phases 0–3 done; Phase 4 in progress (run page body done except its toolbar)
 **Related:** [Recent activity view](../2026-10-11-recent-activity-view/plan.md), whose mockup the user liked and asked to carry over to the rest of the Web UI
 
 ## Purpose

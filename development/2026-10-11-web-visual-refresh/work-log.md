@@ -169,3 +169,30 @@ Entries group cohesive changes. Times are Git commit times.
 **Validation:** `go test ./internal/webui ./cmd/rotari`, `npm run typecheck`, pre-commit, and `scripts/check.sh --short` passed before the commits. `scripts/web-structure.sh` on the shared demo state: every table identical to the end of Phase 2; toolbars, headings, and the Job activity title changed as intended. `scripts/screenshot-web.sh` on that state: no phone capture wider than 390px (10 of 12 were before); desktop and phone captures inspected in light and dark. After `7e3e7bef`, the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0.
 
 **Remaining:** Phase 4 (page bodies), which also rebuilds the run toolbar, run detail lines, runtime panel, and config buttons still assembled after rendering.
+
+## Phase 4: page bodies (in progress)
+
+- `1b5d2116` (2026-10-11 08:50:34 +0900): a run's wall time in the Web's run summary.
+- `141fb9fc` (2026-10-11 08:50:35 +0900): the run page's header, facts, notes, and summary cards.
+- `2be715fe` (2026-10-11 08:54:50 +0900): each job's and attempt's elapsed time in the Web's run data.
+- `bbfb654f` (2026-10-11 17:58:29 +0900): the dashed frame around every page body removed.
+- `7b08f2f1` (2026-10-11 17:58:29 +0900): the run page's jobs table.
+
+**Change:**
+- `internal/runlineage`: `Info` exported, so the Web's lineage summary carries `elapsed` like the CLI's. `internal/jobstatus`: `Elapsed` split out of `MeasureRunTime`; `internal/web` sets `Job.Elapsed` and `Attempt.Elapsed` with it before formatting display times.
+- Run page top: title with a status pill, a facts line, the run's own notes as Markdown, the retry command, and the four cards (Jobs with a result bar, Failure causes, Wall time, Load at end).
+- `#app` lost the `.empty` class it was created with, which had framed every page body in a dashed, padded box ("boxes inside boxes" in the plan).
+- Jobs table (`runJobsHTML`, `runJobCells`, `runJobActions` in `web_app_core.js`): the selection box first, then Job (name, carried-from line, and the command under it), Status, Exit, Attempt (last 15 characters, full ID in the title and copy), Job ID, Hosts, Executor, Executor options, Stage, Dependencies, Working directory, Started, Finished, Duration, and the actions last. Same-for-all columns and Finished start hidden; the Columns menu (`setRunColumn`, `rotari-run-columns` in localStorage) overrides. Started and Finished drop the date on the run's start date. Actions: Log, Diagnosis on failed jobs, Notes when present, and a "⋯" menu with Report, Path, Artifacts, and the disabled Notes of a job without notes.
+- One popup-menu state (`openPopupMenus`, `popupMenuAttributes`, `closePopupMenus`) replaces the attempt menu's; open menus are placed in the viewport (`placePopupMenu`) so `#app`'s sideways scrolling does not clip them, including the attempt menu, which it clipped before.
+- `clampLongTableCells` also clamps `[data-clamp]` elements (the command under the name, two lines); `sortTable` reads `data-sort-value` (name, attempt, Duration in seconds, full times). Run sections are inserted before the Jobs heading; the run toolbar sits right above the table.
+- Labels: "View log" is "Log" and "Exit / error" is "Exit" in the run table; the queue table keeps its labels.
+- Tests: new `TestLineageSummaryCarriesElapsed`, `TestFormatQueueDisplayTimesSetsElapsed`, `TestWebRunPageHeader`, and `TestWebRunJobsTable`. With the same intent: `TestWebRunViewClampsLongCells` finds the command under the name; the attempt-selection test checks the identity columns are distinct rather than adjacent; marker tests follow `openPopupMenus`, `closePopupMenus`, the diagnosis control, and the Hosts column definition; a queue marker that had matched the run table's read-only working-directory cell was dropped. Conformance WEB-9 reads row actions from `td.actions` instead of the first cell.
+- Docs: `contracts/05-web-assets-and-static-export.md` (actions cell position, the jobs table paragraph, the two-line command clamp, WEB-5 wording), `docs/INSPECT.md` (Artifacts and Notes in the row), `docs/FAQ.md` (Report in the row menu).
+
+**Reason:** Phase 4 of the plan, starting with the run page as in the approved Phase 1 mockup.
+
+**Plan impact:** The run page body is done except its toolbar, which still renders as large two-line buttons that overflow the content width; it is the next step, followed by the project, overview, Job activity, and search page bodies.
+
+**Validation:** At 1400×1000 the demo's shards run table measured 1205px in a 1053px body before the widths were tuned, and fits after; desktop light and dark, phone, and both menus open were inspected in headless Chrome. `scripts/web-structure.sh` on the shared demo state: non-run pages differ from `after-p4a` only by the removed `.empty` container; run pages show the new table and a Jobs heading; static and live pages agree as before (the overview's live "—" queued counts excepted). `go test ./internal/webui ./cmd/rotari ./conformance/05-web`, `npm run typecheck`, pre-commit, and the full `scripts/check.sh` (vet, type check, tests, race detector) passed with exit 0 before `7b08f2f1`.
+
+**Remaining:** run toolbar; Job timeline open by default with other sections remembering their state; project, overview, Job activity, and search page bodies; runtime panel; config buttons.
