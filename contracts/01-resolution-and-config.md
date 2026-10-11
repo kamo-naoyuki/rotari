@@ -201,6 +201,19 @@ Other non-location option defaults remain applicable to aggregate views.
   `state.ResolveBaseDir` and `state.ResolveMasterDir` in
   [internal/state/config.go](../internal/state/config.go); checked by
   `TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory`.
+- **RES-27** A job carried into a run shows the log of the attempt that
+  produced its result, however many runs it was carried through: `show` for
+  the job, `show --logs`, `show --follow`, the Web API's `/api/log` and
+  output word cloud, and the run page's Log and Artifacts buttons, which ask
+  for the job in the run being viewed. `show --logs`, `--follow`, and the Web
+  find that attempt through `jobstatus.ResultAttemptDir` in
+  [internal/jobstatus/facts.go](../internal/jobstatus/facts.go), as
+  `FilterJob` and the run report (WEB-8) do. `show` for the job walks the
+  same carries one run at a time and notes each run it was carried through,
+  so the path to the attempt is visible. `--follow` reads the merged
+  `output` log when the job wrote one, carried or not. Checked by `TestCarriedJobLogsFollowEveryCarry` in
+  [conformance/05-web/carried_logs_test.go](../conformance/05-web/carried_logs_test.go),
+  three carries deep.
 
 Implementation and tests for these rules:
 

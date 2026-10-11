@@ -19,6 +19,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -1861,15 +1862,31 @@ func webLogPath(runsDir, runID, jobID, attemptID, stream string) (string, error)
 		}
 		return validatedLogPath(jobDir, stream)
 	}
-	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
-	if err != nil {
-		return "", err
-	}
-	jobDir, err := stateinternal.LatestAttemptJobDir(runDir, resolvedJobID)
+	jobDir, err := webLogJobDir(runsDir, runID, jobID)
 	if err != nil {
 		return "", err
 	}
 	return validatedLogPath(jobDir, stream)
+}
+
+// webLogJobDir is the attempt whose log a job of runID shows: its latest
+// attempt in the run, or for a job carried into the run, the attempt that
+// produced its result, however many carries back
+// (jobstatus.ResultAttemptDir).
+func webLogJobDir(runsDir, runID, jobID string) (string, error) {
+	runDir, err := stateinternal.SafeJoin(runsDir, runID)
+	if err != nil {
+		return "", err
+	}
+	if attemptID, err := stateinternal.LatestAttemptID(runDir, jobID); err == nil && attemptID != "" {
+		return stateinternal.LatestAttemptJobDir(runDir, jobID)
+	}
+	if origin := stateinternal.LoadRunOrigin(runDir, jobID); origin != nil {
+		if dir := jobstatus.ResultAttemptDir(runsDir, *origin); dir != "" {
+			return dir, nil
+		}
+	}
+	return stateinternal.LatestAttemptJobDir(runDir, jobID)
 }
 
 func validatedLogPath(jobDir, stream string) (string, error) {
@@ -1883,26 +1900,6 @@ func validatedLogPath(jobDir, stream string) (string, error) {
 		return "", statErr
 	}
 	return stateinternal.ValidatedStateFile(jobDir, stream)
-}
-
-func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
-	runDir, err := stateinternal.SafeJoin(runsDir, runID)
-	if err != nil {
-		return "", "", err
-	}
-	attemptID, attemptErr := stateinternal.LatestAttemptID(runDir, jobID)
-	if attemptErr == nil && attemptID != "" {
-		return runDir, jobID, nil
-	}
-	origin := stateinternal.LoadRunOrigin(runDir, jobID)
-	if origin == nil {
-		return runDir, jobID, nil
-	}
-	originRunDir, err := stateinternal.SafeJoin(runsDir, origin.RunID)
-	if err != nil {
-		return "", "", err
-	}
-	return originRunDir, origin.JobID, nil
 }
 
 func staticReportKey(projectName, runID, jobID string) string {

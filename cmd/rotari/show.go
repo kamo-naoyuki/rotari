@@ -1837,17 +1837,8 @@ func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, n
 		fmt.Fprintf(writer, "Working directory: %s\n", workingDirectory)
 	}
 	fmt.Fprintf(writer, "Command: %s\n", strings.Join(command, " "))
-	originRunDir, err := state.SafeJoin(paths.RunsDir, origin.RunID)
-	if err != nil {
-		return
-	}
-	var originDir string
-	if origin.AttemptID != "" {
-		originDir, err = state.SpecificAttemptJobDir(originRunDir, origin.JobID, origin.AttemptID)
-	} else {
-		originDir, err = state.LatestAttemptJobDir(originRunDir, origin.JobID)
-	}
-	if err != nil {
+	originDir := jobstatus.ResultAttemptDir(paths.RunsDir, *origin)
+	if originDir == "" {
 		return
 	}
 	printJobStreams(writer, originDir, selectedStreamNames(selectedStreams...), tail)
@@ -1877,20 +1868,11 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID, atte
 	if attemptID == "" && (attemptErr != nil || latestAttemptID == "") {
 		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			originRunDir, pathErr := state.SafeJoin(paths.RunsDir, origin.RunID)
-			if pathErr != nil {
-				return 0
-			}
-			var originDir string
-			if origin.AttemptID != "" {
-				originDir, err = state.SpecificAttemptJobDir(originRunDir, origin.JobID, origin.AttemptID)
-			} else {
-				originDir, err = state.LatestAttemptJobDir(originRunDir, origin.JobID)
-			}
-			if err == nil {
-				originOutput, readErr := os.ReadFile(filepath.Join(originDir, stream))
-				if readErr == nil {
-					_, _ = writer.Write(originOutput)
+			if originDir := jobstatus.ResultAttemptDir(paths.RunsDir, *origin); originDir != "" {
+				if path, err := followLogPath(originDir, stream); err == nil {
+					if originOutput, readErr := os.ReadFile(path); readErr == nil {
+						_, _ = writer.Write(originOutput)
+					}
 				}
 			}
 			return 0
@@ -1914,14 +1896,8 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID, atte
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	outputPath := filepath.Join(jobDir, stream)
-	mergedOutputPath := filepath.Join(jobDir, "output")
-	if _, err := os.Stat(mergedOutputPath); err == nil {
-		// The default log mode stores stdout and stderr together in output.
-		// showJobAttempt reads this file regardless of the selected stream;
-		// follow must read it too for flushed output to appear while following.
-		outputPath = mergedOutputPath
-	} else if !os.IsNotExist(err) {
+	outputPath, err := followLogPath(jobDir, stream)
+	if err != nil {
 		printErrorf("failed to read job log: %v", err)
 		return 1
 	}
@@ -2082,4 +2058,18 @@ func writeRunNotes(writer io.Writer, notes []model.RunNote, specs map[string]mod
 // already carries the task number, or empty to fall back to the job ID.
 func noteJobLabel(spec model.JobSpec) string {
 	return spec.Name
+}
+
+// followLogPath is the file follow reads for stream in an attempt: the
+// default log mode stores stdout and stderr together in output, which
+// showJobAttempt reads regardless of the selected stream, so follow reads it
+// too when it exists.
+func followLogPath(jobDir, stream string) (string, error) {
+	merged := filepath.Join(jobDir, "output")
+	if _, err := os.Stat(merged); err == nil {
+		return merged, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	return filepath.Join(jobDir, stream), nil
 }

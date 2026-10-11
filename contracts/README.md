@@ -145,6 +145,7 @@ the IDs, this table, and those calls disagree.
 | RES-24 | Init writes a cwd config template with relative basedir and project defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestWorkspaceInitDefaultTemplate` |
 | RES-25 | Runs save immutable canonical merged file values, separate from runtime overrides and source metadata | partial | `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
 | RES-26 | List commands ignore implicit location defaults; jobs/runs/projects scan known basedirs by default, and show requires a uniquely selected detail target | conformance | `TestAggregateCommandsIgnoreImplicitLocationDefaults` |
+| RES-27 | A carried job shows the log of the attempt that produced its result, however many carries back, in `show`, `--logs`, `--follow`, `/api/log`, the word cloud, and the run page | conformance | `TestCarriedJobLogsFollowEveryCarry` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |

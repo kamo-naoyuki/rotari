@@ -113,11 +113,12 @@ func buildOutputWordCloud(runsDir, runID string, jobs []webprojection.Job) (outp
 }
 
 func readOutputWordCloudJob(runsDir, runID string, job webprojection.Job, counts map[string]int) (int64, map[string]bool, error) {
-	logRun, logJob, attemptID := runID, job.ID, job.AttemptID
+	// A carried job's log is found from this run, which follows every carry.
+	attemptID := job.AttemptID
 	if job.Origin != nil && (attemptID == "" || attemptID == job.Origin.AttemptID) {
-		logRun, logJob, attemptID = job.Origin.RunID, job.Origin.JobID, ""
+		attemptID = ""
 	}
-	path, err := webLogPath(runsDir, logRun, logJob, attemptID, stateinternal.StdoutFileName)
+	path, err := webLogPath(runsDir, runID, job.ID, attemptID, stateinternal.StdoutFileName)
 	if err != nil {
 		return 0, nil, nil
 	}

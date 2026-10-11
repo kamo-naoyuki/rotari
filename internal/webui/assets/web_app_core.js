@@ -2008,10 +2008,13 @@ function runJobCells(q, run, runID, j) {
 // in a "⋯" menu.
 function runJobActions(q, run, runID, j) {
   const result = j.result;
+  // A carried job's log and artifacts are asked for in this run without an
+  // attempt; the server follows every carry to the attempt that produced
+  // the result (jobstatus.ResultAttemptDir).
   const carried =
     j.origin && (!j.attempt_id || j.attempt_id === (j.origin.attempt_id || ""));
-  const logRun = carried ? j.origin.run_id : runID;
-  const logJob = carried ? j.origin.job_id : j.id;
+  const logRun = runID;
+  const logJob = j.id;
   const logAttemptID = carried ? "" : j.attempt_id;
   const jobData =
     ' data-project="' +
