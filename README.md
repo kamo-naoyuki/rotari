@@ -28,9 +28,6 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 
 ## Manage jobs, logs, and outputs in one place
 
-People and AI agents can use rotari to submit jobs, follow logs, and inspect
-outputs.
-
 - **A web UI for every run.** Follow job status, browse logs, and
   inspect artifacts in one place.
 - **Logs stay organized and easy to find.** Logs are kept with each workspace,
@@ -44,6 +41,8 @@ outputs.
   Slack.
 - **Follow outputs from command to artifact.** Rotari detects likely artifacts
   from job commands and lets you inspect their contents in the Web UI.
+- **For people and AI agents.** Submit jobs, follow logs, and inspect outputs
+  with rotari.
 
 ## How is rotari different?
 
