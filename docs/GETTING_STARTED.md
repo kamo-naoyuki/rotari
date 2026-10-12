@@ -2,6 +2,9 @@
 
 ## Manage jobs, logs, and outputs in one place
 
+People and AI agents can use rotari to submit jobs, follow logs, and inspect
+outputs.
+
 - **A web UI for every run.** Follow job status, browse logs, and
   inspect artifacts in one place.
 - **Logs stay organized and easy to find.** Logs are kept with each workspace,
