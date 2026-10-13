@@ -133,31 +133,11 @@ The job starts in `~/exp`, the directory `rotari run` was started from (see
 [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment)),
 so that directory must be on a file system the compute node shares.
 
-The job's command runs from a non-interactive `/bin/sh` that reads no shell
-startup files, so `conda activate` and `micromamba activate`, which are shell
-functions defined there, are not available. Use one of these instead:
-
-* Run the command through the environment, as above, with
-  `micromamba run -n ENV COMMAND` or
-  `conda run -n ENV --no-capture-output COMMAND`. Without
-  `--no-capture-output`, `conda run` holds the command's output until it
-  exits, so `rotari show --follow` sees nothing while it runs.
-* Activate the environment in the shell that runs `rotari run`. The default
-  `--env=ALL` exports that shell's `PATH` to the job through Slurm's
-  `--export=ALL`, so `python` resolves to the environment's interpreter,
-  provided the environment is on a shared file system.
-* Activate it inside the job with a shell hook:
-
-  ```sh
-  rotari add -e slurm --executor-option="--partition=gpu --gres=gpu:1" \
-    bash -c 'eval "$(micromamba shell hook --shell bash)" && micromamba activate train && exec python train.py'
-  ```
-
-  For conda, use `eval "$(conda shell.bash hook)" && conda activate train`.
-
-With `--env=NONE`, the job's `PATH` is `/usr/local/bin:/usr/bin:/bin`, so
-only the first and last forms work, and `micromamba` or `conda` must be named
-by its absolute path unless it is installed there.
+Alternatively, activate the environment in the shell that runs `rotari run`:
+the default `--env=ALL` exports its `PATH` to the job. With `--env=NONE`, the
+job's `PATH` is `/usr/local/bin:/usr/bin:/bin`. With `conda run`, add
+`--no-capture-output`, or `rotari show --follow` sees no output until the job
+exits.
 
 ### SSH executor
 
