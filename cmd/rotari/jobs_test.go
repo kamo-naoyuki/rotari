@@ -241,6 +241,7 @@ func formatInt(value int) string {
 
 func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	baseDir, _ := filepath.Abs(t.TempDir())
 	tests := []struct {
 		name string
