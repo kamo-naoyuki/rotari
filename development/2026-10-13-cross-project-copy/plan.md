@@ -110,11 +110,20 @@ way to run work concurrently; this plan makes that one command.
   registered only when the edit is applied, never by `--dry-run`.
 - **D4 Same project.** `--to-project` naming the source project behaves
   exactly as if it were omitted, including origins.
-- **D5 No cross-project origins.** A copy into another project writes no
-  `Origin` or `TaskOrigins`. The copied jobs are new work in the destination;
-  their job IDs are kept unless they collide, as today. The decision belongs
-  in `queueedit.Copy` (the source `Run` says whether it is in the destination
-  project), not in each caller.
+- **D5 No cross-project origins; copied jobs are unfinished.** A copy into
+  another project writes no `Origin` or `TaskOrigins` and marks each copied
+  command `MarkedStatus = unfinished` (no `TaskMarkedStatus`). Without the
+  mark, a filtered run in the destination (`retry -p DEST`) would look the
+  job up by ID in the destination's reference run: a new project fails with
+  `ErrNoReferenceRun`, and an older destination run that holds a success
+  under the same, preserved job ID would be carried instead of executing
+  the job. `run.originResolver.jobResult` returns unfinished for the mark
+  before any lookup, so `run` and `retry` both execute every copied job.
+  This is the same mark that replaced the queue's old `force` flag
+  (`convertQueueV1` in [internal/state/store.go](../../internal/state/store.go)).
+  Job IDs are kept unless they
+  collide, as today. The decision belongs in `queueedit.Copy` (the source
+  `Run` says whether it is in the destination project), not in each caller.
 - **D6 Prerequisites.** The omitted-prerequisite check stays against the
   source run's results: a dropped prerequisite is one the source run
   completed. Copied jobs keep their working directory settings, so a job
@@ -149,7 +158,8 @@ way to run work concurrently; this plan makes that one command.
    destination paths for the guarded edit, creation, and registration. Keep
    the run-startup caller of `CopySnapshot` on the same project.
 2. Use `project.CreateQueueGuarded` for an absent destination (D3).
-3. Omit origins for a foreign source in `queueedit.Copy` (D5).
+3. Omit origins and mark copied commands unfinished for a foreign source in
+   `queueedit.Copy` (D5).
 4. `cli_spec.go` and `cmdCopy`: parse `--to-project`, validate it, and print
    the destination in the success message and JSON. Regenerate the CLI
    reference and the Python client.
@@ -193,18 +203,19 @@ Fixtures must tell cases apart: distinct exit codes, more than one failing
 task, tasks with and without a host, carried and executed results in the
 source run.
 
-- `queueedit`: a foreign source writes no `Origin` / `TaskOrigins` for plain
-  jobs, arrays, and matrix members; the same project still does; prerequisite
-  checks and dependency rewriting are unchanged.
+- `queueedit`: a foreign source writes no `Origin` / `TaskOrigins` and marks
+  the command unfinished for plain jobs, arrays, and matrix members; the same
+  project still writes origins and no mark; prerequisite checks and
+  dependency rewriting are unchanged.
 - `queueops`: copy into an absent project creates and registers it; `--dry-run`
   creates nothing; destination running is allowed for the next queue; source
   running with a settled latest run is allowed; source interrupted run is
   rejected; destination names with `/`, `\`, or a reserved name are rejected
   for CLI and Web API alike; `--if-revision` checks the destination.
-- After a cross-project copy, `run -p DEST` executes every copied job, and
-  `retry -p DEST` on the destination's queue behaves as documented for jobs
-  without origins (reference-run fallback or `ErrNoReferenceRun`); the docs
-  say which command to use.
+- After a cross-project copy, both `run -p DEST` and `retry -p DEST` execute
+  every copied job: into a new project (no reference run, no
+  `ErrNoReferenceRun`), and into a project whose last run holds a success
+  under the same job ID (not carried). Arrays execute every task.
 - `retry --to-project`: plain job, array task with `--partial-array` true and
   false, whole array, matrix member, stage dependents; destination running is
   rejected and changes nothing; the new run's summary has no carried results;
