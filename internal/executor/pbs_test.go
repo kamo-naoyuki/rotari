@@ -181,9 +181,37 @@ fi
 	if err != nil || state != "pending" {
 		t.Fatalf("pbsJobState = %q, %v; want pending, nil", state, err)
 	}
-	exitCode, ok, err := pbsAccounting("123.headnode")
+	exitCode, _, ok, err := pbsAccounting("123.headnode")
 	if err != nil || !ok || exitCode != 1 {
 		t.Fatalf("pbsAccounting = %d, %v, %v; want 1, true, nil", exitCode, ok, err)
+	}
+}
+
+// The OpenPBS records are trimmed from qstat -xf output of the OpenPBS
+// container the scheduler integration workflow runs.
+func TestPBSAccountingReadsTorqueAndOpenPBSRecords(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		record    string
+		wantCode  int
+		wantError string
+		wantOK    bool
+	}{
+		{name: "Torque exit status", record: "    job_state = C\n    exit_status = 3\n", wantCode: 3, wantOK: true},
+		{name: "OpenPBS finished job", record: "    job_state = F\n    substate = 92\n    Exit_status = 4\n", wantCode: 4, wantOK: true},
+		{name: "OpenPBS job deleted while queued", record: "    job_state = F\n    Hold_Types = u\n    substate = 91\n    Variable_List = PBS_O_HOME=/home/u,\n", wantCode: 1, wantError: "cancelled", wantOK: true},
+		{name: "OpenPBS job deleted while running", record: "    job_state = F\n    substate = 91\n    Exit_status = 271\n", wantCode: 271, wantError: "cancelled", wantOK: true},
+		{name: "no record yet", record: "    job_state = Q\n    substate = 10\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			writeExecutable(t, binDir, "qstat", fmt.Sprintf("#!/bin/sh\nprintf '%%s' %s\n", ShellQuote(test.record)))
+			t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			exitCode, errorText, ok, err := pbsAccounting("8.server")
+			if err != nil || ok != test.wantOK || exitCode != test.wantCode || errorText != test.wantError {
+				t.Fatalf("pbsAccounting = %d, %q, %v, %v; want %d, %q, %v, nil", exitCode, errorText, ok, err, test.wantCode, test.wantError, test.wantOK)
+			}
+		})
 	}
 }
 

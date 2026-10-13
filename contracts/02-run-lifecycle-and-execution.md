@@ -1130,6 +1130,13 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   records exit code 1 and error `cancelled`. Covered by
   `TestWaitSlurmJobFailureBoundariesWithFakeSlurm` in
   [internal/executor/slurm_test.go](../internal/executor/slurm_test.go).
+  For PBS, the exit status is read from `qstat -xf` as Torque's
+  `exit_status` or OpenPBS's `Exit_status`, and OpenPBS substate 91, a
+  deleted job, records error `cancelled` and a non-zero exit code even
+  without an exit status. Covered by
+  `TestPBSAccountingReadsTorqueAndOpenPBSRecords` in
+  [internal/executor/pbs_test.go](../internal/executor/pbs_test.go) and, with
+  job history on, `TestSchedulerContainerJobDeletedInQueueFails`.
   A job rotari cancels reads as cancelled (CAN-5) even when the scheduler
   keeps no accounting for it, as PBS without job history does: the cancel
   records its marker before asking the scheduler to delete the job, in

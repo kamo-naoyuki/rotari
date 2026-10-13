@@ -262,8 +262,8 @@ func waitPBSJob(store state.Store, runDir string, job pbsJobMetadata) model.JobR
 			return schedulerQuery{State: state, Failed: err != nil}
 		},
 		Accounting: func() schedulerAccounting {
-			exitCode, ok, err := pbsAccounting(job.PBSJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+			exitCode, errorText, ok, err := pbsAccounting(job.PBSJobID)
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, Error: errorText, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
 		},
 	})
 }
@@ -303,29 +303,32 @@ func pbsJobState(jobID string) (string, error) {
 	return "", nil
 }
 
-// pbsAccounting parses "exit_status = N" out of qstat's full/history output,
-// PBS's equivalent of Slurm's sacct.
-func pbsAccounting(jobID string) (int, bool, error) {
+// pbsAccounting reads a finished job's exit code, and whether it was
+// deleted, out of qstat's full/history output, PBS's equivalent of Slurm's
+// sacct. Torque names the field exit_status and OpenPBS Exit_status.
+func pbsAccounting(jobID string) (int, string, bool, error) {
 	output, err := runPBSCommand("qstat", "-xf", jobID)
 	if err != nil {
-		return 0, false, err
+		return 0, "", false, err
 	}
+	values := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "exit_status") {
-			continue
+		if key, value, found := strings.Cut(line, "="); found {
+			values[strings.ToLower(strings.TrimSpace(key))] = strings.TrimSpace(value)
 		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		code, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if err != nil {
-			continue
-		}
-		return code, true, nil
 	}
-	return 0, false, nil
+	exitCode, parseErr := strconv.Atoi(values["exit_status"])
+	// OpenPBS substate 91 is a deleted job, which has no Exit_status if it never ran.
+	if values["substate"] == "91" {
+		if parseErr != nil || exitCode == 0 {
+			exitCode = 1
+		}
+		return exitCode, "cancelled", true, nil
+	}
+	if parseErr != nil {
+		return 0, "", false, nil
+	}
+	return exitCode, "", true, nil
 }
 
 func runPBSCommand(name string, args ...string) ([]byte, error) {
