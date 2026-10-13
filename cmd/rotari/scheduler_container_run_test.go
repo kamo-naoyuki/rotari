@@ -71,9 +71,15 @@ func newContainerProject(t *testing.T) containerProject {
 // shell runs script in the container and returns its output and exit code.
 func (project containerProject) shell(timeout time.Duration, script string) (string, int) {
 	project.t.Helper()
+	return project.shellAs(project.config.user, timeout, script)
+}
+
+// shellAs runs script in the container as user.
+func (project containerProject) shellAs(user string, timeout time.Duration, script string) (string, int) {
+	project.t.Helper()
 	args := []string{"exec"}
-	if project.config.user != "" {
-		args = append(args, "--user", project.config.user)
+	if user != "" {
+		args = append(args, "--user", user)
 	}
 	if project.config.setup != "" {
 		script = project.config.setup + "\n" + script
@@ -264,46 +270,86 @@ func TestSchedulerContainerStopsTimedOutJob(t *testing.T) {
 	}
 }
 
-// A job cancelled while held in the scheduler queue never starts its wrapper,
-// so its result comes from scheduler accounting, which can report exit 0.
-func TestSchedulerContainerCancelledPendingJobReadsAsCancelled(t *testing.T) {
-	project := newContainerProject(t)
-	hold := map[string]string{"slurm": "--hold", "pbs": "-h", "sge": "-h"}[project.config.executor]
+// heldJobTests name, per scheduler, the option that holds a job in the queue
+// and the commands that delete it and print its accounting record.
+var heldJobTests = map[string]struct{ hold, remove, accounting string }{
+	"slurm": {"--hold", "scancel %s", "sacct --noheader --parsable2 --allocations --format=State,ExitCode --jobs %s"},
+	"pbs":   {"-h", "qdel %s", "qstat -xf %s"},
+	"sge":   {"-h", "qdel %s", "qacct -j %s"},
+}
+
+// startHeldJob starts a run whose only job, held, stays queued in the
+// scheduler, and returns the scheduler's ID for it once it is submitted.
+func (project containerProject) startHeldJob() string {
+	project.t.Helper()
+	hold := heldJobTests[project.config.executor].hold
 	if hold == "" {
-		t.Skipf("no hold option for executor %q", project.config.executor)
+		project.t.Skipf("no hold option for executor %q", project.config.executor)
 	}
 	project.add("--job-name", "held", "--executor-option="+hold, "--", "true")
 	if output, code := project.rotariCommand(30*time.Second, "run", "-p", "p", "--async"); code != 0 {
-		t.Fatalf("run --async exit = %d\n%s", code, output)
+		project.t.Fatalf("run --async exit = %d\n%s", code, output)
 	}
-	t.Cleanup(func() { project.rotariCommand(2*time.Minute, "cancel", "-p", "p", "--wait") })
+	project.t.Cleanup(func() { project.rotariCommand(2*time.Minute, "cancel", "-p", "p", "--wait") })
 	deadline := time.Now().Add(time.Minute)
 	for {
-		output, _ := project.shell(30*time.Second, fmt.Sprintf("ls %s/projects/p/runs/*/*/attempts/*/job.json 2>/dev/null", project.baseDir))
-		if strings.TrimSpace(output) != "" {
-			break
+		output, _ := project.shell(30*time.Second, fmt.Sprintf("cat %s/projects/p/runs/*/*/attempts/*/job.json 2>/dev/null", project.baseDir))
+		var metadata map[string]any
+		if json.Unmarshal([]byte(strings.TrimSpace(output)), &metadata) == nil {
+			if nativeID, _ := metadata[project.config.executor+"_job_id"].(string); nativeID != "" {
+				return nativeID
+			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("the held job was not submitted")
+			project.t.Fatal("the held job was not submitted")
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// heldJobResult waits for the run of startHeldJob and returns the held job's
+// result with the scheduler's accounting record for it.
+func (project containerProject) heldJobResult(nativeID string) (model.JobResult, string) {
+	project.t.Helper()
+	output, code := project.rotariCommand(4*time.Minute, "wait", "-p", "p", "--timeout", "3m")
+	project.t.Logf("rotari wait exit = %d\n%s", code, output)
+	accounting, code := project.shell(30*time.Second, fmt.Sprintf(heldJobTests[project.config.executor].accounting, executor.ShellQuote(nativeID)))
+	return project.results()["held"], fmt.Sprintf("scheduler accounting (exit %d):\n%s", code, accounting)
+}
+
+// A job cancelled while held in the scheduler queue never starts its wrapper,
+// and a scheduler may keep no record of it, as PBS without job history does.
+func TestSchedulerContainerCancelledPendingJobReadsAsCancelled(t *testing.T) {
+	project := newContainerProject(t)
+	nativeID := project.startHeldJob()
 	if output, code := project.rotariCommand(3*time.Minute, "cancel", "-p", "p", "--job-name", "held", "--wait"); code != 0 {
 		t.Fatalf("cancel exit = %d\n%s", code, output)
 	}
-	output, code := project.rotariCommand(4*time.Minute, "wait", "-p", "p", "--timeout", "3m")
-	t.Logf("rotari wait exit = %d\n%s", code, output)
-	if result := project.results()["held"]; result.ExitCode == 0 || !model.IsCancelledError(result.Error) {
-		metadata := project.attemptMetadata(result.ID)
-		accounting := map[string]string{
-			"slurm": "sacct --noheader --parsable2 --allocations --format=State,ExitCode --jobs %s",
-			"pbs":   "qstat -xf %s",
-			"sge":   "qacct -j %s",
-		}[project.config.executor]
-		nativeID, _ := metadata[project.config.executor+"_job_id"].(string)
-		output, code := project.shell(30*time.Second, fmt.Sprintf(accounting, executor.ShellQuote(nativeID)))
-		t.Fatalf("held = %#v, want a non-zero exit code and a cancelled error\nscheduler accounting (exit %d):\n%s", result, code, output)
+	if result, accounting := project.heldJobResult(nativeID); result.ExitCode == 0 || !model.IsCancelledError(result.Error) {
+		t.Fatalf("held = %#v, want a non-zero exit code and a cancelled error\n%s", result, accounting)
 	}
+}
+
+// A queued job deleted outside rotari leaves no cancel marker, so its result
+// comes from the scheduler's accounting record alone.
+func TestSchedulerContainerJobDeletedInQueueFails(t *testing.T) {
+	project := newContainerProject(t)
+	if project.config.executor == "pbs" {
+		// OpenPBS keeps no record of a finished job unless job history is on.
+		if output, code := project.shellAs("root", 30*time.Second, "qmgr -c 'set server job_history_enable = True'"); code != 0 {
+			t.Fatalf("enabling job history exit = %d\n%s", code, output)
+		}
+		t.Cleanup(func() { project.shellAs("root", 30*time.Second, "qmgr -c 'unset server job_history_enable'") })
+	}
+	nativeID := project.startHeldJob()
+	if output, code := project.shell(30*time.Second, fmt.Sprintf(heldJobTests[project.config.executor].remove, executor.ShellQuote(nativeID))); code != 0 {
+		t.Fatalf("deleting job %s exit = %d\n%s", nativeID, code, output)
+	}
+	result, accounting := project.heldJobResult(nativeID)
+	if result.ExitCode == 0 || strings.Contains(result.Error, "unavailable") {
+		t.Fatalf("held = %#v, want a non-zero exit code read from the scheduler's accounting\n%s", result, accounting)
+	}
+	t.Logf("held = %#v\n%s", result, accounting)
 }
 
 func TestSchedulerContainerResolvesDependencies(t *testing.T) {
