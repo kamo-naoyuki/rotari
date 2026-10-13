@@ -272,6 +272,10 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 			if !ok {
 				return "", fmt.Errorf("executor %q does not support cancel", owner.Name())
 			}
+			// A scheduler may keep no result for a job deleted while queued.
+			if err := recordCancellation(jobDir); err != nil {
+				return "", fmt.Errorf("record cancellation for job %s: %w", jobID, err)
+			}
 			if err := canceller.Cancel(jobDir); err != nil {
 				return "", fmt.Errorf("cancel job %s: %w", jobID, err)
 			}
@@ -287,13 +291,19 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 		if err := os.MkdirAll(jobDir, state.DirectoryMode()); err != nil { // NOSONAR: jobDir comes from validated job path helpers.
 			return "", fmt.Errorf("prepare cancellation for job %s: %w", jobID, err)
 		}
-		// codeql[go/path-injection]: jobDir is validated and cancelled is a fixed file name.
-		if err := os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte(now()+"\n"), state.FileMode()); err != nil { // NOSONAR: jobDir comes from validated job path helpers.
+		if err := recordCancellation(jobDir); err != nil {
 			return "", fmt.Errorf("record cancellation for job %s: %w", jobID, err)
 		}
 		cancelled++
 	}
 	return fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Jobs: %d", project, runID, cancelled), nil
+}
+
+// recordCancellation writes the marker that the job wrapper and the run's
+// final result read as an explicit cancel.
+func recordCancellation(jobDir string) error {
+	// codeql[go/path-injection]: jobDir is validated and cancelled is a fixed file name.
+	return os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte(now()+"\n"), state.FileMode()) // NOSONAR: jobDir comes from validated job path helpers.
 }
 
 // Job states that Selection.States names.

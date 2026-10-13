@@ -17,6 +17,8 @@ import (
 type fakeExecutor struct {
 	name      string
 	cancelled []string
+	// unmarked lists jobs cancelled before their cancel marker was written.
+	unmarked []string
 }
 
 func (fake *fakeExecutor) Name() string { return fake.name }
@@ -29,6 +31,9 @@ func (fake *fakeExecutor) Wait(string, executor.JobHandle) model.JobResult { ret
 
 func (fake *fakeExecutor) Cancel(jobDir string) error {
 	fake.cancelled = append(fake.cancelled, filepath.Base(jobDir))
+	if _, err := os.Stat(filepath.Join(jobDir, "cancelled")); err != nil {
+		fake.unmarked = append(fake.unmarked, filepath.Base(jobDir))
+	}
 	return nil
 }
 
@@ -101,6 +106,11 @@ func TestCancelJobsCancelsOwnedAndMarksUnsubmittedJobs(t *testing.T) {
 	}
 	if len(slurm.cancelled) != 1 || slurm.cancelled[0] != "submitted" {
 		t.Fatalf("cancelled = %#v, want the submitted job", slurm.cancelled)
+	}
+	// A scheduler without job history keeps no result for a job deleted while
+	// queued, so only the marker tells the run that the job was cancelled.
+	if len(slurm.unmarked) != 0 {
+		t.Fatalf("jobs cancelled without a cancel marker: %#v", slurm.unmarked)
 	}
 	if _, err := os.Stat(filepath.Join(runDir, "waiting", "cancelled")); err != nil {
 		t.Fatalf("unsubmitted job was not marked cancelled: %v", err)

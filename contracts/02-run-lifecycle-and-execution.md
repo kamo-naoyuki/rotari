@@ -1109,6 +1109,16 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   records exit code 1 and error `cancelled`. Covered by
   `TestWaitSlurmJobFailureBoundariesWithFakeSlurm` in
   [internal/executor/slurm_test.go](../internal/executor/slurm_test.go).
+  A job rotari cancels reads as cancelled (CAN-5) even when the scheduler
+  keeps no accounting for it, as PBS without job history does: the cancel
+  records its marker before asking the scheduler to delete the job, in
+  `Controller.CancelJobs` in
+  [internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go).
+  Covered by `TestCancelJobsCancelsOwnedAndMarksUnsubmittedJobs` in
+  [internal/jobcontrol/jobcontrol_test.go](../internal/jobcontrol/jobcontrol_test.go)
+  and, against real schedulers, by
+  `TestSchedulerContainerCancelledPendingJobReadsAsCancelled` in
+  [cmd/rotari/scheduler_container_run_test.go](../cmd/rotari/scheduler_container_run_test.go).
 - Repeated scheduler queue or accounting query failures use a shared
   per-process exponential polling backoff, capped at 30 seconds. A successful
   query restores the normal polling interval; wrapper `status.json` remains an
