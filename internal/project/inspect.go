@@ -120,6 +120,15 @@ func ValidateConsistency(paths state.ProjectPaths, inspection Inspection) error 
 	return nil
 }
 
+// RunningError rejects an operation because the project's run is active.
+type RunningError struct {
+	Project, Operation string
+}
+
+func (err *RunningError) Error() string {
+	return fmt.Sprintf("project %q is running; %s is not allowed (queue edits for the next run are)", err.Project, err.Operation)
+}
+
 // EnsureIdle rejects operation unless the project is idle. The error for an
 // interrupted run tells the user how to inspect and recover it.
 func EnsureIdle(paths state.ProjectPaths, operation string) error {
@@ -130,7 +139,7 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 	runID := inspection.RunID
 	switch inspection.State {
 	case Running:
-		return fmt.Errorf("project %q is running; %s is not allowed (queue edits for the next run are)", paths.ProjectName, operation)
+		return &RunningError{Project: paths.ProjectName, Operation: operation}
 	case Interrupted:
 		detail, stillRunning := InterruptedRunDetail(paths, runID)
 		target := commandLocation(paths) + " --run-id " + executor.ShellQuote(runID)

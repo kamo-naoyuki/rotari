@@ -11,6 +11,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -214,6 +215,55 @@ func TestPreviewRunCopiesSavedSourceWithoutChangingNextQueue(t *testing.T) {
 	}
 	if after, _ := project.Revision(paths); after != before {
 		t.Fatalf("preview changed revision: %s -> %s", before, after)
+	}
+}
+
+func TestPlanRunFromAnotherProjectAppliesTheSelectionToTheSource(t *testing.T) {
+	runner, source := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	runner.Environment = run.EnvironmentNames{ArrayTaskID: "ROTARI_ARRAY_TASK_ID"}
+	if err := state.WriteJSON(source.QueueFile, model.Queue{Commands: []model.QueuedCommand{
+		{ID: "ok", Command: []string{"true"}},
+		{ID: "bad", Command: []string{"sh", "-c", "exit 2"}},
+		{ID: "sweep", Command: []string{"sh", "-c", `test "$ROTARI_ARRAY_TASK_ID" != 2`}, Array: &model.ArraySpec{First: 1, Last: 3}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(source, Start{RunID: "source-run", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := runner.Run(source, Options{RunID: "source-run", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, Observer{}); err != nil || code == 0 {
+		t.Fatalf("source run = %d, %v; want failed run", code, err)
+	}
+	destination, err := state.ResolveProjectPaths(source.BaseDir, "elsewhere")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := PlanRequest{
+		Selection: model.ResultSelection(true, true, false), SourceRunID: "source-run", SourcePolicy: SourceCopyRun,
+		SourceProject: source.ProjectName, PartialArray: true, MatchBy: model.MatchByIDAndFingerprint,
+	}
+	planned, _, err := runner.PreviewRun(destination, nil, request, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]bool{"bad": true, "sweep-2": true}; !reflect.DeepEqual(planned.Plan.Execute, want) || len(planned.Plan.CarriedResults) != 0 {
+		t.Fatalf("Execute = %v, carried %v; want %v and nothing carried", planned.Plan.Execute, planned.Plan.CarriedResults, want)
+	}
+	for _, command := range planned.Queue.Commands {
+		if command.Origin != nil || command.MarkedStatus != model.StatusUnfinished {
+			t.Errorf("snapshot job %s: origin %#v, mark %q; want no origin and unfinished", command.ID, command.Origin, command.MarkedStatus)
+		}
+	}
+	if planned.Request.Selection != "" || planned.Request.SourceRunID != "" || planned.Request.MatchBy != "" {
+		t.Errorf("planned request = %+v; want no selection, source run, or matching left for the run", planned.Request)
+	}
+	if _, err := os.Stat(destination.ProjectDir); !os.IsNotExist(err) {
+		t.Errorf("preview created the destination: %v", err)
+	}
+	request.Filter.Changed = true
+	if _, _, err := runner.PreviewRun(destination, nil, request, ""); err == nil || !strings.Contains(err.Error(), "--filter-changed") {
+		t.Errorf("--filter-changed from another project: error %v, want a rejection", err)
 	}
 }
 

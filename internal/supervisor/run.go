@@ -140,6 +140,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 		return startedRun{}, err
 	}
 	defer prepared.release()
+	request = withPlannedSelection(request, prepared.planned)
 	request.SourceRunID = prepared.sourceRunID
 	runID := ops.NewRunID()
 	clientStatus := model.RunClientStatus{Mode: model.RunClientModeSync, State: model.RunClientAttached}
@@ -194,7 +195,9 @@ type preparedRun struct {
 	// sourceRunID is the request's reference run, resolved before the new
 	// run is recorded; see projectrun.ReferenceRun.
 	sourceRunID string
-	release     func()
+	// planned is the request as planned; see projectrun.PlannedRun.Request.
+	planned projectrun.PlanRequest
+	release func()
 }
 
 // prepareRun validates a run request and takes the project's state lock. On
@@ -254,8 +257,16 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 	return preparedRun{
 		paths: paths, queue: queue, plan: plan, executor: resolvedExecutor,
 		snapshotFromSource: planned.SnapshotFromSource, usedQueueWithSource: planned.UsedQueueWithSource,
-		omittedSourceJobs: planned.OmittedSourceJobs, sourceRunID: sourceRunID, release: release,
+		omittedSourceJobs: planned.OmittedSourceJobs, sourceRunID: sourceRunID, planned: planned.Request, release: release,
 	}, nil
+}
+
+// withPlannedSelection returns request with the selection its run executes,
+// which planning applies already for a source run in another project.
+func withPlannedSelection(request server.Request, planned projectrun.PlanRequest) server.Request {
+	request.Selection, request.JobIDs, request.Filter, request.MatchBy = planned.Selection, planned.JobIDs, planned.Filter, planned.MatchBy
+	request.ScopeStage, request.ScopeMatrix = planned.Scope.Stage, planned.Scope.Matrix
+	return request
 }
 
 func sourceNotice(started startedRun) string {
@@ -298,7 +309,7 @@ func planRequest(request server.Request) projectrun.PlanRequest {
 	return projectrun.PlanRequest{
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
 		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request), Filter: request.Filter,
-		SourceRunID: request.SourceRunID, SourcePolicy: projectrun.SourcePolicy(request.SourcePolicy),
+		SourceRunID: request.SourceRunID, SourcePolicy: projectrun.SourcePolicy(request.SourcePolicy), SourceProject: request.SourceProject,
 		CopyAttempts: request.CopyAttempts, CopyJobIDs: request.CopyJobIDs,
 		PartialArray: request.PartialArray, MatchBy: request.MatchBy,
 	}

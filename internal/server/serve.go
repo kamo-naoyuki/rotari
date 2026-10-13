@@ -12,7 +12,7 @@ import (
 // ProtocolVersion is reported by Ready. A `run` client talks only to the
 // supervisor it started from its own executable, so the version is for
 // diagnosis rather than negotiation.
-const ProtocolVersion = 12
+const ProtocolVersion = 13
 
 const (
 	DisconnectActionDetach = "detach"

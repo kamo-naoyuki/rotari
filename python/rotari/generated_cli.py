@@ -2207,6 +2207,16 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
+                    "command_line_only": True,
+                    "description": "start the run in this project instead, "
+                    "creating it if needed, from the selected "
+                    "jobs of the saved run (--run-id, else the "
+                    "latest run); all of them execute there and "
+                    "no result is carried",
+                    "name": "to-project",
+                    "value_name": "NAME",
+                },
+                {
                     "description": "run name label",
                     "environment": "ROTARI_RUN_NAME",
                     "name": "run-name",
@@ -2657,6 +2667,16 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "run-id",
                     "short": "r",
                     "value_name": "ID",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "start the run in this project instead, "
+                    "creating it if needed, from the selected "
+                    "jobs of the saved run (--run-id, else the "
+                    "latest run); all of them execute there and "
+                    "no result is carried",
+                    "name": "to-project",
+                    "value_name": "NAME",
                 },
                 {
                     "description": "run name label",

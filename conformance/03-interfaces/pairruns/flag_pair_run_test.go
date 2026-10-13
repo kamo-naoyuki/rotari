@@ -20,6 +20,8 @@ func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string 
 	values := map[string]string{
 		"basedir": f.E.Base, "project-name": f.Project, "config": f.Config,
 		"run-id": f.Run, "run-name": "pair-preview", "note": "pair preview note", "actor": "pair-agent",
+		// The source project itself, so the preview stays on the fixture.
+		"to-project":        f.Project,
 		"local-concurrency": "2", "batch-concurrency": "2", "retry": "2",
 		"job-id": f.Bad, "job-name": "bad", "stage": "training", "matrix": "train",
 		"executor": "local", "env": "ALL", "match-by": "id-and-fingerprint", "executor-option": "--debug", "disconnect-action": "cancel",

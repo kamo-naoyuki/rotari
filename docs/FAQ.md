@@ -79,8 +79,8 @@ is active; `run` waits until the active run ends, since a project has one
 active run at a time. Jobs prepared together can execute concurrently within
 the same run; an independent job that must start before the current run
 finishes needs another project. That keeps its run history separate.
-`copy --to-project NAME` copies a finished run's jobs, such as its failures,
-into another project's queue; see
+`retry --to-project NAME` reruns a finished run's failures there, and
+`copy --to-project NAME` copies its jobs into that project's queue; see
 [Rerun failed jobs while the project is running](RECOVERING.md#rerun-failed-jobs-while-the-project-is-running).
 Rotari does not provide a continuously accepting queue for jobs added after a
 run starts.

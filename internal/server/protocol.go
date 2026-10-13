@@ -49,10 +49,12 @@ type Request struct {
 	Filter       jobfilter.Filter `json:"filter"`
 	SourceRunID  string           `json:"source_run_id,omitempty"`
 	SourcePolicy string           `json:"source_policy,omitempty"`
-	CopyAttempts bool             `json:"copy_attempts,omitempty"`
-	CopyJobIDs   []string         `json:"copy_job_ids,omitempty"`
-	PartialArray bool             `json:"partial_array,omitempty"`
-	MatchBy      string           `json:"match_by,omitempty"`
+	// SourceProject, when it names another project, holds SourceRunID.
+	SourceProject string   `json:"source_project,omitempty"`
+	CopyAttempts  bool     `json:"copy_attempts,omitempty"`
+	CopyJobIDs    []string `json:"copy_job_ids,omitempty"`
+	PartialArray  bool     `json:"partial_array,omitempty"`
+	MatchBy       string   `json:"match_by,omitempty"`
 	// IfRevision, when set, starts the run only if the project is still at
 	// this revision; see project.Guard.
 	IfRevision string `json:"if_revision,omitempty"`

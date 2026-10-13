@@ -554,6 +554,7 @@ Usage: `rotari run [RUN_ID]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs |
+| `--to-project` | `NAME` | `CLI only` | start the run in this project instead, creating it if needed, from the selected jobs of the saved run (--run-id, else the latest run); all of them execute there and no result is carried |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--actor` | `LABEL` | `ROTARI_ACTOR` | who starts the run, such as an agent's name; recorded with the run and shown by show, runs, lineage, and the Web Activity page |
 | `--note` | `TEXT` | `CLI only` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |
@@ -626,6 +627,7 @@ Usage: `rotari retry [RUN_ID]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs |
+| `--to-project` | `NAME` | `CLI only` | start the run in this project instead, creating it if needed, from the selected jobs of the saved run (--run-id, else the latest run); all of them execute there and no result is carried |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--actor` | `LABEL` | `ROTARI_ACTOR` | who starts the run, such as an agent's name; recorded with the run and shown by show, runs, lineage, and the Web Activity page |
 | `--note` | `TEXT` | `CLI only` | why this run is made; recorded with the run and shown by show and lineage; add more later with rotari note |

@@ -92,6 +92,38 @@ func TestCopyFromAnotherProjectMarksJobsUnfinished(t *testing.T) {
 	}
 }
 
+func TestCopyPartialArrayNarrowsToSelectedTasks(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "sweep", Name: "sweep", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 4}},
+		{ID: "all-bad", Name: "all-bad", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+		{ID: "all-ok", Name: "all-ok", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	},
+		model.JobResult{ID: "sweep-1"}, model.JobResult{ID: "sweep-2", ExitCode: 2}, model.JobResult{ID: "sweep-4", ExitCode: 4},
+		model.JobResult{ID: "all-bad-1", ExitCode: 1}, model.JobResult{ID: "all-bad-2", ExitCode: 1},
+		model.JobResult{ID: "all-ok-1"}, model.JobResult{ID: "all-ok-2"},
+	)
+	queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed", PartialArray: true}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(commandIDs(queue), []string{"sweep", "all-bad"}) {
+		t.Fatalf("queue = %v, want the arrays with a failed task", commandIDs(queue))
+	}
+	if got := queue.Commands[0].Array; !reflect.DeepEqual(got, &model.ArraySpec{First: 2, Last: 4, Tasks: []int{2, 4}}) {
+		t.Errorf("sweep array = %#v, want its failed tasks 2 and 4", got)
+	}
+	if got := queue.Commands[1].Array; !reflect.DeepEqual(got, &model.ArraySpec{First: 1, Last: 2}) {
+		t.Errorf("all-bad array = %#v, want it unchanged", got)
+	}
+	whole, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed,unfinished"}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := whole.Commands[0].Array; !reflect.DeepEqual(got, &model.ArraySpec{First: 1, Last: 4}) {
+		t.Errorf("without PartialArray, sweep array = %#v, want the whole array", got)
+	}
+}
+
 func TestCopyRejectsOmittedFailedPrerequisite(t *testing.T) {
 	source := testRun([]model.QueuedCommand{
 		{ID: "prep", Name: "prep", Command: []string{"true"}},

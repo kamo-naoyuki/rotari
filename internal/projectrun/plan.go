@@ -26,10 +26,13 @@ type PlanRequest struct {
 	Filter          jobfilter.Filter
 	SourceRunID     string
 	SourcePolicy    SourcePolicy
-	CopyAttempts    bool
-	CopyJobIDs      []string
-	PartialArray    bool
-	MatchBy         string
+	// SourceProject, when it names another project, holds SourceRunID; see
+	// sourceSnapshot.
+	SourceProject string
+	CopyAttempts  bool
+	CopyJobIDs    []string
+	PartialArray  bool
+	MatchBy       string
 }
 
 // PlannedRun is a planned run: the queue it runs, with fingerprint matches
@@ -44,6 +47,9 @@ type PlannedRun struct {
 	// OmittedSourceJobs are failed or unfinished jobs from SourceRunID that
 	// are not represented by the non-empty queue used for this run.
 	OmittedSourceJobs []string
+	// Request is the request as planned, which the run executes with. A run
+	// from another project's saved run has its selection applied already.
+	Request PlanRequest
 }
 
 // PlanRun plans a run of queue as the run itself will: it validates the
@@ -70,6 +76,7 @@ func (runner Runner) PlanRun(paths state.ProjectPaths, queue model.Queue, reques
 		return PlannedRun{}, err
 	}
 	planned.SnapshotFromSource = copySource
+	planned.Request = request
 	planned.UsedQueueWithSource = queueWasNonEmpty && request.SourcePolicy == SourceCopyIfEmpty
 	if planned.UsedQueueWithSource && planned.SourceRunID != "" {
 		planned.OmittedSourceJobs, err = runner.OmittedFailedOrUnfinished(paths, planned.Queue, planned.SourceRunID)
@@ -90,6 +97,17 @@ func validSourcePolicy(policy SourcePolicy) bool {
 }
 
 func (runner Runner) sourceSnapshot(paths state.ProjectPaths, queue model.Queue, request PlanRequest) (model.Queue, PlanRequest, bool, error) {
+	if request.SourceProject != "" && request.SourceProject != paths.ProjectName {
+		copied, err := runner.foreignSnapshot(paths, queue, request)
+		if err != nil {
+			return model.Queue{}, request, false, err
+		}
+		// The copies are marked unfinished in a project without their results,
+		// so the run executes all of them.
+		request.Selection, request.JobIDs, request.Scope, request.Filter = "", nil, model.CommandSelector{}, jobfilter.Filter{}
+		request.SourceRunID, request.MatchBy, request.CopyAttempts, request.CopyJobIDs = "", "", false, nil
+		return copied, request, true, nil
+	}
 	copySource := request.SourcePolicy == SourceCopyRun || (request.SourcePolicy == SourceCopyIfEmpty && len(queue.Commands) == 0)
 	if !copySource {
 		return queue, request, false, nil
@@ -108,6 +126,28 @@ func (runner Runner) sourceSnapshot(paths state.ProjectPaths, queue model.Queue,
 	}
 	request.SourceRunID = sourceRunID
 	return copied, request, true, nil
+}
+
+// foreignSnapshot builds the snapshot of a run from SourceRunID of another
+// project. No result follows the copies into this project, so the request's
+// selection is applied to the source run's results here, with arrays
+// narrowed to their selected tasks under PartialArray.
+func (runner Runner) foreignSnapshot(paths state.ProjectPaths, queue model.Queue, request PlanRequest) (model.Queue, error) {
+	if request.SourcePolicy != SourceCopyRun || request.SourceRunID == "" {
+		return model.Queue{}, fmt.Errorf("a run of project %q from project %q needs a saved source run", paths.ProjectName, request.SourceProject)
+	}
+	if request.Filter.Changed || request.Filter.New {
+		return model.Queue{}, fmt.Errorf("--filter-changed and --filter-new compare with project %q's own runs and cannot be combined with a source run in project %q", paths.ProjectName, request.SourceProject)
+	}
+	copyRequest := queueedit.CopyRequest{
+		Selection: request.Selection, JobIDs: request.JobIDs, Scope: request.Scope, Filter: request.Filter,
+		PartialArray: request.PartialArray, Overwrite: true,
+	}
+	if request.CopyAttempts {
+		copyRequest.Selection, copyRequest.JobIDs = "job-id", request.CopyJobIDs
+	}
+	copied, _, err := (queueops.Editor{Store: runner.Store, Executors: runner.Executors, NewJobID: runner.NewJobID}).CopySnapshot(paths.BaseDir, request.SourceProject, request.SourceRunID, paths.ProjectName, queue, copyRequest)
+	return copied, err
 }
 
 func sourceRunIDForPlan(paths state.ProjectPaths, request PlanRequest) (string, error) {

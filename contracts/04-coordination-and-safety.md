@@ -193,7 +193,9 @@ A project is in one of three states, derived from `running.lock` and
 - **SAFE-2** While a project is running, `run`, `retry`, and `delete` are
   rejected and change nothing, so no second run or in-run retry starts.
   Queue edits, including `reset`, still apply only to the next run. Other
-  projects are unaffected.
+  projects are unaffected. The `retry` rejection also names the
+  `retry --to-project NEW_PROJECT` command that reruns in another project
+  (RUN-19); a project named by `--to-project` is the one that must be idle.
 - **SAFE-3** While a project is interrupted, `run` and `delete` fail with a
   message that names the interrupted run, the `show` and `unlock`
   commands to inspect and recover it, and the `retry --run-id` command that

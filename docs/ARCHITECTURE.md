@@ -400,7 +400,10 @@ Client side, in [run_command.go](../cmd/rotari/run_command.go):
 
 1. `cmdRun` resolves the target project and, for `--run-id`, `--failed`, or
    `--job-id`, first repopulates the queue from an earlier run
-   (`queueops.Editor.Copy`, backed by `internal/queueedit`).
+   (`queueops.Editor.Copy`, backed by `internal/queueedit`). With
+   `--to-project`, the request names the destination project and carries the
+   source project in `SourceProject`; planning (`projectrun.PlanRun`) builds
+   the snapshot from the source run with the selection already applied.
 2. `startSupervisor` starts a new supervisor for this run as a child process,
    so it inherits the command's working directory and environment, and waits
    for its ready message on the inherited pipes. It fails if the project

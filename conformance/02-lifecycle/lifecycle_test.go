@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -254,6 +255,78 @@ func TestCopyIntoAnotherProject(t *testing.T) {
 	second := readSummary(t, e, "again")
 	if secondAttempt, exit := summaryResult(t, second, okJob); second.RunID == first.RunID || secondAttempt == firstAttempt || exit != 0 {
 		t.Errorf("retry carried the destination's earlier result: run %s attempt %q, earlier run %s attempt %q", second.RunID, secondAttempt, first.RunID, firstAttempt)
+	}
+}
+
+func TestRetryInAnotherProject(t *testing.T) {
+	covers(t, "RUN-19")
+	e := support.NewEnv(t)
+	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "ok", "--", "true"))
+	badJob := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "bad", "--", "sh", "-c", "exit 2"))
+	sweep := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "sweep", "--array", "1-3", "--", "sh", "-c", `test "$ROTARI_ARRAY_TASK_ID" != 2 || exit 5`))
+	if r := e.Rotari("run", "-p", "src", "--quiet"); r.Code == 0 {
+		t.Fatalf("source run unexpectedly succeeded: %s", r)
+	}
+	source := readSummary(t, e, "src")
+	e.StartRun("src", 1, false)
+	srcQueue := filepath.Join(e.Base, "projects", "src", "queue.json")
+	queueBefore, _ := os.ReadFile(srcQueue)
+
+	preview := e.MustRotari("retry", "-p", "src", "--to-project", "dst", "--dry-run")
+	if !strings.Contains(preview.Stdout, "would execute 2 of 2 job(s), carrying 0 result(s)") {
+		t.Errorf("preview = %s, want the failed job and task only", preview.Stdout)
+	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "dst")); !os.IsNotExist(err) {
+		t.Errorf("preview created the destination: %v", err)
+	}
+	if r := e.Rotari("retry", "-p", "src", "--to-project", "dst", "--quiet"); r.Code == 0 {
+		t.Fatalf("retry of the failures unexpectedly succeeded: %s", r)
+	}
+	retried := readSummary(t, e, "dst")
+	exits := map[string]int{}
+	for _, result := range retried.Results {
+		exits[result.ID] = result.ExitCode
+	}
+	if want := map[string]int{badJob: 2, sweep + "-2": 5}; !reflect.DeepEqual(exits, want) {
+		t.Errorf("destination results = %v, want only the failed job and task, executed (%v)", exits, want)
+	}
+	if queueAfter, _ := os.ReadFile(srcQueue); !bytes.Equal(queueAfter, queueBefore) {
+		t.Errorf("source queue changed")
+	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "dst", "queue.json")); err == nil {
+		if queued := e.MustRotari("check", "dst").Stdout; !strings.Contains(queued, "queued=0") {
+			t.Errorf("destination queue was written: %s", queued)
+		}
+	}
+
+	if r := e.Rotari("retry", "-p", "src", "--run-id", source.RunID, "--to-project", "whole", "--partial-array=false", "--quiet"); r.Code == 0 {
+		t.Fatalf("whole-array retry unexpectedly succeeded: %s", r)
+	}
+	whole := readSummary(t, e, "whole")
+	if len(whole.Results) != 4 {
+		t.Errorf("--partial-array=false results = %+v, want the failed job and every task of the array", whole.Results)
+	}
+	for _, result := range whole.Results {
+		if result.ID == okJob {
+			t.Errorf("the successful job ran in the destination: %+v", whole.Results)
+		}
+	}
+
+	busy := e.StartRun("busy", 1, false)
+	for _, args := range [][]string{
+		{"retry", "-p", "src", "--to-project", "busy", "--quiet"},
+		{"retry", "-p", "src", "--to-project", "other", "--match-by", "job-id"},
+		{"retry", "-p", "src", "--to-project", "other", "--filter-changed"},
+	} {
+		if r := e.Rotari(args...); r.Code == 0 {
+			t.Errorf("%v was accepted: %s", args, r)
+		}
+	}
+	if latest := readSummary(t, e, "busy"); latest.RunID != busy.RunID {
+		t.Errorf("a run started in the running destination: %s", latest.RunID)
+	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "other")); !os.IsNotExist(err) {
+		t.Errorf("a rejected retry created its destination: %v", err)
 	}
 }
 

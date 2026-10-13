@@ -270,6 +270,27 @@
   `TestCopyToAnotherProject`, and through the binary and the Web API by
   `TestCopyIntoAnotherProject` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-19** `run --to-project NAME` and `retry --to-project NAME` start a
+  run in another project of the basedir, creating it when absent, from a
+  settled run of the source project: `--run-id`, else its latest run, never
+  its queue. The source project may be running; the destination must be
+  idle (SAFE-2). The selection (result filters, `--job-id`, `--stage`,
+  `--matrix`, `--filter-*`) is applied to the source run's results when the
+  snapshot is built, `--partial-array` narrowing an array to its selected
+  tasks, and the selected jobs are copied as RUN-18 copies them. The run
+  executes every copied job and carries nothing; jobs that depend on them
+  run only when selected themselves. Neither project's queue changes
+  (RUN-13). `--filter-changed`, `--filter-new`, and `--match-by` compare
+  with the destination's own runs and are rejected. A rejected start leaves
+  no destination behind, and `--dry-run` creates none. Implemented by
+  `projectrun.Runner.foreignSnapshot` in
+  [internal/projectrun/plan.go](../internal/projectrun/plan.go), which
+  returns the request the run executes with as `PlannedRun.Request`, and
+  `queueedit.CopyRequest.PartialArray`. Covered by
+  `TestCopyPartialArrayNarrowsToSelectedTasks`,
+  `TestPlanRunFromAnotherProjectAppliesTheSelectionToTheSource`, and
+  through the binary by `TestRetryInAnotherProject` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

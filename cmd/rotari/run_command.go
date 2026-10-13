@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/attachment"
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -43,6 +45,7 @@ func runJobs(args []string, defaultSelection string) int {
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
+	toProject := cliString(fs, "to-project", "")
 	runIDOption := cliString(fs, "run-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
 	if rejectRunOverwrite(args) {
@@ -228,18 +231,49 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	*runIDOption = resolvedRunID
-	if err := ensureProjectIdle(baseDir, queueName, "run"); err != nil {
+	sourcePaths, err := state.ResolveProjectPaths(baseDir, queueName)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	destination, sourceProject := queueName, ""
+	if *toProject != "" && *toProject != queueName {
+		if cliOptionSet(fs, "match-by") {
+			printError("--match-by cannot be combined with --to-project, whose run has no earlier results to match")
+			return 1
+		}
+		if !resolve.ProjectExists(baseDir, *toProject) {
+			if err := model.ValidateReservedName("project", *toProject); err != nil {
+				printError(err)
+				return 1
+			}
+		}
+		if *runIDOption == "" {
+			latestRunID, err := resolve.RunID(sourcePaths, model.Latest)
+			if errors.Is(err, resolve.ErrNoSettledRuns) {
+				printErrorf("project %q has no previous run", queueName)
+				return 1
+			}
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			*runIDOption = latestRunID
+		}
+		destination, sourceProject = *toProject, queueName
+	}
+	if err := ensureProjectIdle(baseDir, destination, "run"); err != nil {
+		var running *project.RunningError
+		if errors.As(err, &running) && defaultSelection != "" && sourceProject == "" {
+			printError(err.Error() + "\n" + retryElsewhereHint(sourcePaths, *runIDOption))
+			return 1
+		}
 		printError(err)
 		return 1
 	}
 
 	if attemptSelection {
 		selection = "job-id"
-	}
-	sourcePaths, err := state.ResolveProjectPaths(baseDir, queueName)
-	if err != nil {
-		printError(err)
-		return 1
 	}
 	sourceRunID, sourcePolicy, err := projectrun.RunSource(sourcePaths, selection, *runIDOption)
 	if err != nil {
@@ -254,18 +288,26 @@ func runJobs(args []string, defaultSelection string) int {
 		jobIDs = nil
 	}
 
-	paths, err := state.ResolveProjectPaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, destination)
 	if err != nil {
 		printError(err)
 		return 1
 	}
+	planRequest := projectrun.PlanRequest{
+		Executor: *executor, ExecutorOptions: executorOptions, Settings: executorSettings(),
+		Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID,
+		SourcePolicy: sourcePolicy, SourceProject: sourceProject, CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
+		PartialArray: *partialArray, MatchBy: *matchBy,
+	}
 	if *guard.dryRun {
-		return previewRun(paths, nil, projectrun.PlanRequest{
-			Executor: *executor, ExecutorOptions: executorOptions, Settings: executorSettings(),
-			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID,
-			SourcePolicy: sourcePolicy, CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
-			PartialArray: *partialArray, MatchBy: *matchBy,
-		}, *guard.ifRevision, *runName, note)
+		return previewRun(paths, nil, planRequest, *guard.ifRevision, *runName, note)
+	}
+	if sourceProject != "" {
+		// Starting the run creates the destination, so reject a plan first.
+		if _, _, err := projectRunner().PreviewRun(paths, nil, planRequest, *guard.ifRevision); err != nil {
+			printError(err)
+			return 1
+		}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -298,10 +340,10 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	defer client.Close()
 	request := serverinternal.Request{
-		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, DisconnectAction: *disconnectAction, Quiet: *quiet,
+		Op: serverinternal.OpRun, QueueName: destination, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, DisconnectAction: *disconnectAction, Quiet: *quiet,
 		RunName: *runName, Note: note, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath, FileConfig: fileConfig,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID,
-		SourcePolicy: string(sourcePolicy), CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
+		SourcePolicy: string(sourcePolicy), SourceProject: sourceProject, CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
 		PartialArray: *partialArray, MatchBy: *matchBy,
 		IfRevision: runRevision,
 	}
@@ -369,6 +411,16 @@ func rejectRunOverwrite(args []string) bool {
 // job, what they select, as run does.
 func cmdRetry(args []string) int {
 	return runJobs(args, model.ResultSelection(true, true, false))
+}
+
+// retryElsewhereHint names the retry that runs beside a running project's
+// active run, in another project.
+func retryElsewhereHint(paths state.ProjectPaths, runID string) string {
+	command := "rotari retry " + hintLocation(paths)
+	if runID != "" {
+		command += " --run-id " + executor.ShellQuote(runID)
+	}
+	return "To retry now in another project, which it creates if needed:\n  " + command + " --to-project NEW_PROJECT"
 }
 
 // sendRunRequest sends the startup request, then follows the accepted run

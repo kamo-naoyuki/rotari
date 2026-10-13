@@ -263,6 +263,8 @@ func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
 	} {
 		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {
 			t.Errorf("%s of a running project was not rejected: %s", name, r)
+		} else if hint := "rotari retry --project-name 'live' --to-project NEW_PROJECT"; strings.Contains(r.Stderr, hint) != (name == "retry") {
+			t.Errorf("%s rejection and the hint %q: %s", name, hint, r)
 		}
 	}
 	if r := e.Rotari("copy", "-p", "live", "--run-id", run.RunID); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is still running") {

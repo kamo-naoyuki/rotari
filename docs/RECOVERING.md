@@ -61,21 +61,34 @@ For a reviewable edit kept in a file, export the run as a
 ## Rerun failed jobs while the project is running
 
 A project has one active run at a time, so `retry` is rejected while it runs.
-To rerun an earlier run's failures now, beside the active run, copy them into
-another project and run them there:
+To rerun an earlier run's failures now, beside the active run, retry them in
+another project:
+
+```sh
+rotari retry -p sweep --to-project sweep-fix
+```
+
+`--to-project` creates the project if needed and starts the run there from
+the latest finished run of `sweep`, or from `-r RUN_ID`. The options that
+choose which jobs rerun select from that run as usual, and only the selected
+jobs go to the new project: all of them execute, nothing carries forward,
+and a job that depends on them runs only if it is selected too. Neither
+project's queue changes. The new project's history starts with this run;
+the source run stays in `sweep`.
+
+To edit the jobs first, copy them into the other project's queue instead,
+then run it:
 
 ```sh
 rotari copy -p sweep --failed --unfinished --to-project sweep-fix
+rotari change -p sweep-fix --job-name train ./train-v2.sh
 rotari run -p sweep-fix
 ```
 
-`copy` without `-r` takes the latest finished run, and `--to-project` creates
-the project if needed. The copies keep their commands, settings, and job IDs,
-but not their link to the source run, whose history stays in the source
-project. They are marked unfinished, so `run` and `retry` in the new project
-execute every copied job and carry nothing forward. Copy every job that has
-to run; as with any copy, a dependency on a prerequisite that succeeded and
-was left out is removed.
+The copies keep their commands, settings, and job IDs, but not their link to
+the source run. They are marked unfinished, so `run` and `retry` in the new
+project execute every copied job. As with any copy, a dependency on a
+prerequisite that succeeded and was left out is removed.
 
 ## Choosing which jobs rerun
 

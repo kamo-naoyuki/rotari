@@ -1,7 +1,7 @@
 # Plan: Copy and Retry Into Another Project
 
 **Created:** 2026-10-13
-**Status:** Phase 1 done; Phases 2–3 in progress. See [work-log.md](work-log.md).
+**Status:** Phases 1–3 done; Phase 4 not scheduled. See [work-log.md](work-log.md).
 **Related:** [Work on a project while its run is active](../2026-10-05-work-during-runs/plan.md),
 [project selection](../2026-10-06-project-selection/plan.md),
 [shared experiment record](../2026-10-10-shared-experiment-record/plan.md)
@@ -177,7 +177,15 @@ result.
    Docs: `docs/RUNNING.md` (running failed jobs beside an active run),
    the FAQ "another project" answer, `docs/ARCHITECTURE.md` copy flow.
 
-### Phase 2: `retry --to-project`
+### Phase 2: `retry --to-project` (done)
+
+Implemented for `run` as well as `retry`: the two commands share their
+options, and `run --to-project` is the same start with no default selection.
+The planned request travels back to the supervisor as `PlannedRun.Request`,
+so execution does not apply the selection a second time. The CLI plans once
+before starting the supervisor, which would otherwise create the destination
+for a rejected request. `--match-by` is rejected with the filters D8 names.
+MCP's `rotari_start_run` takes no destination; MCP has no copy tool either.
 
 1. In `projectrun` planning, resolve the source run in the source project and
    plan the run in the destination with `CopySnapshot` (foreign source, so no
@@ -190,7 +198,10 @@ result.
    rule, SAFE-2 note that the destination is the project checked); docs as in
    Phase 1.
 
-### Phase 3: rejection hint
+### Phase 3: rejection hint (done)
+
+`project.EnsureIdle` returns `*project.RunningError`, and the CLI adds the
+hint to a `retry` rejection, keeping `--run-id` when one was given.
 
 1. Give the `retry` rejection for a running project the D9 hint. The
    message is built where the operation is known (`retry` vs. `run`), not by

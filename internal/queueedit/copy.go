@@ -45,6 +45,9 @@ type CopyRequest struct {
 	Scope model.CommandSelector
 	// Filter narrows Selection further.
 	Filter jobfilter.Filter
+	// PartialArray decides an array's tasks one by one for a result
+	// selection, and narrows the copied array to the selected tasks.
+	PartialArray bool
 	// Attempts are attempts to copy, with Selection "job-id". Selecting an
 	// attempt of an array task narrows the copied array to the selected tasks.
 	Attempts []Attempt
@@ -126,7 +129,7 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 			return request.Scope.Matches(command) && request.Filter.MatchesCommand(command)
 		}
 	}
-	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, request.Filter, requested, requestedTasks)
+	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, request.Filter, request.PartialArray, requested, requestedTasks)
 	if err != nil {
 		return model.Queue{}, 0, err
 	}
@@ -182,15 +185,25 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 	return destination, len(selected), nil
 }
 
-func selectCommands(source Run, selection string, inScope func(model.QueuedCommand) bool, filter jobfilter.Filter, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
+func selectCommands(source Run, selection string, inScope func(model.QueuedCommand) bool, filter jobfilter.Filter, partialArray bool, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
 	selected := make([]model.QueuedCommand, 0, len(source.Snapshot.Commands))
 	selectedNames := make(map[string]bool)
 	for _, command := range source.Snapshot.Commands {
 		include := false
+		var matchedTasks map[string]bool
 		if selection != "job-id" {
-			if command.Array == nil {
+			switch {
+			case command.Array == nil:
 				include = filter.Selects(selection, source.job(command.ID))
-			} else {
+			case partialArray:
+				matchedTasks = make(map[string]bool)
+				for _, task := range model.ArrayTaskIDs(command.Array) {
+					if id := fmt.Sprintf("%s-%d", command.ID, task); filter.Selects(selection, source.job(id)) {
+						matchedTasks[id] = true
+					}
+				}
+				include = len(matchedTasks) > 0
+			default:
 				tasks := make([]jobfilter.Job, 0)
 				for _, task := range model.ArrayTaskIDs(command.Array) {
 					tasks = append(tasks, source.job(fmt.Sprintf("%s-%d", command.ID, task)))
@@ -206,6 +219,8 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 		if include {
 			if taskIDs := requestedTasks[command.ID]; len(taskIDs) > 0 {
 				narrowArrayCommand(&command, taskIDs)
+			} else if len(matchedTasks) > 0 && len(matchedTasks) < len(model.ArrayTaskIDs(command.Array)) {
+				narrowArrayCommand(&command, matchedTasks)
 			}
 			selectedNames[command.Name] = true
 			selected = append(selected, command)
