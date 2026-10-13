@@ -294,7 +294,15 @@ func TestSchedulerContainerCancelledPendingJobReadsAsCancelled(t *testing.T) {
 	output, code := project.rotariCommand(4*time.Minute, "wait", "-p", "p", "--timeout", "3m")
 	t.Logf("rotari wait exit = %d\n%s", code, output)
 	if result := project.results()["held"]; result.ExitCode == 0 || !model.IsCancelledError(result.Error) {
-		t.Fatalf("held = %#v, want a non-zero exit code and a cancelled error", result)
+		metadata := project.attemptMetadata(result.ID)
+		accounting := map[string]string{
+			"slurm": "sacct --noheader --parsable2 --allocations --format=State,ExitCode --jobs %s",
+			"pbs":   "qstat -xf %s",
+			"sge":   "qacct -j %s",
+		}[project.config.executor]
+		nativeID, _ := metadata[project.config.executor+"_job_id"].(string)
+		output, code := project.shell(30*time.Second, fmt.Sprintf(accounting, executor.ShellQuote(nativeID)))
+		t.Fatalf("held = %#v, want a non-zero exit code and a cancelled error\nscheduler accounting (exit %d):\n%s", result, code, output)
 	}
 }
 
