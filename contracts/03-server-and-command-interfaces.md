@@ -350,7 +350,10 @@ does not promise to detect a lost remote client.
   progress and completion but keeps diagnostics, errors, and timeouts. JSON
   never emits text progress, still holds a session while following an active
   run, and emits results in selector order. Ctrl-D releases only the caller's
-  session; timeout and `--until-failure` also release only that session without
+  session, and a detached synchronous `run`/`retry` names its run ID and the
+  `rotari wait` command that follows it (`TestRunTerminalControlsPrintOutcomeOnce`
+  in [`conformance/03-interfaces/run_terminal_test.go`](../conformance/03-interfaces/run_terminal_test.go));
+  timeout and `--until-failure` also release only that session without
   cancelling work. Ctrl-C cancels every still-active selected run and exits
   130. Explicitly selected active runs may have multiple followers and warn
   when another session is attached. The warning inspects the run phase, lock,

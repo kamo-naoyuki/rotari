@@ -415,8 +415,8 @@ suspended client is later closed, that is an unexpected disconnect and follows
 
 Its standard input is a terminal that reported the end of input, which `run`
 and `wait` treat as Ctrl-D. Some background or tool-managed terminals do this
-at once. The run was created and continues; `rotari runs` lists it and
-`rotari wait` follows it. To wait in such a terminal, run
+at once. The run was created and continues; the message names its run ID and
+the `rotari wait` command that follows it. To wait in such a terminal, run
 `rotari run </dev/null` or `rotari wait </dev/null`. See
 [Controlling runs from the terminal](RUNNING.md#controlling-runs-from-the-terminal).
 

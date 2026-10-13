@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -47,6 +48,19 @@ func TestRunTerminalControlsPrintOutcomeOnce(t *testing.T) {
 			}
 			if !strings.HasSuffix(output, "\n") {
 				t.Fatalf("output does not end with a newline:\n%q", output)
+			}
+			if test.key == 0x04 {
+				var shown struct {
+					RunID string `json:"run_id"`
+				}
+				if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, "--json").Stdout), &shown); err != nil || shown.RunID == "" {
+					t.Fatalf("show --json did not name the run: %v", err)
+				}
+				_, after, _ := strings.Cut(output, test.message)
+				_, hint, _ := strings.Cut(after, "rotari wait --run-id ")
+				if hint, _, _ = strings.Cut(hint, "\n"); !strings.Contains(hint, shown.RunID) {
+					t.Fatalf("detach message does not name run %s with rotari wait; output:\n%s", shown.RunID, output)
+				}
 			}
 		})
 	}

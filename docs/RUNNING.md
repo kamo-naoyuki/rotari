@@ -103,7 +103,8 @@ or `rotari runs`.
 treat the end of that input as Ctrl-D. Some background or tool-managed
 terminals report the end of input at once, so there a synchronous
 `rotari run` prints `Run detached; it continues in the background.` right
-after starting and exits 0 while the run goes on. In such a terminal, give the
+after starting and exits 0 while the run goes on. The message names the run
+and the `rotari wait` command that follows it. In such a terminal, give the
 command another input, as in `rotari run -p sweep </dev/null`, or use
 `rotari run --async` and then `rotari wait </dev/null`. Ctrl-C and the
 disconnect setting still apply without a terminal input.

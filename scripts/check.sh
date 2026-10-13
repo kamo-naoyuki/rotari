@@ -38,11 +38,11 @@ if [[ "$short" == true ]]; then
     step "go test -short"
     go test -short ./...
 else
-    step "go test"
-    go test ./...
-    step "go test -race"
     # pairedits executes thousands of CLI invocations and can exceed Go's
-    # default ten-minute package timeout under the full race-suite load.
+    # default ten-minute package timeout under full-suite load.
+    step "go test"
+    go test -timeout 15m ./...
+    step "go test -race"
     go test -race -timeout 15m ./...
 fi
 

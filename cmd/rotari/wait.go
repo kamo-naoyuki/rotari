@@ -308,6 +308,9 @@ func waitTargetsControlled(waitTargets []resolve.Run, deadline time.Time, untilF
 					message = serverinternal.DetachedMessage
 				}
 				fmt.Fprintln(os.Stdout, cyan(message))
+				if initial {
+					printDetachedRunHint(waitTargets[0])
+				}
 			}
 			return waitControlOutcome{detached: true}
 		case receivedSignal := <-interrupt:
@@ -336,6 +339,16 @@ func waitTargetsControlled(waitTargets []resolve.Run, deadline time.Time, untilF
 		return waitControlOutcome{exitCode: 1}
 	}
 	return waitControlOutcome{exitCode: exitCode}
+}
+
+// printDetachedRunHint names the run a synchronous run detached from, which
+// may happen before its start banner was printed.
+func printDetachedRunHint(target resolve.Run) {
+	paths, err := state.ResolveProjectPaths(target.BaseDir, target.ProjectName)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(os.Stdout, "  Run ID: %s\n%s\n  rotari wait %s--run-id %s\n", target.RunID, cyan("Wait for it:"), runHintLocation(paths), executor.ShellQuote(target.RunID))
 }
 
 // Completed JSON results survive an explicit detach or cancellation, in
