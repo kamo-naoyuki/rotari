@@ -117,7 +117,7 @@ them. See [Job timeouts](RUNNING.md#job-timeouts).
 ### GPU training on Slurm
 
 This job asks Slurm for one GPU on the `gpu` partition and runs a Python
-script in a micromamba environment named `train`:
+script in a conda environment named `train`:
 
 ```sh
 cd ~/exp
@@ -125,7 +125,7 @@ rotari add -p train \
   -e slurm \
   --executor-option="--partition=gpu --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=12:00:00" \
   --job-name train \
-  micromamba run -n train python train.py --config configs/base.yaml
+  conda run -n train --no-capture-output python train.py --config configs/base.yaml
 rotari run -p train
 ```
 
@@ -135,9 +135,9 @@ so that directory must be on a file system the compute node shares.
 
 Alternatively, activate the environment in the shell that runs `rotari run`:
 the default `--env=ALL` exports its `PATH` to the job. With `--env=NONE`, the
-job's `PATH` is `/usr/local/bin:/usr/bin:/bin`. With `conda run`, add
-`--no-capture-output`, or `rotari show --follow` sees no output until the job
-exits.
+job's `PATH` is `/usr/local/bin:/usr/bin:/bin`. Without
+`--no-capture-output`, `conda run` holds the output until the job exits, so
+`rotari show --follow` sees none while it runs.
 
 ### SSH executor
 
