@@ -77,7 +77,7 @@ func executeProgressTestRun(t *testing.T, ops Operations, request server.Request
 		id, message, err := ops.StartRun(request, func() { close(done) })
 		if err != nil || id != "run-1" || !strings.Contains(message, "Wait for it:\n  rotari wait -r run-1") ||
 			!strings.Contains(message, "Check status:\n  rotari show -r run-1") ||
-			!strings.Contains(message, "Cancel run:\n  rotari cancel -p demo run-1") || strings.Contains(message, "--basedir") || strings.Contains(message, "--project-name") {
+			!strings.Contains(message, "Cancel run:\n  rotari cancel run-1\n") || strings.Contains(message, "--basedir") || strings.Contains(message, "--project-name") {
 			t.Fatalf("StartRun = %q, %q, %v", id, message, err)
 		}
 		select {

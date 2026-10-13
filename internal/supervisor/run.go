@@ -38,8 +38,8 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
-	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait -r %s\n\nCheck status:\n  rotari show -r %s\n\nCancel run:\n  rotari cancel -p %s %s\n",
-		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, started.runID, request.QueueName, started.runID)
+	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait -r %s\n\nCheck status:\n  rotari show -r %s\n\nCancel run:\n  rotari cancel %s\n",
+		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, started.runID, started.runID)
 	return started.runID, message + sourceNotice(started), nil
 }
 
