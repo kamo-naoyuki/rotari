@@ -329,13 +329,17 @@ func slurmAccounting(jobID string) (int, string, bool, error) {
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		fields := strings.Split(strings.TrimSpace(scanner.Text()), "|")
-		if len(fields) < 2 || fields[0] == "" {
+		if len(fields) < 2 || strings.TrimSpace(fields[0]) == "" {
 			continue
 		}
-		state := strings.SplitN(fields[0], "+", 2)[0]
+		// sacct reports states such as "CANCELLED by 1234" or "CANCELLED+".
+		state := strings.TrimRight(strings.Fields(fields[0])[0], "+")
 		exitCode := parseSlurmExitCode(fields[1])
 		if state == "COMPLETED" {
 			exitCode = 0
+		} else if exitCode == 0 {
+			// A job cancelled while pending, or ended by a time limit, can report 0:0.
+			exitCode = 1
 		}
 		return exitCode, strings.ToLower(state), true, nil
 	}

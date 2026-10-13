@@ -1084,6 +1084,12 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
 - Polling executors persist normalized scheduler state in
   `scheduler_status.json`. Read projections use it without querying schedulers
   directly.
+- When a job ends without a wrapper result, as one cancelled while pending
+  does, its result comes from scheduler accounting. For Slurm, only
+  `COMPLETED` gives exit code 0: `CANCELLED by UID` with `ExitCode 0:0`
+  records exit code 1 and error `cancelled`. Covered by
+  `TestWaitSlurmJobFailureBoundariesWithFakeSlurm` in
+  [internal/executor/slurm_test.go](../internal/executor/slurm_test.go).
 - Repeated scheduler queue or accounting query failures use a shared
   per-process exponential polling backoff, capped at 30 seconds. A successful
   query restores the normal polling interval; wrapper `status.json` remains an

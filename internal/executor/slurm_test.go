@@ -319,6 +319,20 @@ func TestWaitSlurmJobFailureBoundariesWithFakeSlurm(t *testing.T) {
 			wantError:  "failed",
 		},
 		{
+			name:      "cancelled while pending reports exit code zero",
+			squeue:    "",
+			sacct:     "CANCELLED by 22156|0:0\n",
+			wantCode:  1,
+			wantError: "cancelled",
+		},
+		{
+			name:      "timeout without an exit code",
+			squeue:    "",
+			sacct:     "TIMEOUT|0:0\n",
+			wantCode:  1,
+			wantError: "timeout",
+		},
+		{
 			name:       "scheduler gone but wrapper finished",
 			statusJSON: `{"phase":"finished","exit_code":3,"error":"wrapper-failed"}`,
 			squeue:     "",
