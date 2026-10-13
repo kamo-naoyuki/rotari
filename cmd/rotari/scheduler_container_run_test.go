@@ -264,6 +264,40 @@ func TestSchedulerContainerStopsTimedOutJob(t *testing.T) {
 	}
 }
 
+// A job cancelled while held in the scheduler queue never starts its wrapper,
+// so its result comes from scheduler accounting, which can report exit 0.
+func TestSchedulerContainerCancelledPendingJobReadsAsCancelled(t *testing.T) {
+	project := newContainerProject(t)
+	hold := map[string]string{"slurm": "--hold", "pbs": "-h", "sge": "-h"}[project.config.executor]
+	if hold == "" {
+		t.Skipf("no hold option for executor %q", project.config.executor)
+	}
+	project.add("--job-name", "held", "--executor-option="+hold, "--", "true")
+	if output, code := project.rotariCommand(30*time.Second, "run", "-p", "p", "--async"); code != 0 {
+		t.Fatalf("run --async exit = %d\n%s", code, output)
+	}
+	t.Cleanup(func() { project.rotariCommand(2*time.Minute, "cancel", "-p", "p", "--wait") })
+	deadline := time.Now().Add(time.Minute)
+	for {
+		output, _ := project.shell(30*time.Second, fmt.Sprintf("ls %s/projects/p/runs/*/*/attempts/*/job.json 2>/dev/null", project.baseDir))
+		if strings.TrimSpace(output) != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the held job was not submitted")
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if output, code := project.rotariCommand(3*time.Minute, "cancel", "-p", "p", "--job-name", "held", "--wait"); code != 0 {
+		t.Fatalf("cancel exit = %d\n%s", code, output)
+	}
+	output, code := project.rotariCommand(4*time.Minute, "wait", "-p", "p", "--timeout", "3m")
+	t.Logf("rotari wait exit = %d\n%s", code, output)
+	if result := project.results()["held"]; result.ExitCode == 0 || !model.IsCancelledError(result.Error) {
+		t.Fatalf("held = %#v, want a non-zero exit code and a cancelled error", result)
+	}
+}
+
 func TestSchedulerContainerResolvesDependencies(t *testing.T) {
 	project := newContainerProject(t)
 	project.add("--job-name", "prepare", "--", "false")
