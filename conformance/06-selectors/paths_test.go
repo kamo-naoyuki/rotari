@@ -61,6 +61,9 @@ func TestCLIRejectsUnsafePathElements(t *testing.T) {
 		{"suspend JOB_ID", func(v string) []string { return []string{"suspend", "-p", live.project, v} }, live.jobs[0], live.runID},
 		{"resume JOB_ID", func(v string) []string { return []string{"resume", "-p", live.project, v} }, live.jobs[0], live.runID},
 		{"cancel JOB_ID", func(v string) []string { return []string{"cancel", "-p", live.project, v} }, live.jobs[0], live.runID},
+		{"copy --to-project", func(v string) []string {
+			return []string{"copy", "-p", run.project, "--run-id", run.runID, "--to-project", v, "--quiet"}
+		}, "copied", "projects"},
 		{"delete RUN_ID", func(v string) []string { return []string{"delete", "-p", run.project, v} }, run.runID, "runs"},
 	}
 	for _, c := range cases {
@@ -159,6 +162,7 @@ func TestWebAPIRejectsUnsafePathElements(t *testing.T) {
 		{"POST", "/api/generate-config", pick(queue, "project_name"), queueParents, map[string]any{"location": "project"}},
 		{"POST", "/api/save-config", pick(queue, "project_name"), queueParents, map[string]any{"content": ""}},
 		{"POST", "/api/copy", pick(finishedRun, "project_name", "run_id"), finishedParents, map[string]any{"selection": "failed"}},
+		{"POST", "/api/copy", map[string]string{"project_name": finished.project, "run_id": finished.runID, "to_project": "copied"}, map[string]string{"project_name": "projects", "run_id": "runs", "to_project": "projects"}, map[string]any{"selection": "failed"}},
 		{"POST", "/api/clear-run", pick(finishedRun, "project_name", "run_id"), finishedParents, nil},
 	}
 	for _, route := range routes {

@@ -20,13 +20,28 @@ import (
 // Attempt IDs in request.JobIDs select those attempts. The caller confirms
 // an overwrite before setting request.Overwrite.
 func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.CopyRequest) (string, error) {
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	return editor.CopyTo(baseDir, projectName, runID, projectName, request)
+}
+
+// CopyTo is Copy from runID of sourceProject into the queue of
+// destinationProject in the same basedir, which it creates when absent.
+func (editor Editor) CopyTo(baseDir, sourceProject, runID, destinationProject string, request queueedit.CopyRequest) (string, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, destinationProject)
 	if err != nil {
 		return "", err
 	}
+	if _, statErr := os.Stat(paths.ProjectDir); errors.Is(statErr, os.ErrNotExist) {
+		if err := model.ValidateReservedName("project", destinationProject); err != nil {
+			return "", err
+		}
+		// Creating the project precedes the edit, so check the source first.
+		if _, _, err := editor.CopySnapshot(baseDir, sourceProject, runID, destinationProject, model.Queue{}, request); err != nil {
+			return "", err
+		}
+	}
 	var copied int
-	err = project.EditQueueGuarded(paths, editor.Guard, func(queue *model.Queue) error {
-		edited, count, err := editor.CopySnapshot(baseDir, projectName, runID, *queue, request)
+	err = project.CreateQueueGuarded(paths, editor.Guard, func(queue *model.Queue) error {
+		edited, count, err := editor.CopySnapshot(baseDir, sourceProject, runID, destinationProject, *queue, request)
 		if err != nil {
 			return err
 		}
@@ -39,20 +54,20 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 	if err := editor.registerBaseDir(paths.BaseDir); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, projectName), nil
+	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, destinationProject), nil
 }
 
-// CopySnapshot builds the queue that Copy would produce without writing it.
-// The caller must hold the destination project's state lock when it needs the
-// source and destination to describe one revision. Run startup uses this to
-// build an immutable snapshot from a settled run while leaving queue.json for
-// the next run untouched.
-func (editor Editor) CopySnapshot(baseDir, projectName, runID string, destination model.Queue, request queueedit.CopyRequest) (model.Queue, int, error) {
+// CopySnapshot builds the queue that CopyTo would produce from destination
+// without writing it. The caller must hold the destination project's state
+// lock when it needs the source and destination to describe one revision.
+// Run startup uses this to build an immutable snapshot from a settled run
+// while leaving queue.json for the next run untouched.
+func (editor Editor) CopySnapshot(baseDir, sourceProject, runID, destinationProject string, destination model.Queue, request queueedit.CopyRequest) (model.Queue, int, error) {
 	selection := request.Selection
 	if request.Selection == "" {
 		request.Selection = "all"
 	}
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, sourceProject)
 	if err != nil {
 		return model.Queue{}, 0, err
 	}
@@ -78,7 +93,7 @@ func (editor Editor) CopySnapshot(baseDir, projectName, runID string, destinatio
 		return model.Queue{}, 0, fmt.Errorf("failed to load run summary: %w", summaryErr)
 	}
 	source := queueedit.Run{
-		ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results),
+		ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results), Foreign: sourceProject != destinationProject,
 		Timestamps: func(jobID string) (string, string) {
 			return state.ReadJobTimestamp(sourceRunDir, jobID, "submitted_at"), state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at")
 		},
@@ -102,7 +117,7 @@ func (editor Editor) CopySnapshot(baseDir, projectName, runID string, destinatio
 		}
 		sourceRequest.Attempts = append(sourceRequest.Attempts, attempt)
 	}
-	return queueedit.Copy(destination, projectName, source, sourceRequest, editor.NewJobID)
+	return queueedit.Copy(destination, destinationProject, source, sourceRequest, editor.NewJobID)
 }
 
 // copyAttempt checks that attemptID is an existing attempt of runID.

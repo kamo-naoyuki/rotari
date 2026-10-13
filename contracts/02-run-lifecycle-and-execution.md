@@ -251,6 +251,25 @@
   and narrows to one actor or to unlabelled runs. Runs from before the record
   have none. Covered by
   [`conformance/03-interfaces/started_by_test.go`](../conformance/03-interfaces/started_by_test.go).
+- **RUN-18** `copy --to-project NAME` and the Web API `/api/copy`
+  `to_project` copy jobs from a settled run of the source project into the
+  queue of another project in the same basedir, creating it when absent
+  (named as `add` names a new project; a dry run creates nothing). The
+  source project may be running. Selection, the omitted-prerequisite check,
+  and `--append`/`--overwrite` work as for a copy within one project, against
+  the destination queue. Origins resolve only within a project's own runs,
+  so a job copied into another project gets no `Origin` or `TaskOrigins` and
+  is marked unfinished: `run` and `retry` in the destination execute it,
+  whether or not the destination has a previous run, and never carry a
+  result to it from an earlier run of the destination under the same job ID.
+  A result selection in a project without a previous run plans from the
+  queue. The decision is `queueedit.Run.Foreign` in
+  [internal/queueedit/copy.go](../internal/queueedit/copy.go), set by
+  `queueops.Editor.CopyTo` in [internal/queueops/copy.go](../internal/queueops/copy.go).
+  Covered by `TestCopyFromAnotherProjectMarksJobsUnfinished`,
+  `TestCopyToAnotherProject`, and through the binary and the Web API by
+  `TestCopyIntoAnotherProject` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

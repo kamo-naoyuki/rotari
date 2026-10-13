@@ -16,6 +16,10 @@ type Run struct {
 	Snapshot model.Queue
 	Results  map[string]model.JobResult
 	CWD      string
+	// Foreign reports that the run belongs to another project than the
+	// destination queue. Origins resolve only within a project's own runs,
+	// so jobs copied from it get none and are marked unfinished instead.
+	Foreign bool
 	// Timestamps returns a job's submitted and finished times in the run.
 	Timestamps func(jobID string) (submittedAt, finishedAt string)
 	// FilterJob returns what job filters need to know about a job or task of
@@ -158,6 +162,11 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 		// A mark applied to the source run, whose results already show it.
 		command.MarkedStatus = ""
 		command.TaskMarkedStatus = nil
+		if source.Foreign {
+			command.MarkedStatus = model.StatusUnfinished
+			command.Origin, command.TaskOrigins = nil, nil
+			continue
+		}
 		command.Origin = commandOrigin(source, sourceJobID, command.Array, requestedAttempts)
 		if command.Array != nil {
 			command.TaskOrigins = taskOrigins(source, sourceJobID, command.Array, requestedAttempts)

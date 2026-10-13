@@ -204,6 +204,7 @@ the IDs, this table, and those calls disagree.
 | RUN-15 | A run records the git or jj revision its executed jobs ran from, and `show`, `lineage`, and the Web API report and compare it | conformance | `TestRunRecordsTheSourceItExecuted`, `TestRunRecordsUncommittedGitChanges`, `TestRunRecordsAJJWorkingCopy` |
 | RUN-16 | `run --note`, `retry --note`, and `rotari note` add notes to a run or a job attempt, appended only; `show`, `lineage`, and the Web API report them | conformance | `TestRunNotes`, `TestCLIFlagPairNote` |
 | RUN-17 | A run records its interface (`cli`, `mcp`) and only an explicitly given actor label (`--actor`, `ROTARI_ACTOR`), shown by `show`, `lineage`, `runs --json`, MCP, and the Web | conformance | `TestRunRecordsHowItWasStarted` |
+| RUN-18 | `copy --to-project` and Web `to_project` copy into another project, creating it; copied jobs carry no origin and are unfinished, so `run` and `retry` there execute them | conformance | `TestCopyIntoAnotherProject` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |

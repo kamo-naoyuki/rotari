@@ -102,7 +102,7 @@ func (runner Runner) sourceSnapshot(paths state.ProjectPaths, queue model.Queue,
 	if request.CopyAttempts {
 		copyRequest.Selection, copyRequest.JobIDs = "job-id", request.CopyJobIDs
 	}
-	copied, _, err := (queueops.Editor{Store: runner.Store, Executors: runner.Executors, NewJobID: runner.NewJobID}).CopySnapshot(paths.BaseDir, paths.ProjectName, sourceRunID, queue, copyRequest)
+	copied, _, err := (queueops.Editor{Store: runner.Store, Executors: runner.Executors, NewJobID: runner.NewJobID}).CopySnapshot(paths.BaseDir, paths.ProjectName, sourceRunID, paths.ProjectName, queue, copyRequest)
 	if err != nil {
 		return model.Queue{}, request, false, err
 	}

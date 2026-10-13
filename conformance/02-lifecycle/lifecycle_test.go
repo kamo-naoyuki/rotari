@@ -209,6 +209,54 @@ func TestRetryReportsFailedJobsOmittedByNonEmptyQueue(t *testing.T) {
 	}
 }
 
+func TestCopyIntoAnotherProject(t *testing.T) {
+	covers(t, "RUN-18")
+	e := support.NewEnv(t)
+	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "ok", "--", "true"))
+	badA := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "bad-a", "--", "sh", "-c", "exit 2"))
+	badB := support.AddedJobID(t, e.MustRotari("add", "-p", "src", "--job-name", "bad-b", "--", "sh", "-c", "exit 3"))
+	if r := e.Rotari("run", "-p", "src", "--quiet"); r.Code == 0 {
+		t.Fatalf("source run unexpectedly succeeded: %s", r)
+	}
+	source := readSummary(t, e, "src")
+	e.StartRun("src", 1, false)
+
+	e.MustRotari("copy", "-p", "src", "--run-id", source.RunID, "--failed", "--to-project", "cli", "--quiet")
+	base := e.StartWeb("--allow-control")
+	if got := e.HTTPPostJSON(base+"/api/copy", map[string]any{"project_name": "src", "run_id": source.RunID, "selection": "failed", "to_project": "web"}); got.Status != 200 {
+		t.Fatalf("Web copy into another project: status %d: %s", got.Status, got.Body)
+	}
+	for _, project := range []string{"cli", "web"} {
+		if r := e.Rotari("retry", "-p", project, "--quiet"); r.Code == 0 {
+			t.Fatalf("%s: retry of the copied failures unexpectedly succeeded: %s", project, r)
+		}
+		retried := readSummary(t, e, project)
+		if len(retried.Results) != 2 {
+			t.Fatalf("%s: results = %+v, want the two copied failures only", project, retried.Results)
+		}
+		for jobID, wantExit := range map[string]int{badA: 2, badB: 3} {
+			sourceAttempt, _ := summaryResult(t, source, jobID)
+			attempt, exit := summaryResult(t, retried, jobID)
+			if exit != wantExit || attempt == "" || attempt == sourceAttempt {
+				t.Errorf("%s: job %s attempt %q exit %d; want a new attempt exiting %d", project, jobID, attempt, exit, wantExit)
+			}
+		}
+	}
+
+	// A destination's earlier result under the same job ID is not carried.
+	copyOK := []string{"copy", "-p", "src", "--run-id", source.RunID, "--job-id", okJob, "--to-project", "again", "--quiet"}
+	e.MustRotari(copyOK...)
+	e.MustRotari("run", "-p", "again", "--quiet")
+	first := readSummary(t, e, "again")
+	firstAttempt, _ := summaryResult(t, first, okJob)
+	e.MustRotari(copyOK...)
+	e.MustRotari("retry", "-p", "again", "--quiet")
+	second := readSummary(t, e, "again")
+	if secondAttempt, exit := summaryResult(t, second, okJob); second.RunID == first.RunID || secondAttempt == firstAttempt || exit != 0 {
+		t.Errorf("retry carried the destination's earlier result: run %s attempt %q, earlier run %s attempt %q", second.RunID, secondAttempt, first.RunID, firstAttempt)
+	}
+}
+
 func TestBlockedOriginJobsDoNotRewindWebTimeline(t *testing.T) {
 	covers(t, "WEB-1")
 	e := support.NewEnv(t)

@@ -1,7 +1,7 @@
 # Plan: Copy and Retry Into Another Project
 
 **Created:** 2026-10-13
-**Status:** Planned. No phase started. Checked against `5d37d7e2`.
+**Status:** Phase 1 done; Phases 2–3 in progress. See [work-log.md](work-log.md).
 **Related:** [Work on a project while its run is active](../2026-10-05-work-during-runs/plan.md),
 [project selection](../2026-10-06-project-selection/plan.md),
 [shared experiment record](../2026-10-10-shared-experiment-record/plan.md)
@@ -150,7 +150,14 @@ way to run work concurrently; this plan makes that one command.
 
 ## Phases
 
-### Phase 1: `copy --to-project`
+### Phase 1: `copy --to-project` (done)
+
+As planned, with two changes. The contract is RUN-18 alone; SAFE-8 needed no
+note, since a copy edits only the destination's queue. `projectrun.RunSource`
+no longer rejects a result selection in a project without a previous run: it
+plans from the queue, so `retry` in a new destination executes the copies
+instead of failing, and planning still rejects an unmarked job that needs a
+result.
 
 1. Split source from destination in `queueops.Editor.Copy` / `CopySnapshot`:
    source project paths for `EnsureRunSettled`, `CheckRunVersions`, the

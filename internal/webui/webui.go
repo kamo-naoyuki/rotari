@@ -71,6 +71,7 @@ type webSaveNotificationConfigRequest struct {
 type webCopyRequest struct {
 	QueueName string   `json:"project_name"`
 	RunID     string   `json:"run_id"`
+	ToProject string   `json:"to_project,omitempty"`
 	JobID     string   `json:"job_id,omitempty"`
 	JobIDs    []string `json:"job_ids,omitempty"`
 	Selection string   `json:"selection"`
@@ -761,6 +762,14 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
+		destination := copyRequest.QueueName
+		if copyRequest.ToProject != "" {
+			if !stateinternal.IsValidPathElement(copyRequest.ToProject) {
+				writeWebError(writer, fmt.Errorf("invalid to_project %q", copyRequest.ToProject))
+				return
+			}
+			destination = copyRequest.ToProject
+		}
 		if copyRequest.JobID != "" {
 			copyRequest.JobIDs = append(copyRequest.JobIDs, copyRequest.JobID)
 		}
@@ -789,7 +798,7 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, fmt.Errorf("unsupported copy selection %q", copyRequest.Selection))
 			return
 		}
-		message, err := s.Editor.Copy(baseDir, copyRequest.QueueName, copyRequest.RunID, queueedit.CopyRequest{Selection: copyRequest.Selection, JobIDs: copyRequest.JobIDs, Append: copyRequest.Append, Overwrite: copyRequest.Overwrite})
+		message, err := s.Editor.CopyTo(baseDir, copyRequest.QueueName, copyRequest.RunID, destination, queueedit.CopyRequest{Selection: copyRequest.Selection, JobIDs: copyRequest.JobIDs, Append: copyRequest.Append, Overwrite: copyRequest.Overwrite})
 		if err != nil {
 			writeWebError(writer, err)
 			return

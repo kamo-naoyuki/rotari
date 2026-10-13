@@ -20,7 +20,9 @@ const (
 // RunSource describes the input requested by `rotari run` or `retry` without
 // deciding from a potentially stale queue read. An explicit run is copied;
 // a selection copies the latest run only if the queue is empty when the
-// supervisor takes its state lock; a plain run keeps the queue.
+// supervisor takes its state lock; a plain run, or a selection in a project
+// without a previous run, keeps the queue. Planning then rejects a queued job
+// whose result the selection needs and no run records.
 func RunSource(paths state.ProjectPaths, selection, requestedRunID string) (sourceRunID string, policy SourcePolicy, err error) {
 	if requestedRunID != "" {
 		return requestedRunID, SourceCopyRun, nil
@@ -33,7 +35,7 @@ func RunSource(paths state.ProjectPaths, selection, requestedRunID string) (sour
 		return "", SourceKeepQueue, fmt.Errorf("failed to load metadata: %w", err)
 	}
 	if meta.LastRunID == "" {
-		return "", SourceKeepQueue, fmt.Errorf("queue %q has no previous run", paths.ProjectName)
+		return "", SourceKeepQueue, nil
 	}
 	return meta.LastRunID, SourceCopyIfEmpty, nil
 }

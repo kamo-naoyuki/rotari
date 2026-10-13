@@ -387,8 +387,10 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 
 `change`, `copy`, and `remove` follow the same path through their
 `queueops.Editor` methods, and `import` through its own callback; `delete`
-uses `project.Edit` for the lock and idle check alone. The Web UI and the
-supervisor call the same `queueops.Editor` methods.
+uses `project.Edit` for the lock and idle check alone. `copy --to-project`
+(`Editor.CopyTo`) reads the run from the source project and edits, or
+creates, the destination's queue under the destination's lock only. The Web
+UI and the supervisor call the same `queueops.Editor` methods.
 
 No supervisor is involved.
 

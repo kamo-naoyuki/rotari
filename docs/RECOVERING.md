@@ -58,6 +58,25 @@ is not accepted by `run` or `retry`.
 For a reviewable edit kept in a file, export the run as a
 [workflow manifest](WORKFLOW_MANIFESTS.md), edit it, and import it.
 
+## Rerun failed jobs while the project is running
+
+A project has one active run at a time, so `retry` is rejected while it runs.
+To rerun an earlier run's failures now, beside the active run, copy them into
+another project and run them there:
+
+```sh
+rotari copy -p sweep --failed --unfinished --to-project sweep-fix
+rotari run -p sweep-fix
+```
+
+`copy` without `-r` takes the latest finished run, and `--to-project` creates
+the project if needed. The copies keep their commands, settings, and job IDs,
+but not their link to the source run, whose history stays in the source
+project. They are marked unfinished, so `run` and `retry` in the new project
+execute every copied job and carry nothing forward. Copy every job that has
+to run; as with any copy, a dependency on a prerequisite that succeeded and
+was left out is removed.
+
 ## Choosing which jobs rerun
 
 By default `retry` reruns failed and unfinished jobs. These options choose

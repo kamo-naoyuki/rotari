@@ -101,7 +101,9 @@ func pairEditSample(t *testing.T, f pairMutationFixture, command string, flag pa
 	values := map[string]string{
 		"basedir": f.E.Base, "project-name": f.Project, "config": f.Config,
 		"if-revision": f.Revision,
-		"run-id":      f.Run, "job-id": f.Bad, "job-name": "bad",
+		// The source project itself, so guarded revisions stay the fixture's.
+		"to-project": f.Project,
+		"run-id":     f.Run, "job-id": f.Bad, "job-name": "bad",
 		"stage": "training", "matrix": "train", "filter-stage": "training", "filter-matrix": "train",
 		"filter-command": "exit 3", "filter-not-stage": "training", "filter-not-matrix": "train",
 		"executor": "local", "executor-option": "--partition=debug", "working-directory": f.E.Root,

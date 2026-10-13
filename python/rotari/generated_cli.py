@@ -1968,6 +1968,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
+                    "command_line_only": True,
+                    "description": "copy into this project's queue instead, "
+                    "creating the project if needed; the copied "
+                    "jobs are unfinished there",
+                    "name": "to-project",
+                    "value_name": "NAME",
+                },
+                {
                     "description": "include failed jobs; may be combined with "
                     "result filters",
                     "environment": "ROTARI_COPY_FAILED",

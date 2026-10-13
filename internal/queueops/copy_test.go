@@ -472,3 +472,60 @@ func writePartialStageRun(t *testing.T, paths state.ProjectPaths, results []mode
 		t.Fatal(err)
 	}
 }
+
+func TestCopyToAnotherProject(t *testing.T) {
+	baseDir := t.TempDir()
+	source, err := state.ResolveProjectPaths(baseDir, "source")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePartialStageRun(t, source, []model.JobResult{
+		{ID: "a-id", ExitCode: 0},
+		{ID: "b-id", ExitCode: 2},
+		{ID: "evaluate-id", ExitCode: 3},
+	})
+	projectDir := func(name string) string { return filepath.Join(baseDir, "projects", name) }
+
+	dryRun := testEditor()
+	dryRun.Guard.DryRun = true
+	if _, err := dryRun.CopyTo(baseDir, "source", "run-1", "preview", queueedit.CopyRequest{Selection: "failed"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, rejected := range []struct{ name, runID string }{{"latest", "run-1"}, {"missing", "run-0"}} {
+		if _, err := testEditor().CopyTo(baseDir, "source", rejected.runID, rejected.name, queueedit.CopyRequest{Selection: "failed"}); err == nil {
+			t.Errorf("copy of run %s into %q succeeded", rejected.runID, rejected.name)
+		}
+	}
+	for _, name := range []string{"preview", "latest", "missing"} {
+		if _, err := os.Stat(projectDir(name)); !os.IsNotExist(err) {
+			t.Errorf("project %q was created: %v", name, err)
+		}
+	}
+
+	message, err := testEditor().CopyTo(baseDir, "source", "run-1", "target", queueedit.CopyRequest{Selection: "failed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message, "to queue=target") {
+		t.Errorf("message = %q, want the destination named", message)
+	}
+	target, err := state.ResolveProjectPaths(baseDir, "target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := state.LoadQueue(target.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 || queue.Commands[0].ID != "b-id" || queue.Commands[1].ID != "evaluate-id" {
+		t.Fatalf("target queue = %#v, want the two failed jobs", queue.Commands)
+	}
+	for _, command := range queue.Commands {
+		if command.Origin != nil || command.MarkedStatus != model.StatusUnfinished {
+			t.Errorf("copied %s: origin %#v, mark %q; want no origin and unfinished", command.ID, command.Origin, command.MarkedStatus)
+		}
+	}
+	if _, err := os.Stat(source.QueueFile); !os.IsNotExist(err) {
+		t.Errorf("source queue was written: %v", err)
+	}
+}

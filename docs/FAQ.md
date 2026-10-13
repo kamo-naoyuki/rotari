@@ -78,9 +78,12 @@ Yes, for the next run. A run takes its jobs from the queue when it starts, so
 is active; `run` waits until the active run ends, since a project has one
 active run at a time. Jobs prepared together can execute concurrently within
 the same run; an independent job that must start before the current run
-finishes needs another project. That keeps its run history separate. Rotari
-does not provide a continuously accepting queue for jobs added after a run
-starts.
+finishes needs another project. That keeps its run history separate.
+`copy --to-project NAME` copies a finished run's jobs, such as its failures,
+into another project's queue; see
+[Rerun failed jobs while the project is running](RECOVERING.md#rerun-failed-jobs-while-the-project-is-running).
+Rotari does not provide a continuously accepting queue for jobs added after a
+run starts.
 
 ### I didn't pass `--project-name` — which project does rotari use?
 

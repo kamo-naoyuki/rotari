@@ -512,6 +512,7 @@ Usage: `rotari copy [RUN_ID]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | source run ID; defaults to the latest run |
+| `--to-project` | `NAME` | `CLI only` | copy into this project's queue instead, creating the project if needed; the copied jobs are unfinished there |
 | `--failed` | `` | `ROTARI_COPY_FAILED` | include failed jobs; may be combined with result filters |
 | `--unfinished` | `` | `ROTARI_COPY_UNFINISHED` | include unfinished jobs; may be combined with result filters |
 | `--success` | `` | `ROTARI_COPY_SUCCESS` | include successful jobs; may be combined with result filters |

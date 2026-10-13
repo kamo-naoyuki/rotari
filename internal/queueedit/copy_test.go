@@ -56,6 +56,42 @@ func TestCopySelectsFailedJobsAndDropsSucceededPrerequisites(t *testing.T) {
 	}
 }
 
+func TestCopyFromAnotherProjectMarksJobsUnfinished(t *testing.T) {
+	commands := []model.QueuedCommand{
+		{ID: "ok", Name: "ok", Command: []string{"true"}},
+		{ID: "bad", Name: "bad", Command: []string{"false"}, MarkedStatus: model.StatusFailed},
+		{ID: "sweep", Name: "sweep", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 3}, TaskMarkedStatus: map[string]string{"sweep-1": model.StatusSuccess}},
+		{ID: "grid-a", Name: "grid-a", Command: []string{"grid"}, Matrix: &model.MatrixSpec{GroupID: "g", BaseName: "grid"}},
+	}
+	results := []model.JobResult{
+		{ID: "ok", AttemptID: "att-ok"}, {ID: "bad", ExitCode: 2, AttemptID: "att-bad"},
+		{ID: "sweep-1", AttemptID: "att-s1"}, {ID: "sweep-2", ExitCode: 3, AttemptID: "att-s2"},
+		{ID: "grid-a", ExitCode: 4, AttemptID: "att-g"},
+	}
+	for _, foreign := range []bool{false, true} {
+		source := testRun(commands, results...)
+		source.Foreign = foreign
+		queue, copied, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed,unfinished"}, sequentialIDs())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if copied != 3 || !reflect.DeepEqual(commandIDs(queue), []string{"bad", "sweep", "grid-a"}) {
+			t.Fatalf("foreign=%v: queue = %v, want the failed job, array, and matrix member", foreign, commandIDs(queue))
+		}
+		for _, command := range queue.Commands {
+			if foreign {
+				if command.Origin != nil || command.TaskOrigins != nil || command.MarkedStatus != model.StatusUnfinished || command.TaskMarkedStatus != nil {
+					t.Errorf("foreign copy of %s = origin %#v, task origins %#v, marks %q %v; want no origins and marked unfinished", command.ID, command.Origin, command.TaskOrigins, command.MarkedStatus, command.TaskMarkedStatus)
+				}
+				continue
+			}
+			if command.Origin == nil || command.Origin.RunID != "run-1" || command.MarkedStatus != "" || command.TaskMarkedStatus != nil {
+				t.Errorf("same-project copy of %s = origin %#v, marks %q %v; want the source origin and no mark", command.ID, command.Origin, command.MarkedStatus, command.TaskMarkedStatus)
+			}
+		}
+	}
+}
+
 func TestCopyRejectsOmittedFailedPrerequisite(t *testing.T) {
 	source := testRun([]model.QueuedCommand{
 		{ID: "prep", Name: "prep", Command: []string{"true"}},

@@ -44,12 +44,14 @@ func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs 
 	return overwriteConfirmed, nil
 }
 
-// cmdCopy copies queued or historical jobs into the current project queue.
+// cmdCopy copies a saved run's jobs into the queue of its project, or of
+// the project --to-project names.
 func cmdCopy(args []string) int {
 	fs := flag.NewFlagSet("copy", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
+	toProject := cliString(fs, "to-project", "")
 	runID := cliString(fs, "run-id", "")
 	jobName := cliString(fs, "job-name", "")
 	filterOptions := cliJobFilterOptions(fs, runJobFilters)
@@ -190,12 +192,16 @@ func cmdCopy(args []string) int {
 		return 1
 	}
 	*runID = resolvedRunID
-	overwriteConfirmed, err := confirmQueueOverwrite(baseDir, queueName, *appendJobs, *overwriteJobs)
+	destination := queueName
+	if *toProject != "" {
+		destination = *toProject
+	}
+	overwriteConfirmed, err := confirmQueueOverwrite(baseDir, destination, *appendJobs, *overwriteJobs)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	message, err := guard.editor().Copy(baseDir, queueName, *runID, queueedit.CopyRequest{
+	message, err := guard.editor().CopyTo(baseDir, queueName, *runID, destination, queueedit.CopyRequest{
 		Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, Append: *appendJobs, Overwrite: overwriteConfirmed,
 	})
 	if err != nil {
