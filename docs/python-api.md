@@ -32,13 +32,13 @@ Add a command to a queue.
 | --- | --- | --- |
 | `config` | `str` | config file to use |
 | `executor` | `str` | job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
-| `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `executor_options` | `Sequence[str]` | option passed to the executor (sbatch/qsub/bsub/ssh); each value is split into words by shell quoting rules; replaces the run's executor options for this job; may be repeated |
 | `output` | `Sequence[str]` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `error` | `Sequence[str]` | stderr destination; defaults to --output destinations; may be repeated |
-| `artifact` | `Sequence[str]` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
+| `artifact` | `Sequence[str]` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt besides the paths found statically in the job definition, which misses paths built at runtime; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
 | `log_mode` | `str` | internal log mode (choices: merge, separate) |
 | `open_mode` | `str` | external output file mode (choices: append, truncate) |
-| `working_directory` | `str` | working directory for the job |
+| `working_directory` | `str` | working directory for the job; by default, the directory where rotari run or retry is started |
 | `env` | `Sequence[str]` | environment variable for the job; may be repeated |
 | `job_name` | `str` | job name label |
 | `stage` | `str` | stage that contains the job |
@@ -83,12 +83,12 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `matrix` | `str` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
-| `disconnect_action` | `str` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
+| `disconnect_action` | `str` | when the client is killed or its terminal closes, detach or cancel (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
 | `match_by` | `str` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
-| `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `executor_options` | `Sequence[str]` | option passed to the executor (sbatch/qsub/bsub/ssh) of jobs without their own; each value is split into words by shell quoting rules; may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
 | `slurm_concurrency` | `str` | Slurm executor concurrency |
@@ -155,12 +155,12 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `matrix` | `str` | only retry jobs of this matrix, named by its base job name |
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
-| `disconnect_action` | `str` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
+| `disconnect_action` | `str` | when the client is killed or its terminal closes, detach or cancel (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
 | `match_by` | `str` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
-| `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `executor_options` | `Sequence[str]` | option passed to the executor (sbatch/qsub/bsub/ssh) of jobs without their own; each value is split into words by shell quoting rules; may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
 | `slurm_concurrency` | `str` | Slurm executor concurrency |
@@ -226,7 +226,7 @@ Wait for a run by project, run name, or run id.
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `disconnect_action` | `str` | when the wait client's input closes, detach or cancel selected runs (default detach) (choices: detach, cancel) |
+| `disconnect_action` | `str` | when the wait client is killed or its terminal closes, detach or cancel selected runs (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
 | `until_failure` | `bool` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |

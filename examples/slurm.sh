@@ -4,6 +4,8 @@ set -eu
 export ROTARI_PROJECT_NAME=slurm-example
 
 # Requires a configured Slurm cluster and its submission commands.
+# For GPUs, partitions, and conda or micromamba environments, see
+# "GPU training on Slurm" in docs/EXECUTORS.md.
 rotari reset
 rotari add --job-name sweep --executor slurm --array 1-2 \
     --executor-option=--cpus-per-task=1 \

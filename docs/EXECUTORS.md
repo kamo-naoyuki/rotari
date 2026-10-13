@@ -54,6 +54,23 @@ execution limits; after submission, the scheduler decides whether each job is
 `--slurm-options`, `--pbs-options`, `--lsf-options`, or `--sge-options` for backend-specific
 options. Backend-specific settings take precedence over common dispatch
 settings, while job-specific executor options take precedence over both.
+The list that takes precedence replaces the others rather than adding to
+them: a job with its own `--executor-option` gets none of the run's
+`--slurm-options`.
+
+Each option value is split into words by shell quoting rules, so these two
+jobs pass the same three options to `sbatch`:
+
+```sh
+rotari add -e slurm --executor-option="-p gpu --gres=gpu:1 --cpus-per-task=8" ./train.sh
+rotari add -e slurm --executor-option=-p --executor-option=gpu \
+  --executor-option=--gres=gpu:1 --executor-option=--cpus-per-task=8 ./train.sh
+```
+
+Quote a word that contains spaces inside the value, as in
+`--executor-option="--comment='lr sweep'"`. The same splitting applies to
+the backend-specific options, `ROTARI_EXECUTOR_OPTIONS`, and configuration
+values.
 
 Array and matrix jobs are run semantics rather than executor features. The
 Slurm, PBS, and LSF executors may optimize a selected contiguous array range
@@ -96,6 +113,51 @@ job, for local, SSH, Slurm, PBS, LSF, and SGE jobs alike, and counts only runnin
 time. On schedulers it does not set or replace walltime options such as Slurm
 `--time`, PBS `-l walltime`, or LSF `-W`; keep those when the scheduler needs
 them. See [Job timeouts](RUNNING.md#job-timeouts).
+
+### GPU training on Slurm
+
+This job asks Slurm for one GPU on the `gpu` partition and runs a Python
+script in a micromamba environment named `train`:
+
+```sh
+cd ~/exp
+rotari add -p train \
+  -e slurm \
+  --executor-option="--partition=gpu --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=12:00:00" \
+  --job-name train \
+  micromamba run -n train python train.py --config configs/base.yaml
+rotari run -p train
+```
+
+The job starts in `~/exp`, the directory `rotari run` was started from (see
+[Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment)),
+so that directory must be on a file system the compute node shares.
+
+The job's command runs from a non-interactive `/bin/sh` that reads no shell
+startup files, so `conda activate` and `micromamba activate`, which are shell
+functions defined there, are not available. Use one of these instead:
+
+* Run the command through the environment, as above, with
+  `micromamba run -n ENV COMMAND` or
+  `conda run -n ENV --no-capture-output COMMAND`. Without
+  `--no-capture-output`, `conda run` holds the command's output until it
+  exits, so `rotari show --follow` sees nothing while it runs.
+* Activate the environment in the shell that runs `rotari run`. The default
+  `--env=ALL` exports that shell's `PATH` to the job through Slurm's
+  `--export=ALL`, so `python` resolves to the environment's interpreter,
+  provided the environment is on a shared file system.
+* Activate it inside the job with a shell hook:
+
+  ```sh
+  rotari add -e slurm --executor-option="--partition=gpu --gres=gpu:1" \
+    bash -c 'eval "$(micromamba shell hook --shell bash)" && micromamba activate train && exec python train.py'
+  ```
+
+  For conda, use `eval "$(conda shell.bash hook)" && conda activate train`.
+
+With `--env=NONE`, the job's `PATH` is `/usr/local/bin:/usr/bin:/bin`, so
+only the first and last forms work, and `micromamba` or `conda` must be named
+by its absolute path unless it is installed there.
 
 ### SSH executor
 

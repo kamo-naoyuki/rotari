@@ -235,9 +235,9 @@ Usage: `rotari change <command ...>`
 | `--matrix` | `NAME` | `ROTARI_CHANGE_MATRIX` | change every job of a matrix, named by its base job name |
 | `--all` | `` | `CLI only` | change every job |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | replace job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
-| `--executor-option` | `OPTION` | `ROTARI_EXECUTOR_OPTIONS` | replace executor options |
+| `--executor-option` | `OPTION` | `ROTARI_EXECUTOR_OPTIONS` | replace executor options; each value is split into words by shell quoting rules |
 | `--clear-executor-options` | `` | `ROTARI_CHANGE_CLEAR_EXECUTOR_OPTIONS` | clear executor options |
-| `--working-directory` | `DIR` | `ROTARI_CHANGE_WORKING_DIRECTORY` | working directory for the job |
+| `--working-directory` | `DIR` | `ROTARI_CHANGE_WORKING_DIRECTORY` | working directory for the job; by default, the directory where rotari run or retry is started |
 | `--clear-working-directory` | `` | `ROTARI_CHANGE_CLEAR_WORKING_DIRECTORY` | clear the job working directory |
 | `--env` | `KEY=VALUE (repeatable)` | `ROTARI_CHANGE_ENV` | replace job environment variables; may be repeated |
 | `--clear-env` | `` | `ROTARI_CHANGE_CLEAR_ENV` | clear job environment variables |
@@ -456,7 +456,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `--config` | `FILE` | `CLI only` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the wait client's input closes, detach or cancel selected runs (default detach) (choices: detach, cancel) |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the wait client is killed or its terminal closes, detach or cancel selected runs (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
 | `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
 | `--until-failure` | `` | `ROTARI_WAIT_UNTIL_FAILURE` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
@@ -476,13 +476,13 @@ Usage: `rotari add <command ...>`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
-| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the executor (sbatch/qsub/bsub/ssh); each value is split into words by shell quoting rules; replaces the run's executor options for this job; may be repeated |
 | `--output` | `FILE (repeatable)` | `CLI only` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `--error` | `FILE (repeatable)` | `CLI only` | stderr destination; defaults to --output destinations; may be repeated |
-| `--artifact` | `PATH (repeatable)` | `CLI only` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
+| `--artifact` | `PATH (repeatable)` | `CLI only` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt besides the paths found statically in the job definition, which misses paths built at runtime; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
 | `--log-mode` | `MODE` | `CLI only` | internal log mode (choices: merge, separate) |
 | `--open-mode` | `MODE` | `CLI only` | external output file mode (choices: append, truncate) |
-| `--working-directory` | `DIR` | `ROTARI_ADD_WORKING_DIRECTORY` | working directory for the job |
+| `--working-directory` | `DIR` | `ROTARI_ADD_WORKING_DIRECTORY` | working directory for the job; by default, the directory where rotari run or retry is started |
 | `--env` | `KEY=VALUE (repeatable)` | `ROTARI_ADD_ENV` | environment variable for the job; may be repeated |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | job name label |
 | `--stage` | `NAME` | `ROTARI_ADD_STAGE` | stage that contains the job |
@@ -568,12 +568,12 @@ Usage: `rotari run [RUN_ID]`
 | `--matrix` | `NAME` | `ROTARI_RUN_MATRIX` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
 | `--partial-array` | `` | `ROTARI_RUN_PARTIAL_ARRAY` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
-| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client is killed or its terminal closes, detach or cancel (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `--quiet` | `` | `ROTARI_RUN_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--env` | `ALL\|NONE` | `CLI only` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
 | `--match-by` | `MODE` | `CLI only` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
-| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the executor (sbatch/qsub/bsub/ssh) of jobs without their own; each value is split into words by shell quoting rules; may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
 | `--slurm-concurrency` | `N` | `ROTARI_RUN_SLURM_CONCURRENCY` | Slurm executor concurrency |
@@ -640,12 +640,12 @@ Usage: `rotari retry [RUN_ID]`
 | `--matrix` | `NAME` | `ROTARI_RUN_MATRIX` | only retry jobs of this matrix, named by its base job name |
 | `--partial-array` | `` | `ROTARI_RUN_PARTIAL_ARRAY` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
-| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client input or connection closes unexpectedly, detach or cancel (default detach) (choices: detach, cancel) |
+| `--disconnect-action` | `ACTION` | `ROTARI_DISCONNECT_ACTION` | when the client is killed or its terminal closes, detach or cancel (default detach); Ctrl-D or the end of terminal input always detaches (choices: detach, cancel) |
 | `--quiet` | `` | `ROTARI_RUN_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--env` | `ALL\|NONE` | `CLI only` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
 | `--match-by` | `MODE` | `CLI only` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
-| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the executor (sbatch/qsub/bsub/ssh) of jobs without their own; each value is split into words by shell quoting rules; may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
 | `--slurm-concurrency` | `N` | `ROTARI_RUN_SLURM_CONCURRENCY` | Slurm executor concurrency |

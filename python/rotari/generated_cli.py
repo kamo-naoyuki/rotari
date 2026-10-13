@@ -773,7 +773,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
-                    "description": "replace executor options",
+                    "description": "replace executor options; each value is "
+                    "split into words by shell quoting rules",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "value_name": "OPTION",
@@ -784,7 +785,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "clear-executor-options",
                 },
                 {
-                    "description": "working directory for the job",
+                    "description": "working directory for the job; by default, "
+                    "the directory where rotari run or retry is "
+                    "started",
                     "environment": "ROTARI_CHANGE_WORKING_DIRECTORY",
                     "name": "working-directory",
                     "value_name": "DIR",
@@ -1669,8 +1672,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "when the wait client's input closes, detach "
-                    "or cancel selected runs (default detach)",
+                    "description": "when the wait client is killed or its "
+                    "terminal closes, detach or cancel selected "
+                    "runs (default detach); Ctrl-D or the end of "
+                    "terminal input always detaches",
                     "environment": "ROTARI_DISCONNECT_ACTION",
                     "name": "disconnect-action",
                     "value_name": "ACTION",
@@ -1752,8 +1757,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
-                    "description": "option passed to the selected scheduler "
-                    "(sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the executor "
+                    "(sbatch/qsub/bsub/ssh); each value is split "
+                    "into words by shell quoting rules; replaces "
+                    "the run's executor options for this job; may "
+                    "be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,
@@ -1779,7 +1787,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "command_line_only": True,
                     "description": "a file or directory the job writes or reads, "
                     "recorded as an artifact candidate of each "
-                    "attempt; $ROTARI_ARRAY_TASK_ID, "
+                    "attempt besides the paths found statically "
+                    "in the job definition, which misses paths "
+                    "built at runtime; $ROTARI_ARRAY_TASK_ID, "
                     "$ROTARI_JOB_DIR, and the job's --env and "
                     "matrix variables expand; may be repeated",
                     "name": "artifact",
@@ -1801,7 +1811,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["append", "truncate"],
                 },
                 {
-                    "description": "working directory for the job",
+                    "description": "working directory for the job; by default, "
+                    "the directory where rotari run or retry is "
+                    "started",
                     "environment": "ROTARI_ADD_WORKING_DIRECTORY",
                     "name": "working-directory",
                     "value_name": "DIR",
@@ -2294,9 +2306,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "async",
                 },
                 {
-                    "description": "when the client input or connection closes "
-                    "unexpectedly, detach or cancel (default "
-                    "detach)",
+                    "description": "when the client is killed or its terminal "
+                    "closes, detach or cancel (default detach); "
+                    "Ctrl-D or the end of terminal input always "
+                    "detaches",
                     "environment": "ROTARI_DISCONNECT_ACTION",
                     "name": "disconnect-action",
                     "value_name": "ACTION",
@@ -2330,8 +2343,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["job-id", "fingerprint", "id-and-fingerprint"],
                 },
                 {
-                    "description": "option passed to the selected scheduler "
-                    "(sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the executor "
+                    "(sbatch/qsub/bsub/ssh) of jobs without their "
+                    "own; each value is split into words by shell "
+                    "quoting rules; may be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,
@@ -2741,9 +2756,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "async",
                 },
                 {
-                    "description": "when the client input or connection closes "
-                    "unexpectedly, detach or cancel (default "
-                    "detach)",
+                    "description": "when the client is killed or its terminal "
+                    "closes, detach or cancel (default detach); "
+                    "Ctrl-D or the end of terminal input always "
+                    "detaches",
                     "environment": "ROTARI_DISCONNECT_ACTION",
                     "name": "disconnect-action",
                     "value_name": "ACTION",
@@ -2777,8 +2793,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["job-id", "fingerprint", "id-and-fingerprint"],
                 },
                 {
-                    "description": "option passed to the selected scheduler "
-                    "(sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the executor "
+                    "(sbatch/qsub/bsub/ssh) of jobs without their "
+                    "own; each value is split into words by shell "
+                    "quoting rules; may be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,

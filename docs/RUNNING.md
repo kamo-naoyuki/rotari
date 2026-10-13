@@ -99,6 +99,15 @@ you can reconnect later with `rotari wait PROJECT` or `rotari wait RUN_ID`.
 To check its current status without waiting, use `rotari info`, `rotari jobs`,
 or `rotari runs`.
 
+`run` and `wait` read their standard input only when it is a terminal, and
+treat the end of that input as Ctrl-D. Some background or tool-managed
+terminals report the end of input at once, so there a synchronous
+`rotari run` prints `Run detached; it continues in the background.` right
+after starting and exits 0 while the run goes on. In such a terminal, give the
+command another input, as in `rotari run -p sweep </dev/null`, or use
+`rotari run --async` and then `rotari wait </dev/null`. Ctrl-C and the
+disconnect setting still apply without a terminal input.
+
 Cancelling a run stops its unfinished jobs and prevents new jobs from starting.
 A cancelled job receives SIGTERM and may clean up before it exits; rotari
 records it cancelled once it has exited, or after 30 seconds, when it kills

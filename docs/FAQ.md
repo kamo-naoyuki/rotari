@@ -411,6 +411,15 @@ Only the client is suspended; the run continues. Use `fg` to resume it. If the
 suspended client is later closed, that is an unexpected disconnect and follows
 `--disconnect-action` (default `detach`).
 
+### Why did `rotari run` print `Run detached` and exit right after starting?
+
+Its standard input is a terminal that reported the end of input, which `run`
+and `wait` treat as Ctrl-D. Some background or tool-managed terminals do this
+at once. The run was created and continues; `rotari runs` lists it and
+`rotari wait` follows it. To wait in such a terminal, run
+`rotari run </dev/null` or `rotari wait </dev/null`. See
+[Controlling runs from the terminal](RUNNING.md#controlling-runs-from-the-terminal).
+
 ### Can `wait` find the run ID for me?
 
 Yes. With no selector, it finds a running project and lists candidates when multiple projects are running.
