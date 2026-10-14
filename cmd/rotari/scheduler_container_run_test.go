@@ -17,7 +17,7 @@ import (
 )
 
 // These tests run the rotari binary inside the scheduler container, so the
-// run engine, the job wrappers, and the Slurm, PBS, or SGE executor all work
+// run engine, the job wrappers, and the Slurm, PBS, SGE, or LSF executor all work
 // against a real scheduler. SCHEDULER_STATE_DIR is the host directory mounted
 // at /state in the container.
 
@@ -276,6 +276,7 @@ var heldJobTests = map[string]struct{ hold, remove, accounting string }{
 	"slurm": {"--hold", "scancel %s", "sacct --noheader --parsable2 --allocations --format=State,ExitCode --jobs %s"},
 	"pbs":   {"-h", "qdel %s", "qstat -xf %s"},
 	"sge":   {"-h", "qdel %s", "qacct -j %s"},
+	"lsf":   {"-H", "bkill %s", "bjobs -a -l %[1]s; bhist -l %[1]s"},
 }
 
 // startHeldJob starts a run whose only job, held, stays queued in the
