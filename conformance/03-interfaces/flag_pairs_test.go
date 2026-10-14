@@ -55,6 +55,7 @@ var pairInventory = map[string]struct {
 	"guide":      {0, "e3b0c44298fc1c14"},
 	"version":    {0, "e3b0c44298fc1c14"},
 	"env":        {0, "e3b0c44298fc1c14"},
+	"bug-report": {9, "e512e70acb7a9604"},
 }
 
 func TestCLIFlagPairInventory(t *testing.T) {

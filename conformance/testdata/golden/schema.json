@@ -2092,6 +2092,48 @@
     },
     {
       "name": "env"
+    },
+    {
+      "flags": [
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
+        {
+          "name": "basedir",
+          "short": "b",
+          "value_name": "DIR"
+        },
+        {
+          "name": "project-name",
+          "short": "p",
+          "value_name": "NAME"
+        },
+        {
+          "name": "run-id",
+          "short": "r",
+          "value_name": "ID"
+        },
+        {
+          "name": "job-id",
+          "short": "j",
+          "value_name": "ID"
+        },
+        {
+          "name": "output",
+          "value_name": "FILE"
+        },
+        {
+          "name": "full-output"
+        },
+        {
+          "name": "no-output"
+        },
+        {
+          "name": "no-redact"
+        }
+      ],
+      "name": "bug-report"
     }
   ],
   "version": 1

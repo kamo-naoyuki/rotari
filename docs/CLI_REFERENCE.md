@@ -761,4 +761,20 @@ print version
 
 list ROTARI environment variables
 
+### `rotari bug-report`
+
+collect evidence for a rotari bug report, with secrets removed
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `CLI only` | config file to use |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to collect (default: the latest run; an attempt ID given with --job-id also names its run) |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | job or attempt to collect (default: the run's jobs that did not succeed); may be repeated |
+| `--output` | `FILE` | `CLI only` | write a .tar.gz bundle to FILE instead of printing the Markdown summary |
+| `--full-output` | `` | `CLI only` | include whole job output files, up to 64 MiB each, instead of their last 64 KiB |
+| `--no-output` | `` | `CLI only` | include no job output |
+| `--no-redact` | `` | `CLI only` | keep paths and hostnames; secrets are removed regardless |
+
 <!-- END GENERATED CLI REFERENCE -->

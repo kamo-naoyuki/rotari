@@ -134,6 +134,8 @@ func dispatch(args []string) int {
 		return cmdMCP(args[1:])
 	case "env":
 		return cmdEnvironment(args[1:])
+	case "bug-report":
+		return cmdBugReport(args[1:])
 	case "completion":
 		return cmdCompletion(args[1:])
 	case "schema":

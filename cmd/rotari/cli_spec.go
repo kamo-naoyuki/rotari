@@ -489,6 +489,18 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "env",
 		Description: "list ROTARI environment variables",
 	},
+	{
+		Name:        "bug-report",
+		Description: "collect evidence for a rotari bug report, with secrets removed",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "run-id", Description: "run to collect (default: the latest run; an attempt ID given with --job-id also names its run)", ValueName: "ID"},
+			cliFlagSpec{Name: "job-id", Description: "job or attempt to collect (default: the run's jobs that did not succeed); may be repeated", ValueName: "ID"},
+			cliFlagSpec{Name: "output", Description: "write a .tar.gz bundle to FILE instead of printing the Markdown summary", ValueName: "FILE", CommandLineOnly: true},
+			cliFlagSpec{Name: "full-output", Description: "include whole job output files, up to 64 MiB each, instead of their last 64 KiB", CommandLineOnly: true},
+			cliFlagSpec{Name: "no-output", Description: "include no job output", CommandLineOnly: true},
+			cliFlagSpec{Name: "no-redact", Description: "keep paths and hostnames; secrets are removed regardless", CommandLineOnly: true},
+		),
+	},
 }
 
 func cliCommandNames() []string {

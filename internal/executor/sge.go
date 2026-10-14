@@ -219,8 +219,17 @@ func sgeJobActive(jobID string) (bool, error) {
 	return state != "", err
 }
 
+func sgeQueueCommand() []string {
+	return []string{"qstat", "-xml"}
+}
+
+func sgeAccountingCommand(jobID string) []string {
+	return []string{"qacct", "-j", jobID}
+}
+
 func sgeJobState(jobID string) (string, error) {
-	output, err := runSGECommand("qstat", "-xml")
+	command := sgeQueueCommand()
+	output, err := runSGECommand(command[0], command[1:]...)
 	if err != nil {
 		return "", SchedulerCommandHint("qstat", output, err)
 	}
@@ -249,7 +258,8 @@ func sgeJobState(jobID string) (string, error) {
 }
 
 func sgeAccounting(jobID string) (int, bool, error) {
-	output, err := runSGECommand("qacct", "-j", jobID)
+	command := sgeAccountingCommand(jobID)
+	output, err := runSGECommand(command[0], command[1:]...)
 	if err != nil {
 		return 0, false, SchedulerCommandHint("qacct", output, err)
 	}

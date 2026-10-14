@@ -1,7 +1,7 @@
 # Plan: Bug Report Bundle
 
 **Created:** 2026-10-14
-**Status:** Phase 1 done. Phase 2 in progress; Phases 3–4 not started.
+**Status:** Phases 1–2 done. Phases 3–4 not started.
 See [work-log.md](work-log.md).
 
 ## Purpose
@@ -91,36 +91,47 @@ earlier failure. Phase 1 records it.
   `exit status 1`. `schedulerQuery` and `schedulerAccounting` carry `Err`
   instead of `Failed`.
 - **D4 Command shape.** `rotari bug-report [-p PROJECT] [--run-id RUN]
-  [--job JOB]... [--output FILE.tar.gz] [--full-output | --no-output]
+  [--job-id ID]... [--output FILE.tar.gz] [--full-output | --no-output]
   [--no-redact]`.
   - Without `--output`, a Markdown summary goes to stdout, ready to paste
     into an issue. With `--output`, the bundle is written as a `.tar.gz`
     holding the same summary as `README.md` plus the collected files, and
-    stdout names the file and asks the user to review it.
-  - The run is `--run-id`, or the project's latest run, resolved as other
-    commands resolve it. Without a project or a run, the bundle holds only
-    the environment sections.
-  - Jobs are those named by `--job`, or else the run's failed and unfinished
-    jobs, up to 50; the summary says when the list was cut.
+    stdout names the file and asks the user to review it. An existing file
+    is not replaced.
+  - The run is `--run-id`, the run of an attempt ID given with `--job-id`,
+    or the project's latest run, resolved as other commands resolve it.
+    Without a project or a run, the bundle holds only the environment
+    sections.
+  - Jobs are those named by `--job-id` (job or attempt IDs, as users copy
+    them from `show`), or else the run's jobs whose status is not a
+    success, up to 50; the summary says when the list was cut. Every
+    attempt of an included job is collected; the summary shows the latest.
+    The run's `show --report` text is included as `report.md`.
 - **D5 Job output.** Some bugs cannot be judged without the job's own
   output, so each included job's `stdout`, `stderr`, or `output` is included
-  by default as its last 64 KiB. `--full-output` includes whole files;
-  `--no-output` leaves them out.
+  by default as its last 64 KiB. `--full-output` includes whole files, up
+  to 64 MiB each; `--no-output` leaves them out.
 - **D6 Package boundary.** `internal/bugreport` owns collection, redaction,
   scheduler probing, the Markdown summary, and the tar writer. `cmd/rotari`
   parses options, resolves the project and run, and passes the `version`,
   `info`, and `check --deep` results in as already-encoded facts.
   `internal/bugreport` does not import `cmd/rotari`.
 - **D7 Secrets are always removed.** Regardless of `--no-redact`:
-  configuration values whose key names a secret (`token`, `password`,
-  `secret`, `key`, `auth`, `header`, `url` in `notifications.toml`) become
-  `[REDACTED]`; `ROTARI_*` variables are listed with secret values replaced;
-  job environment values in `job.json` and `commands.json` become
-  `[REDACTED]` while their names stay, as in MCP-2. Job output is not
-  scanned for secrets; the summary says so.
-- **D8 Paths and hostnames.** Redacted by default with `internal/report`'s
-  redaction, matching `show --report` (WEB-8). `--no-redact` keeps them,
-  for a report shared within a trusted team or for path-handling bugs.
+  values under keys that look secret (containing `token`, `password`,
+  `secret`, `credential`, `auth`, `url`, `cookie`, `apikey`, or `private`)
+  become `[REDACTED]` in configuration files and in every JSON state file
+  collected; `ROTARI_*` variables are listed with such values replaced;
+  environment entries in state files keep their names and lose their
+  values, except the non-secret `ROTARI_*` values rotari sets itself, which
+  are its own state. A JSON state file that cannot be decoded is left out,
+  since it cannot be checked. Job output and command lines are not scanned
+  for secrets; the summary says so.
+- **D8 Paths and hostnames.** Redacted by default, matching `show --report`
+  (WEB-8): the basedir, home, working directory, local hostname, and job
+  hosts become `[BASEDIR]`, `[HOME]`, `[CWD]`, and `[REDACTED_HOST]`, so the
+  structure stays readable, then `report.RedactPatterns` catches the rest.
+  `--no-redact` keeps them, for a report shared within a trusted team or
+  for path-handling bugs.
 - **D9 Environment facts.** The summary includes: version and VCS revision,
   Go version, OS and architecture; the `info` report; `check --deep`
   results; the filesystem type of the basedir (`statfs`, so NFS is visible);
@@ -128,11 +139,12 @@ earlier failure. Phase 1 records it.
   file, compare its mtime with the local clock, remove it); the scheduler
   commands found in `PATH` with their `--version` output; the last 1 MiB of
   `server.log`.
-- **D10 Live scheduler state.** For each included scheduler job, the bundle
-  runs the scheduler's read-only queue and accounting commands (for Slurm,
-  `squeue -j` and `sacct -j` with the fields rotari reads) and records their
-  output and exit code. Only read-only commands run; each has the
-  executor's command timeout.
+- **D10 Live scheduler state.** For included scheduler jobs, the bundle
+  runs `executor.ProbeSchedulerJob`: the same queue and accounting commands
+  rotari polls with (shared command builders, so they cannot drift), and
+  records their output and errors. At most 10 jobs are probed. Only
+  read-only commands run; each has the executor's command timeout and
+  passes the shared scheduler query gate.
 
 ## Phases
 
@@ -160,7 +172,11 @@ which the event log adds to.
 6. Contract note next to `scheduler_status.json` in
    [contracts/02-run-lifecycle-and-execution.md](../../contracts/02-run-lifecycle-and-execution.md).
 
-### Phase 2: `internal/bugreport` and the command
+### Phase 2: `internal/bugreport` and the command (done)
+
+`cmdInfo`'s report building moved into `buildInfoReport` so the bundle can
+use it. The CLI schema golden files in `conformance/testdata/golden` were
+updated for the new command.
 
 1. Collector over the inputs in D6, producing named entries and the summary
    (D4, D5, D9, D10).

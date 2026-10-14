@@ -275,8 +275,17 @@ func pbsJobActive(jobID string) (bool, error) {
 	return schedulerState != "", err
 }
 
+func pbsQueueCommand(jobID string) []string {
+	return []string{"qstat", "-f", jobID}
+}
+
+func pbsAccountingCommand(jobID string) []string {
+	return []string{"qstat", "-xf", jobID}
+}
+
 func pbsJobState(jobID string) (string, error) {
-	output, err := runPBSCommand("qstat", "-f", jobID)
+	command := pbsQueueCommand(jobID)
+	output, err := runPBSCommand(command[0], command[1:]...)
 	if err != nil {
 		return "", SchedulerCommandHint("qstat", output, err)
 	}
@@ -307,7 +316,8 @@ func pbsJobState(jobID string) (string, error) {
 // deleted, out of qstat's full/history output, PBS's equivalent of Slurm's
 // sacct. Torque names the field exit_status and OpenPBS Exit_status.
 func pbsAccounting(jobID string) (int, string, bool, error) {
-	output, err := runPBSCommand("qstat", "-xf", jobID)
+	command := pbsAccountingCommand(jobID)
+	output, err := runPBSCommand(command[0], command[1:]...)
 	if err != nil {
 		return 0, "", false, SchedulerCommandHint("qstat", output, err)
 	}

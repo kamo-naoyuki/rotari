@@ -107,11 +107,29 @@ func cmdInfo(args []string) int {
 		return 1
 	}
 
+	report, err := buildInfoReport(baseDir, masterDir, selectedProject)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	if *jsonOutput {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(report); err != nil {
+			printErrorf("failed to encode info: %v", err)
+			return 1
+		}
+		return 0
+	}
+	printInfo(report)
+	return 0
+}
+
+func buildInfoReport(baseDir, masterDir, selectedProject string) (infoReport, error) {
 	common, projectConfigs := config.ListPaths(baseDir, selectedProject, notification.FileName)
 	projects, err := infoProjects(baseDir)
 	if err != nil {
-		printErrorf("failed to list projects in %q: %v", baseDir, err)
-		return 1
+		return infoReport{}, fmt.Errorf("failed to list projects in %q: %w", baseDir, err)
 	}
 	choices := []string(nil)
 	if selectedProject == "" {
@@ -127,24 +145,12 @@ func cmdInfo(args []string) int {
 		VisibleConfigs: infoConfigFiles{Common: common, Projects: projectConfigs},
 	}
 	if report.Supervisors, err = infoSupervisors(baseDir, projects); err != nil {
-		printErrorf("failed to inspect supervisors: %v", err)
-		return 1
+		return infoReport{}, fmt.Errorf("failed to inspect supervisors: %w", err)
 	}
 	if report.RunLocks, report.ActiveRuns, err = infoRuns(baseDir, projects); err != nil {
-		printErrorf("failed to inspect runs: %v", err)
-		return 1
+		return infoReport{}, fmt.Errorf("failed to inspect runs: %w", err)
 	}
-	if *jsonOutput {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(report); err != nil {
-			printErrorf("failed to encode info: %v", err)
-			return 1
-		}
-		return 0
-	}
-	printInfo(report)
-	return 0
+	return report, nil
 }
 
 func infoProjects(baseDir string) ([]string, error) {

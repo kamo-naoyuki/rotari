@@ -316,8 +316,17 @@ func slurmJobActive(jobID string) (bool, error) {
 	return schedulerState != "", err
 }
 
+func slurmQueueCommand(jobID string) []string {
+	return []string{"squeue", "--noheader", "--jobs", jobID, "--format=%T"}
+}
+
+func slurmAccountingCommand(jobID string) []string {
+	return []string{"sacct", "--noheader", "--parsable2", "--allocations", "--jobs", jobID, "--format=State,ExitCode"}
+}
+
 func slurmJobState(jobID string) (string, error) {
-	output, err := runSlurmCommand("squeue", "--noheader", "--jobs", jobID, "--format=%T")
+	command := slurmQueueCommand(jobID)
+	output, err := runSlurmCommand(command[0], command[1:]...)
 	if err != nil {
 		return "", SchedulerCommandHint("squeue", output, err)
 	}
@@ -334,7 +343,8 @@ var slurmTerminalStates = map[string]bool{
 // slurmAccounting reads the job's sacct record. ok reports an ended job;
 // otherwise a non-empty state is the state of a job that has not ended.
 func slurmAccounting(jobID string) (int, string, bool, error) {
-	output, err := runSlurmCommand("sacct", "--noheader", "--parsable2", "--allocations", "--jobs", jobID, "--format=State,ExitCode")
+	command := slurmAccountingCommand(jobID)
+	output, err := runSlurmCommand(command[0], command[1:]...)
 	if err != nil {
 		return 0, "", false, SchedulerCommandHint("sacct", output, err)
 	}

@@ -3252,6 +3252,76 @@ CLI_SCHEMA: dict[str, Any] = {
         {"description": "print a usage guide for coding agents", "name": "guide"},
         {"description": "print version", "name": "version"},
         {"description": "list ROTARI environment variables", "name": "env"},
+        {
+            "description": "collect evidence for a rotari bug report, with secrets "
+            "removed",
+            "flags": [
+                {
+                    "command_line_only": True,
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "run to collect (default: the latest run; an "
+                    "attempt ID given with --job-id also names "
+                    "its run)",
+                    "environment": "ROTARI_RUN_ID",
+                    "name": "run-id",
+                    "short": "r",
+                    "value_name": "ID",
+                },
+                {
+                    "description": "job or attempt to collect (default: the "
+                    "run's jobs that did not succeed); may be "
+                    "repeated",
+                    "environment": "ROTARI_JOB_ID",
+                    "name": "job-id",
+                    "repeated": True,
+                    "short": "j",
+                    "value_name": "ID",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "write a .tar.gz bundle to FILE instead of "
+                    "printing the Markdown summary",
+                    "name": "output",
+                    "value_name": "FILE",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "include whole job output files, up to 64 MiB "
+                    "each, instead of their last 64 KiB",
+                    "name": "full-output",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "include no job output",
+                    "name": "no-output",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "keep paths and hostnames; secrets are "
+                    "removed regardless",
+                    "name": "no-redact",
+                },
+            ],
+            "name": "bug-report",
+        },
     ],
     "environments": [
         {

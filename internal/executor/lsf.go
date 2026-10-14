@@ -283,8 +283,18 @@ func lsfJobActive(jobID string) (bool, error) {
 	return schedulerState != "", err
 }
 
+func lsfQueueCommand(jobID string) []string {
+	return []string{"bjobs", "-noheader", "-o", "stat", jobID}
+}
+
+// lsfAccountingCommands are bjobs's record of a finished job and the bhist
+// history read when bjobs no longer has it.
+func lsfAccountingCommands(jobID string) [][]string {
+	return [][]string{{"bjobs", "-a", "-noheader", "-o", "stat exit_code", jobID}, {"bhist", "-l", jobID}}
+}
+
 func lsfJobState(jobID string) (string, error) {
-	output, err := runLSFCommand("bjobs", "-noheader", "-o", "stat", jobID)
+	output, err := runLSFCommandWithInput(nil, lsfQueueCommand(jobID)...)
 	if err != nil {
 		return "", SchedulerCommandHint("bjobs", output, err)
 	}
@@ -303,9 +313,10 @@ func lsfJobState(jobID string) (string, error) {
 }
 
 func lsfAccounting(jobID string) (int, bool, error) {
-	output, err := runLSFCommand("bjobs", "-a", "-noheader", "-o", "stat exit_code", jobID)
+	commands := lsfAccountingCommands(jobID)
+	output, err := runLSFCommandWithInput(nil, commands[0]...)
 	if err != nil {
-		output, err = runLSFCommand("bhist", "-l", jobID)
+		output, err = runLSFCommandWithInput(nil, commands[1]...)
 		if err != nil {
 			return 0, false, SchedulerCommandHint("bhist", output, err)
 		}

@@ -198,11 +198,13 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and all twenty-seven commands with at least two
-advertised flags have adapters; no generated pair is deferred.
+Every pair is inventoried, and twenty-seven of the twenty-eight commands with
+at least two advertised flags have adapters; only `bug-report`'s pairs are
+deferred.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
+| `bug-report` | 36 | An adapter that normalizes the collection time, the basedir clock probe, and the host's scheduler commands before comparing the two orders |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
 The 7,085 executed pairs consist of 809 read-only, 36 file-output, 172

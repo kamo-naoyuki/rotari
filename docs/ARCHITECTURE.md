@@ -149,6 +149,7 @@ flowchart TB
   resolve["resolve<br/>selectors to run and job"]
   queueops["queueops<br/>queue and history edits"]
   report["report<br/>diagnosis evidence"]
+  bugreport["bugreport<br/>bug report bundle"]
   joblist["joblist<br/>recent jobs"]
   supervisor["supervisor<br/>server request work"]
   webui["webui<br/>Web handlers and assets"]
@@ -187,7 +188,12 @@ flowchart TB
   queueops --> jobstatus
   queueops --> attachment
   cmd --> report
-   cmd --> mcpadapter
+  cmd --> bugreport
+  bugreport --> report
+  bugreport --> web
+  bugreport --> executor
+  bugreport --> config
+  bugreport --> state   cmd --> mcpadapter
    mcpadapter --> report
    mcpadapter --> resolve
    mcpadapter --> runview
@@ -291,6 +297,7 @@ are checked against this graph by
 | [internal/runlist](../internal/runlist/) | Runs across state directories for `rotari runs`: which runs are listed, their lifecycle, client status, and order, as recorded values. | `runlist.go` (`Collect`, `Recent`) |
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
+| [internal/bugreport](../internal/bugreport/) | `rotari bug-report`: collects the build, host, basedir filesystem and clock, configuration, `server.log`, and a run's state files, job output, and scheduler queries (`executor.ProbeSchedulerJob`) into a Markdown summary or a `.tar.gz` bundle. Secrets are always removed; paths and hostnames unless asked not to. `info` and `check` results come from `cmd/rotari` as files. | `bugreport.go` (`Collect`), `run.go`, `redact.go`, `tar.go` (`WriteTarGz`) |
 | [internal/mcp](../internal/mcp/) | MCP tools that `rotari mcp` (`cmd/rotari/mcp.go`) serves: read-only project list, run summary, bounded run wait, job report, project check, run comparison, and redacted run export, previewed, revision-guarded import and run start, job control of a running run, and previewed, revision-guarded reset/unlock. Run preview/start share source snapshot planning and report jobs omitted by a non-empty queue. They present the shared functions the CLI uses (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`, `workflowstate.Import`, `projectrun.RunSource`, `projectrun.Runner.PreviewRun`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths; every tool is added through `addTool`, which hides state directories in errors. Starting a supervisor and new job IDs come from `cmd/rotari` as `Options`; it does not import `cmd/rotari`. | `server.go` (`NewServer`), `tools.go`, `wait.go`, `export.go`, `write.go`, `control.go`, `reset.go`, `unlock.go` |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, including whether each repository's code changed between two runs, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`), `sources.go` (`CompareSources`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
@@ -363,6 +370,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Wiring the run lifecycle (`projectRunner`) and its failure diagnosis | `project_run.go`, `diagnosis.go` |
 | Supervisor process wiring and its server registry | `server.go`, `registry.go` |
 | Read-only context, configuration, supervisor, and run overview (`info`) | [info.go](../cmd/rotari/info.go) |
+| Bug report options, run selection, and the `info` and `check` facts it passes to `internal/bugreport` | [bug_report.go](../cmd/rotari/bug_report.go) |
 | `basedirs`, `projects`, and `runs` command flags and dispatch | [lists.go](../cmd/rotari/lists.go) |
 | Project discovery and list rendering (`showProjectsForBaseDirs`) | [projects.go](../cmd/rotari/projects.go) |
 | Registered basedir list rendering | [basedirs.go](../cmd/rotari/basedirs.go) |

@@ -40,3 +40,4 @@ Commands:
   guide       print a usage guide for coding agents
   version     print version
   env         list ROTARI environment variables
+  bug-report  collect evidence for a rotari bug report, with secrets removed
