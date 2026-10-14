@@ -2,6 +2,7 @@
 
 **Created:** 2026-10-14
 **Status:** Phase 1 done. Phase 2 in progress; Phases 3–4 not started.
+See [work-log.md](work-log.md).
 
 ## Purpose
 
