@@ -288,6 +288,45 @@ func TestWaitForSchedulerResultUsesInjectedTiming(t *testing.T) {
 	}
 }
 
+// A queue query failure long after an earlier one must get its own
+// accounting wait, not the deadline left from the first.
+func TestWaitForSchedulerResultRestartsAccountingWaitAfterQueueReportsJob(t *testing.T) {
+	store := testStore()
+	jobDir := t.TempDir()
+	statusPath := filepath.Join(jobDir, "status.json")
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	queryCalls := 0
+
+	result := waitForSchedulerResult(store, jobDir, "job-1", []string{"echo", "hi"}, schedulerPollingPolicy{
+		AccountingWait: time.Minute, PollInterval: time.Second,
+		UnavailableError: "scheduler status is unavailable",
+		JobState: func() schedulerQuery {
+			queryCalls++
+			if queryCalls == 2 {
+				return schedulerQuery{State: "running"}
+			}
+			return schedulerQuery{Failed: true}
+		},
+		Accounting: func() schedulerAccounting { return schedulerAccounting{Failed: true} },
+		Timing: schedulerTiming{
+			Now: func() time.Time { return now },
+			Sleep: func(time.Duration) {
+				switch queryCalls {
+				case 2:
+					now = now.Add(time.Hour)
+				case 3:
+					_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: 0})
+				}
+			},
+			Jitter: func(delay time.Duration) time.Duration { return delay },
+		},
+	})
+
+	if result.ExitCode != 0 || result.Error != "" {
+		t.Fatalf("result = %+v, want the wrapper result", result)
+	}
+}
+
 func TestSchedulerTimingDefaultsUseIdentityJitter(t *testing.T) {
 	timing := (schedulerTiming{}).withDefaults()
 	if timing.Now == nil || timing.Sleep == nil || timing.Jitter == nil {

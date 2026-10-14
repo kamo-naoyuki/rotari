@@ -413,6 +413,63 @@ JSON
 	}
 }
 
+// sacct still reports a job that squeue cannot show, for example while
+// slurmctld is overloaded, as RUNNING; that is not a result.
+func TestWaitSlurmJobKeepsWaitingWhileAccountingReportsActive(t *testing.T) {
+	store := testStore()
+	oldAccountingWait := slurmAccountingWait
+	oldPollInterval := slurmPollInterval
+	slurmAccountingWait = 20 * time.Millisecond
+	slurmPollInterval = time.Millisecond
+	t.Cleanup(func() {
+		slurmAccountingWait = oldAccountingWait
+		slurmPollInterval = oldPollInterval
+	})
+
+	for _, testCase := range []struct {
+		name       string
+		squeueCode int
+		sacct      string
+		wantState  string
+	}{
+		{name: "squeue fails while running", squeueCode: 1, sacct: "RUNNING|0:0", wantState: "running"},
+		{name: "squeue empty while running", sacct: "RUNNING|0:0", wantState: "running"},
+		{name: "squeue fails while pending", squeueCode: 1, sacct: "PENDING|0:0", wantState: "pending"},
+		{name: "squeue fails while requeued", squeueCode: 1, sacct: "REQUEUED|0:0", wantState: "requeued"},
+		{name: "squeue fails while suspended", squeueCode: 1, sacct: "SUSPENDED|0:0", wantState: "suspended"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			runDir := t.TempDir()
+			job := slurmJobMetadata{Executor: "slurm", JobID: "job-1", Command: []string{"echo", "hi"}, SlurmJobID: "12345"}
+			jobDir := filepath.Join(runDir, job.JobID)
+			if err := os.MkdirAll(jobDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			statusPath := filepath.Join(jobDir, "status.json")
+			countPath := filepath.Join(t.TempDir(), "sacct-count")
+
+			binDir := t.TempDir()
+			writeExecutable(t, binDir, "squeue", fmt.Sprintf("#!/bin/sh\nexit %d\n", testCase.squeueCode))
+			writeExecutable(t, binDir, "sacct", fmt.Sprintf(`#!/bin/sh
+echo x >> %q
+if [ "$(wc -l < %q)" -ge 3 ]; then
+    printf '%%s\n' '{"phase":"finished","exit_code":5,"error":"wrapper-finished"}' > %q
+fi
+printf '%%s\n' %q
+`, countPath, countPath, statusPath, testCase.sacct))
+			t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			result := waitSlurmJob(store, runDir, job)
+			if result.ExitCode != 5 || result.Error != "wrapper-finished" {
+				t.Fatalf("result = %+v, want the wrapper result after accounting reported %s", result, testCase.sacct)
+			}
+			if got := LoadSchedulerStatus(store, jobDir); got != testCase.wantState {
+				t.Fatalf("scheduler status = %q, want %q", got, testCase.wantState)
+			}
+		})
+	}
+}
+
 func TestParseSlurmExitCode(t *testing.T) {
 	cases := map[string]int{"0:0": 0, "1:0": 1, "2:15": 2, "invalid": 1}
 	for input, want := range cases {

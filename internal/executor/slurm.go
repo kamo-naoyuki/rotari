@@ -303,7 +303,10 @@ func waitSlurmJob(store state.Store, runDir string, job slurmJobMetadata) model.
 		},
 		Accounting: func() schedulerAccounting {
 			exitCode, state, ok, err := slurmAccounting(job.SlurmJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: state, ExitCode: exitCode, Error: state, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+			if !ok {
+				return schedulerAccounting{State: state, Failed: err != nil}
+			}
+			return schedulerAccounting{Status: WrapperStatus{Phase: state, ExitCode: exitCode, Error: state, FinishedAt: nowRFC3339()}, Resolved: true}
 		},
 	})
 }
@@ -321,6 +324,15 @@ func slurmJobState(jobID string) (string, error) {
 	return strings.ToLower(strings.TrimSpace(string(output))), nil
 }
 
+// slurmTerminalStates are the sacct states of a job that has ended; any other
+// state, such as RUNNING or REQUEUED, is not a result yet.
+var slurmTerminalStates = map[string]bool{
+	"BOOT_FAIL": true, "CANCELLED": true, "COMPLETED": true, "DEADLINE": true, "FAILED": true,
+	"NODE_FAIL": true, "OUT_OF_MEMORY": true, "PREEMPTED": true, "TIMEOUT": true,
+}
+
+// slurmAccounting reads the job's sacct record. ok reports an ended job;
+// otherwise a non-empty state is the state of a job that has not ended.
 func slurmAccounting(jobID string) (int, string, bool, error) {
 	output, err := runSlurmCommand("sacct", "--noheader", "--parsable2", "--allocations", "--jobs", jobID, "--format=State,ExitCode")
 	if err != nil {
@@ -334,6 +346,9 @@ func slurmAccounting(jobID string) (int, string, bool, error) {
 		}
 		// sacct reports states such as "CANCELLED by 1234" or "CANCELLED+".
 		state := strings.TrimRight(strings.Fields(fields[0])[0], "+")
+		if !slurmTerminalStates[state] {
+			return 0, strings.ToLower(state), false, nil
+		}
 		exitCode := parseSlurmExitCode(fields[1])
 		if state == "COMPLETED" {
 			exitCode = 0

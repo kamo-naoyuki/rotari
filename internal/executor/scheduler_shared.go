@@ -362,6 +362,8 @@ type schedulerAccounting struct {
 	Status   WrapperStatus
 	Resolved bool
 	Failed   bool
+	// State is set when accounting shows the job has not ended yet.
+	State string
 }
 
 type schedulerTiming struct {
@@ -398,6 +400,7 @@ func waitForSchedulerResult(store state.Store, jobDir, jobID string, command []s
 		query := policy.JobState()
 		if query.State != "" {
 			failures = 0
+			accountingDeadline = time.Time{}
 			WriteSchedulerStatus(store, jobDir, query.State, timing.Now())
 		} else {
 			result, resolved, accountingFailed := policy.resolveMissingSchedulerState(store, jobDir, statusPath, jobID, command, timing, &accountingDeadline)
@@ -458,6 +461,11 @@ func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.St
 	if accounting.Resolved {
 		_ = state.WriteJSON(statusPath, accounting.Status)
 		return jobResultFromStatus(jobID, command, accounting.Status), true, accounting.Failed
+	}
+	if accounting.State != "" {
+		*accountingDeadline = time.Time{}
+		WriteSchedulerStatus(store, jobDir, accounting.State, timing.Now())
+		return model.JobResult{}, false, false
 	}
 	if timing.Now().After(*accountingDeadline) {
 		return model.JobResult{ID: jobID, Command: command, ExitCode: 1, Error: policy.UnavailableError}, true, accounting.Failed

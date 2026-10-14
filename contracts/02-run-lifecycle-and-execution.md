@@ -1130,6 +1130,17 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   records exit code 1 and error `cancelled`. Covered by
   `TestWaitSlurmJobFailureBoundariesWithFakeSlurm` in
   [internal/executor/slurm_test.go](../internal/executor/slurm_test.go).
+  Only an ended sacct state (`COMPLETED`, `FAILED`, `CANCELLED`, `TIMEOUT`,
+  and the like) is a result. A state such as `RUNNING`, `PENDING`, or
+  `REQUEUED`, which sacct reports when squeue cannot show the job, for example
+  because slurmctld is overloaded, is recorded in `scheduler_status.json` and
+  waiting continues. The accounting wait after which a job without a queue
+  entry, accounting result, or wrapper status fails starts again whenever the
+  queue or accounting shows the job, so it never carries over from an earlier
+  query failure. Covered by
+  `TestWaitSlurmJobKeepsWaitingWhileAccountingReportsActive` and
+  `TestWaitForSchedulerResultRestartsAccountingWaitAfterQueueReportsJob` in
+  [internal/executor/scheduler_shared_test.go](../internal/executor/scheduler_shared_test.go).
   For PBS, the exit status is read from `qstat -xf` as Torque's
   `exit_status` or OpenPBS's `Exit_status`, and OpenPBS substate 91, a
   deleted job, records error `cancelled` and a non-zero exit code even
