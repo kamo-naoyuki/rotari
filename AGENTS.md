@@ -204,6 +204,12 @@ and the "Contract status" table in `contracts/README.md` must agree with those
 calls. When a test starts checking a rule, update the rule's row, giving the
 rule an ID first if it has none.
 
+When running the binary by hand (reproductions, smoke checks), create one
+work directory under `$TMPDIR`, export `ROTARI_MASTERDIR="$WORK/master"`, keep
+every basedir inside `$WORK`, and remove `$WORK` when done. Otherwise the
+basedirs are registered in the user's master directory and stay listed by
+`basedirs`, `jobs`, `projects`, and the Web UI.
+
 If tests cannot be run, report that explicitly and explain why.
 
 From the repository root, prefer this validation order:
