@@ -166,6 +166,9 @@ func (collector *collector) job(store state.Store, runDir, prefix string, job we
 	attempts := state.ListAttemptIDs(runDir, job.ID)
 	if len(attempts) == 0 {
 		attempts = []string{""}
+	} else {
+		// A cancel that came before the job's first attempt records itself here.
+		collector.addStateFile(prefix+"jobs/"+job.ID+"/job/cancelled", filepath.Join(runDir, job.ID, "cancelled"))
 	}
 	for index, attemptID := range attempts {
 		latest := index == len(attempts)-1

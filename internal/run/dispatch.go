@@ -27,6 +27,10 @@ type BatchLaneCallbacks struct {
 	ValidatedJobDir func(runDir, jobID string) (string, error)
 	JobCancelled    func(jobDir string) bool
 	RecordCancelled func(jobDir string, job model.JobSpec) model.JobResult
+	// CancelSubmitted cancels job, just submitted, through canceller when a
+	// cancel reached it after the pre-start check. That cancel found the job
+	// not submitted and could only record the request.
+	CancelSubmitted func(job model.JobSpec, canceller executor.Canceller)
 	Logf            func(string, ...any)
 }
 
@@ -199,6 +203,17 @@ func (dispatcher *Dispatcher) cancelledBeforeStart(job model.JobSpec) (model.Job
 	return result, true
 }
 
+// afterSubmit acts on a cancel that reached job while it was submitted.
+func (dispatcher *Dispatcher) afterSubmit(selected *lane, job model.JobSpec) {
+	cancelSubmitted := dispatcher.options.Callbacks.CancelSubmitted
+	if canceller, ok := selected.executor.(executor.Canceller); ok && cancelSubmitted != nil {
+		cancelSubmitted(job, canceller)
+	}
+	if dispatcher.onStart != nil {
+		dispatcher.onStart(job)
+	}
+}
+
 func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
 	if result, stopped := dispatcher.cancelledBeforeStart(job); stopped {
 		return result
@@ -209,9 +224,7 @@ func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, submit
 	if err != nil {
 		result = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	} else {
-		if dispatcher.onStart != nil {
-			dispatcher.onStart(job)
-		}
+		dispatcher.afterSubmit(selected, job)
 		result = selected.executor.Wait(dispatcher.runDir, handle)
 	}
 	result.AttemptID = job.AttemptID
@@ -291,10 +304,8 @@ func (dispatcher *Dispatcher) runArray(selected *lane, tasks []model.JobSpec, do
 		}
 		return
 	}
-	if dispatcher.onStart != nil {
-		for _, job := range tasks {
-			dispatcher.onStart(job)
-		}
+	for _, job := range tasks {
+		dispatcher.afterSubmit(selected, job)
 	}
 	var waiters sync.WaitGroup
 	for _, handle := range handles {
@@ -326,9 +337,7 @@ func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec, s
 	if err != nil {
 		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	if dispatcher.onStart != nil {
-		dispatcher.onStart(job)
-	}
+	dispatcher.afterSubmit(selected, job)
 	return selected.executor.Wait(dispatcher.runDir, handle)
 }
 

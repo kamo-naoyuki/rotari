@@ -10,10 +10,13 @@ import (
 type JobHandle struct {
 	Job    model.JobSpec
 	Native string
+	local  *localJob
 }
 
 type JobExecutor interface {
 	Name() string
+	// Submit returns once the job's executor owns it (Registry.Owner finds
+	// it), so a cancel can reach it from then on.
 	Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error)
 	Wait(runDir string, handle JobHandle) model.JobResult
 }

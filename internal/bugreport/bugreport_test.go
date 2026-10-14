@@ -179,6 +179,11 @@ func TestCollectSelectsJobsAndOutput(t *testing.T) {
 		t.Fatal("output was included with OutputNone")
 	}
 
+	writeFixtureFile(t, filepath.Join(fixture.runDir, "bad", "cancelled"), "2026-10-14T09:00:00Z\n")
+	if _, ok := bundleFile(collectFixture(t, fixture, nil), "/bad/job/cancelled"); !ok {
+		t.Fatal("the cancel recorded before the job's first attempt was not included")
+	}
+
 	named := collectFixture(t, fixture, func(options *Options) {
 		options.JobIDs = []string{state.MakeAttemptID(fixtureRunID, "good", 0)}
 	})

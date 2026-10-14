@@ -26,12 +26,14 @@ func NewLocal(store state.Store, logf func(string, ...any)) Local {
 
 func (Local) Name() string { return "local" }
 
+// Submit starts the job, which can be cancelled once Submit returns.
 func (local Local) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	return JobHandle{Job: job}, nil
+	return JobHandle{Job: job, local: startLocalJob(runDir, job, local.Store, local.Logf)}, nil
 }
 
+// Wait waits for the job that Submit started.
 func (local Local) Wait(runDir string, handle JobHandle) model.JobResult {
-	return RunLocalJob(runDir, handle.Job, local.Store, local.Logf)
+	return handle.local.wait()
 }
 
 func (local Local) Suspend(jobDir string) error { return local.signal(jobDir, syscall.SIGSTOP) }
@@ -115,28 +117,51 @@ func processAlive(pid int) bool {
 }
 
 func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(string, ...any)) model.JobResult {
+	return startLocalJob(runDir, job, store, logf).wait()
+}
+
+// localJob is a local job's process, or the result of a job that ended
+// before its process started.
+type localJob struct {
+	job      model.JobSpec
+	jobDir   string
+	store    state.Store
+	logf     func(string, ...any)
+	hostname string
+	process  *exec.Cmd
+	logs     *jobLogs
+	ended    *model.JobResult
+}
+
+func endedLocalJob(result model.JobResult) *localJob {
+	return &localJob{ended: &result}
+}
+
+// startLocalJob starts job's process and records its pid, which makes the
+// job cancellable, before it returns.
+func startLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(string, ...any)) *localJob {
 	hostname, _ := os.Hostname()
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
-		return failedLocalResult(job, err)
+		return endedLocalJob(failedLocalResult(job, err))
 	}
 	if err := os.MkdirAll(jobDir, store.DirectoryMode); err != nil {
-		return failedLocalResult(job, err)
+		return endedLocalJob(failedLocalResult(job, err))
 	}
 	if err := store.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
-		return failedLocalResult(job, err)
+		return endedLocalJob(failedLocalResult(job, err))
 	}
 	if job.Name != "" {
 		_ = os.WriteFile(filepath.Join(jobDir, "name"), []byte(job.Name+"\n"), store.FileMode)
 	}
 	if err := os.WriteFile(filepath.Join(jobDir, "submitted_at"), []byte(nowRFC3339()+"\n"), store.FileMode); err != nil {
-		return failedLocalResult(job, err)
+		return endedLocalJob(failedLocalResult(job, err))
 	}
 	if _, err := os.Stat(filepath.Join(jobDir, "cancelled")); err == nil {
-		return RecordCancelledJob(jobDir, job, store)
+		return endedLocalJob(RecordCancelledJob(jobDir, job, store))
 	}
 	if len(job.Command) == 0 {
-		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "empty command"}
+		return endedLocalJob(model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "empty command"})
 	}
 
 	logJob := job
@@ -146,15 +171,18 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 	}
 	logs, err := openJobLogs(jobDir, logJob, store)
 	if err != nil {
-		return failedLocalResult(job, err)
+		return endedLocalJob(failedLocalResult(job, err))
 	}
-	defer logs.Close()
+	failed := func(err error) *localJob {
+		_ = logs.Close()
+		return endedLocalJob(failedLocalResult(job, err))
+	}
 
 	var wrapper string
 	if useHelper {
 		helper, err := os.Executable()
 		if err != nil {
-			return failedLocalResult(job, fmt.Errorf("locate rotari log helper: %w", err))
+			return failed(fmt.Errorf("locate rotari log helper: %w", err))
 		}
 		wrapper = StatusWrapperScriptWithLogForwarder(job.Command, jobDir, jobEnvironment(job), job.WorkingDirectory, job.Timeout, job.OpenMode, job.Output, job.Error, helper, job.EnvMode)
 	} else {
@@ -162,7 +190,7 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 	}
 	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
-		return failedLocalResult(job, err)
+		return failed(err)
 	}
 	process := exec.Command("/bin/sh", wrapperPath)
 	if job.EnvMode == model.EnvModeNone {
@@ -174,11 +202,21 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 		_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), store.FileMode)
 		_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), store.FileMode)
 		logf("fail job=%s command=%s error=%v\n", job.ID, strings.Join(job.Command, " "), err)
-		return failedLocalResult(job, err)
+		return failed(err)
 	}
 	_ = os.WriteFile(filepath.Join(jobDir, "pid"), []byte(strconv.Itoa(process.Process.Pid)+"\n"), store.FileMode)
 	logf("[%s] submit job=%s pid=%d command=%s\n", nowRFC3339(), job.ID, process.Process.Pid, strings.Join(job.Command, " "))
-	err = process.Wait()
+	return &localJob{job: job, jobDir: jobDir, store: store, logf: logf, hostname: hostname, process: process, logs: logs}
+}
+
+// wait waits for the job's process and records its result.
+func (started *localJob) wait() model.JobResult {
+	if started.ended != nil {
+		return *started.ended
+	}
+	job, jobDir, store := started.job, started.jobDir, started.store
+	defer started.logs.Close()
+	err := started.process.Wait()
 	exitCode := 0
 	if err != nil {
 		var exitError *exec.ExitError
@@ -195,8 +233,8 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 	}
 	_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte(strconv.Itoa(exitCode)+"\n"), store.FileMode)
 	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), store.FileMode)
-	logf("%s\n", formatJobResult(job.ID, job.Command, exitCode))
-	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Error: errorMessage, Hosts: []string{hostname}}
+	started.logf("%s\n", formatJobResult(job.ID, job.Command, exitCode))
+	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Error: errorMessage, Hosts: []string{started.hostname}}
 }
 
 func failedLocalResult(job model.JobSpec, err error) model.JobResult {

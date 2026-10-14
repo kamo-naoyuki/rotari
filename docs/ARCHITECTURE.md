@@ -500,9 +500,12 @@ CLI and Web UI agree.
    which finds the running run through its run lock, rejects a named run that
    is not the active one, expands array job IDs to tasks, marks `meta.json` as
    `cancelling` for a whole-run cancel, and calls the executor's `Cancel` for
-   each running job.
+   each running job. For a job not submitted yet it writes a `cancelled`
+   marker, then checks again whether the run has submitted it meanwhile.
 3. The run loop sees the cancelled results and the `cancelling` phase, and
-   stops starting or retrying jobs.
+   stops starting or retrying jobs. Once it has submitted a job, the
+   dispatcher (`Dispatcher.afterSubmit`) cancels it if the phase or a marker
+   shows that a cancel reached it during submission.
 4. With `--wait`, `Cancel` polls until the run lock is released, or for a job
    selection until each selected job has stopped
    (`Controller.finishJobCancelMessage`).

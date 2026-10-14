@@ -1015,6 +1015,18 @@ the request, on the host that owns the run.
   [internal/run/dispatch.go](../internal/run/dispatch.go); covered by
   `TestDispatcherNeverSubmitsACancelledJob` and `TestCancelledPendingJobNeverStarts` in
   [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
+  A cancel, of the job or the whole run, that reaches a job after this check
+  but before its submission is recorded finds nothing to signal; the job is
+  cancelled as soon as it is submitted instead. The cancel records its request
+  and then looks for the submitted job again, and the run looks for the request
+  once each job is submitted (a local job once its process has started), so
+  one of them always sees the other. Implemented by `Dispatcher.afterSubmit` in
+  [internal/run/dispatch.go](../internal/run/dispatch.go), its
+  `CancelSubmitted` callback in
+  [internal/projectrun/execute.go](../internal/projectrun/execute.go), and
+  `Controller.CancelJobs`; covered by
+  `TestCancelReachingJobDuringSubmissionStopsIt` in
+  [internal/projectrun/cancel_race_test.go](../internal/projectrun/cancel_race_test.go).
 - **CAN-7** The message `run --async` and `retry --async` print once the run
   starts ends its last line, and the commands it suggests work as printed:
   `rotari wait ... --run-id RUN_ID` waits for that run, and

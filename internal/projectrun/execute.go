@@ -167,6 +167,12 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			jobsByName[job.Name] = job
 		}
 	}
+	// run cancel marks the project cancelling; stop retrying and starting
+	// jobs then, since jobs not yet started have no attempt to cancel.
+	cancelling := func() bool {
+		meta, err := state.LoadMeta(paths.MetaFile)
+		return err == nil && meta.Phase == "cancelling"
+	}
 	dispatcher := run.NewDispatcher(runDir, queue, run.DispatchOptions{
 		LocalConcurrency: options.LocalConcurrency, BatchMaxActive: options.BatchMaxActive,
 		RequestedExecutor: options.Executor, ExecutorOptions: options.ExecutorOptions,
@@ -176,6 +182,26 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			JobCancelled:    cancellationRequested,
 			RecordCancelled: func(jobDir string, job model.JobSpec) model.JobResult {
 				return executor.RecordCancelledJob(jobDir, job, runner.Store)
+			},
+			// A cancel writes its request before it looks for submitted jobs,
+			// and the job was submitted before this looks for the request, so
+			// one of them sees the other.
+			CancelSubmitted: func(job model.JobSpec, canceller executor.Canceller) {
+				jobDir, err := state.SafeJoin(runDir, job.ID)
+				if err != nil {
+					return
+				}
+				attemptDir, err := state.AttemptJobDir(runDir, job)
+				if err != nil || !cancelling() && !cancellationRequested(jobDir) && !cancellationRequested(attemptDir) {
+					return
+				}
+				// A job that ended before it started has nothing to cancel.
+				if _, err := runner.Executors.Owner(runner.Store, attemptDir); err != nil {
+					return
+				}
+				if err := executor.CancelJob(attemptDir, canceller); err != nil {
+					runner.logf("WARNING: failed to cancel job %s, cancelled while it was submitted: %v", job.ID, err)
+				}
 			},
 			Logf: runner.logf,
 		},
@@ -197,12 +223,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		ShouldRetry: func(job model.JobSpec, result model.JobResult) bool {
 			return !runner.WasExplicitlyCancelled(runDir, job.ID, result)
 		},
-		// run cancel marks the project cancelling; stop retrying and starting
-		// jobs then, since jobs not yet started have no attempt to cancel.
-		Stopped: func() bool {
-			meta, err := state.LoadMeta(paths.MetaFile)
-			return err == nil && meta.Phase == "cancelling"
-		},
+		Stopped: cancelling,
 		Progress: func(result model.JobResult, completed, total, succeeded, failed int) {
 			if observer.Progress != nil {
 				observer.Progress(result, completed, total, succeeded, failed)

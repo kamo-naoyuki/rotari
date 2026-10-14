@@ -264,21 +264,9 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 		if err != nil {
 			return "", err
 		}
-		if owner, err := controller.Executors.Owner(controller.Store, jobDir); err == nil {
-			if host, mismatch := executor.LocalHostMismatch(controller.Store, owner, runDir); mismatch {
-				return "", fmt.Errorf("job %q runs on host %q; run cancel from that host", jobID, host)
-			}
-			canceller, ok := owner.(executor.Canceller)
-			if !ok {
-				return "", fmt.Errorf("executor %q does not support cancel", owner.Name())
-			}
-			// A scheduler may keep no result for a job deleted while queued.
-			if err := recordCancellation(jobDir); err != nil {
-				return "", fmt.Errorf("record cancellation for job %s: %w", jobID, err)
-			}
-			if err := canceller.Cancel(jobDir); err != nil {
-				return "", fmt.Errorf("cancel job %s: %w", jobID, err)
-			}
+		if submitted, err := controller.cancelSubmitted(runDir, jobDir, jobID); err != nil {
+			return "", err
+		} else if submitted {
 			cancelled++
 			continue
 		}
@@ -291,19 +279,40 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 		if err := os.MkdirAll(jobDir, state.DirectoryMode()); err != nil { // NOSONAR: jobDir comes from validated job path helpers.
 			return "", fmt.Errorf("prepare cancellation for job %s: %w", jobID, err)
 		}
-		if err := recordCancellation(jobDir); err != nil {
+		if err := executor.RecordCancellation(jobDir); err != nil {
 			return "", fmt.Errorf("record cancellation for job %s: %w", jobID, err)
+		}
+		// The run checks for this record once it has submitted a job, so
+		// a job it submitted before the record was written is cancelled here.
+		if jobDir, err = state.LatestAttemptJobDir(runDir, jobID); err != nil {
+			return "", err
+		}
+		if _, err := controller.cancelSubmitted(runDir, jobDir, jobID); err != nil {
+			return "", err
 		}
 		cancelled++
 	}
 	return fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Jobs: %d", project, runID, cancelled), nil
 }
 
-// recordCancellation writes the marker that the job wrapper and the run's
-// final result read as an explicit cancel.
-func recordCancellation(jobDir string) error {
-	// codeql[go/path-injection]: jobDir is validated and cancelled is a fixed file name.
-	return os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte(now()+"\n"), state.FileMode()) // NOSONAR: jobDir comes from validated job path helpers.
+// cancelSubmitted cancels jobID through the executor that owns jobDir. It
+// reports false when no executor owns it yet.
+func (controller Controller) cancelSubmitted(runDir, jobDir, jobID string) (bool, error) {
+	owner, err := controller.Executors.Owner(controller.Store, jobDir)
+	if err != nil {
+		return false, nil
+	}
+	if host, mismatch := executor.LocalHostMismatch(controller.Store, owner, runDir); mismatch {
+		return false, fmt.Errorf("job %q runs on host %q; run cancel from that host", jobID, host)
+	}
+	canceller, ok := owner.(executor.Canceller)
+	if !ok {
+		return false, fmt.Errorf("executor %q does not support cancel", owner.Name())
+	}
+	if err := executor.CancelJob(jobDir, canceller); err != nil {
+		return false, fmt.Errorf("cancel job %s: %w", jobID, err)
+	}
+	return true, nil
 }
 
 // Job states that Selection.States names.
