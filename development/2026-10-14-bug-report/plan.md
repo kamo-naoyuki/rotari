@@ -1,7 +1,7 @@
 # Plan: Bug Report Bundle
 
 **Created:** 2026-10-14
-**Status:** Phases 1–2 done. Phases 3–4 not started.
+**Status:** Phases 1–3 done; Phase 4 steps 1–3 done, step 4 open.
 See [work-log.md](work-log.md).
 
 ## Purpose
@@ -190,16 +190,41 @@ updated for the new command.
    case. Regenerate `docs/CLI_REFERENCE.md` and
    `python/rotari/generated_cli.py`.
 
-### Phase 3: Documentation and contracts
+### Phase 3: Documentation and contracts (done)
 
-- A contract rule for the secret guarantee (D7) and the bundle's contents,
-  with a conformance test through the built binary that reads the tarball.
-- `docs/FAQ.md` (how to report a bug), `docs/OPERATIONS.md` or
-  `docs/RECOVERING.md` where they discuss collecting evidence, and
-  `docs/ARCHITECTURE.md` for the new package and command.
+CLI-26 in `contracts/03-server-and-command-interfaces.md`, checked by
+`TestBugReportNeverIncludesSecrets`; a FAQ entry under "Failure
+diagnosis". `docs/ARCHITECTURE.md` was updated with Phase 2. OPERATIONS and
+RECOVERING were left alone: neither discusses collecting evidence for a
+rotari bug. `bug-report`'s 36 flag pairs are inventoried as deferred in
+`docs/internal/testing/cli-flag-pair-coverage.md`: its output carries the
+collection time and live host probes, which a pair adapter would have to
+normalize.
 
-### Phase 4: Check the bundle against the Slurm bug locally
+### Phase 4: Check the bundle against the Slurm bug locally (steps 1–3 done)
 
+Done on 2026-10-14 with fake `sbatch` (runs the wrapper in the background),
+`squeue` (fails on demand with slurmctld's socket timeout), and `sacct`
+scripts, and two binaries built in a temporary worktree at `6237eb96` with
+the fix of `8d47fbf0d` taken out by hand, rather than at `939ceeb14`,
+which lacks Phase 1. `bug-report --no-redact` from the current build read
+each state.
+
+- Both bugs: the job, still sleeping, failed 4 s after squeue started to
+  fail. The summary alone shows the cause: the queue error, then accounting
+  `running`, then `result accounting error=running`; the live queries show
+  squeue still failing and sacct still `RUNNING|0:0`.
+- Deadline carry-over only (sacct with no record): squeue failed at
+  06:43:49, recovered at 06:43:57, failed again at 06:44:58, and the result
+  was `unavailable` at 06:44:59, one second later, against a 60 s accounting
+  wait. The timeline shows the wait did not restart; the 60 s itself comes
+  from the code of the reported version, not from the bundle.
+- The reported host load (about 400) is in the run's `load_samples.jsonl`,
+  which the bundle includes.
+
+Remaining: step 4, a bug outside the scheduler path.
+
+Original steps:
 Reproduce the 2026-10-14 bug with fake `squeue` (failing) and `sacct`
 (`RUNNING|0:0`) scripts on `PATH`:
 

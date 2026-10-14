@@ -230,6 +230,7 @@ the IDs, this table, and those calls disagree.
 | CLI-23 | `show` and `jobs` report each job's elapsed time, and for a running job how long ago it last wrote output | conformance | `TestShowReportsElapsedAndQuietTime` |
 | CLI-24 | `show --logs` lists a run's jobs in definition order and only its jobs, and `--tail N` prints the last N lines of each log | conformance | `TestShowLogsTailInDefinitionOrder` |
 | CLI-25 | `add` and a command-replacing `change` warn about arguments such as `$LR` that no shell will expand, but not about `sh -c` scripts | conformance | `TestAddWarnsAboutUnexpandedVariables` |
+| CLI-26 | `bug-report` prints a Markdown summary or writes a new `.tar.gz` of a run's evidence, and secrets appear in neither, with or without `--no-redact` | conformance | `TestBugReportNeverIncludesSecrets` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |

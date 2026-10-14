@@ -368,6 +368,10 @@ No. Dependencies are limited to the current queue. Chain separate runs with `rot
 
 Yes. When a run finishes, each failed job is checked locally against [diagnosis rules](LOCAL_DIAGNOSIS.md), and the result is shown by `rotari show --run-id RUN_ID --job-id JOB_ID`, reports, and the Web UI. It needs no network access or API key and does not affect execution or retries.
 
+### How do I report a bug in rotari itself?
+
+Run `rotari bug-report -p PROJECT --job-id ATTEMPT_ID --output report.tar.gz` and attach the file; without `--output` it prints a Markdown summary to paste instead. It collects the version, the basedir's filesystem type and clock offset, configuration, `server.log`, and the run's state files, job output tails, and scheduler query history, and runs the scheduler's queue and accounting queries again. Without `--job-id` it covers the latest run's jobs that did not succeed. Secrets in configuration and job environments are always replaced; paths and hostnames are too unless you add `--no-redact`. Job output and command lines are not checked for secrets, so review the file before sharing it.
+
 ## Interrupted runs and locking
 
 ### How can I check whether a project is ready to run without changing it?

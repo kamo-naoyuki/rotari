@@ -452,6 +452,24 @@ does not promise to detect a lost remote client.
   `model.UnexpandedVariables`, used by `queueops`; covered by
   `TestAddWarnsAboutUnexpandedVariables` in
   [`conformance/03-interfaces/add_warning_test.go`](../conformance/03-interfaces/add_warning_test.go).
+- **CLI-26** `bug-report` collects evidence for a rotari bug report: the
+  build, the host, the basedir's filesystem type and clock offset from the
+  host, configuration files, `ROTARI_*` variables, `info` and `check --deep`,
+  the end of `server.log`, and, for a run (`--run-id`, the run of an attempt
+  ID given with `--job-id`, or the latest run), the state files of every
+  attempt of its jobs that did not succeed or that `--job-id` names, the
+  last 64 KiB of their output, their `scheduler_events.jsonl`, and the
+  scheduler's queue and accounting queries run now. It prints a Markdown
+  summary, or with `--output` writes a new `.tar.gz` holding the summary and
+  the files; an existing file is never replaced. Secrets appear in neither,
+  with or without `--no-redact`: values under keys that look secret in
+  configuration and state files, `ROTARI_*` values that look secret, and job
+  environment values other than rotari's own `ROTARI_*` ones are replaced
+  with `[REDACTED]`. `--no-redact` only keeps paths and hostnames. Job output
+  and command lines are not scanned for secrets, and the summary says so.
+  Implemented in [`internal/bugreport`](../internal/bugreport/); covered by
+  `TestBugReportNeverIncludesSecrets` in
+  [`conformance/03-interfaces/bug_report_test.go`](../conformance/03-interfaces/bug_report_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
