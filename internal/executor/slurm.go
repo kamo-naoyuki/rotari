@@ -299,12 +299,12 @@ func waitSlurmJob(store state.Store, runDir string, job slurmJobMetadata) model.
 		UnavailableError: "Slurm accounting result and wrapper status are unavailable",
 		JobState: func() schedulerQuery {
 			state, err := slurmJobState(job.SlurmJobID)
-			return schedulerQuery{State: state, Failed: err != nil}
+			return schedulerQuery{State: state, Err: err}
 		},
 		Accounting: func() schedulerAccounting {
 			exitCode, state, ok, err := slurmAccounting(job.SlurmJobID)
 			if !ok {
-				return schedulerAccounting{State: state, Failed: err != nil}
+				return schedulerAccounting{State: state, Err: err}
 			}
 			return schedulerAccounting{Status: WrapperStatus{Phase: state, ExitCode: exitCode, Error: state, FinishedAt: nowRFC3339()}, Resolved: true}
 		},
@@ -319,7 +319,7 @@ func slurmJobActive(jobID string) (bool, error) {
 func slurmJobState(jobID string) (string, error) {
 	output, err := runSlurmCommand("squeue", "--noheader", "--jobs", jobID, "--format=%T")
 	if err != nil {
-		return "", err
+		return "", SchedulerCommandHint("squeue", output, err)
 	}
 	return strings.ToLower(strings.TrimSpace(string(output))), nil
 }
@@ -336,7 +336,7 @@ var slurmTerminalStates = map[string]bool{
 func slurmAccounting(jobID string) (int, string, bool, error) {
 	output, err := runSlurmCommand("sacct", "--noheader", "--parsable2", "--allocations", "--jobs", jobID, "--format=State,ExitCode")
 	if err != nil {
-		return 0, "", false, err
+		return 0, "", false, SchedulerCommandHint("sacct", output, err)
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {

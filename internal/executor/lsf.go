@@ -269,11 +269,11 @@ func waitLSFJob(store state.Store, runDir string, job lsfJobMetadata) model.JobR
 		UnavailableError: "LSF accounting result and wrapper status are unavailable",
 		JobState: func() schedulerQuery {
 			state, err := lsfJobState(job.LSFJobID)
-			return schedulerQuery{State: state, Failed: err != nil}
+			return schedulerQuery{State: state, Err: err}
 		},
 		Accounting: func() schedulerAccounting {
 			exitCode, ok, err := lsfAccounting(job.LSFJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Err: err}
 		},
 	})
 }
@@ -286,7 +286,7 @@ func lsfJobActive(jobID string) (bool, error) {
 func lsfJobState(jobID string) (string, error) {
 	output, err := runLSFCommand("bjobs", "-noheader", "-o", "stat", jobID)
 	if err != nil {
-		return "", err
+		return "", SchedulerCommandHint("bjobs", output, err)
 	}
 	switch strings.ToUpper(strings.TrimSpace(string(output))) {
 	case "PEND":
@@ -307,7 +307,7 @@ func lsfAccounting(jobID string) (int, bool, error) {
 	if err != nil {
 		output, err = runLSFCommand("bhist", "-l", jobID)
 		if err != nil {
-			return 0, false, err
+			return 0, false, SchedulerCommandHint("bhist", output, err)
 		}
 	}
 	text := string(output)

@@ -1124,6 +1124,15 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
 - Polling executors persist normalized scheduler state in
   `scheduler_status.json`. Read projections use it without querying schedulers
   directly.
+- Polling executors also append to the attempt's `scheduler_events.jsonl`
+  each change in a queue or accounting query's outcome (state, `missing`, or
+  the error with the command's output) and, last, where the result came from
+  (`wrapper`, `accounting`, or `unavailable`). Repeated outcomes add no line,
+  and the file stops growing at 256 KiB. It is evidence for diagnosing
+  scheduler problems; no reader derives job state from it. Covered by
+  `TestSchedulerEventsRecordQueueOutageAndRecovery` and
+  `TestSchedulerEventsRecordEachResultSource` in
+  [internal/executor/scheduler_events_test.go](../internal/executor/scheduler_events_test.go).
 - When a job ends without a wrapper result, as one cancelled while pending
   does, its result comes from scheduler accounting. For Slurm, only
   `COMPLETED` gives exit code 0: `CANCELLED by UID` with `ExitCode 0:0`

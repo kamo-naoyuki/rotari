@@ -354,14 +354,14 @@ type schedulerPollingPolicy struct {
 const schedulerPollingBackoffMax = 30 * time.Second
 
 type schedulerQuery struct {
-	State  string
-	Failed bool
+	State string
+	Err   error
 }
 
 type schedulerAccounting struct {
 	Status   WrapperStatus
 	Resolved bool
-	Failed   bool
+	Err      error
 	// State is set when accounting shows the job has not ended yet.
 	State string
 }
@@ -390,24 +390,27 @@ func (timing schedulerTiming) withDefaults() schedulerTiming {
 func waitForSchedulerResult(store state.Store, jobDir, jobID string, command []string, policy schedulerPollingPolicy) model.JobResult {
 	statusPath := filepath.Join(jobDir, "status.json")
 	timing := policy.Timing.withDefaults()
+	events := newSchedulerEventLog(store, jobDir, timing.Now)
 	var accountingDeadline time.Time
 	failures := 0
 	for {
 		if result, finished := wrapperJobResult(store, statusPath, jobID, command); finished {
+			events.result("wrapper", result.ExitCode, result.Error)
 			return result
 		}
 		schedulerQueryGate.wait("query", 0)
 		query := policy.JobState()
+		events.observe("queue", query.State, query.Err)
 		if query.State != "" {
 			failures = 0
 			accountingDeadline = time.Time{}
 			WriteSchedulerStatus(store, jobDir, query.State, timing.Now())
 		} else {
-			result, resolved, accountingFailed := policy.resolveMissingSchedulerState(store, jobDir, statusPath, jobID, command, timing, &accountingDeadline)
+			result, resolved, accountingFailed := policy.resolveMissingSchedulerState(store, jobDir, statusPath, jobID, command, timing, &accountingDeadline, events)
 			if resolved {
 				return result
 			}
-			failures = nextSchedulerPollingFailures(failures, query.Failed || accountingFailed)
+			failures = nextSchedulerPollingFailures(failures, query.Err != nil || accountingFailed)
 		}
 		timing.Sleep(policy.pollingDelay(failures, timing))
 	}
@@ -446,11 +449,12 @@ func wrapperJobResult(store state.Store, statusPath, jobID string, command []str
 	return jobResultFromStatus(jobID, command, status), true
 }
 
-func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.Store, jobDir, statusPath, jobID string, command []string, timing schedulerTiming, accountingDeadline *time.Time) (model.JobResult, bool, bool) {
+func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.Store, jobDir, statusPath, jobID string, command []string, timing schedulerTiming, accountingDeadline *time.Time, events *schedulerEventLog) (model.JobResult, bool, bool) {
 	// Nudge NFS clients to discard stale cache entries before reading the
 	// scheduler-independent wrapper result a second time.
 	_, _ = os.ReadDir(jobDir)
 	if result, finished := wrapperJobResult(store, statusPath, jobID, command); finished {
+		events.result("wrapper", result.ExitCode, result.Error)
 		return result, true, false
 	}
 	if accountingDeadline.IsZero() {
@@ -458,17 +462,23 @@ func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.St
 	}
 	schedulerQueryGate.wait("query", 0)
 	accounting := policy.Accounting()
+	accountingFailed := accounting.Err != nil
 	if accounting.Resolved {
 		_ = state.WriteJSON(statusPath, accounting.Status)
-		return jobResultFromStatus(jobID, command, accounting.Status), true, accounting.Failed
+		result := jobResultFromStatus(jobID, command, accounting.Status)
+		events.observe("accounting", accounting.Status.Phase, accounting.Err)
+		events.result("accounting", result.ExitCode, result.Error)
+		return result, true, accountingFailed
 	}
+	events.observe("accounting", accounting.State, accounting.Err)
 	if accounting.State != "" {
 		*accountingDeadline = time.Time{}
 		WriteSchedulerStatus(store, jobDir, accounting.State, timing.Now())
 		return model.JobResult{}, false, false
 	}
 	if timing.Now().After(*accountingDeadline) {
-		return model.JobResult{ID: jobID, Command: command, ExitCode: 1, Error: policy.UnavailableError}, true, accounting.Failed
+		events.result("unavailable", 1, policy.UnavailableError)
+		return model.JobResult{ID: jobID, Command: command, ExitCode: 1, Error: policy.UnavailableError}, true, accountingFailed
 	}
-	return model.JobResult{}, false, accounting.Failed
+	return model.JobResult{}, false, accountingFailed
 }

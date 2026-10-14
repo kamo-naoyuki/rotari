@@ -260,7 +260,6 @@ func TestWaitForSchedulerResultUsesInjectedTiming(t *testing.T) {
 	statusPath := filepath.Join(jobDir, "status.json")
 	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
 	var sleeps []time.Duration
-	nowCalls := 0
 
 	result := waitForSchedulerResult(store, jobDir, "job-1", []string{"echo", "hi"}, schedulerPollingPolicy{
 		AccountingWait: time.Second, PollInterval: 250 * time.Millisecond,
@@ -268,10 +267,7 @@ func TestWaitForSchedulerResultUsesInjectedTiming(t *testing.T) {
 		JobState:         func() schedulerQuery { return schedulerQuery{State: "running"} },
 		Accounting:       func() schedulerAccounting { return schedulerAccounting{} },
 		Timing: schedulerTiming{
-			Now: func() time.Time {
-				nowCalls++
-				return now
-			},
+			Now: func() time.Time { return now },
 			Sleep: func(delay time.Duration) {
 				sleeps = append(sleeps, delay)
 				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: 0})
@@ -283,8 +279,17 @@ func TestWaitForSchedulerResultUsesInjectedTiming(t *testing.T) {
 	if result.ExitCode != 0 || result.Error != "" {
 		t.Fatalf("result = %+v, want successful wrapper result", result)
 	}
-	if nowCalls != 1 || len(sleeps) != 1 || sleeps[0] != 250*time.Millisecond {
-		t.Fatalf("now calls/sleeps = %d/%v, want 1/[250ms]", nowCalls, sleeps)
+	if len(sleeps) != 1 || sleeps[0] != 250*time.Millisecond {
+		t.Fatalf("sleeps = %v, want [250ms]", sleeps)
+	}
+	var status SchedulerStatus
+	if err := store.ReadJSON(filepath.Join(jobDir, "scheduler_status.json"), &status); err != nil || status.UpdatedAt != "2026-09-25T12:00:00Z" {
+		t.Fatalf("scheduler status = %#v, %v; want the injected time", status, err)
+	}
+	for _, event := range readSchedulerEvents(t, jobDir) {
+		if event.At != "2026-09-25T12:00:00Z" {
+			t.Fatalf("event %#v, want the injected time", event)
+		}
 	}
 }
 
@@ -305,9 +310,9 @@ func TestWaitForSchedulerResultRestartsAccountingWaitAfterQueueReportsJob(t *tes
 			if queryCalls == 2 {
 				return schedulerQuery{State: "running"}
 			}
-			return schedulerQuery{Failed: true}
+			return schedulerQuery{Err: errTestSchedulerQuery}
 		},
-		Accounting: func() schedulerAccounting { return schedulerAccounting{Failed: true} },
+		Accounting: func() schedulerAccounting { return schedulerAccounting{Err: errTestSchedulerQuery} },
 		Timing: schedulerTiming{
 			Now: func() time.Time { return now },
 			Sleep: func(time.Duration) {
@@ -347,8 +352,8 @@ func TestWaitForSchedulerResultBacksOffAfterRepeatedQueryFailures(t *testing.T) 
 	result := waitForSchedulerResult(store, jobDir, "job-1", []string{"echo", "hi"}, schedulerPollingPolicy{
 		AccountingWait: time.Minute, PollInterval: time.Second,
 		UnavailableError: "scheduler status is unavailable",
-		JobState:         func() schedulerQuery { return schedulerQuery{Failed: true} },
-		Accounting:       func() schedulerAccounting { return schedulerAccounting{Failed: true} },
+		JobState:         func() schedulerQuery { return schedulerQuery{Err: errTestSchedulerQuery} },
+		Accounting:       func() schedulerAccounting { return schedulerAccounting{Err: errTestSchedulerQuery} },
 		Timing: schedulerTiming{
 			Now: func() time.Time { return now },
 			Sleep: func(delay time.Duration) {
@@ -388,11 +393,11 @@ func TestWaitForSchedulerResultResetsBackoffAfterSuccessfulQuery(t *testing.T) {
 		JobState: func() schedulerQuery {
 			queryCalls++
 			if queryCalls <= 2 {
-				return schedulerQuery{Failed: true}
+				return schedulerQuery{Err: errTestSchedulerQuery}
 			}
 			return schedulerQuery{State: "running"}
 		},
-		Accounting: func() schedulerAccounting { return schedulerAccounting{Failed: true} },
+		Accounting: func() schedulerAccounting { return schedulerAccounting{Err: errTestSchedulerQuery} },
 		Timing: schedulerTiming{
 			Now: func() time.Time { return now },
 			Sleep: func(delay time.Duration) {

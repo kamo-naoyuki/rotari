@@ -259,11 +259,11 @@ func waitPBSJob(store state.Store, runDir string, job pbsJobMetadata) model.JobR
 		UnavailableError: "PBS accounting result and wrapper status are unavailable",
 		JobState: func() schedulerQuery {
 			state, err := pbsJobState(job.PBSJobID)
-			return schedulerQuery{State: state, Failed: err != nil}
+			return schedulerQuery{State: state, Err: err}
 		},
 		Accounting: func() schedulerAccounting {
 			exitCode, errorText, ok, err := pbsAccounting(job.PBSJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, Error: errorText, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, Error: errorText, FinishedAt: nowRFC3339()}, Resolved: ok, Err: err}
 		},
 	})
 }
@@ -278,7 +278,7 @@ func pbsJobActive(jobID string) (bool, error) {
 func pbsJobState(jobID string) (string, error) {
 	output, err := runPBSCommand("qstat", "-f", jobID)
 	if err != nil {
-		return "", err
+		return "", SchedulerCommandHint("qstat", output, err)
 	}
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(strings.TrimSpace(line), "=", 2)
@@ -309,7 +309,7 @@ func pbsJobState(jobID string) (string, error) {
 func pbsAccounting(jobID string) (int, string, bool, error) {
 	output, err := runPBSCommand("qstat", "-xf", jobID)
 	if err != nil {
-		return 0, "", false, err
+		return 0, "", false, SchedulerCommandHint("qstat", output, err)
 	}
 	values := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {

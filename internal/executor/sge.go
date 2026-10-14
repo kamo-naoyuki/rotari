@@ -196,11 +196,11 @@ func waitSGEJob(store state.Store, runDir string, job sgeJobMetadata) model.JobR
 		UnavailableError: "Grid Engine accounting result and wrapper status are unavailable",
 		JobState: func() schedulerQuery {
 			state, err := sgeJobState(job.SGEJobID)
-			return schedulerQuery{State: state, Failed: err != nil}
+			return schedulerQuery{State: state, Err: err}
 		},
 		Accounting: func() schedulerAccounting {
 			exitCode, ok, err := sgeAccounting(job.SGEJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Err: err}
 		},
 	})
 }
@@ -222,7 +222,7 @@ func sgeJobActive(jobID string) (bool, error) {
 func sgeJobState(jobID string) (string, error) {
 	output, err := runSGECommand("qstat", "-xml")
 	if err != nil {
-		return "", err
+		return "", SchedulerCommandHint("qstat", output, err)
 	}
 	var listing sgeQueueXML
 	if err := xml.Unmarshal(output, &listing); err != nil {
@@ -251,7 +251,7 @@ func sgeJobState(jobID string) (string, error) {
 func sgeAccounting(jobID string) (int, bool, error) {
 	output, err := runSGECommand("qacct", "-j", jobID)
 	if err != nil {
-		return 0, false, err
+		return 0, false, SchedulerCommandHint("qacct", output, err)
 	}
 	values := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {

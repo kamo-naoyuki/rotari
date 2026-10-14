@@ -11,6 +11,8 @@ import (
 const (
 	StdoutFileName = "stdout"
 	StderrFileName = "stderr"
+	// SchedulerEventsFileName is a scheduler job's log of query outcomes.
+	SchedulerEventsFileName = "scheduler_events.jsonl"
 )
 
 func IsValidPathElement(value string) bool {
@@ -53,7 +55,7 @@ func SafeJoin(basePath, element string) (string, error) {
 
 func ValidatedStateFile(basePath, fileName string) (string, error) {
 	switch fileName {
-	case "commands.json", "summary.json", "context.json", RunClientStatusFileName, "output", StdoutFileName, StderrFileName, "scheduler_status.json",
+	case "commands.json", "summary.json", "context.json", RunClientStatusFileName, "output", StdoutFileName, StderrFileName, "scheduler_status.json", SchedulerEventsFileName,
 		"status.json", "status", "submitted_at", "finished_at", "command.json", "job.json",
 		"pid", "cancelled", "name":
 		return SafeJoin(basePath, fileName)
