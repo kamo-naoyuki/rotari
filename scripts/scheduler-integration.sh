@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts a scheduler container and runs the TestSchedulerContainer* tests in
-# cmd/rotari against it, as the scheduler integration workflow does. Extra
+# cmd/rotari against it; the scheduler integration workflow runs it too. Extra
 # arguments go to go test, for example -run to select tests.
 #
 # LSF Community Edition is not downloaded: pass the package downloaded from
@@ -14,6 +14,7 @@ usage: $0 slurm|pbs|sge [GO_TEST_ARGS...]
        $0 lsf --accept-license LSF_PACKAGE [GO_TEST_ARGS...]
   --accept-license  accept the LSF license for the silent install
   LSF_DISTRIBUTION  file name of the LSF distribution archive, when the package has several
+  SCHEDULER_TEST_RUNNER  go (default) or gotestsum, which reads GOTESTSUM_FORMAT
 EOF
 }
 
@@ -40,7 +41,12 @@ lsf)
     ;;
 esac
 
-for command in docker go; do
+runner=${SCHEDULER_TEST_RUNNER:-go}
+if [[ "$runner" != go && "$runner" != gotestsum ]]; then
+    usage
+    exit 2
+fi
+for command in docker go "$runner"; do
     if ! command -v "$command" >/dev/null 2>&1; then
         echo "$command not found" >&2
         exit 1
@@ -87,7 +93,7 @@ pbs)
     ready='qstat -Bf'
     ;;
 sge)
-    # Same digest as the scheduler integration workflow.
+    # Pinned amd64 digest: the CentOS 7 image, last rebuilt in 2021, must not change under CI.
     docker run --detach --name "$container" --hostname docker \
         --cap-add SYS_ADMIN \
         --volume "$state_dir:/state" \
@@ -136,10 +142,15 @@ for attempt in {1..150}; do
 done
 
 cd "$workspace"
-ROTARI_SCHEDULER_CONTAINER_TEST=1 \
+export ROTARI_SCHEDULER_CONTAINER_TEST=1 \
     ROTARI_SCHEDULER_EXECUTOR="$executor" \
     SCHEDULER_CONTAINER="$container" \
     SCHEDULER_USER="$scheduler_user" \
     SCHEDULER_SETUP="$scheduler_setup" \
-    SCHEDULER_STATE_DIR="$state_dir" \
-    go test ./cmd/rotari -run '^TestSchedulerContainer' -count=1 -v "$@"
+    SCHEDULER_STATE_DIR="$state_dir"
+test_args=(./cmd/rotari -run '^TestSchedulerContainer' -count=1)
+if [[ "$runner" == gotestsum ]]; then
+    gotestsum -- "${test_args[@]}" "$@"
+else
+    go test "${test_args[@]}" -v "$@"
+fi

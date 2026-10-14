@@ -1110,9 +1110,10 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   They skip unless `ROTARI_SCHEDULER_CONTAINER_TEST=1`; running them also
   needs `ROTARI_SCHEDULER_EXECUTOR`, `SCHEDULER_CONTAINER`, `SCHEDULER_USER`,
   and `SCHEDULER_STATE_DIR` (the host directory mounted at `/state`), which
-  [.github/workflows/scheduler-integration.yml](../.github/workflows/scheduler-integration.yml)
-  sets; [scripts/scheduler-integration.sh](../scripts/scheduler-integration.sh)
-  sets them to run the tests locally, including against a downloaded LSF
+  [scripts/scheduler-integration.sh](../scripts/scheduler-integration.sh)
+  sets after starting the container. The
+  [scheduler integration workflow](../.github/workflows/scheduler-integration.yml)
+  runs that script; it also runs locally, including against a downloaded LSF
   Community Edition, which CI cannot download.
 - `local-concurrency` and `batch-concurrency` are common
   defaults used when no executor-specific setting is supplied; executor

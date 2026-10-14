@@ -76,10 +76,11 @@ requests and pushes to `main`.
 
 - `check.sh`: run the repository's full validation checks.
 - `scheduler-integration.sh`: start a Slurm, PBS, SGE, or LSF container and
-  run the scheduler container tests against it, as the scheduler integration
-  workflow does. LSF Community Edition must be downloaded from IBM first and
-  passed with `lsf --accept-license PACKAGE`; the image built from `lsf/`
-  contains no LSF software and installs it when the container starts.
+  run the scheduler container tests against it. The scheduler integration
+  workflow runs it with `SCHEDULER_TEST_RUNNER=gotestsum`. LSF Community
+  Edition must be downloaded from IBM first and passed with
+  `lsf --accept-license PACKAGE`; the image built from `lsf/` contains no LSF
+  software and installs it when the container starts.
 - `loadtest.sh`: run the web/API load test.
 - `loadtest-job.sh`: submit a load-test job.
 
