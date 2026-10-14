@@ -4,6 +4,8 @@ Track unresolved bugs, design concerns, and technical debt discovered while work
 
 This file is not a replacement for GitHub issues. Remove an item when it has been resolved, or move it to `Resolved` when keeping a short record is useful.
 
+When an item is a bug, fix it, then as the last step check that `rotari bug-report` would have been enough to find it. Reproduce the bug's state with the code before the fix (in a temporary worktree), run `rotari bug-report --output` from the current build on that state, and give an independent agent, which has not seen the fix, only the bundle and the symptom as a user would report it. Ask it to find the cause from the bundle alone and to list the facts it needed but could not find. Record the outcome in the item's Resolved entry; when facts were missing, make rotari record or collect them, or add an Open item saying why it cannot.
+
 ## Open
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
