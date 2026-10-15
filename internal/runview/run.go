@@ -24,10 +24,11 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("run %q not found", runID)
 	}
-	if err := state.CheckRunVersions(runDir); err != nil {
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s state versions: %w", runID, err)
 	}
-	commands, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
+	commands, err := files.Commands, files.CommandsErr
 	if errors.Is(err, os.ErrNotExist) {
 		if phase, phaseErr := project.RunPhaseOf(paths, runID); phaseErr == nil && phase == project.RunPhaseRunning {
 			return runlineage.Run{ID: runID}, nil
@@ -36,15 +37,11 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s commands: %w", runID, err)
 	}
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, err := files.Summary, files.SummaryErr
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s summary: %w", runID, err)
 	}
-	var recorded *model.RunSummary
-	if err == nil {
-		recorded = &summary
-	}
-	results := jobstatus.RecordedResults(runDir, recorded)
+	results := jobstatus.RecordedResults(files)
 	origins := model.QueueOriginsByJobID(commands)
 	run := runlineage.Run{ID: runID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
 	sources, recordedSources, err := state.LoadRunSources(runDir)

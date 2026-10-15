@@ -92,11 +92,7 @@ func TestAcceptedResultDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 		t.Fatalf("showRun code = %d, output:\n%s", code, runOutput)
 	}
 
-	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), summary, "")
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,11 +193,7 @@ func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 		t.Fatalf("carried task output:\n%s", text)
 	}
 
-	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), summary, "")
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), "")
 	if err != nil {
 		t.Fatal(err)
 	}

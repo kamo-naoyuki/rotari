@@ -35,11 +35,12 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID, attemptID, selection
 		printError(err)
 		return 1
 	}
-	if err := state.CheckRunVersions(runDir); err != nil {
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
 		printErrorf("failed to read run: %v", err)
 		return 1
 	}
-	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	queue, err := files.Queue()
 	if err != nil {
 		printErrorf("failed to read commands: %v", err)
 		return 1
@@ -49,11 +50,8 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID, attemptID, selection
 		printErrorf("job %q not found in run %q", jobID, runID)
 		return 1
 	}
-	var summary *model.RunSummary
-	if value, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		summary = &value
-	} else if !os.IsNotExist(err) {
-		printErrorf("failed to read summary: %v", err)
+	if files.SummaryErr != nil && !os.IsNotExist(files.SummaryErr) {
+		printErrorf("failed to read summary: %v", files.SummaryErr)
 		return 1
 	}
 	output := struct {
@@ -71,7 +69,7 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID, attemptID, selection
 	if output.ClientStatus.State == "" {
 		output.ClientStatus.State = "unknown"
 	}
-	output.Jobs, err = resolveRunJSONJobs(runDir, selected, model.QueueOriginsByJobID(queue), summary, attemptID)
+	output.Jobs, err = resolveRunJSONJobs(runDir, selected, model.QueueOriginsByJobID(queue), files, attemptID)
 	if err != nil {
 		printError(err)
 		return 1
@@ -115,8 +113,8 @@ func selectRunJSONJobs(queue model.Queue, jobID string) []model.JobSpec {
 	return nil
 }
 
-func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[string]*model.JobOrigin, summary *model.RunSummary, attemptID string) ([]showJSONJob, error) {
-	results := jobstatus.RecordedResults(runDir, summary)
+func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[string]*model.JobOrigin, files state.RunSnapshot, attemptID string) ([]showJSONJob, error) {
+	results := jobstatus.RecordedResults(files)
 	entries := make([]showJSONJob, 0, len(selected))
 	for _, spec := range selected {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)

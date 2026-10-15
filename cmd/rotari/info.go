@@ -284,7 +284,11 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 	if err != nil {
 		return nil, err
 	}
-	carried := jobstatus.RecordedResults(runDir, nil)
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
+		return nil, err
+	}
+	carried := jobstatus.RecordedResults(files)
 	result := &infoJobLiveness{}
 	for _, carriedResult := range carried {
 		result.countFinished(jobstatus.ResolveJob(jobstatus.Attempt{}, carriedResult, true))

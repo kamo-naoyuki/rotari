@@ -279,7 +279,7 @@ func (s site) loadHistorySearchRun(entry webBaseDir, projectName, runsDir, runID
 	if errors.Is(summaryErr, stateinternal.ErrNewerStateVersion) {
 		return records, nil
 	}
-	jobs, err := webprojection.LoadRunJobs(s.Store, runDir, summary, "")
+	jobs, err := webprojection.LoadRunJobs(s.Store, runDir, "")
 	if errors.Is(err, stateinternal.ErrNewerStateVersion) {
 		return records, nil
 	}

@@ -727,12 +727,11 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		summary, err := stateinternal.LoadRunSummary(summaryPath)
-		if err != nil {
+		if _, err := stateinternal.LoadRunSummary(summaryPath); err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		jobs, err := webprojection.LoadRunJobs(s.Store, runDir, summary, "")
+		jobs, err := webprojection.LoadRunJobs(s.Store, runDir, "")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -1528,8 +1527,8 @@ func (s site) loadWebRunDetail(baseDir, projectName, runID string) (webprojectio
 		Summary: func(id string) (model.RunSummary, error) {
 			return stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, id, "summary.json"))
 		},
-		Jobs: func(id string, summary model.RunSummary) ([]webprojection.Job, error) {
-			return webprojection.LoadRunJobs(s.Store, filepath.Join(paths.RunsDir, id), summary, "")
+		Jobs: func(id string, _ model.RunSummary) ([]webprojection.Job, error) {
+			return webprojection.LoadRunJobs(s.Store, filepath.Join(paths.RunsDir, id), "")
 		},
 		Context: func(id string) (model.RunContext, error) {
 			return stateinternal.LoadContext(s.Store, filepath.Join(paths.RunsDir, id))
@@ -1974,8 +1973,8 @@ func (s site) loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection
 		Summary: func(runID string) (model.RunSummary, error) {
 			return stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
 		},
-		Jobs: func(runID string, summary model.RunSummary) ([]webprojection.Job, error) {
-			return webprojection.LoadRunJobs(s.Store, filepath.Join(paths.RunsDir, runID), summary, "")
+		Jobs: func(runID string, _ model.RunSummary) ([]webprojection.Job, error) {
+			return webprojection.LoadRunJobs(s.Store, filepath.Join(paths.RunsDir, runID), "")
 		},
 		Context: func(runID string) (model.RunContext, error) {
 			return stateinternal.LoadContext(s.Store, filepath.Join(paths.RunsDir, runID))

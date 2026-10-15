@@ -121,7 +121,7 @@ func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	writeTestFile(t, filepath.Join(runsDir, "run-0", "job-1", "submitted_at"), "submitted")
 	writeTestFile(t, filepath.Join(runsDir, "run-0", "job-1", "finished_at"), "finished")
 	origin := &model.JobOrigin{RunID: "run-0", JobID: "job-1", Status: "success"}
-	jobs, err := LoadJobs(
+	jobs, err := loadJobs(
 		state.NewStore(0o700, 0o600),
 		runDir,
 		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "demo", Stage: "build", Command: []string{"echo", "ok"}, Origin: origin}}},
@@ -145,7 +145,7 @@ func TestLoadJobsProjectsRecordedExecutionStatus(t *testing.T) {
 	attemptID := state.MakeAttemptID(runID, "running", 0)
 	writeTestFile(t, filepath.Join(runDir, "running", "attempts", attemptID, "status.json"), `{"phase":"running","hosts":["node1"]}`)
 	writeTestFile(t, filepath.Join(runDir, "unknown", "attempts", state.MakeAttemptID(runID, "unknown", 0), "command.json"), `{}`)
-	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{Commands: []model.QueuedCommand{
+	jobs, err := loadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{Commands: []model.QueuedCommand{
 		{ID: "running", Command: []string{"sleep", "10"}},
 		{ID: "unknown", Command: []string{"true"}},
 		{ID: "not-started", Command: []string{"true"}},
@@ -171,7 +171,7 @@ func TestBuildTimelineIncludesRerunAttemptEventsWhenJobHasOrigin(t *testing.T) {
 	writeTestFile(t, filepath.Join(attemptDir, "status"), "0")
 
 	origin := &model.JobOrigin{RunID: "run-0", JobID: "job-1", AttemptID: "previous-attempt", Status: "success"}
-	jobs, err := LoadJobs(
+	jobs, err := loadJobs(
 		state.NewStore(0o700, 0o600),
 		runDir,
 		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "ok"}, Origin: origin}}},
@@ -200,7 +200,7 @@ func TestBuildTimelineDoesNotUseOriginTimesForBlockedJobs(t *testing.T) {
 	origin := &model.JobOrigin{RunID: "run-1", JobID: "job-1", AttemptID: "old-attempt", SubmittedAt: "2026-10-02T09:00:00Z", FinishedAt: "2026-10-02T09:00:01Z"}
 	startedAt := "2026-10-02T10:00:00Z"
 	finishedAt := "2026-10-02T10:00:02Z"
-	jobs, err := LoadJobs(
+	jobs, err := loadJobs(
 		state.NewStore(0o700, 0o600),
 		runDir,
 		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "blocked"}, Origin: origin}}},
@@ -240,7 +240,7 @@ func TestBuildTimelineUsesRunStartSampleWhenSummaryStartedAtIsLate(t *testing.T)
 func TestLoadJobsPrefersAttemptStatusOverSummary(t *testing.T) {
 	runDir := filepath.Join(t.TempDir(), "20260925-000000-00000000")
 	writeTestFile(t, filepath.Join(runDir, "job-1", "status"), "3")
-	jobs, err := LoadJobs(
+	jobs, err := loadJobs(
 		state.NewStore(0o700, 0o600),
 		runDir,
 		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"false"}}}},
@@ -262,7 +262,7 @@ func TestLoadJobsSelectedAttemptUsesItsOwnOutcome(t *testing.T) {
 	second := state.MakeAttemptID(runID, "job-1", 2)
 	writeTestFile(t, filepath.Join(runDir, "job-1", "attempts", first, "status.json"), `{"phase":"finished","exit_code":2,"finished_at":"first-finish"}`)
 	writeTestFile(t, filepath.Join(runDir, "job-1", "attempts", second, "status"), "0")
-	jobs, err := LoadJobs(
+	jobs, err := loadJobs(
 		state.NewStore(0o700, 0o600),
 		runDir,
 		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}},
@@ -292,14 +292,14 @@ func TestLoadJobsSelectedOlderAttemptIgnoresSummary(t *testing.T) {
 	writeTestFile(t, filepath.Join(runDir, "job-1", "attempts", second, "status"), "0")
 	summary := model.RunSummary{Results: []model.JobResult{{ID: "job-1", AttemptID: second, ExitCode: 0, Hosts: []string{"node2"}}}}
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}
-	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, first)
+	jobs, err := loadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, first)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(jobs) != 1 || jobs[0].Result != nil {
 		t.Fatalf("jobs = %#v, want unfinished selected older attempt without summary result", jobs)
 	}
-	jobs, err = LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, second)
+	jobs, err = loadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,13 +315,24 @@ func TestLoadJobsMarksOutdatedDiagnosis(t *testing.T) {
 		{ID: "old", ExitCode: 1, DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: "old"},
 		{ID: "current", ExitCode: 1, DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: diagnose.RulesVersion()},
 	}}
-	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, "")
+	jobs, err := loadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(jobs) != 2 || !jobs[0].DiagnosisOutdated || jobs[1].DiagnosisOutdated {
 		t.Fatalf("jobs = %#v, want only the old analysis marked outdated", jobs)
 	}
+}
+
+// loadJobs calls LoadJobs with queue and summary as the run's files, and
+// carried.json from runDir; a summary without results counts as none.
+func loadJobs(store state.Store, runDir string, queue model.Queue, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
+	files := state.RunSnapshot{Commands: queue, Summary: summary}
+	if len(summary.Results) == 0 {
+		files.SummaryErr = os.ErrNotExist
+	}
+	files.Carried, files.CarriedErr = state.LoadRunSummary(filepath.Join(runDir, state.CarriedResultsFileName))
+	return LoadJobs(store, runDir, files, selectedAttemptID)
 }
 
 func writeTestFile(t *testing.T, path, contents string) {
@@ -402,7 +413,7 @@ func TestLoadJobsResolvesSummaryOnlyResultsThroughJobstatus(t *testing.T) {
 		{ID: "cancelled", Command: []string{"true"}, ExitCode: 130, Error: model.MarkedCancelledError},
 		{ID: "failed", Command: []string{"false"}, ExitCode: 1},
 	}}
-	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{}, summary, "")
+	jobs, err := loadJobs(state.NewStore(0o700, 0o600), runDir, model.Queue{}, summary, "")
 	if err != nil {
 		t.Fatal(err)
 	}

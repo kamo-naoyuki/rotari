@@ -2137,10 +2137,15 @@ func TestCompareQueueWithRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diff, err := compareQueueWithRun(queuePath, runPath)
+	current, err := state.LoadQueue(queuePath)
 	if err != nil {
 		t.Fatal(err)
 	}
+	runQueue, err := state.LoadQueue(runPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff := compareQueueWithRun(current, runQueue)
 	if diff.Added != 1 || diff.Removed != 1 || diff.Changed != 5 {
 		t.Fatalf("diff = %#v, want added=1 removed=1 changed=5", diff)
 	}

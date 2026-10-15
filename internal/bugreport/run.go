@@ -53,7 +53,7 @@ func (collector *collector) run() error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		collector.note("summary.json not read: %v", err)
 	}
-	jobs, err := webprojection.LoadRunJobs(store, runDir, summary, "")
+	jobs, err := webprojection.LoadRunJobs(store, runDir, "")
 	if err != nil {
 		collector.note("jobs of run %s not read: %v", options.RunID, err)
 		return nil

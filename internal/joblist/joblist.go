@@ -164,10 +164,11 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 
 func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]Row, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := state.CheckRunVersions(runDir); err != nil {
+	run, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
 		return nil, false, false, err
 	}
-	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, summaryErr := run.Summary, run.SummaryErr
 	active := project.RunActive(paths, runID)
 	if summaryErr == nil && !active {
 		finishedAt, err := parseTimestamp(summary.FinishedAt)
@@ -175,15 +176,11 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 			return nil, false, true, nil
 		}
 	}
-	runQueue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	runQueue, err := run.Queue()
 	if err != nil {
 		return nil, false, false, nil
 	}
-	var recorded *model.RunSummary
-	if summaryErr == nil {
-		recorded = &summary
-	}
-	resultByID := jobstatus.RecordedResults(runDir, recorded)
+	resultByID := jobstatus.RecordedResults(run)
 	rows := make([]Row, 0)
 	for _, job := range model.QueueToJobs(runQueue.Commands) {
 		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)

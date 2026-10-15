@@ -229,11 +229,15 @@ func (source originResults) RunResults(runID string) (map[string]model.JobResult
 // the run carried. A job that never finished has no result, so a rerun treats
 // it as unfinished.
 func unsummarizedRunResults(store state.Store, runDir string) (map[string]model.JobResult, error) {
-	commands, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
+	files, err := state.LoadRunSnapshot(runDir)
 	if err != nil {
 		return nil, err
 	}
-	recorded := jobstatus.RecordedResults(runDir, nil)
+	commands, err := files.Commands, files.CommandsErr
+	if err != nil {
+		return nil, err
+	}
+	recorded := jobstatus.RecordedResults(files)
 	results := make(map[string]model.JobResult)
 	for _, spec := range model.QueueToJobs(commands.Commands) {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)

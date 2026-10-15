@@ -145,27 +145,25 @@ func unreadableRun(runID string, err error) Run {
 	return Run{RunSummary: model.RunSummary{RunID: runID, Status: "unreadable"}, Jobs: []Job{}, Unreadable: err.Error()}
 }
 
-// LoadRunJobs reads runDir's command snapshot and projects its jobs with
-// LoadJobs.
-func LoadRunJobs(store state.Store, runDir string, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
-	commands, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+// LoadRunJobs reads runDir's run files and projects its jobs with LoadJobs.
+func LoadRunJobs(store state.Store, runDir string, selectedAttemptID string) ([]Job, error) {
+	files, err := state.LoadRunSnapshot(runDir)
 	if err != nil {
 		return nil, err
 	}
-	return LoadJobs(store, runDir, commands, summary, selectedAttemptID)
+	return LoadJobs(store, runDir, files, selectedAttemptID)
 }
 
 // LoadJobs projects a run's jobs for the Web UI. Each job's result follows
 // the shared jobstatus fallback chain. A non-empty selectedAttemptID shows
 // that attempt, instead of the latest one, for its job.
-func LoadJobs(store state.Store, runDir string, commands model.Queue, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
-	// Before the run writes its summary, callers pass one without results,
-	// and the results the run carries are its recorded ones.
-	var recorded *model.RunSummary
-	if len(summary.Results) > 0 {
-		recorded = &summary
+func LoadJobs(store state.Store, runDir string, files state.RunSnapshot, selectedAttemptID string) ([]Job, error) {
+	commands, err := files.Queue()
+	if err != nil {
+		return nil, err
 	}
-	results := jobstatus.RecordedResults(runDir, recorded)
+	summary := files.Summary
+	results := jobstatus.RecordedResults(files)
 	origins := model.QueueOriginsByJobID(commands)
 	taskJobs := model.QueueToJobs(commands.Commands)
 	selectedJobID := ""

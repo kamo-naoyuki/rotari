@@ -707,5 +707,9 @@ func now() string {
 // carries from earlier runs. They never run in it, so job control does not
 // reach them.
 func carriedJobs(runDir string) map[string]model.JobResult {
-	return jobstatus.RecordedResults(runDir, nil)
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
+		return map[string]model.JobResult{}
+	}
+	return jobstatus.RecordedResults(files)
 }

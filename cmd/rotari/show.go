@@ -595,11 +595,16 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		clientStatus.State = "unknown"
 	}
 	result.Client = &clientStatus
+	files, err := state.LoadRunSnapshot(result.RunDir)
+	if err != nil {
+		printErrorf("failed to read run: %v", err)
+		return 1
+	}
 	var selected map[string]bool
-	if summary, err := state.LoadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
+	if summary, err := files.Summary, files.SummaryErr; err == nil {
 		if selection != "" {
 			selected = make(map[string]bool)
-			kept := summary.Results[:0]
+			kept := make([]model.JobResult, 0, len(summary.Results))
 			for _, jobResult := range summary.Results {
 				if selectsShownJob(paths, runID, jobResult.ID, jobResult, true, selection, jobfilter.Filter{}) {
 					kept = append(kept, jobResult)
@@ -613,13 +618,13 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		printErrorf("failed to read summary: %v", err)
 		return 1
 	}
-	commands, err := state.LoadQueue(filepath.Join(result.RunDir, "commands.json"))
+	commands, err := files.Queue()
 	if err != nil {
 		printErrorf("failed to read commands: %v", err)
 		return 1
 	}
 	result.Commands = commands
-	result.Jobs, err = resolveRunJSONJobs(result.RunDir, model.QueueToJobs(commands.Commands), model.QueueOriginsByJobID(commands), result.Summary, "")
+	result.Jobs, err = resolveRunJSONJobs(result.RunDir, model.QueueToJobs(commands.Commands), model.QueueOriginsByJobID(commands), files, "")
 	if err != nil {
 		printErrorf("failed to read job states: %v", err)
 		return 1
@@ -861,18 +866,20 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	if err := state.CheckRunVersions(runDir); err != nil {
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
 		printErrorf("failed to read run: %v", err)
 		return 1
 	}
-	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, summaryErr := files.Summary, files.SummaryErr
 	summaryOK := summaryErr == nil
 	if summaryErr != nil && !errors.Is(summaryErr, os.ErrNotExist) {
 		printErrorf("failed to read summary: %v", summaryErr)
 		return 1
 	}
-	jobSpecs := loadRunJobSpecs(runDir)
-	scoped, err := scopedJobIDs(runScopeCommands(runDir, jobSpecs), filter.scope, filter.filter)
+	runQueue, runQueueErr := files.Queue()
+	jobSpecs := runJobSpecs(runDir, runQueue, runQueueErr)
+	scoped, err := scopedJobIDs(runScopeCommands(runQueue, runQueueErr, jobSpecs), filter.scope, filter.filter)
 	if err != nil {
 		printErrorf("run %s: %v", runID, err)
 		return 1
@@ -919,26 +926,21 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	if notes, err := state.LoadRunNotes(runDir); err != nil {
 		fmt.Printf("%s unreadable (%v)\n", cyan("Note:"), err)
 	} else {
-		writeRunNotes(os.Stdout, notes, loadRunJobSpecs(runDir))
+		writeRunNotes(os.Stdout, notes, jobSpecs)
 	}
 	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
 		// The job table can be long; point to the compact summary before it.
 		fmt.Printf("%s rotari lineage %s%s\n", cyan("Failure summary:"), runHintLocation(paths), executor.ShellQuote(runID))
 	}
 	queue, queueErr := state.LoadQueue(paths.QueueFile)
-	if queueErr == nil && len(queue.Commands) > 0 {
-		if diff, err := compareQueueWithRun(paths.QueueFile, filepath.Join(runDir, "commands.json")); err == nil && diff.HasChanges() {
+	if queueErr == nil && len(queue.Commands) > 0 && runQueueErr == nil {
+		if diff := compareQueueWithRun(queue, runQueue); diff.HasChanges() {
 			fmt.Printf("\n%s\n", yellow("Queue differs from this run:"))
 			fmt.Printf("  Added: %d\n  Removed: %d\n  Changed: %d\n", diff.Added, diff.Removed, diff.Changed)
 		}
 	}
-	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	jobCounts := showJobCounts{}
-	var recorded *model.RunSummary
-	if summaryOK {
-		recorded = &summary
-	}
-	resultByID := jobstatus.RecordedResults(runDir, recorded)
+	resultByID := jobstatus.RecordedResults(files)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*model.JobOrigin, len(runQueue.Commands))
 	if runQueueErr == nil {
@@ -1183,8 +1185,8 @@ func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandS
 
 // runScopeCommands returns a run's command snapshot. A run saved without
 // one is described by its per-job specs, which carry stages but no matrix.
-func runScopeCommands(runDir string, jobSpecs map[string]model.JobSpec) []model.QueuedCommand {
-	if queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json")); err == nil {
+func runScopeCommands(queue model.Queue, queueErr error, jobSpecs map[string]model.JobSpec) []model.QueuedCommand {
+	if queueErr == nil {
 		return queue.Commands
 	}
 	commands := make([]model.QueuedCommand, 0, len(jobSpecs))
@@ -1298,16 +1300,7 @@ func (diff queueRunDiff) HasChanges() bool {
 	return diff.Added != 0 || diff.Removed != 0 || diff.Changed != 0
 }
 
-func compareQueueWithRun(queuePath, runCommandsPath string) (queueRunDiff, error) {
-	current, err := state.LoadQueue(queuePath)
-	if err != nil {
-		return queueRunDiff{}, err
-	}
-	runQueue, err := state.LoadQueue(runCommandsPath)
-	if err != nil {
-		return queueRunDiff{}, err
-	}
-
+func compareQueueWithRun(current, runQueue model.Queue) queueRunDiff {
 	currentJobs := model.QueueToJobs(current.Commands)
 	runJobs := model.QueueToJobs(runQueue.Commands)
 	currentByID := make(map[string]model.JobSpec, len(currentJobs))
@@ -1332,7 +1325,7 @@ func compareQueueWithRun(queuePath, runCommandsPath string) (queueRunDiff, error
 			diff.Removed++
 		}
 	}
-	return diff, nil
+	return diff
 }
 
 func sameJobSpec(left, right model.JobSpec) bool {
@@ -1368,8 +1361,15 @@ func colorExecutor(executor string) string {
 }
 
 func loadRunJobSpecs(runDir string) map[string]model.JobSpec {
+	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	return runJobSpecs(runDir, queue, err)
+}
+
+// runJobSpecs is loadRunJobSpecs from the run's command snapshot as already
+// read.
+func runJobSpecs(runDir string, queue model.Queue, queueErr error) map[string]model.JobSpec {
 	specs := make(map[string]model.JobSpec)
-	if queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json")); err == nil {
+	if queueErr == nil {
 		for _, job := range model.QueueToJobs(queue.Commands) {
 			specs[job.ID] = job
 		}
@@ -1958,11 +1958,11 @@ func runResultAccepted(runDir, jobID string) bool {
 
 // loadRunResult returns the job's result from the run's summary.json.
 func loadRunResult(runDir, jobID string) (model.JobResult, bool) {
-	var recorded *model.RunSummary
-	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		recorded = &summary
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
+		return model.JobResult{}, false
 	}
-	result, ok := jobstatus.RecordedResults(runDir, recorded)[jobID]
+	result, ok := jobstatus.RecordedResults(files)[jobID]
 	return result, ok
 }
 

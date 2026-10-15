@@ -119,7 +119,7 @@ func loadRun(store state.Store, paths state.ProjectPaths, runID, attemptID strin
 			summary.Status = "unknown"
 		}
 	}
-	jobs, err := webprojection.LoadRunJobs(store, runDir, summary, attemptID)
+	jobs, err := webprojection.LoadRunJobs(store, runDir, attemptID)
 	if err != nil {
 		return webprojection.Run{}, err
 	}

@@ -3247,7 +3247,10 @@ func TestLoadWebJobsIncludesCommandMetadata(t *testing.T) {
 	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}, "")
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3281,7 +3284,7 @@ func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
 		}
 	}
 
-	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{}, "")
+	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3433,7 +3436,7 @@ func TestLoadWebJobsRejectsUnsafeJobID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{}, ""); err == nil {
+	if _, err := webprojection.LoadRunJobs(testStore(), runDir, ""); err == nil {
 		t.Fatal("LoadRunJobs accepted an unsafe job ID")
 	}
 }
@@ -3446,7 +3449,7 @@ func TestLoadWebJobsIncludesSchedulerState(t *testing.T) {
 	}
 	writeSchedulerStatus(filepath.Join(runDir, "job-1"), "PENDING")
 
-	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{}, "")
+	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3471,7 +3474,7 @@ func TestLoadWebJobsIncludesFinishedLocalJobBeforeRunSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{RunID: "run-1", Status: "running"}, "")
+	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3489,7 +3492,7 @@ func TestLoadWebJobsProjectsFinishedSchedulerStatus(t *testing.T) {
 	if err := stateinternal.WriteJSON(filepath.Join(runDir, "array-1", "status.json"), executor.WrapperStatus{Phase: "running", ExitCode: 0, FinishedAt: "2026-09-18T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, model.RunSummary{}, "")
+	jobs, err := webprojection.LoadRunJobs(testStore(), runDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3520,7 +3523,10 @@ func TestLoadWebJobsUsesCarriedOriginTimestamps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jobs, err := webprojection.LoadRunJobs(testStore(), currentRunDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}, "")
+	if err := stateinternal.WriteJSON(filepath.Join(currentRunDir, "summary.json"), model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := webprojection.LoadRunJobs(testStore(), currentRunDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}

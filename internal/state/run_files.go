@@ -41,15 +41,53 @@ func LoadRunOrigin(runDir, jobID string) *model.JobOrigin {
 // as optional call it first, so a newer file is refused instead of being read
 // as absent.
 func CheckRunVersions(runDir string) error {
-	if _, err := LoadQueue(filepath.Join(runDir, "commands.json")); errors.Is(err, ErrNewerStateVersion) {
-		return err
-	}
-	for _, name := range []string{"summary.json", CarriedResultsFileName} {
-		if _, err := LoadRunSummary(filepath.Join(runDir, name)); errors.Is(err, ErrNewerStateVersion) {
-			return err
+	_, err := LoadRunSnapshot(runDir)
+	return err
+}
+
+// RunSnapshot is what a run directory records about the whole run:
+// commands.json, summary.json, and carried.json, each read once. An error
+// field is os.ErrNotExist for a missing file.
+type RunSnapshot struct {
+	Commands    model.Queue
+	CommandsErr error
+	Summary     model.RunSummary
+	SummaryErr  error
+	Carried     model.RunSummary
+	CarriedErr  error
+}
+
+// LoadRunSnapshot reads runDir's run files. It fails, with
+// ErrNewerStateVersion, only when one was written by a newer rotari; any
+// other error is kept in the snapshot for the caller.
+func LoadRunSnapshot(runDir string) (RunSnapshot, error) {
+	var snapshot RunSnapshot
+	snapshot.Commands, snapshot.CommandsErr = ReadQueueFile(filepath.Join(runDir, "commands.json"))
+	snapshot.Summary, snapshot.SummaryErr = LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	snapshot.Carried, snapshot.CarriedErr = LoadRunSummary(filepath.Join(runDir, CarriedResultsFileName))
+	for _, err := range []error{snapshot.CommandsErr, snapshot.SummaryErr, snapshot.CarriedErr} {
+		if errors.Is(err, ErrNewerStateVersion) {
+			return RunSnapshot{}, err
 		}
 	}
-	return nil
+	return snapshot, nil
+}
+
+// Queue is the run's command snapshot as LoadQueue reads it: empty when the
+// file is missing.
+func (snapshot RunSnapshot) Queue() (model.Queue, error) {
+	if errors.Is(snapshot.CommandsErr, os.ErrNotExist) {
+		return model.Queue{}, nil
+	}
+	return snapshot.Commands, snapshot.CommandsErr
+}
+
+// RecordedSummary is the run's summary, or nil when it has no readable one.
+func (snapshot RunSnapshot) RecordedSummary() *model.RunSummary {
+	if snapshot.SummaryErr != nil {
+		return nil
+	}
+	return &snapshot.Summary
 }
 
 // CarriedResultsFileName is the run file in which a run records, before it
