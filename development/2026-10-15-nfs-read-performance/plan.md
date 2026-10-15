@@ -157,6 +157,22 @@ files per run in the project's whole history.
 - **D6 Measured, not assumed.** Each phase records the baseline table
   re-measured on the same fixture. A phase that does not reduce round trips
   or wall time is reverted rather than kept for its structure alone.
+- **D7 Read-count guard in tests.** A Linux test runs the built binary under
+  `strace` on a small fixture and fails when a command exceeds a per-run or
+  per-job bound, for example two listings of `attempts/` per job. It counts
+  only paths inside the fixture, so Go runtime and system files do not
+  matter, and it is skipped when `strace` is absent. CI installs `strace` in
+  the Go job. Bounds are limits, not exact counts, so that unrelated reads
+  added later do not churn the test; each phase tightens the bounds it
+  achieves.
+- **D8 Stale lock removal stays sequential, once per project.** `jobs`,
+  `show`, the report, and selector resolution remove a stale local run lock
+  while reading
+  (`project.RunActive` and `project.Inspect` with cleanup). Phase 1 reads the
+  lock once per project, before the project's runs are read, and removes it
+  there; the concurrent reads that follow see only that result. This keeps
+  today's behavior. Whether read commands should remove stale locks at all
+  is a separate question, recorded in [ISSUES.md](../ISSUES.md).
 
 ## Phases
 
@@ -172,6 +188,9 @@ Add a script under `scripts/` that:
 
 The script records the counts but does not fail on them. It is for local
 measurement, not CI. Commit the baseline output in `work-log.md`.
+
+Also add the read-count test (D7) with bounds that the current code meets,
+and add `strace` to the CI Go job's `apt-get install` line.
 
 ### Phase 1: Run-level files read once
 
@@ -270,11 +289,9 @@ recorded here before any implementation.
 
 ## Open questions
 
-- **Q1** Should a read-count regression guard run in tests (for example, a
-  Linux test that runs the binary under `strace` and is skipped when `strace`
-  is absent)? Or are the Phase 0 script and the work log enough?
 - **Q2** Is a fixed worker count enough across NFS servers, or does it need an
-  environment variable? Decide from the Phase 3 measurements.
-- **Q3** `jobs` and `info` remove stale local run locks while reading
-  (`InspectLock` with `cleanupStale`). With concurrent reads, should removal
-  stay in the readers, or move to a single sequential step after reading?
+  environment variable? Today every read is sequential, so there is no
+  setting. Decide from the Phase 3 measurements.
+
+Q1 (read-count guard) became D7, and Q3 (stale lock removal under concurrent
+reads) became D8.
