@@ -1,6 +1,7 @@
 package joblist
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -178,17 +179,22 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 
 func collectRun(store state.Store, paths state.ProjectPaths, runID string, active bool, now, cutoff time.Time) ([]Row, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
+	if !active {
+		// A finished run outside the window is decided from its summary's
+		// head, before its other files are read.
+		head, err := state.LoadRunSummaryHead(filepath.Join(runDir, "summary.json"))
+		if errors.Is(err, state.ErrNewerStateVersion) {
+			return nil, false, false, err
+		}
+		if finishedAt, parseErr := parseTimestamp(head.FinishedAt); err == nil && parseErr == nil && finishedAt.Before(cutoff) {
+			return nil, false, true, nil
+		}
+	}
 	run, err := state.LoadRunSnapshot(runDir)
 	if err != nil {
 		return nil, false, false, err
 	}
-	summary, summaryErr := run.Summary, run.SummaryErr
-	if summaryErr == nil && !active {
-		finishedAt, err := parseTimestamp(summary.FinishedAt)
-		if err == nil && finishedAt.Before(cutoff) {
-			return nil, false, true, nil
-		}
-	}
+	summary := run.Summary
 	runQueue, err := run.Queue()
 	if err != nil {
 		return nil, false, false, nil

@@ -134,7 +134,7 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 	if inspection.State == project.Running || inspection.State == project.Interrupted {
 		current = inspection.RunID
 	}
-	runs := make([]Run, 0, len(entries))
+	selected := make([]os.DirEntry, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -142,11 +142,17 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 		if bounds != nil && entry.Name() != current && !bounds.mayMeet(entry) {
 			continue
 		}
-		run, err := readRun(paths, projectName, entry, inspection)
+		selected = append(selected, entry)
+	}
+	runs := make([]Run, len(selected))
+	errs := make([]error, len(selected))
+	state.ReadEach(len(selected), func(index int) {
+		runs[index], errs[index] = readRun(paths, projectName, selected[index], inspection)
+	})
+	for index, err := range errs {
 		if err != nil {
-			return nil, fmt.Errorf("failed to read run %q for project %q: %w", entry.Name(), projectName, err)
+			return nil, fmt.Errorf("failed to read run %q for project %q: %w", selected[index].Name(), projectName, err)
 		}
-		runs = append(runs, run)
 	}
 	return runs, nil
 }

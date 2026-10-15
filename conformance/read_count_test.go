@@ -83,7 +83,9 @@ func TestReadCountsStayBounded(t *testing.T) {
 			"open run/commands.json": 3, "open run/summary.json": 6, "stat run": 9,
 		})},
 		{name: "jobs", args: []string{"jobs"}, bounds: readBounds(map[string]int{"stat run": 4})},
-		{name: "jobs running only", args: []string{"jobs", "--since", "0"}, bounds: readBounds(nil)},
+		{name: "jobs running only", args: []string{"jobs", "--since", "0"}, bounds: readBounds(map[string]int{
+			"files run/commands.json": 0, "files run/carried.json": 0,
+		})},
 		{name: "runs", args: []string{"runs"}, bounds: readBounds(nil)},
 		{name: "info", args: []string{"info", "-p", "reads"}, bounds: readBounds(nil)},
 		{name: "lineage", args: []string{"lineage", "-p", "reads"}, bounds: readBounds(map[string]int{"stat run": 4})},
