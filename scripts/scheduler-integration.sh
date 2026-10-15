@@ -127,7 +127,7 @@ esac
 echo "waiting for $executor to start" >&2
 for attempt in {1..150}; do
     if [[ "$(docker container inspect --format '{{.State.Running}}' "$container")" != true ]]; then
-        echo "the $executor container stopped" >&2
+        echo "the $executor container stopped with exit code $(docker container inspect --format '{{.State.ExitCode}}' "$container")" >&2
         exit 1
     fi
     if [[ "$executor" != pbs || "$(docker container inspect --format '{{.State.Health.Status}}' "$container")" == healthy ]] &&

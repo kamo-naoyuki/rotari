@@ -7,7 +7,17 @@ lsf_top=/opt/lsf
 work=/tmp/lsf-install
 mkdir -p "$work/distrib"
 
-installer=$(find /lsf-distrib -name '*lsfinstall*.tar*' -type f | head -n 1)
+report_failure() {
+    local status=$?
+    echo "start-lsf.sh: '$BASH_COMMAND' exited with $status" >&2
+    find "$work" "$lsf_top" -name '*.log' -type f 2>/dev/null | while read -r log; do
+        echo "== $log" >&2
+        tail -n 100 "$log" >&2
+    done
+}
+trap report_failure ERR
+
+installer=$(find /lsf-distrib -name '*lsfinstall*.tar*' -type f -print -quit)
 if [[ -z "$installer" ]]; then
     echo "no *lsfinstall*.tar* file under the LSF package" >&2
     exit 1
@@ -27,7 +37,7 @@ fi
 cp "${distributions[0]}" "$work/distrib/"
 
 gzip -dc "$installer" | tar -xf - -C "$work"
-lsfinstall=$(find "$work" -maxdepth 2 -name lsfinstall -type f | head -n 1)
+lsfinstall=$(find "$work" -maxdepth 2 -name lsfinstall -type f -print -quit)
 if [[ -z "$lsfinstall" ]]; then
     echo "the installer archive $installer has no lsfinstall" >&2
     exit 1
@@ -44,13 +54,17 @@ SILENT_INSTALL="Y"
 ACCEPT_LICENSE="Y"
 ENABLE_EGO="N"
 EOF
-entitlement=$(find /lsf-distrib -name '*entitlement*' -type f | head -n 1)
+entitlement=$(find /lsf-distrib -name '*entitlement*' -type f -print -quit)
 if [[ -n "$entitlement" ]]; then
     echo "LSF_ENTITLEMENT_FILE=\"$entitlement\"" >> "$work/install.config"
 fi
 
 (cd "$(dirname "$lsfinstall")" && ./lsfinstall -f "$work/install.config" </dev/null)
-hostsetup=$(find "$lsf_top" -path '*/install/hostsetup' -type f | head -n 1)
+hostsetup=$(find "$lsf_top" -path '*/install/hostsetup' -type f -print -quit)
+if [[ -z "$hostsetup" ]]; then
+    echo "lsfinstall left no install/hostsetup under $lsf_top" >&2
+    false
+fi
 "$hostsetup" --top="$lsf_top" --boot=n
 
 ln -sf "$lsf_top/conf/profile.lsf" /etc/profile.d/lsf.sh
