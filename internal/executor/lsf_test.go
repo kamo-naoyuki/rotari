@@ -164,6 +164,23 @@ printf 'PEND\n'
 	}
 }
 
+// bjobs keeps listing a finished job for CLEAN_PERIOD; its DONE or EXIT state
+// must send rotari to accounting rather than count as a job still queued.
+func TestLSFJobStateTreatsFinishedJobsAsEnded(t *testing.T) {
+	for _, stat := range []string{"DONE", "EXIT"} {
+		t.Run(stat, func(t *testing.T) {
+			binDir := t.TempDir()
+			writeExecutable(t, binDir, "bjobs", fmt.Sprintf("#!/bin/sh\nprintf '%s\\n'\n", stat))
+			t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			state, err := lsfJobState("123")
+			if err != nil || state != "" {
+				t.Fatalf("lsfJobState = %q, %v; want no queue state", state, err)
+			}
+		})
+	}
+}
+
 func TestLSFExecutorSuspendsAndResumesJob(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "control-args")

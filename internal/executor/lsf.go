@@ -307,6 +307,9 @@ func lsfJobState(jobID string) (string, error) {
 		return "suspended", nil
 	case "WAIT":
 		return "waiting", nil
+	case "DONE", "EXIT":
+		// bjobs lists finished jobs until CLEAN_PERIOD passes; accounting reads their result.
+		return "", nil
 	default:
 		return strings.ToLower(strings.TrimSpace(string(output))), nil
 	}
