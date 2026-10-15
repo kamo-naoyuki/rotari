@@ -111,6 +111,8 @@ var positionalCases = []positionalCase{
 	{name: "no run", args: "delete -b {B} -p other", fail: true, want: "or --all to delete every run"},
 	{name: "every run", args: "delete -b {B} -p other --all", want: "cleared logs project=other"},
 	{name: "run ID and every run", args: "delete -b {B} -p sweep --all {run:sweep-first}", fail: true, want: "or --all to delete every run"},
+	{name: "run ID and whole project", args: "delete -b {B} -p sweep --project {run:sweep-first}", fail: true, want: "cannot be combined with a run ID or --all"},
+	{name: "project name as run ID", args: "delete -b {B} --project sweep", fail: true, want: "cannot be combined with a run ID or --all"},
 	{name: "run ID and option", args: "copy -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
 
 	// lineage: none, one, or two runs.
@@ -183,6 +185,7 @@ var positionalCases = []positionalCase{
 	{name: "project that does not exist", args: "change -b {B} -p nope --all --timeout 1m", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "remove -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "delete -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "delete -b {B} -p nope --project", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "run -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "lineage -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "export -b {B} nope", fail: true, want: `project "nope" does not exist`},

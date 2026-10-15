@@ -407,6 +407,9 @@
           "name": "all"
         },
         {
+          "name": "project"
+        },
+        {
           "name": "dry-run"
         },
         {

@@ -627,6 +627,13 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
+                    "description": "delete the whole project named by "
+                    "--project-name: its queue, runs, and project "
+                    "configuration",
+                    "name": "project",
+                },
+                {
+                    "command_line_only": True,
                     "description": "print what the command would change, and the "
                     "project revision, without writing",
                     "name": "dry-run",

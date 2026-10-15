@@ -189,6 +189,7 @@ Usage: `rotari delete [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to delete |
 | `--all` | `` | `CLI only` | delete every run of the project |
+| `--project` | `` | `CLI only` | delete the whole project named by --project-name: its queue, runs, and project configuration |
 | `--dry-run` | `` | `CLI only` | print what the command would change, and the project revision, without writing |
 | `--if-revision` | `REVISION` | `CLI only` | apply only if the project is still at this revision, as printed by --dry-run |
 

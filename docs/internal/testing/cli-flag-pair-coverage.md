@@ -25,7 +25,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,902 unordered flag-name pairs
+- `TestCLIFlagPairInventory` enumerates all 7,410 unordered flag-name pairs
   from the command schema. Sorted flag-name fingerprints require an explicit
   coverage review when a command or flag is added, removed, or renamed. This
   is not exhaustive value coverage; changes to descriptions/types without a
@@ -60,8 +60,8 @@ implementation imports. The staged rollout is tracked in the
   two `--since` values. Accepted combinations must match the job table's IDs
   and have a distinguishing witness. Explicit incompatibility errors are
   valid outcomes, not successful selection checks.
-- `TestCLIFlagPairMutations` executes the 136 `remove`, 21 `reset`, and 21
-  `delete` pairs in both orders (356 invocations) from a fixture with two
+- `TestCLIFlagPairMutations` executes the 136 `remove`, 21 `reset`, and 28
+  `delete` pairs in both orders (370 invocations) from a fixture with two
   finished runs and a restored queue plus one queue-only job. Before every
   invocation the whole environment root is restored to the initial snapshot:
   paths, contents, modes, and modification times (latest-run lookup reads
@@ -73,9 +73,11 @@ implementation imports. The staged rollout is tracked in the
   must leave the tree byte-identical. A guard revision printed by
   `--dry-run`/`--if-revision` is checked against `check --json` on the resulting
   state before it is normalized for order comparison. The adapter supplies
-  `remove --all` or `delete --run-id` only when no selector is under test. Two
+  `remove --all` or `delete --run-id` only when no selector is under test, and
+  `--project-name` for `delete --project` unless it is under test. Three
   exact usage rejections supplement the classifier: `remove` with two selector
-  kinds, and `delete --all` with `--run-id`.
+  kinds, `delete --all` with `--run-id`, and `delete --project` with `--all` or
+  `--run-id`.
 - `TestCLIFlagPairMutationObservability` (SEL-7) checks that each `remove`
   selector and definition filter has an effect, that `--filter-stage` and
   `--filter-matrix` act as their short forms, and that every selector with

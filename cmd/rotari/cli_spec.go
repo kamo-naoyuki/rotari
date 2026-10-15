@@ -192,6 +192,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run to delete", ValueName: "ID"},
 			cliFlagSpec{Name: "all", Description: "delete every run of the project", CommandLineOnly: true},
+			cliFlagSpec{Name: "project", Description: "delete the whole project named by --project-name: its queue, runs, and project configuration", CommandLineOnly: true},
 		),
 		Positional: "[RUN_ID]",
 	},

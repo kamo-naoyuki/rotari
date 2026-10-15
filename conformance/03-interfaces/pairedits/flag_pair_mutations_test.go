@@ -32,7 +32,11 @@ func (f pairMutationFixture) args(t *testing.T, command string, flags []pairFlag
 	if command == "remove" && !pairMutationHasSelector(flags) {
 		args = append(args, "--all")
 	}
-	if command == "delete" && !pairHasFlag(flags, "all") && !pairHasFlag(flags, "run-id") {
+	if command == "delete" && pairHasFlag(flags, "project") {
+		if !pairHasFlag(flags, "project-name") {
+			args = append(args, "--project-name", f.Project)
+		}
+	} else if command == "delete" && !pairHasFlag(flags, "all") && !pairHasFlag(flags, "run-id") {
 		args = append(args, "--run-id", f.Run)
 	}
 	return args
@@ -196,6 +200,10 @@ func assertPairMutationOutcome(t *testing.T, command string, flags []pairFlag, r
 	}
 	if r.Code == 1 && command == "delete" && pairHasFlag(flags, "all") && pairHasFlag(flags, "run-id") &&
 		strings.TrimSpace(r.Stderr) == "pass a run ID to delete one run, or --all to delete every run of the project" {
+		return
+	}
+	if r.Code == 1 && command == "delete" && pairHasFlag(flags, "project") && (pairHasFlag(flags, "all") || pairHasFlag(flags, "run-id")) &&
+		strings.TrimSpace(r.Stderr) == "--project deletes the whole project and cannot be combined with a run ID or --all; name the project with --project-name/-p" {
 		return
 	}
 	assertPairOutcome(t, r)

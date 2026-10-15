@@ -28,7 +28,7 @@ var pairInventory = map[string]struct {
 	"cancel":     {20, "65aeaf4b54d48db3"},
 	"suspend":    {19, "4b2e628041f2b2eb"},
 	"resume":     {19, "4b2e628041f2b2eb"},
-	"delete":     {7, "cf61505b0fa4c0e7"},
+	"delete":     {8, "a85d5ef2735f5ffd"},
 	"basedirs":   {1, "9c7ab83027410026"},
 	"projects":   {2, "264d74c73d80792f"},
 	"gc":         {3, "4f8007fd85e880d5"},

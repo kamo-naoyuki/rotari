@@ -352,7 +352,7 @@ General rules:
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that names the run, which must be active (see [Job control](#job-control)) | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
 | `copy`, `run`, `retry` | `[RUN_ID]` | the run to copy or rerun from | `--run-id` |
-| `delete` | `[RUN_ID]` | the run to delete; without one, `--all` must be given to delete every run | `--run-id`, `--all` |
+| `delete` | `[RUN_ID]` | the run to delete; without one, `--all` must be given to delete every run, or `--project` to delete the whole project | `--run-id`, `--all`, `--project` |
 | `lineage` | `[RUN_ID ...]` | none: the project's runs oldest first; one: that run's summary; two: compare the runs; three or more: show a job-by-run result grid | – |
 | `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project (see What each command reads); `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
 | `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |
