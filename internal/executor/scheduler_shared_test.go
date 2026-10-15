@@ -509,3 +509,35 @@ func TestSchedulerQueryGateSpacesQueries(t *testing.T) {
 		t.Fatalf("sleeps = %v, want queries spaced 200ms apart", slept)
 	}
 }
+
+// A retry's Wait must read its own attempt's status, not the job directory's
+// or an earlier attempt's, for every scheduler executor.
+func TestSchedulerWaitReadsItsAttemptStatus(t *testing.T) {
+	store := testStore()
+	for _, name := range []string{"slurm", "pbs", "sge", "lsf"} {
+		t.Run(name, func(t *testing.T) {
+			runDir := t.TempDir()
+			job := model.JobSpec{ID: "job-1", AttemptID: "att-1", Command: []string{"true"}}
+			attemptDir, err := state.AttemptJobDir(runDir, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			earlier, err := state.AttemptJobDir(runDir, model.JobSpec{ID: job.ID, AttemptID: "att-0"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for dir, code := range map[string]int{filepath.Join(runDir, job.ID): 1, earlier: 1, attemptDir: 7} {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := state.WriteJSON(filepath.Join(dir, "status.json"), WrapperStatus{Phase: "finished", ExitCode: code}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			executor, _ := NewRegistry(store, testLogf).Lookup(name)
+			if result := executor.Wait(runDir, JobHandle{Job: job, Native: "123"}); result.ExitCode != 7 {
+				t.Fatalf("%s Wait = %#v, want the attempt's exit 7", name, result)
+			}
+		})
+	}
+}

@@ -68,10 +68,11 @@ func (lsf LSF) SubmitArray(runDir string, jobs []model.JobSpec, options []string
 
 func (lsf LSF) Wait(runDir string, handle JobHandle) model.JobResult {
 	metadata := lsfJobMetadata{
-		Executor: "lsf",
-		JobID:    handle.Job.ID,
-		Command:  handle.Job.Command,
-		LSFJobID: handle.Native,
+		Executor:  "lsf",
+		JobID:     handle.Job.ID,
+		AttemptID: handle.Job.AttemptID,
+		Command:   handle.Job.Command,
+		LSFJobID:  handle.Native,
 	}
 	return waitLSFJob(lsf.Store, runDir, metadata)
 }
