@@ -108,6 +108,17 @@ function deleteRunButton(projectName, runID) {
     '" onclick="deleteRun(this.dataset.project, this.dataset.run)">Delete</button>'
   );
 }
+function deleteProjectButton(projectName, running) {
+  return (
+    '<button class="delete-project-row" data-project="' +
+    esc(projectName) +
+    '"' +
+    (running
+      ? ' disabled title="Running projects cannot be deleted"'
+      : ' title="Delete the project: its queue, runs, and project configuration"') +
+    ' onclick="deleteProject(this.dataset.project)">Delete</button>'
+  );
+}
 function basedirURL(id, path) {
   const entry = registeredBasedirs.find((item) => item.id === id);
   const prefix = entry?.current ? "" : "/_basedir/" + id;
@@ -1423,6 +1434,7 @@ function renderOverview(queues) {
         "</td>" +
         actionsCell([
           pathButton(state.base_dir + "/projects/" + q.project_name),
+          deleteProjectButton(q.project_name, !!q.running_run_id),
         ]) +
         "</tr>"
       );

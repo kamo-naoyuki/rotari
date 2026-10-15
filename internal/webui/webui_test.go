@@ -2093,6 +2093,7 @@ func TestWebReadOnlyControlEndpointsRejectMutations(t *testing.T) {
 		{name: "cancel-job", path: "/api/cancel-job", body: `{"project_name":"demo","run_id":"run-1","job_id":"job-1"}`},
 		{name: "remove", path: "/api/remove", body: `{"project_name":"demo","job_id":"job-1"}`},
 		{name: "clear-run", path: "/api/clear-run", body: `{"project_name":"demo","run_id":"run-1"}`},
+		{name: "delete-project", path: "/api/delete-project", body: `{"project_name":"demo"}`},
 	} {
 		t.Run(endpoint.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, endpoint.path, strings.NewReader(endpoint.body))
@@ -3691,13 +3692,77 @@ func TestWebControlEndpointsRejectedWhenControlDisabled(t *testing.T) {
 	if _, err := stateinternal.ResolveProjectPaths(baseDir, "default"); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/api/copy", "/api/change", "/api/remove", "/api/clear-run", "/api/cancel-job", "/api/cancel-run"} {
+	for _, path := range []string{"/api/copy", "/api/change", "/api/remove", "/api/clear-run", "/api/delete-project", "/api/cancel-job", "/api/cancel-run"} {
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default"}`))
 		recorder := httptest.NewRecorder()
 		Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("%s status = %d, want %d (rejected with --allow-control=false)", path, recorder.Code, http.StatusForbidden)
 		}
+	}
+}
+
+func TestWebDeleteProjectEndpoint(t *testing.T) {
+	baseDir := t.TempDir()
+	var unregistered []string
+	options := testOptions(baseDir, true)
+	options.Editor.UnregisterRun = func(runID string) error {
+		unregistered = append(unregistered, runID)
+		return nil
+	}
+	for _, name := range []string{"demo", "other", "busy"} {
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(paths.MetaFile, model.Meta{Phase: "finished", LastRunID: "run-" + name}); err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(filepath.Join(paths.RunsDir, "run-"+name, "context.json"), model.RunContext{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(filepath.Join(paths.RunsDir, "run-"+name, "commands.json"), model.Queue{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	busy, _ := stateinternal.ResolveProjectPaths(baseDir, "busy")
+	if err := stateinternal.WriteJSON(busy.MetaFile, model.Meta{Phase: "running", LastRunID: "run-busy"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(busy.LockFile, model.LockInfo{RunID: "run-busy", PID: os.Getpid()}); err != nil {
+		t.Fatal(err)
+	}
+	post := func(body string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		Handler(options).ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/delete-project", strings.NewReader(body)))
+		return recorder
+	}
+
+	if got := post(`{"project_name":"demo"}`); got.Code != http.StatusOK || !strings.Contains(got.Body.String(), "deleted project=demo runs=1") {
+		t.Fatalf("delete demo: status %d, body %s", got.Code, got.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "demo")); !os.IsNotExist(err) {
+		t.Fatalf("demo still exists: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "other", "meta.json")); err != nil {
+		t.Fatalf("other project was removed: %v", err)
+	}
+	if len(unregistered) != 1 || unregistered[0] != "run-demo" {
+		t.Fatalf("unregistered = %v, want [run-demo]", unregistered)
+	}
+	for _, test := range []struct{ body, want string }{
+		{`{"project_name":"busy"}`, `project "busy" is running; delete is not allowed`},
+		{`{"project_name":"demo"}`, `project "demo" does not exist`},
+		{`{"project_name":""}`, "project_name is required"},
+		{`{"project_name":"other/runs"}`, "project_name is required"},
+		{`{"project_name":"other\\runs"}`, "project_name is required"},
+	} {
+		if got := post(test.body); got.Code == http.StatusOK || !strings.Contains(got.Body.String(), test.want) {
+			t.Fatalf("%s: status %d, body %s; want %q", test.body, got.Code, got.Body.String(), test.want)
+		}
+	}
+	if _, err := os.Stat(busy.MetaFile); err != nil {
+		t.Fatalf("running project was removed: %v", err)
 	}
 }
 

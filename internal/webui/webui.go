@@ -137,6 +137,10 @@ type webClearRequest struct {
 	RunID     string `json:"run_id"`
 }
 
+type webDeleteProjectRequest struct {
+	QueueName string `json:"project_name"`
+}
+
 // WithAuthToken requires token from every request, as an X-Rotari-Token
 // header, a bearer token, or the Basic auth password of user "rotari".
 func WithAuthToken(next http.Handler, token string) http.Handler {
@@ -884,6 +888,34 @@ func (s site) baseHandler() http.Handler {
 			return
 		}
 		writeWebJSON(writer, map[string]string{"message": "run history deleted"})
+	})
+	mux.HandleFunc("/api/delete-project", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var deleteRequest webDeleteProjectRequest
+		if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		if !stateinternal.IsValidPathElement(deleteRequest.QueueName) {
+			writeWebError(writer, fmt.Errorf("project_name is required"))
+			return
+		}
+		editor := s.Editor
+		var warnings []string
+		editor.Warn = func(warning string) { warnings = append(warnings, warning) }
+		message, err := editor.DeleteProject(baseDir, deleteRequest.QueueName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]any{"message": message, "warnings": warnings})
 	})
 	mux.HandleFunc("/api/cancel-job", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {

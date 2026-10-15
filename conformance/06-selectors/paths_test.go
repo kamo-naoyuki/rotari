@@ -146,7 +146,8 @@ func TestWebAPIRejectsUnsafePathElements(t *testing.T) {
 	// routes see. The job control routes act on the live run, cancel-job on
 	// its first job and cancel-run on the rest; generate-config creates the
 	// config file that save-config then edits; clear-run deletes the
-	// finished run, so it comes last.
+	// finished run, and delete-project deletes the queued project, so they
+	// come last.
 	routes := []webRoute{
 		{"GET", "/api/log", finishedRun, finishedParents, nil},
 		{"GET", "/api/log", finishedAttempt, finishedParents, nil},
@@ -164,6 +165,7 @@ func TestWebAPIRejectsUnsafePathElements(t *testing.T) {
 		{"POST", "/api/copy", pick(finishedRun, "project_name", "run_id"), finishedParents, map[string]any{"selection": "failed"}},
 		{"POST", "/api/copy", map[string]string{"project_name": finished.project, "run_id": finished.runID, "to_project": "copied"}, map[string]string{"project_name": "projects", "run_id": "runs", "to_project": "projects"}, map[string]any{"selection": "failed"}},
 		{"POST", "/api/clear-run", pick(finishedRun, "project_name", "run_id"), finishedParents, nil},
+		{"POST", "/api/delete-project", pick(queue, "project_name"), queueParents, nil},
 	}
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {

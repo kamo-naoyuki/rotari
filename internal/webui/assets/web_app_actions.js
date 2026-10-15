@@ -286,6 +286,29 @@ async function deleteRun(queue, run) {
   }
   window.location.href = appURL("/project/" + encodeURIComponent(queue));
 }
+async function deleteProject(project) {
+  if (
+    !confirm(
+      "Delete project " +
+        project +
+        " with its queue, all runs, and project configuration? This cannot be undone.",
+    )
+  )
+    return;
+  const response = await fetch("/api/delete-project", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_name: project }),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    alert(text);
+    return;
+  }
+  const warnings = JSON.parse(text).warnings || [];
+  if (warnings.length) alert(warnings.join("\n"));
+  window.location.href = appURL("/");
+}
 function isCompactOutput(value) {
   return value.length < 1200 && value.split("\n").length <= 18;
 }
