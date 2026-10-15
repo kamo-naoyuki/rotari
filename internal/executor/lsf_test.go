@@ -190,14 +190,14 @@ Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>,
 
 Summary of time in seconds spent in various states by  Thu Oct 15 07:17:02
   PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
-  1        0        0        0        0        0        1           
+  1        0        0        0        0        0        1
 `
 
 const lsfHistoryExited = `
 Job <3>, User <rotari>, Project <default>, Command <echo DONE; exit 3>
 Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>;
 Thu Oct 15 07:17:02: Dispatched 1 Task(s) on Host(s) <lsfhost>, Allocated 1 Slot
-                     (s) on Host(s) <lsfhost>, Effective RES_REQ <select[type 
+                     (s) on Host(s) <lsfhost>, Effective RES_REQ <select[type
                      == any] order[r15s:pg] >;
 Thu Oct 15 07:17:02: Starting (Pid 123);
 Thu Oct 15 07:17:03: Exited with exit code 3. The CPU time used is 0.0 seconds;
@@ -206,7 +206,7 @@ Thu Oct 15 07:17:03: Completed <exit>;
 
 Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
   PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
-  1        0        1        0        0        0        2           
+  1        0        1        0        0        0        2
 `
 
 const lsfHistoryDone = `
@@ -219,7 +219,7 @@ Thu Oct 15 07:17:03: Post job process done successfully;
 
 Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
   PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
-  1        0        1        0        0        0        2           
+  1        0        1        0        0        0        2
 `
 
 const lsfHistoryKilled = `
@@ -232,7 +232,7 @@ Thu Oct 15 07:17:02: Completed <exit>; TERM_OWNER: job killed by owner;
 
 Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
   PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
-  1        0        0        0        0        0        1           
+  1        0        0        0        0        0        1
 `
 
 // A job bjobs does not list yet or any more is read from bhist, whose time
