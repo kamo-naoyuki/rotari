@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -111,7 +110,12 @@ func cmdShow(args []string) int {
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
 	artifactsOutput := cliBool(fs, "artifacts", false)
+	wide := cliBool(fs, "wide", false)
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *wide && (*jsonOutput || *reportOutput || *showLogs || *showFailedLogs || *followLogs || *artifactsOutput) {
+		printError("--wide applies to the run and queue tables; it cannot be combined with JSON, report, log, follow, or artifacts options")
 		return 1
 	}
 	if *streamOption != "both" && *streamOption != "stdout" && *streamOption != "stderr" {
@@ -335,11 +339,15 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
-			return showQueue(paths, queue, arrayScope, jobfilter.Filter{})
+			return showQueue(paths, queue, arrayScope, jobfilter.Filter{}, *wide)
 		}
 		if *jobIDOption != "" {
 			if *jsonOutput {
 				printError("--json cannot be combined with --job-id")
+				return 1
+			}
+			if *wide {
+				printError(wideJobError)
 				return 1
 			}
 			return showQueueJob(paths, queue, *jobIDOption)
@@ -347,7 +355,7 @@ func cmdShow(args []string) int {
 		if *jsonOutput {
 			return showQueueJSON(paths, queue)
 		}
-		return showQueue(paths, queue, scope, filter)
+		return showQueue(paths, queue, scope, filter, *wide)
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
@@ -375,15 +383,19 @@ func cmdShow(args []string) int {
 			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || *artifactsOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
-					return showQueue(paths, queue, arrayScope, jobfilter.Filter{})
+					return showQueue(paths, queue, arrayScope, jobfilter.Filter{}, *wide)
 				}
 				if *jobIDOption != "" {
+					if *wide {
+						printError(wideJobError)
+						return 1
+					}
 					return showQueueJob(paths, queue, *jobIDOption)
 				}
 				if *jsonOutput {
 					return showQueueJSON(paths, queue)
 				}
-				return showQueue(paths, queue, scope, filter)
+				return showQueue(paths, queue, scope, filter, *wide)
 			}
 			if project.CountRuns(paths) == 0 && runOnly {
 				printErrorf("project %q has no runs; logs, failed filters, and reports need one", paths.ProjectName)
@@ -411,10 +423,14 @@ func cmdShow(args []string) int {
 			if *jsonOutput {
 				return showRunJobJSON(paths, runID, *jobIDOption, "", resultSelection)
 			}
-			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
+			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope}, *wide)
 		}
 	}
 	if *jobIDOption != "" {
+		if *wide {
+			printError(wideJobError)
+			return 1
+		}
 		if *artifactsOutput {
 			return showWithPager(!*noPager, func(writer io.Writer) int {
 				return showJobArtifacts(writer, paths, runID, *jobIDOption, attemptID)
@@ -478,15 +494,17 @@ func cmdShow(args []string) int {
 		printErrorf("failed to load next queue: %v", err)
 		return 1
 	}
-	if code := showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter}); code != 0 {
+	if code := showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter}, *wide); code != 0 {
 		return code
 	}
 	if nextQueue != nil {
 		fmt.Println("\n=== Next queue ===")
-		return showQueue(paths, *nextQueue, model.CommandSelector{}, jobfilter.Filter{})
+		return showQueue(paths, *nextQueue, model.CommandSelector{}, jobfilter.Filter{}, *wide)
 	}
 	return 0
 }
+
+const wideJobError = "--wide cannot be combined with one job's view; it applies to the run and queue tables"
 
 func hasMultipleProjects(baseDir string) (bool, error) {
 	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
@@ -857,7 +875,7 @@ func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
 		hintLocation(paths), executor.ShellQuote(runID))
 }
 
-func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
+func showRun(paths state.ProjectPaths, runID string, filter showJobFilter, wide bool) int {
 	if filter.filter.Changed || filter.filter.New {
 		printError("--filter-changed and --filter-new apply to the queue view; drop --run-id or use --queue")
 		return 1
@@ -944,7 +962,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	resultByID := jobstatus.RecordedResults(files)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*model.JobOrigin, len(runQueue.Commands))
-	declaredDependencies := model.DeclaredDependencies(runQueue.Commands, ",")
+	declaredDependencies := map[string]string{}
+	if !wide {
+		declaredDependencies = model.DeclaredDependencies(runQueue.Commands, ",")
+	}
 	if runQueueErr == nil {
 		for _, job := range model.QueueToJobs(runQueue.Commands) {
 			jobIDs = append(jobIDs, job.ID)
@@ -970,7 +991,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
-	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
+	table := runJobTable(wide)
 	now := time.Now()
 	// Each job's row is read concurrently; counts and the table are built in
 	// job order below.
@@ -1033,7 +1054,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		// An attempt's command.json, which jobSpecs holds for it, records the
 		// executor it ran on, which a run-level --executor can make differ
 		// from the job's definition.
-		executorText := queueExecutorText(runQueue, jobSpec)
+		executorText := executorLabel(runQueue, jobSpec)
 		jobResult, _ := resolved.Result(jobSpec)
 		origin := originByID[jobID]
 		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
@@ -1048,13 +1069,15 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			hosts = strings.Join(resolvedHosts, ",")
 		}
 		command := strings.Join(jobSpec.Command, " ")
+		if !wide {
+			command = joblist.ShortenText(command, showCommandWidth)
+		}
 		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
 		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
 		row.shown = true
 		row.changeHint = statusOK && status != 0
 		row.cells = []string{jobID, latestAttemptLabel, name, stage, dependsOn, statusText, executorText,
-			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts,
-			joblist.ShortenText(command, showCommandWidth)}
+			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts, command}
 		rows[index] = row
 	})
 	for index, row := range rows {
@@ -1089,9 +1112,9 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if row.changeHint {
 			changeHints = append(changeHints, jobSpecs[jobID])
 		}
-		table = append(table, row.cells)
+		table.rows = append(table.rows, row.cells)
 	}
-	printShowJobTable(table)
+	table.write(os.Stdout)
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, pending: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.pending, jobCounts.suspended, jobCounts.unknown)
 	// Grouping needs the job definitions, which a run without a readable
 	// command snapshot lacks; its table above lists job IDs only.
@@ -1107,7 +1130,12 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	fmt.Println("\n" + cyan("To show a job:"))
-	fmt.Println("  rotari show -j ATTEMPT_ID")
+	// Without --wide the table has no attempt IDs.
+	if wide {
+		fmt.Println("  rotari show -j ATTEMPT_ID")
+	} else {
+		fmt.Printf("  rotari show -r %s -j JOB_ID\n", runID)
+	}
 	printChangeHints(paths, runID, runQueue, changeHints)
 	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete -r %s\n", cyan("To delete this run's saved logs:"), runID)
@@ -1173,7 +1201,7 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 	fmt.Printf("    rotari retry %s\n", hintLocation(paths))
 }
 
-func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector, filter jobfilter.Filter) int {
+func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector, filter jobfilter.Filter, wide bool) int {
 	jobs := model.QueueToJobs(queue.Commands)
 	if filter.Changed || filter.New {
 		referenceRunID, err := projectrun.FingerprintReferenceRun(paths, "")
@@ -1201,7 +1229,7 @@ func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandS
 	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "queue")
 	fmt.Println("\n" + cyan("Queue:"))
-	return showQueueContent(paths, queue, jobs)
+	return showQueueContent(paths, queue, jobs, wide)
 }
 
 // runScopeCommands returns a run's command snapshot. A run saved without
@@ -1218,14 +1246,20 @@ func runScopeCommands(queue model.Queue, queueErr error, jobSpecs map[string]mod
 }
 
 // showQueueContent prints jobs, taken from queue, as a table.
-func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec) int {
+func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec, wide bool) int {
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	markedStatusByID := model.QueueMarkedStatusByJobID(queue)
 	declaredDependencies := model.DeclaredDependencies(queue.Commands, ",")
-	table := textTable{}
-	for _, header := range []string{"JOB ID", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND"} {
-		table.columns = append(table.columns, tableColumn{header: header})
-	}
+	table := textTable{wide: wide, rowNoun: "listed jobs", columns: []tableColumn{
+		{header: "JOB ID"},
+		{header: "NAME", fold: "Name"},
+		{header: "STAGE", fold: "Stage"},
+		{header: "DEPENDS ON", fold: "Depends on"},
+		{header: "EXECUTOR", fold: "Executor", color: colorExecutorCell},
+		{header: "SOURCE RUN", fold: "Source run"},
+		{header: "SOURCE STATUS", fold: "Source status"},
+		{header: "COMMAND", fold: "Command"},
+	}}
 	for _, job := range jobs {
 		name := job.Name
 		if name == "" {
@@ -1236,17 +1270,23 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 			stage = "-"
 		}
 		dependsOn := declaredDependencies[job.ID]
+		if wide {
+			dependsOn = model.FormatDependencies(job.DependsOn, job.DependsOnFinished, ",")
+		}
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
-		executorText := queueExecutorText(queue, job)
 		sourceRun := "-"
 		origin := originByID[job.ID]
 		if origin != nil {
 			sourceRun = origin.RunID + "/" + origin.JobID
 		}
 		sourceStatus := model.QueuedStatusText(origin, markedStatusByID[job.ID])
-		table.rows = append(table.rows, []string{job.ID, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " ")})
+		command := strings.Join(job.Command, " ")
+		if !wide {
+			command = joblist.ShortenText(command, showCommandWidth)
+		}
+		table.rows = append(table.rows, []string{job.ID, name, stage, dependsOn, executorLabel(queue, job), sourceRun, sourceStatus, command})
 	}
 	table.write(os.Stdout)
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
@@ -1294,6 +1334,11 @@ func showQueueJob(paths state.ProjectPaths, queue model.Queue, jobID string) int
 }
 
 func queueExecutorText(queue model.Queue, job model.JobSpec) string {
+	return colorExecutorCell(0, executorLabel(queue, job))
+}
+
+// executorLabel names the executor a job runs on, with its options.
+func executorLabel(queue model.Queue, job model.JobSpec) string {
 	executor := job.Executor
 	options := job.ExecutorOptions
 	if executor == "" {
@@ -1305,11 +1350,19 @@ func queueExecutorText(queue model.Queue, job model.JobSpec) string {
 	if executor == "slurm" && len(options) == 0 {
 		options = queue.DefaultExecutorOptions
 	}
-	executorText := colorExecutor(executor)
 	if len(options) > 0 {
-		executorText += " (" + strings.Join(options, " ") + ")"
+		return executor + " (" + strings.Join(options, " ") + ")"
 	}
-	return executorText
+	return executor
+}
+
+// colorExecutorCell colors the executor name of an executorLabel.
+func colorExecutorCell(_ int, label string) string {
+	name, options, hasOptions := strings.Cut(label, " ")
+	if hasOptions {
+		return colorExecutor(name) + " " + options
+	}
+	return colorExecutor(name)
 }
 
 type queueRunDiff struct {
@@ -2053,14 +2106,23 @@ func showJobElapsed(submittedAt, finishedAt string, finished bool, jobDir string
 	return joblist.FormatRunTime(jobstatus.MeasureRunTime(jobDir, parse(submittedAt), parse(finishedAt), finished, now))
 }
 
-// printShowJobTable prints the run table, whose first row is its header.
-func printShowJobTable(table [][]string) {
-	columns := make([]tableColumn, len(table[0]))
-	for index, header := range table[0] {
-		columns[index] = tableColumn{header: header}
-	}
-	columns[slices.Index(table[0], "STATUS")].color = colorShowJobStatus
-	textTable{columns: columns, rows: table[1:]}.write(os.Stdout)
+// runJobTable returns the run table's columns, in the order of a row's
+// cells.
+func runJobTable(wide bool) textTable {
+	return textTable{wide: wide, rowNoun: "listed jobs", columns: []tableColumn{
+		{header: "JOB ID"},
+		{header: "LATEST ATTEMPT", wideOnly: true},
+		{header: "NAME", fold: "Name"},
+		{header: "STAGE", fold: "Stage"},
+		{header: "DEPENDS ON", fold: "Depends on"},
+		{header: "STATUS", color: colorShowJobStatus},
+		{header: "EXECUTOR", fold: "Executor", color: colorExecutorCell},
+		{header: "SUBMITTED", wideOnly: true},
+		{header: "FINISHED"},
+		{header: "ELAPSED"},
+		{header: "HOSTS", fold: "Hosts"},
+		{header: "COMMAND", fold: "Command"},
+	}}
 }
 
 func colorShowJobStatus(_ int, value string) string {

@@ -420,7 +420,7 @@ func TestExecuteMixedRunStartsFinishedDependentAfterFailure(t *testing.T) {
 	}
 
 	var output bytes.Buffer
-	if code := captureShowStdout(t, &output, func() int { return showRun(paths, "run-1", showJobFilter{}) }); code != 0 || !strings.Contains(output.String(), "finished:sweep") {
+	if code := captureShowStdout(t, &output, func() int { return showRun(paths, "run-1", showJobFilter{}, false) }); code != 0 || !strings.Contains(output.String(), "finished:sweep") {
 		t.Fatalf("showRun code=%d output does not mark the finished dependency:\n%s", code, output.String())
 	}
 

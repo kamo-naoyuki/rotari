@@ -263,6 +263,7 @@ Show details for a project, run, job, or attempt.
 | `no_pager` | `bool` | print logs directly instead of using a pager |
 | `report` | `bool` | print a Markdown report: notes, a job table, and each job's evidence |
 | `artifacts` | `bool` | list every artifact candidate of one job attempt instead of its logs |
+| `wide` | `bool` | print the run or queue table in full: attempt IDs, submit times, expanded dependencies, whole commands, and the columns that are the same for every job |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |

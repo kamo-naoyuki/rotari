@@ -146,10 +146,12 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_SHOW_JSON` | yes | no | no | Default for rotari show --json. |
 | `ROTARI_SHOW_REPORT` | yes | no | no | Default for rotari show --report. |
 | `ROTARI_SHOW_ARTIFACTS` | yes | no | no | Default for rotari show --artifacts. |
+| `ROTARI_SHOW_WIDE` | yes | no | no | Default for rotari show --wide. |
 | `ROTARI_LINEAGE_JSON` | yes | no | no | Default for rotari lineage --json. |
 | `ROTARI_JOBS_FORMAT` | yes | no | no | Default for rotari jobs --format. |
 | `ROTARI_JOBS_SINCE` | yes | no | no | Default for rotari jobs --since. |
 | `ROTARI_JOBS_JSON` | yes | no | no | Default for rotari jobs --json. |
+| `ROTARI_JOBS_WIDE` | yes | no | no | Default for rotari jobs --wide. |
 | `ROTARI_WAIT_UNTIL_FAILURE` | yes | no | no | Default for rotari wait --until-failure. |
 | `ROTARI_WAIT_JSON` | yes | no | no | Default for rotari wait --json. |
 | `ROTARI_WAIT_ALL` | yes | no | no | Default for rotari wait --all. |

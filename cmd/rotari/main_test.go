@@ -1646,7 +1646,8 @@ func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showRun(paths, "run-2", showJobFilter{})
+	// SUBMITTED is a --wide column.
+	code := showRun(paths, "run-2", showJobFilter{}, true)
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

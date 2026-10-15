@@ -386,6 +386,7 @@ Usage: `rotari show [SELECTOR]`
 | `--json` | `` | `ROTARI_SHOW_JSON` | print machine-readable JSON for a run |
 | `--report` | `` | `ROTARI_SHOW_REPORT` | print a Markdown report: notes, a job table, and each job's evidence |
 | `--artifacts` | `` | `ROTARI_SHOW_ARTIFACTS` | list every artifact candidate of one job attempt instead of its logs |
+| `--wide` | `` | `ROTARI_SHOW_WIDE` | print the run or queue table in full: attempt IDs, submit times, expanded dependencies, whole commands, and the columns that are the same for every job |
 | `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
@@ -445,6 +446,7 @@ Usage: `rotari jobs [PROJECT]`
 | `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
 | `--json` | `` | `ROTARI_JOBS_JSON` | print machine-readable JSON; not with --format |
+| `--wide` | `` | `ROTARI_JOBS_WIDE` | print the default fields in full: whole state directories and commands, and the project and state directory columns even when every job shares them; not with --format or --json |
 
 ### `rotari wait`
 

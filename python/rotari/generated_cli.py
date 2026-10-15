@@ -1408,6 +1408,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "artifacts",
                 },
                 {
+                    "description": "print the run or queue table in full: "
+                    "attempt IDs, submit times, expanded "
+                    "dependencies, whole commands, and the "
+                    "columns that are the same for every job",
+                    "environment": "ROTARI_SHOW_WIDE",
+                    "name": "wide",
+                },
+                {
                     "command_line_only": True,
                     "description": "select jobs with this result; may be "
                     "repeated; --failed, --unfinished, and "
@@ -1650,6 +1658,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "print machine-readable JSON; not with --format",
                     "environment": "ROTARI_JOBS_JSON",
                     "name": "json",
+                },
+                {
+                    "description": "print the default fields in full: whole "
+                    "state directories and commands, and the "
+                    "project and state directory columns even "
+                    "when every job shares them; not with "
+                    "--format or --json",
+                    "environment": "ROTARI_JOBS_WIDE",
+                    "name": "wide",
                 },
             ],
             "name": "jobs",
@@ -4154,6 +4171,13 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "array": False,
             "cli_default": True,
+            "description": "Default for rotari show --wide.",
+            "job": False,
+            "name": "ROTARI_SHOW_WIDE",
+        },
+        {
+            "array": False,
+            "cli_default": True,
             "description": "Default for rotari lineage --json.",
             "job": False,
             "name": "ROTARI_LINEAGE_JSON",
@@ -4178,6 +4202,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari jobs --json.",
             "job": False,
             "name": "ROTARI_JOBS_JSON",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari jobs --wide.",
+            "job": False,
+            "name": "ROTARI_JOBS_WIDE",
         },
         {
             "array": False,

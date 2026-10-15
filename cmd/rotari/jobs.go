@@ -35,11 +35,17 @@ func cmdJobs(args []string) int {
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", joblist.DefaultSinceText)
 	jsonOutput := cliBool(fs, "json", false)
+	wide := cliBool(fs, "wide", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if *jsonOutput && cliOptionSet(fs, "format") {
 		printError("--format cannot be combined with --json")
+		return 1
+	}
+	customFormat := cliOptionSet(fs, "format") || configString("format", "") != ""
+	if *wide && (*jsonOutput || customFormat) {
+		printError("--wide prints the default fields; it cannot be combined with --json, --format, or a configured format")
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {
@@ -109,10 +115,10 @@ func cmdJobs(args []string) int {
 		fmt.Printf("No unfinished or recently finished jobs found in %s (finished within %s).\n", scope, *since)
 		return 0
 	}
-	if !cliOptionSet(fs, "format") && configString("format", "") == "" && len(baseDirs) > 1 {
+	if !customFormat && len(baseDirs) > 1 {
 		columns, _ = parseJobsFormat(basedirJobsFormat)
 	}
-	printJobsTableFormat(rows, columns)
+	printJobsTableFormat(rows, columns, !customFormat, *wide)
 	return 0
 }
 
@@ -170,22 +176,33 @@ func printJobsTable(rows []joblist.Row, showBaseDir bool) {
 		format = "%s %b %p %a %n %c %f %e"
 	}
 	columns, _ := parseJobsFormat(format)
-	printJobsTableFormat(rows, columns)
+	printJobsTableFormat(rows, columns, true, false)
 }
 
-func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn) {
-	table := textTable{}
+// printJobsTableFormat prints rows with formatColumns. The default fields
+// fold a project or state directory that every job shares, unless wide.
+func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn, defaultFields, wide bool) {
+	table := textTable{wide: wide, rowNoun: "listed jobs"}
 	for _, column := range formatColumns {
 		tableColumn := tableColumn{header: column.header}
-		if column.code == 's' {
+		switch column.code {
+		case 's':
 			tableColumn.color = func(_ int, value string) string { return colorJobsState(value) }
+		case 'b':
+			if defaultFields {
+				tableColumn.fold = "State directory"
+			}
+		case 'p':
+			if defaultFields {
+				tableColumn.fold = "Project"
+			}
 		}
 		table.columns = append(table.columns, tableColumn)
 	}
 	for _, row := range rows {
 		values := make([]string, len(formatColumns))
 		for index, column := range formatColumns {
-			values[index] = jobsColumnValue(column.code, row)
+			values[index] = jobsColumnValue(column.code, row, wide)
 			if column.width > 0 {
 				values[index] = joblist.ShortenText(values[index], column.width)
 			}
@@ -231,11 +248,16 @@ func parseJobsFormat(format string) ([]jobsColumn, error) {
 	return columns, nil
 }
 
-func jobsColumnValue(code byte, row joblist.Row) string {
+// jobsColumnValue returns a row's field; wide keeps the state directory and
+// command whole.
+func jobsColumnValue(code byte, row joblist.Row, wide bool) string {
 	switch code {
 	case 's':
 		return row.State
 	case 'b':
+		if wide {
+			return row.BaseDir
+		}
 		return shortenJobsPath(row.BaseDir)
 	case 'p':
 		return row.Project
@@ -247,6 +269,9 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 	case 'n':
 		return row.JobName
 	case 'c':
+		if wide {
+			return row.FullCommand
+		}
 		return row.Command
 	case 't':
 		if row.StartedAt.IsZero() {

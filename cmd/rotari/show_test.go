@@ -260,7 +260,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	}
 	oldStdout := os.Stdout
 	os.Stdout = writer
-	code := showRun(paths, runID, showJobFilter{})
+	code := showRun(paths, runID, showJobFilter{}, false)
 	_ = writer.Close()
 	os.Stdout = oldStdout
 	output, err := io.ReadAll(reader)
@@ -268,7 +268,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(output)
-	if code != 0 || !strings.Contains(text, "success (accepted)") || !strings.Contains(text, "To show a job:") || !strings.Contains(text, "rotari show -j ATTEMPT_ID") || !strings.Contains(text, "rotari delete -r accepted-run") {
+	if code != 0 || !strings.Contains(text, "success (accepted)") || !strings.Contains(text, "To show a job:") || !strings.Contains(text, "rotari show -r accepted-run -j JOB_ID") || !strings.Contains(text, "rotari delete -r accepted-run") {
 		t.Fatalf("showRun code=%d output=%q", code, output)
 	}
 }
@@ -1070,7 +1070,7 @@ func TestShowQueueDisplaysArrayTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showQueue(paths, queue, model.CommandSelector{}, jobfilter.Filter{})
+	code := showQueue(paths, queue, model.CommandSelector{}, jobfilter.Filter{}, false)
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1082,7 +1082,7 @@ func TestShowQueueDisplaysArrayTasks(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("showQueue exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"train[1]", "STAGE", "training", "train-1", "train-2"} {
+	for _, want := range []string{"train[1]", "Stage: training (all listed jobs)", "train-1", "train-2"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("showQueue output does not contain %q:\n%s", want, output)
 		}
@@ -1583,7 +1583,106 @@ func TestCmdShowListsDependenciesAsDeclared(t *testing.T) {
 			if got := tableCell(t, output.String(), "DEPENDS ON", "eval"); got != "train" {
 				t.Fatalf("DEPENDS ON = %q, want the declared stage name", got)
 			}
+
+			output.Reset()
+			if code := captureShowStdout(t, &output, func() int {
+				return cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", view, "--no-pager", "--wide"})
+			}); code != 0 {
+				t.Fatalf("cmdShow --wide exit code = %d:\n%s", code, output.String())
+			}
+			if got := tableCell(t, output.String(), "DEPENDS ON", "eval"); got != "train-a,train-b" {
+				t.Fatalf("--wide DEPENDS ON = %q, want the expanded jobs", got)
+			}
 		})
+	}
+}
+
+// TestCmdShowWideTables checks what the run and queue tables leave out
+// without --wide: columns every job shares, which are printed once above the
+// table, and attempt IDs, submit times, and long commands.
+func TestCmdShowWideTables(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := strings.Repeat("x", showCommandWidth)
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "job-1", Name: "first", Executor: "slurm", Command: []string{"echo", long}},
+		{ID: "job-2", Name: "second", Executor: "slurm", Command: []string{"true"}},
+	}}
+	runID := "run-1"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	attempts := map[string]string{}
+	for _, jobID := range []string{"job-1", "job-2"} {
+		attempts[jobID] = makeAttemptID(runID, jobID, 0)
+		jobDir := filepath.Join(runDir, jobID, "attempts", attempts[jobID])
+		if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{
+		{ID: "job-1", AttemptID: attempts["job-1"]}, {ID: "job-2", AttemptID: attempts["job-2"]},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	submitted := model.FormatDisplayTimestamp("2026-09-01T00:00:00Z")
+	for _, test := range []struct {
+		view      string
+		wideOnly  []string
+		wideCells []string
+	}{
+		{"--queue", nil, []string{"EXECUTOR", "STAGE"}},
+		{"--run-id=" + runID, []string{"LATEST ATTEMPT", attempts["job-1"], "SUBMITTED", submitted}, []string{"EXECUTOR", "STAGE", "HOSTS"}},
+	} {
+		t.Run(test.view, func(t *testing.T) {
+			args := []string{"--basedir", baseDir, "--project-name", "demo", test.view, "--no-pager"}
+			var output bytes.Buffer
+			if code := captureShowStdout(t, &output, func() int { return cmdShow(args) }); code != 0 {
+				t.Fatalf("cmdShow exit code = %d:\n%s", code, output.String())
+			}
+			text := output.String()
+			if !strings.Contains(text, "Executor: slurm (all listed jobs)") || strings.Contains(text, "Stage:") || strings.Contains(text, long) {
+				t.Fatalf("default table did not fold the executor, skip the empty stage, or shorten the command:\n%s", text)
+			}
+			for _, hidden := range append(test.wideOnly, test.wideCells...) {
+				if strings.Contains(text, hidden) {
+					t.Fatalf("default table contains %q:\n%s", hidden, text)
+				}
+			}
+
+			output.Reset()
+			if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--wide")) }); code != 0 {
+				t.Fatalf("cmdShow --wide exit code = %d:\n%s", code, output.String())
+			}
+			text = output.String()
+			if strings.Contains(text, "(all listed jobs)") || !strings.Contains(text, long) {
+				t.Fatalf("--wide folded a column or shortened a command:\n%s", text)
+			}
+			for _, shown := range append(test.wideOnly, test.wideCells...) {
+				if !strings.Contains(text, shown) {
+					t.Fatalf("--wide table does not contain %q:\n%s", shown, text)
+				}
+			}
+		})
+	}
+
+	for _, extra := range [][]string{{"--json"}, {"--report"}, {"--logs"}, {"--failed-logs"}, {"--job-id", "job-1"}, {"--queue", "--job-id", "job-1"}, {attempts["job-1"]}} {
+		var output bytes.Buffer
+		args := append([]string{"--basedir", baseDir, "--project-name", "demo", "--no-pager", "--wide"}, extra...)
+		if !slices.Contains(extra, "--queue") && !strings.HasPrefix(extra[0], "att_") {
+			args = append(args, "--run-id", runID)
+		}
+		if code := captureShowStdout(t, &output, func() int { return cmdShow(args) }); code != 1 {
+			t.Errorf("show --wide %v exit = %d, want 1:\n%s", extra, code, output.String())
+		}
 	}
 }
 
@@ -1774,7 +1873,7 @@ func TestShowRunJobTableAlignsStatusColumn(t *testing.T) {
 		}
 		oldStdout := os.Stdout
 		os.Stdout = writer
-		code := showRun(paths, runID, showJobFilter{})
+		code := showRun(paths, runID, showJobFilter{}, false)
 		_ = writer.Close()
 		os.Stdout = oldStdout
 		terminalCheck = oldCheck
@@ -1786,7 +1885,8 @@ func TestShowRunJobTableAlignsStatusColumn(t *testing.T) {
 		want := -1
 		for _, line := range lines {
 			if strings.HasPrefix(line, "JOB ID ") {
-				want = strings.Index(line, "EXECUTOR")
+				// These jobs have no FINISHED time, so ELAPSED follows STATUS.
+				want = strings.Index(line, "ELAPSED")
 			}
 		}
 		if want < 0 {
@@ -1802,7 +1902,7 @@ func TestShowRunJobTableAlignsStatusColumn(t *testing.T) {
 				end := strings.Index(line, row.status) + len(row.status)
 				got := end + len(line[end:]) - len(strings.TrimLeft(line[end:], " "))
 				if got != want {
-					t.Errorf("color=%t %s: column after STATUS starts at %d, header EXECUTOR at %d:\n%s", color, row.jobID, got, want, strings.Join(lines, "\n"))
+					t.Errorf("color=%t %s: column after STATUS starts at %d, header ELAPSED at %d:\n%s", color, row.jobID, got, want, strings.Join(lines, "\n"))
 				}
 			}
 			if !found {

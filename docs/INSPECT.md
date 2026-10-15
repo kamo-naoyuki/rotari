@@ -103,7 +103,10 @@ rotari projects --basedir DIR
 ```
 
 When `jobs` finds nothing, it names the state directories it searched and the
-time window. To choose its displayed fields, use `--format`; see the
+time window. With its default fields, a project or state directory that every
+listed job shares is printed once above the table; `--wide` keeps those
+columns and prints whole state directories and commands. To choose its
+displayed fields, use `--format`; see the
 [CLI reference](CLI_REFERENCE.md#rotari-jobs). For scripts, `jobs --json` and
 `runs --json` print the same rows as JSON arrays. Each job has its `state`,
 IDs, command, start and finish times, `elapsed_seconds` (`null` when
@@ -146,8 +149,15 @@ the queue.
 When the selected run is active or interrupted, a non-empty next queue is
 shown separately after the run; `check` reports its queued count.
 
-A run's job table sizes each column to its contents and shortens long
-commands; `show -j` prints a job's full command. Its ELAPSED column, also
+A run's job table and the queue table size each column to their contents.
+A column that is the same for every listed job, such as the executor or the
+stage, is printed once above the table, as `Executor: slurm (all listed
+jobs)`, and left out when it is `-`. Dependencies are listed as written, so a
+dependency on a stage or matrix names it rather than each of its jobs, and
+long commands are shortened. `show -j` prints a job's full command and
+expanded dependencies. `--wide` prints every column in full: the attempt IDs,
+the submit times, the expanded dependencies, the whole commands, and the
+columns every job shares. Its ELAPSED column, also
 printed by `show -j`, gives a finished job's run time. For a running job it
 gives how long the job has run and how long ago it last wrote to its logs,
 such as `12m 03s, quiet 11m 58s`, or `no output`. The ELAPSED column of

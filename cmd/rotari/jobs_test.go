@@ -20,7 +20,7 @@ import (
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 	rows := []joblist.Row{
 		{State: "success", Project: "demo", AttemptID: "att_20260922-103800-afc43f9f-6aa4af5d9-1-0", StartedAt: time.Date(2026, 9, 22, 10, 38, 0, 0, time.UTC), RunTime: jobstatus.RunTime{Elapsed: 2 * time.Second, Quiet: -1}},
-		{State: "failed", Project: "demo", AttemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", StartedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), RunTime: jobstatus.RunTime{Elapsed: 2 * time.Second, Quiet: -1}},
+		{State: "failed", Project: "other", AttemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", StartedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), RunTime: jobstatus.RunTime{Elapsed: 2 * time.Second, Quiet: -1}},
 	}
 	var output bytes.Buffer
 	oldStdout := os.Stdout
@@ -162,6 +162,32 @@ func captureJobsStdout(t *testing.T, args []string) (string, int) {
 	return string(output), code
 }
 
+func TestCmdJobsFoldsSharedProjectUnlessWide(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	now := time.Now()
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "job-a", now.Add(-2*time.Minute), now.Add(-time.Minute), 0)
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000002", "job-b", now.Add(-2*time.Minute), now.Add(-time.Minute), 1)
+
+	output, code := captureJobsStdout(t, []string{"--basedir", baseDir})
+	if code != 0 || !strings.HasPrefix(output, "Project: train (all listed jobs)\nSTATE  ") || strings.Contains(output, "PROJECT") {
+		t.Fatalf("default jobs did not fold the shared project: code=%d\n%s", code, output)
+	}
+	output, code = captureJobsStdout(t, []string{"--basedir", baseDir, "--wide"})
+	if code != 0 || !strings.HasPrefix(output, "STATE  ") || !strings.Contains(output, "PROJECT") {
+		t.Fatalf("jobs --wide folded a column: code=%d\n%s", code, output)
+	}
+	output, code = captureJobsStdout(t, []string{"--basedir", baseDir, "--format", "%p %a"})
+	if code != 0 || !strings.HasPrefix(output, "PROJECT") {
+		t.Fatalf("an explicit --format folded a column: code=%d\n%s", code, output)
+	}
+	for _, args := range [][]string{{"--wide", "--format", "%p"}, {"--wide", "--json"}} {
+		if _, code := captureJobsStdout(t, append([]string{"--basedir", baseDir}, args...)); code != 1 {
+			t.Errorf("jobs %v exit = %d, want 1", args, code)
+		}
+	}
+}
+
 func TestParseJobsFormat(t *testing.T) {
 	columns, err := parseJobsFormat("%s %.12b %p %.24a %n %.20c %t %f %e")
 	if err != nil {
@@ -265,7 +291,7 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 
 func TestJobsColumnShowsDashForJobWithoutAttempt(t *testing.T) {
 	row := joblist.Row{State: "pending", JobID: "job-1", RunTime: jobstatus.RunTime{Elapsed: -1, Quiet: -1}}
-	if got := jobsColumnValue('a', row); got != "-" {
+	if got := jobsColumnValue('a', row, false); got != "-" {
 		t.Fatalf("attempt column = %q, want -", got)
 	}
 }
