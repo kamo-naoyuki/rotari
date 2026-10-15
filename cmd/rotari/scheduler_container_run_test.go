@@ -139,6 +139,13 @@ fi
 if [ "$code" -ne 0 ]; then
     echo "== rotari bug-report"
     ` + project.rotariShell("bug-report", "-p", "p", "--no-redact") + `
+    for file in ` + executor.ShellQuote(project.baseDir) + `/projects/p/runs/*/*/attempts/*/*; do
+        case "$file" in *.sh) continue ;; esac
+        [ -f "$file" ] || continue
+        echo "== $file"
+        tail -c 4000 "$file"
+        echo
+    done
 fi
 exit "$code"`
 	output, code := project.shell(4*time.Minute, script)
