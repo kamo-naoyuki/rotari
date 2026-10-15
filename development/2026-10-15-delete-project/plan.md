@@ -79,12 +79,13 @@ shared operation.
   diagnostics. No confirmation prompt, matching `delete --all`; the Web UI
   asks with `confirm()` as Delete run does.
 - **D4 Removal order.** Under the state lock: list the run IDs, then rename
-  the project directory to `BASEDIR/.rotari-deleted/NAME-RANDOM`, outside
-  `projects/`, so it leaves every listing atomically; then unregister the
-  runs. After releasing the lock, remove the renamed directory. A failed
-  unregister leaves orphan registry entries that `gc` removes; the error
-  says so. A failed final removal (for example `.nfsXXXX` files) still
-  reports the project deleted, with a warning naming the leftover directory.
+  the project directory to `BASEDIR/.rotari-deleted/NAME-RANDOM/NAME`,
+  outside `projects/`, so it leaves every listing atomically. After
+  releasing the lock, remove the renamed directory, then unregister the
+  runs. A failed unregister leaves orphan registry entries that `gc`
+  removes; the error says so. A failed final removal (for example
+  `.nfsXXXX` files) still reports the project deleted, with a warning
+  naming the leftover directory.
 - **D5 Concurrent commands.** A command that was waiting on the old
   `state.lock` acquires it after the rename and then finds no project
   directory. It fails with its write error, or, for commands that create a

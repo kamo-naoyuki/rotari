@@ -8,6 +8,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/attachment"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -42,6 +43,67 @@ func (editor Editor) DeleteRun(baseDir, projectName, runID string) error {
 		return err
 	}
 	return project.EditGuarded(paths, "delete", editor.Guard, func(dryRun bool) error { return editor.deleteRun(paths, runID, dryRun) })
+}
+
+// DeleteProject deletes an idle project: its directory, with the queue, run
+// history, and project-scope configuration, and its runs' registry entries.
+func (editor Editor) DeleteProject(baseDir, projectName string) (string, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return "", err
+	}
+	if err := resolve.RequireProject(paths.BaseDir, projectName); err != nil {
+		return "", err
+	}
+	var runIDs []string
+	var trash string
+	err = project.EditGuarded(paths, "delete", editor.Guard, func(dryRun bool) error {
+		runIDs = runIDsInDirectory(paths.RunsDir)
+		if dryRun {
+			return nil
+		}
+		var err error
+		trash, err = moveProjectToTrash(paths)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	message := fmt.Sprintf("deleted project=%s runs=%d directory=%s", projectName, len(runIDs), paths.ProjectDir)
+	if editor.Guard.DryRun {
+		return message, nil
+	}
+	// Removed after the state lock is released: on NFS, an open lock file keeps its directory.
+	if err := os.RemoveAll(trash); err != nil && editor.Warn != nil {
+		editor.Warn(fmt.Sprintf("project %q is deleted, but its files could not all be removed: %v; remove %s by hand", projectName, err, trash))
+	}
+	_ = os.Remove(filepath.Dir(trash))
+	for _, runID := range runIDs {
+		if err := editor.UnregisterRun(runID); err != nil {
+			return "", fmt.Errorf("project %q is deleted, but removing run registry entry %q failed: %w; run 'rotari gc' to remove the remaining entries", projectName, runID, err)
+		}
+	}
+	return message, nil
+}
+
+// moveProjectToTrash renames the project directory out of BASEDIR/projects,
+// so the project leaves every listing at once, and returns the directory to
+// remove.
+func moveProjectToTrash(paths state.ProjectPaths) (string, error) {
+	trashRoot := filepath.Join(paths.BaseDir, ".rotari-deleted")
+	if err := os.MkdirAll(trashRoot, state.DirectoryMode()); err != nil {
+		return "", fmt.Errorf("failed to delete project: %w", err)
+	}
+	trash, err := os.MkdirTemp(trashRoot, paths.ProjectName+"-")
+	if err != nil {
+		return "", fmt.Errorf("failed to delete project: %w", err)
+	}
+	if err := os.Rename(paths.ProjectDir, filepath.Join(trash, paths.ProjectName)); err != nil {
+		_ = os.Remove(trash)
+		_ = os.Remove(trashRoot)
+		return "", fmt.Errorf("failed to delete project: %w", err)
+	}
+	return trash, nil
 }
 
 // deleteHistory deletes one run, or every run when runID is empty, and

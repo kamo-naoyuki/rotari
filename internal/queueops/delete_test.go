@@ -1,6 +1,7 @@
 package queueops
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -171,6 +172,129 @@ func TestDeleteHistoryDryRunWritesNothing(t *testing.T) {
 	}
 	if len(*unregistered) != 0 || outcome.Applied {
 		t.Fatalf("dry run unregistered %v, outcome %#v", *unregistered, outcome)
+	}
+}
+
+// deleteProjectFixture is deleteFixture with a second project, "other", that
+// has its own run and project-scope configuration.
+func deleteProjectFixture(t *testing.T) (string, state.ProjectPaths, state.ProjectPaths, Editor, *[]string) {
+	t.Helper()
+	baseDir, paths, editor, unregistered := deleteFixture(t, "run-a", "run-b")
+	writeAttachmentState(t, paths, "run-a")
+	other, err := state.ResolveProjectPaths(baseDir, "other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCarryStateRun(t, other, "run-other", model.Queue{}, nil)
+	for _, p := range []state.ProjectPaths{paths, other} {
+		if err := os.WriteFile(filepath.Join(p.ProjectDir, "config.toml"), []byte("[run]\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return baseDir, paths, other, editor, unregistered
+}
+
+func TestDeleteProjectRemovesOnlyThatProject(t *testing.T) {
+	baseDir, paths, other, editor, unregistered := deleteProjectFixture(t)
+	message, err := editor.DeleteProject(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "deleted project=default runs=2 directory=" + paths.ProjectDir; message != want {
+		t.Fatalf("message = %q, want %q", message, want)
+	}
+	if _, err := os.Stat(paths.ProjectDir); !os.IsNotExist(err) {
+		t.Fatalf("project directory still exists: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, ".rotari-deleted")); !os.IsNotExist(err) {
+		t.Fatalf("deleted project files were left behind: %v", err)
+	}
+	for _, path := range []string{filepath.Join(other.RunsDir, "run-other"), filepath.Join(other.ProjectDir, "config.toml")} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("other project lost %s: %v", path, err)
+		}
+	}
+	sort.Strings(*unregistered)
+	if !reflect.DeepEqual(*unregistered, []string{"run-a", "run-b"}) {
+		t.Fatalf("unregistered = %v, want the deleted project's runs", *unregistered)
+	}
+	if _, err := editor.DeleteProject(baseDir, "default"); err == nil || !strings.Contains(err.Error(), `project "default" does not exist`) {
+		t.Fatalf("deleting a deleted project error = %v", err)
+	}
+}
+
+func TestDeleteProjectDryRunWritesNothing(t *testing.T) {
+	baseDir, paths, _, editor, unregistered := deleteProjectFixture(t)
+	var outcome project.Outcome
+	editor.Guard = project.Guard{DryRun: true, Report: func(o project.Outcome) { outcome = o }}
+	message, err := editor.DeleteProject(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "deleted project=default runs=2 directory=" + paths.ProjectDir; message != want {
+		t.Fatalf("message = %q, want %q", message, want)
+	}
+	for _, path := range []string{filepath.Join(paths.RunsDir, "run-a"), filepath.Join(paths.ProjectDir, "config.toml"), paths.MetaFile} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("dry run removed %s: %v", path, err)
+		}
+	}
+	if len(*unregistered) != 0 || outcome.Applied || outcome.Revision == "" {
+		t.Fatalf("dry run unregistered %v, outcome %#v", *unregistered, outcome)
+	}
+}
+
+func TestDeleteProjectChecksTheRevision(t *testing.T) {
+	baseDir, paths, _, editor, _ := deleteProjectFixture(t)
+	editor.Guard = project.Guard{IfRevision: "stale"}
+	if _, err := editor.DeleteProject(baseDir, "default"); !errors.Is(err, project.ErrRevisionChanged) {
+		t.Fatalf("stale revision error = %v", err)
+	}
+	if _, err := os.Stat(paths.MetaFile); err != nil {
+		t.Fatalf("stale revision deleted the project: %v", err)
+	}
+}
+
+func TestDeleteProjectRejectsActiveRun(t *testing.T) {
+	for _, test := range []struct {
+		name, want string
+		live       bool
+	}{
+		{"running", `project "default" is running; delete is not allowed`, true},
+		{"interrupted", `project "default" has interrupted run "run-b"`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseDir, paths, _, editor, unregistered := deleteProjectFixture(t)
+			if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-b"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := state.WriteJSON(filepath.Join(paths.RunsDir, "run-b", "context.json"), model.RunContext{}); err != nil {
+				t.Fatal(err)
+			}
+			if test.live {
+				if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-b"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := editor.DeleteProject(baseDir, "default"); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+			if _, err := os.Stat(filepath.Join(paths.RunsDir, "run-b")); err != nil {
+				t.Fatalf("rejected delete removed the run: %v", err)
+			}
+			if len(*unregistered) != 0 {
+				t.Fatalf("rejected delete unregistered %v", *unregistered)
+			}
+		})
+	}
+}
+
+func TestDeleteProjectRejectsInvalidName(t *testing.T) {
+	baseDir, _, _, editor, _ := deleteProjectFixture(t)
+	for _, name := range []string{"", "..", "default/runs", `default\runs`, "../" + filepath.Base(baseDir)} {
+		if _, err := editor.DeleteProject(baseDir, name); err == nil {
+			t.Fatalf("DeleteProject accepted %q", name)
+		}
 	}
 }
 
