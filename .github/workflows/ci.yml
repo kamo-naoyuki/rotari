@@ -32,8 +32,8 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      - name: Install shell completion test dependencies
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
+      - name: Install shell completion and read-count test dependencies
+        run: sudo apt-get update && sudo apt-get install -y zsh fish strace
 
       - name: Install JavaScript test dependencies
         run: npm ci

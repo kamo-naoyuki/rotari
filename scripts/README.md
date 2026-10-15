@@ -83,6 +83,11 @@ requests and pushes to `main`.
   software and installs it when the container starts.
 - `loadtest.sh`: run the web/API load test.
 - `loadtest-job.sh`: submit a load-test job.
+- `measure-state-reads.sh`: build a fixture of finished runs under `$TMPDIR`
+  and report, per read command, its wall time and the opens, directory
+  listings, and stats it makes; needs `strace`. Run it with `$TMPDIR` on NFS
+  to see what a shared file system costs. `TestReadCountsStayBounded` in
+  `conformance/` guards the same counts per file.
 
 ## Other tooling
 
