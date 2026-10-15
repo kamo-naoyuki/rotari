@@ -124,18 +124,15 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 	}
 	if len(shown) > 0 {
 		rows := groupArrayTasks(shown, sameDiffRow)
-		width, resultWidth, changesWidth := len("JOB"), len("RESULT"), len("CHANGES")
-		for _, row := range rows {
-			width = max(width, len(row.label))
-			resultWidth = max(resultWidth, len(diffResult(row.job)))
-			changesWidth = max(changesWidth, len(diffChanges(row.job)))
-		}
-		fmt.Fprintf(writer, "\n%s\n", cyan(fmt.Sprintf("%-*s  %-10s  %-10s  %-*s  %-*s  %s", width, "JOB", "FROM", "TO", resultWidth, "RESULT", changesWidth, "CHANGES", "CAUSE")))
+		table := textTable{columns: []tableColumn{{header: "JOB"}, {header: "FROM"}, {header: "TO"},
+			{header: "RESULT", color: func(row int, value string) string { return colorTransition(value, rows[row].job.Transition) }},
+			{header: "CHANGES"}, {header: "CAUSE"}}}
 		for _, row := range rows {
 			job := row.job
-			fmt.Fprintf(writer, "%-*s  %-10s  %-10s  %s  %-*s  %s\n", width, row.label, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"),
-				colorTransition(fmt.Sprintf("%-*s", resultWidth, diffResult(job)), job.Transition), changesWidth, diffChanges(job), diffCause(job))
+			table.rows = append(table.rows, []string{row.label, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"), diffResult(job), diffChanges(job), diffCause(job)})
 		}
+		fmt.Fprintln(writer)
+		table.write(writer)
 	}
 	if hidden := len(result.Jobs) - len(shown); hidden > 0 {
 		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden: %s\n", hidden, hiddenJobLabels(result.Jobs, showAll))
@@ -388,15 +385,12 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		fmt.Println("No runs found.")
 		return 0
 	}
-	labels := make([]string, len(entries))
-	width := len("RUN")
-	for index, entry := range entries {
-		labels[index] = model.RunLabel(entry.Run.ID, entry.Run.Name)
-		width = max(width, len(labels[index]))
+	table := textTable{columns: []tableColumn{{header: "RUN"}}}
+	for _, header := range []string{"JOBS", "OK", "FAILED", "BLOCKED", "FIXED", "NEW FAIL", "ADDED", "REMOVED", "CHANGED", "CARRIED"} {
+		table.columns = append(table.columns, tableColumn{header: header, alignRight: true})
 	}
-	fmt.Println(cyan(fmt.Sprintf("%-*s  %5s  %5s  %6s  %7s  %5s  %8s  %5s  %7s  %7s  %7s  %-9s  %-7s  %s",
-		width, "RUN", "JOBS", "OK", "FAILED", "BLOCKED", "FIXED", "NEW FAIL", "ADDED", "REMOVED", "CHANGED", "CARRIED", "CODE", "ELAPSED", "NOTE")))
-	for index, entry := range entries {
+	table.columns = append(table.columns, tableColumn{header: "CODE"}, tableColumn{header: "ELAPSED"}, tableColumn{header: "NOTE"})
+	for _, entry := range entries {
 		counts := entry.Counts
 		changeColumns := []string{"-", "-", "-", "-", "-", "-"}
 		if changes := entry.Changes; changes != nil {
@@ -405,12 +399,11 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 				fmt.Sprint(changes.Removed), fmt.Sprint(changes.Changed), fmt.Sprint(changes.Carried),
 			}
 		}
-		line := fmt.Sprintf("%-*s  %5d  %5d  %6d  %7d  %5s  %8s  %5s  %7s  %7s  %7s  %-9s  %-7s  %s",
-			width, labels[index], counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked,
-			changeColumns[0], changeColumns[1], changeColumns[2], changeColumns[3], changeColumns[4], changeColumns[5],
-			firstNonEmpty(entry.CodeChange, "-"), firstNonEmpty(entry.Run.Elapsed, "-"), lineageNote(entry.Run.Notes))
-		fmt.Println(strings.TrimRight(line, " "))
+		row := []string{model.RunLabel(entry.Run.ID, entry.Run.Name), fmt.Sprint(counts.Jobs), fmt.Sprint(counts.Succeeded), fmt.Sprint(counts.Failed), fmt.Sprint(counts.Blocked)}
+		row = append(row, changeColumns...)
+		table.rows = append(table.rows, append(row, firstNonEmpty(entry.CodeChange, "-"), firstNonEmpty(entry.Run.Elapsed, "-"), lineageNote(entry.Run.Notes)))
 	}
+	table.write(os.Stdout)
 	if len(entries) >= 2 {
 		previous := entries[len(entries)-2].Run.ID
 		current := entries[len(entries)-1].Run.ID
@@ -426,26 +419,25 @@ func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid runlineage.Gr
 		labels[index] = model.RunLabel(run.ID, run.Name)
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Runs:"), strings.Join(labels, " | "))
-	width := len("JOB")
-	for _, job := range grid.Jobs {
-		width = max(width, len(job.Name))
-	}
-	header := fmt.Sprintf("%-*s", width, "JOB")
+	table := textTable{columns: []tableColumn{{header: "JOB"}}}
 	for index := range grid.Runs {
-		header += fmt.Sprintf("  %-12s", fmt.Sprintf("RUN_%d", index+1))
+		table.columns = append(table.columns, tableColumn{header: fmt.Sprintf("RUN_%d", index+1)})
 	}
-	fmt.Fprintln(writer, cyan(header))
 	for _, job := range grid.Jobs {
-		line := fmt.Sprintf("%-*s", width, job.Name)
-		for index, status := range job.Statuses {
-			cell := firstNonEmpty(status, "-")
+		row := []string{job.Name}
+		for index := range grid.Runs {
+			cell := "-"
+			if index < len(job.Statuses) {
+				cell = firstNonEmpty(job.Statuses[index], "-")
+			}
 			if index < len(job.DefinitionChanged) && job.DefinitionChanged[index] {
 				cell += " *"
 			}
-			line += fmt.Sprintf("  %-12s", cell)
+			row = append(row, cell)
 		}
-		fmt.Fprintln(writer, line)
+		table.rows = append(table.rows, row)
 	}
+	table.write(writer)
 }
 
 func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runlineage.RunSummary) {

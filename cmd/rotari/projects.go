@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -78,23 +79,14 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 		return 0
 	}
 	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	table := [][]string{{"BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT"}}
+	table := textTable{}
+	for _, header := range []string{"BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT"} {
+		table.columns = append(table.columns, tableColumn{header: header})
+	}
 	for _, project := range projects {
-		table = append(table, []string{project.baseDir, project.name, strconv.Itoa(project.queued), strconv.Itoa(project.runs), project.state, project.lastRun, project.lastResult})
+		table.rows = append(table.rows, []string{project.baseDir, project.name, strconv.Itoa(project.queued), strconv.Itoa(project.runs), project.state, project.lastRun, project.lastResult})
 	}
-	// Columns are as wide as their longest value, so long basedirs keep
-	// later columns aligned.
-	widths := make([]int, len(table[0]))
-	for _, values := range table {
-		for index, value := range values {
-			widths[index] = max(widths[index], len(value))
-		}
-	}
-	plain := make([]byte, len(widths))
-	fmt.Println(cyan(formatJobsRow(table[0], widths, plain)))
-	for _, values := range table[1:] {
-		fmt.Println(formatJobsRow(values, widths, plain))
-	}
+	table.write(os.Stdout)
 	// Without -b, `show -p` resolves the default state directory, so the
 	// hint names the basedir when a listed project lives elsewhere.
 	defaultBaseDir, _, defaultErr := state.ResolveBaseDir("")

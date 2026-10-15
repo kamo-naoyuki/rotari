@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
@@ -201,51 +200,33 @@ func printRunRowsJSON(runs []runlist.Run) int {
 }
 
 func printRunRows(rows []runListRow, showBaseDir bool) {
-	header := []string{"PROJECT", "RUN ID", "NAME", "STATUS", "CLIENT", "EXIT CODE", "STARTED", "FINISHED"}
+	table := textTable{}
 	if showBaseDir {
-		header = append([]string{"BASEDIR"}, header...)
+		table.columns = append(table.columns, tableColumn{header: "BASEDIR"})
 	}
-	table := [][]string{header}
-	widths := make([]int, len(header))
+	for _, header := range []string{"PROJECT", "RUN ID", "NAME", "STATUS", "CLIENT", "EXIT CODE", "STARTED", "FINISHED"} {
+		column := tableColumn{header: header}
+		if header == "STATUS" {
+			column.color = func(_ int, value string) string {
+				switch value {
+				case "finished", "success":
+					return green(value)
+				case "failed":
+					return red(value)
+				}
+				return yellow(value)
+			}
+		}
+		table.columns = append(table.columns, column)
+	}
 	for _, row := range rows {
 		values := []string{row.Project, row.RunID, row.Name, row.Status, row.Client, row.ExitCode, row.StartedAt, row.Finished}
 		if showBaseDir {
 			values = append([]string{row.BaseDir}, values...)
 		}
-		table = append(table, values)
+		table.rows = append(table.rows, values)
 	}
-	for _, values := range table {
-		for index, value := range values {
-			widths[index] = max(widths[index], len(value))
-		}
-	}
-	statusColumn := 3
-	if showBaseDir {
-		statusColumn++
-	}
-	for rowIndex, values := range table {
-		if rowIndex == 0 {
-			fmt.Println(cyan(formatJobsRow(values, widths, make([]byte, len(values)))))
-			continue
-		}
-		// Pad the plain text first: ANSI sequences must not affect widths.
-		padded := make([]string, len(values))
-		for index, value := range values {
-			padded[index] = value
-			if index < len(values)-1 {
-				padded[index] += strings.Repeat(" ", widths[index]-len(value))
-			}
-		}
-		switch values[statusColumn] {
-		case "finished", "success":
-			padded[statusColumn] = green(padded[statusColumn])
-		case "failed":
-			padded[statusColumn] = red(padded[statusColumn])
-		default:
-			padded[statusColumn] = yellow(padded[statusColumn])
-		}
-		fmt.Println(strings.Join(padded, "  "))
-	}
+	table.write(os.Stdout)
 	fmt.Println("\nTo inspect a run:")
 	fmt.Println("  rotari show -r RUN_ID")
 }

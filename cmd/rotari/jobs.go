@@ -174,37 +174,25 @@ func printJobsTable(rows []joblist.Row, showBaseDir bool) {
 }
 
 func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn) {
-	columns := make([][]string, len(formatColumns))
-	for index, column := range formatColumns {
-		columns[index] = []string{column.header}
+	table := textTable{}
+	for _, column := range formatColumns {
+		tableColumn := tableColumn{header: column.header}
+		if column.code == 's' {
+			tableColumn.color = func(_ int, value string) string { return colorJobsState(value) }
+		}
+		table.columns = append(table.columns, tableColumn)
 	}
 	for _, row := range rows {
+		values := make([]string, len(formatColumns))
 		for index, column := range formatColumns {
-			value := jobsColumnValue(column.code, row)
+			values[index] = jobsColumnValue(column.code, row)
 			if column.width > 0 {
-				value = joblist.ShortenText(value, column.width)
-			}
-			columns[index] = append(columns[index], value)
-		}
-	}
-	widths := make([]int, len(columns))
-	for index, column := range columns {
-		for _, value := range column {
-			if len(value) > widths[index] {
-				widths[index] = len(value)
+				values[index] = joblist.ShortenText(values[index], column.width)
 			}
 		}
+		table.rows = append(table.rows, values)
 	}
-	for rowIndex := range columns[0] {
-		values := make([]string, len(columns))
-		codes := make([]byte, len(columns))
-		for columnIndex := range columns {
-			values[columnIndex] = columns[columnIndex][rowIndex]
-			codes[columnIndex] = formatColumns[columnIndex].code
-		}
-		line := strings.TrimRight(formatJobsRow(values, widths, codes), " ")
-		fmt.Println(line)
-	}
+	table.write(os.Stdout)
 }
 
 func parseJobsFormat(format string) ([]jobsColumn, error) {
@@ -277,24 +265,7 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 	}
 }
 
-func formatJobsRow(values []string, widths []int, codes []byte) string {
-	var builder strings.Builder
-	for index, value := range values {
-		if index > 0 {
-			builder.WriteString("  ")
-		}
-		builder.WriteString(colorJobsValue(codes[index], value))
-		if index < len(values)-1 {
-			builder.WriteString(strings.Repeat(" ", widths[index]-len(value)))
-		}
-	}
-	return builder.String()
-}
-
-func colorJobsValue(code byte, value string) string {
-	if code != 's' {
-		return value
-	}
+func colorJobsState(value string) string {
 	switch value {
 	case "success", "success (accepted)":
 		return green(value)

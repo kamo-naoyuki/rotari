@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -515,6 +516,39 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	}
 	if code != 0 || !strings.Contains(string(output), "Queue:\nJOB ID") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "active-job") {
 		t.Fatalf("--queue did not force current queue display, code=%d output=%q", code, output)
+	}
+}
+
+func TestCmdShowQueueAlignsColumnsAfterLongName(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "long-job", Name: "train_conformer_e12_linear2048_specaug", Stage: "train", Command: []string{"echo", "long"}},
+		{ID: "short-job", Name: "eval", Stage: "eval", Command: []string{"echo", "short"}},
+	}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int {
+		return cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--queue", "--no-pager"})
+	}); code != 0 {
+		t.Fatalf("cmdShow exit code = %d:\n%s", code, output.String())
+	}
+	lines := strings.Split(output.String(), "\n")
+	header := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "JOB ID") })
+	if header < 0 || header+2 >= len(lines) {
+		t.Fatalf("queue table not found:\n%s", output.String())
+	}
+	column := strings.Index(lines[header], "STAGE")
+	for _, row := range lines[header+1 : header+3] {
+		if column < 0 || column >= len(row) || !strings.HasPrefix(row[column:], "train") && !strings.HasPrefix(row[column:], "eval") {
+			t.Fatalf("STAGE column at %d is misaligned:\n%s", column, output.String())
+		}
 	}
 }
 

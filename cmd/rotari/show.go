@@ -1220,7 +1220,10 @@ func runScopeCommands(queue model.Queue, queueErr error, jobSpecs map[string]mod
 func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec) int {
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	markedStatusByID := model.QueueMarkedStatusByJobID(queue)
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
+	table := textTable{}
+	for _, header := range []string{"JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND"} {
+		table.columns = append(table.columns, tableColumn{header: header})
+	}
 	for _, job := range jobs {
 		name := job.Name
 		if name == "" {
@@ -1245,8 +1248,9 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 			sourceRun = origin.RunID + "/" + origin.JobID
 		}
 		sourceStatus := model.QueuedStatusText(origin, markedStatusByID[job.ID])
-		fmt.Printf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
+		table.rows = append(table.rows, []string{job.ID, taskText, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " ")})
 	}
+	table.write(os.Stdout)
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
 	return 0
 }
@@ -2051,44 +2055,25 @@ func showJobElapsed(submittedAt, finishedAt string, finished bool, jobDir string
 	return joblist.FormatRunTime(jobstatus.MeasureRunTime(jobDir, parse(submittedAt), parse(finishedAt), finished, now))
 }
 
-// printShowJobTable prints the run table with each column as wide as its
-// longest value, coloring the STATUS column after padding so escape codes do
-// not count toward the width.
+// printShowJobTable prints the run table, whose first row is its header.
 func printShowJobTable(table [][]string) {
-	widths := make([]int, len(table[0]))
-	for _, row := range table {
-		for index, value := range row {
-			widths[index] = max(widths[index], len(value))
-		}
+	columns := make([]tableColumn, len(table[0]))
+	for index, header := range table[0] {
+		columns[index] = tableColumn{header: header}
 	}
 	const statusColumn = 6
-	for rowIndex, row := range table {
-		var line strings.Builder
-		for index, value := range row {
-			if index > 0 {
-				line.WriteString("  ")
-			}
-			padded := value
-			if index < len(row)-1 {
-				padded += strings.Repeat(" ", widths[index]-len(value))
-			}
-			if rowIndex > 0 && index == statusColumn {
-				switch {
-				case strings.HasPrefix(value, "success"):
-					padded = green(padded)
-				case strings.HasPrefix(value, "failed"), value == "cancelled":
-					padded = red(padded)
-				default:
-					padded = yellow(padded)
-				}
-			}
-			line.WriteString(padded)
-		}
-		if rowIndex == 0 {
-			fmt.Println(cyan(line.String()))
-		} else {
-			fmt.Println(line.String())
-		}
+	columns[statusColumn].color = colorShowJobStatus
+	textTable{columns: columns, rows: table[1:]}.write(os.Stdout)
+}
+
+func colorShowJobStatus(_ int, value string) string {
+	switch {
+	case strings.HasPrefix(value, "success"):
+		return green(value)
+	case strings.HasPrefix(value, "failed"), value == "cancelled":
+		return red(value)
+	default:
+		return yellow(value)
 	}
 }
 

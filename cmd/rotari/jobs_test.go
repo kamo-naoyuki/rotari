@@ -44,30 +44,20 @@ func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 	}
 }
 
-func TestFormatJobsRowColorsStateWithoutChangingColumnWidth(t *testing.T) {
+func TestColorJobsState(t *testing.T) {
 	oldCheck := terminalCheck
 	terminalCheck = func(*os.File) bool { return true }
 	defer func() { terminalCheck = oldCheck }()
 
-	values := []string{"success", "demo"}
-	colored := formatJobsRow(values, []int{7, 4}, []byte{'s', 'p'})
-	if colored != ansiGreen+"success"+ansiReset+"  demo" {
-		t.Fatalf("colored row = %q, want visible width-preserving row", colored)
-	}
-
-	values[0] = "failed"
-	colored = formatJobsRow(values, []int{7, 4}, []byte{'s', 'p'})
-	if colored != ansiRed+"failed"+ansiReset+"   demo" {
-		t.Fatalf("failed row = %q, want visible width-preserving row", colored)
-	}
-
 	// An accepted earlier failure is a success.
-	if got := colorJobsValue('s', "success (accepted)"); got != ansiGreen+"success (accepted)"+ansiReset {
-		t.Errorf("accepted success = %q, want green", got)
+	for status, color := range map[string]string{"success": ansiGreen, "success (accepted)": ansiGreen, "failed": ansiRed} {
+		if got := colorJobsState(status); got != color+status+ansiReset {
+			t.Errorf("colorJobsState(%q) = %q", status, got)
+		}
 	}
 	for _, status := range []string{"interrupted", "unknown", "waiting (recorded)", "suspended (recorded)"} {
-		if got := colorJobsValue('s', status); got != ansiYellow+status+ansiReset {
-			t.Errorf("colorJobsValue(%q) = %q, want yellow", status, got)
+		if got := colorJobsState(status); got != ansiYellow+status+ansiReset {
+			t.Errorf("colorJobsState(%q) = %q, want yellow", status, got)
 		}
 	}
 }
