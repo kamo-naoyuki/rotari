@@ -148,14 +148,22 @@ func recordedState(values ...string) string {
 		case "unknown":
 			return "unknown"
 		case "running":
-			return "running (recorded)"
+			return "running" + recordedMark
 		case "pending", "queued", "waiting", "submitted", "configuring", "launching", "held", "queued_and_held":
-			return "waiting (recorded)"
+			return "waiting" + recordedMark
 		case "suspended", "suspending":
-			return "suspended (recorded)"
+			return "suspended" + recordedMark
 		}
 	}
 	return ""
+}
+
+const recordedMark = " (recorded)"
+
+// WithoutRecordedMark drops the mark every recorded unfinished state carries,
+// for a compact view where it tells no two states apart.
+func WithoutRecordedMark(label string) string {
+	return strings.Replace(label, recordedMark, "", 1)
 }
 
 // Hosts returns the summary's hosts, falling back to the wrapper's.

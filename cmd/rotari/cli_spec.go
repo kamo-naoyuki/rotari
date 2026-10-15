@@ -351,7 +351,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)", ValueName: "FORMAT"},
 			cliFlagSpec{Name: "since", Description: "include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only", ValueName: "DURATION"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON; not with --format"},
-			cliFlagSpec{Name: "wide", Description: "print the default fields in full: whole state directories and commands, and the project and state directory columns even when every job shares them; not with --format or --json"},
+			cliFlagSpec{Name: "wide", Description: "add job names and elapsed times to the default fields, keep the time zone, (recorded), and the project and state directory columns even when every job shares them, and print whole state directories and commands; not with --format or --json"},
 		),
 		Positional: "[PROJECT]",
 	},

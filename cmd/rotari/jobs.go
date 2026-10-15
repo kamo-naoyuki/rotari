@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -179,8 +180,10 @@ func printJobsTable(rows []joblist.Row, showBaseDir bool) {
 	printJobsTableFormat(rows, columns, true, false)
 }
 
-// printJobsTableFormat prints rows with formatColumns. The default fields
-// fold a project or state directory that every job shares, unless wide.
+// printJobsTableFormat prints rows with formatColumns. Unless wide, the
+// default fields fold a project or state directory that every job shares,
+// leave out job names, elapsed times, and the time zone, and drop the
+// "(recorded)" that every unfinished state carries.
 func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn, defaultFields, wide bool) {
 	table := textTable{wide: wide, rowNoun: "listed jobs"}
 	for _, column := range formatColumns {
@@ -196,13 +199,16 @@ func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn, defaul
 			if defaultFields {
 				tableColumn.fold = "Project"
 			}
+		case 'n', 'e':
+			tableColumn.wideOnly = defaultFields
 		}
 		table.columns = append(table.columns, tableColumn)
 	}
+	compact := defaultFields && !wide
 	for _, row := range rows {
 		values := make([]string, len(formatColumns))
 		for index, column := range formatColumns {
-			values[index] = jobsColumnValue(column.code, row, wide)
+			values[index] = jobsColumnValue(column.code, row, wide, compact)
 			if column.width > 0 {
 				values[index] = joblist.ShortenText(values[index], column.width)
 			}
@@ -249,10 +255,13 @@ func parseJobsFormat(format string) ([]jobsColumn, error) {
 }
 
 // jobsColumnValue returns a row's field; wide keeps the state directory and
-// command whole.
-func jobsColumnValue(code byte, row joblist.Row, wide bool) string {
+// command whole, and compact drops the recorded mark and the time zone.
+func jobsColumnValue(code byte, row joblist.Row, wide, compact bool) string {
 	switch code {
 	case 's':
+		if compact {
+			return jobstatus.WithoutRecordedMark(row.State)
+		}
 		return row.State
 	case 'b':
 		if wide {
@@ -274,20 +283,24 @@ func jobsColumnValue(code byte, row joblist.Row, wide bool) string {
 		}
 		return row.Command
 	case 't':
-		if row.StartedAt.IsZero() {
-			return "-"
-		}
-		return joblist.FormatTimestamp(row.StartedAt)
+		return jobsTimestamp(row.StartedAt, compact)
 	case 'f':
-		if row.FinishedAt.IsZero() {
-			return "-"
-		}
-		return joblist.FormatTimestamp(row.FinishedAt)
+		return jobsTimestamp(row.FinishedAt, compact)
 	case 'e':
 		return joblist.FormatRunTime(row.RunTime)
 	default:
 		return ""
 	}
+}
+
+func jobsTimestamp(value time.Time, compact bool) string {
+	if value.IsZero() {
+		return "-"
+	}
+	if compact {
+		return joblist.FormatLocalTimestamp(value)
+	}
+	return joblist.FormatTimestamp(value)
 }
 
 func colorJobsState(value string) string {
@@ -297,7 +310,7 @@ func colorJobsState(value string) string {
 	case "failed", "cancelled", "blocked":
 		return red(value)
 	default:
-		if value == "running" || value == "interrupted" || value == "unknown" || value == "incomplete" || value == "pending" || strings.HasSuffix(value, " (recorded)") {
+		if value == "running" || value == "waiting" || value == "suspended" || value == "interrupted" || value == "unknown" || value == "incomplete" || value == "pending" || strings.HasSuffix(value, " (recorded)") {
 			return yellow(value)
 		}
 		return value

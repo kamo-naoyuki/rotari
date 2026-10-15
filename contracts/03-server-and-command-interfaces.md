@@ -183,7 +183,8 @@ does not promise to detect a lost remote client.
   [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go),
   and `TestRefusalAndSourceHintsNameOnlyANonImplicitBaseDir` in
   [`conformance/03-interfaces/refusal_hints_test.go`](../conformance/03-interfaces/refusal_hints_test.go).
-- **CLI-23** The job table of `show` for a run, `show -j`, and `jobs` report
+- **CLI-23** The job table of `show` for a run, `show -j`, and `jobs --wide`
+  (or a `jobs --format` with `%e`) report
   each job's elapsed time: from submission to its finish, or for a running
   job until now, followed by how long ago the job last wrote to its logs
   (`quiet DURATION`) or `no output` when it has written none. `jobs --json`

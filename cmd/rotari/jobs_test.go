@@ -168,14 +168,25 @@ func TestCmdJobsFoldsSharedProjectUnlessWide(t *testing.T) {
 	now := time.Now()
 	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "job-a", now.Add(-2*time.Minute), now.Add(-time.Minute), 0)
 	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000002", "job-b", now.Add(-2*time.Minute), now.Add(-time.Minute), 1)
+	zone := " " + now.Add(-time.Minute).In(time.Local).Format("MST")
 
 	output, code := captureJobsStdout(t, []string{"--basedir", baseDir})
 	if code != 0 || !strings.HasPrefix(output, "Project: train (all listed jobs)\nSTATE  ") || strings.Contains(output, "PROJECT") {
 		t.Fatalf("default jobs did not fold the shared project: code=%d\n%s", code, output)
 	}
+	for _, hidden := range []string{"JOB_NAME", "ELAPSED", zone} {
+		if strings.Contains(output, hidden) {
+			t.Fatalf("default jobs contains %q:\n%s", hidden, output)
+		}
+	}
 	output, code = captureJobsStdout(t, []string{"--basedir", baseDir, "--wide"})
-	if code != 0 || !strings.HasPrefix(output, "STATE  ") || !strings.Contains(output, "PROJECT") {
+	if code != 0 || !strings.HasPrefix(output, "STATE  ") {
 		t.Fatalf("jobs --wide folded a column: code=%d\n%s", code, output)
+	}
+	for _, shown := range []string{"PROJECT", "JOB_NAME", "ELAPSED", zone} {
+		if !strings.Contains(output, shown) {
+			t.Fatalf("jobs --wide does not contain %q:\n%s", shown, output)
+		}
 	}
 	output, code = captureJobsStdout(t, []string{"--basedir", baseDir, "--format", "%p %a"})
 	if code != 0 || !strings.HasPrefix(output, "PROJECT") {
@@ -291,8 +302,18 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 
 func TestJobsColumnShowsDashForJobWithoutAttempt(t *testing.T) {
 	row := joblist.Row{State: "pending", JobID: "job-1", RunTime: jobstatus.RunTime{Elapsed: -1, Quiet: -1}}
-	if got := jobsColumnValue('a', row, false); got != "-" {
+	if got := jobsColumnValue('a', row, false, false); got != "-" {
 		t.Fatalf("attempt column = %q, want -", got)
+	}
+}
+
+func TestJobsStateDropsRecordedMarkWhenCompact(t *testing.T) {
+	row := joblist.Row{State: "running (recorded)"}
+	if got := jobsColumnValue('s', row, false, true); got != "running" {
+		t.Errorf("compact state = %q, want running", got)
+	}
+	if got := jobsColumnValue('s', row, true, false); got != "running (recorded)" {
+		t.Errorf("wide state = %q, want the recorded mark", got)
 	}
 }
 

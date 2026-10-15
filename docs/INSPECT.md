@@ -103,9 +103,13 @@ rotari projects --basedir DIR
 ```
 
 When `jobs` finds nothing, it names the state directories it searched and the
-time window. With its default fields, a project or state directory that every
-listed job shares is printed once above the table; `--wide` keeps those
-columns and prints whole state directories and commands. To choose its
+time window. Its default fields are the state, project, attempt ID, command,
+and finish time in local time without the zone. A project or state directory
+that every listed job shares is printed once above the table, and an
+unfinished state is shown without `(recorded)`, such as `running`; it is still
+a persisted observation. `--wide` adds the job names and elapsed times, keeps
+the shared columns, the time zone, and `(recorded)`, and prints whole state
+directories and commands. To choose its
 displayed fields, use `--format`; see the
 [CLI reference](CLI_REFERENCE.md#rotari-jobs). For scripts, `jobs --json` and
 `runs --json` print the same rows as JSON arrays. Each job has its `state`,
@@ -161,7 +165,7 @@ columns every job shares. Its ELAPSED column, also
 printed by `show -j`, gives a finished job's run time. For a running job it
 gives how long the job has run and how long ago it last wrote to its logs,
 such as `12m 03s, quiet 11m 58s`, or `no output`. The ELAPSED column of
-`jobs` gives the same value. A running job that has been quiet much longer
+`jobs --wide` gives the same value. A running job that has been quiet much longer
 than usual may be stuck. Logs that an executor keeps on another host are not
 seen.
 

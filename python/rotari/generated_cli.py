@@ -1660,11 +1660,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "json",
                 },
                 {
-                    "description": "print the default fields in full: whole "
-                    "state directories and commands, and the "
-                    "project and state directory columns even "
-                    "when every job shares them; not with "
-                    "--format or --json",
+                    "description": "add job names and elapsed times to the "
+                    "default fields, keep the time zone, "
+                    "(recorded), and the project and state "
+                    "directory columns even when every job shares "
+                    "them, and print whole state directories and "
+                    "commands; not with --format or --json",
                     "environment": "ROTARI_JOBS_WIDE",
                     "name": "wide",
                 },

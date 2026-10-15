@@ -291,6 +291,11 @@ func FormatTimestamp(value time.Time) string {
 	return value.In(time.Local).Format("2006-01-02 15:04:05 MST")
 }
 
+// FormatLocalTimestamp is FormatTimestamp without the time zone.
+func FormatLocalTimestamp(value time.Time) string {
+	return value.In(time.Local).Format("2006-01-02 15:04:05")
+}
+
 // FormatRunTime formats a job's elapsed time and, while it runs, how long
 // ago it last wrote output: "12m 03s, quiet 11m 58s", or "12m 03s, no
 // output" when it has written none.

@@ -446,7 +446,7 @@ Usage: `rotari jobs [PROJECT]`
 | `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
 | `--json` | `` | `ROTARI_JOBS_JSON` | print machine-readable JSON; not with --format |
-| `--wide` | `` | `ROTARI_JOBS_WIDE` | print the default fields in full: whole state directories and commands, and the project and state directory columns even when every job shares them; not with --format or --json |
+| `--wide` | `` | `ROTARI_JOBS_WIDE` | add job names and elapsed times to the default fields, keep the time zone, (recorded), and the project and state directory columns even when every job shares them, and print whole state directories and commands; not with --format or --json |
 
 ### `rotari wait`
 

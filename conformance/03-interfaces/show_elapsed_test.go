@@ -12,8 +12,8 @@ import (
 
 // TestShowReportsElapsedAndQuietTime runs one job that writes output and then
 // sleeps, and one that never writes output. While they run, the run table,
-// show -j, and jobs report how long each has run and how long ago it last
-// wrote output, or that it wrote none.
+// show -j, and jobs --wide report how long each has run and how long ago it
+// last wrote output, or that it wrote none.
 func TestShowReportsElapsedAndQuietTime(t *testing.T) {
 	covers(t, "CLI-23")
 	e := support.NewEnv(t)
@@ -45,7 +45,7 @@ func TestShowReportsElapsedAndQuietTime(t *testing.T) {
 		t.Fatalf("show -j does not report elapsed and quiet time:\n%s", job)
 	}
 
-	jobs := e.MustRotari("jobs", project).Stdout
+	jobs := e.MustRotari("jobs", project, "--wide").Stdout
 	for _, row := range []*regexp.Regexp{
 		regexp.MustCompile(`(?m)\squiet\s.*\s\d+s, quiet \d+s$`),
 		regexp.MustCompile(`(?m)\ssilent\s.*\s\d+s, no output$`),
