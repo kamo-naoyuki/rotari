@@ -10,7 +10,7 @@ mkdir -p "$work/distrib"
 report_failure() {
     local status=$?
     echo "start-lsf.sh: '$BASH_COMMAND' exited with $status" >&2
-    find "$work" "$lsf_top" -name '*.log' -type f 2>/dev/null | while read -r log; do
+    find "$work" "$lsf_top" \( -name '*.log' -o -name '*.err' \) -type f 2>/dev/null | while read -r log; do
         echo "== $log" >&2
         tail -n 100 "$log" >&2
     done

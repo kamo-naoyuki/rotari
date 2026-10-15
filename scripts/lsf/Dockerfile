@@ -6,7 +6,7 @@ ARG TEST_UID
 ARG TEST_GID
 
 RUN dnf install -y --setopt=install_weak_deps=False \
-        ed file findutils gzip hostname libnsl net-tools procps-ng tar which \
+        diffutils ed file findutils gzip hostname libnsl net-tools procps-ng tar which \
     && dnf clean all
 
 # The test user shares the host user's IDs so the host can remove /state.
