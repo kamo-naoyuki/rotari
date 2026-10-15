@@ -1528,6 +1528,65 @@ func captureShowStdout(t *testing.T, output *bytes.Buffer, show func() int) int 
 	return code
 }
 
+// tableCell returns the cell of the table row starting with rowID under
+// header, read at the header's offset.
+func tableCell(t *testing.T, text, header, rowID string) string {
+	t.Helper()
+	lines := strings.Split(text, "\n")
+	headerLine := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "JOB ID") })
+	if headerLine < 0 {
+		t.Fatalf("no table in output:\n%s", text)
+	}
+	column := strings.Index(lines[headerLine], header)
+	for _, line := range lines[headerLine+1:] {
+		if strings.HasPrefix(line, rowID+" ") && column >= 0 && column < len(line) {
+			return strings.Fields(line[column:])[0]
+		}
+	}
+	t.Fatalf("no %s cell for %s in output:\n%s", header, rowID, text)
+	return ""
+}
+
+func TestCmdShowListsDependenciesAsDeclared(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "train-a", Name: "train-a", Stage: "train", Command: []string{"true"}},
+		{ID: "train-b", Name: "train-b", Stage: "train", Command: []string{"true"}},
+		{ID: "eval", Name: "eval", Stage: "eval", DependsOn: []string{"train"}, Command: []string{"true"}},
+	}}
+	runID := "run-1"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{
+		{ID: "train-a"}, {ID: "train-b"}, {ID: "eval"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, view := range []string{"--queue", "--run-id=" + runID} {
+		t.Run(view, func(t *testing.T) {
+			var output bytes.Buffer
+			if code := captureShowStdout(t, &output, func() int {
+				return cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", view, "--no-pager"})
+			}); code != 0 {
+				t.Fatalf("cmdShow exit code = %d:\n%s", code, output.String())
+			}
+			if got := tableCell(t, output.String(), "DEPENDS ON", "eval"); got != "train" {
+				t.Fatalf("DEPENDS ON = %q, want the declared stage name", got)
+			}
+		})
+	}
+}
+
 func TestCmdShowStageFiltersRunJobs(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()

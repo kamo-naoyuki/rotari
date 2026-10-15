@@ -103,3 +103,15 @@ func TestQueueToJobsExpandsArrayNameDependency(t *testing.T) {
 		t.Fatalf("self-dependency error = %v", err)
 	}
 }
+
+func TestDeclaredDependenciesKeepsGroupNames(t *testing.T) {
+	commands := []QueuedCommand{
+		{ID: "tr", Name: "train", Stage: "fit", Matrix: &MatrixSpec{BaseName: "train"}, Command: []string{"train"}},
+		{ID: "ev", Name: "eval", Array: &ArraySpec{First: 1, Last: 2}, DependsOn: []string{"fit"}, DependsOnFinished: []string{"train"}, Command: []string{"eval"}},
+		{ID: "rp", Name: "report", Command: []string{"report"}},
+	}
+	want := map[string]string{"tr": "", "ev-1": "fit,finished:train", "ev-2": "fit,finished:train", "rp": ""}
+	if got := DeclaredDependencies(commands, ","); !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeclaredDependencies() = %v, want %v", got, want)
+	}
+}

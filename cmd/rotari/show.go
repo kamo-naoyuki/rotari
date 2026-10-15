@@ -944,6 +944,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	resultByID := jobstatus.RecordedResults(files)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*model.JobOrigin, len(runQueue.Commands))
+	declaredDependencies := model.DeclaredDependencies(runQueue.Commands, ",")
 	if runQueueErr == nil {
 		for _, job := range model.QueueToJobs(runQueue.Commands) {
 			jobIDs = append(jobIDs, job.ID)
@@ -1019,7 +1020,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if stage == "" {
 			stage = "-"
 		}
-		dependsOn := model.FormatDependencies(jobSpec.DependsOn, jobSpec.DependsOnFinished, ",")
+		dependsOn, declared := declaredDependencies[jobID]
+		if !declared {
+			dependsOn = model.FormatDependencies(jobSpec.DependsOn, jobSpec.DependsOnFinished, ",")
+		}
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
@@ -1217,6 +1221,7 @@ func runScopeCommands(queue model.Queue, queueErr error, jobSpecs map[string]mod
 func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec) int {
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	markedStatusByID := model.QueueMarkedStatusByJobID(queue)
+	declaredDependencies := model.DeclaredDependencies(queue.Commands, ",")
 	table := textTable{}
 	for _, header := range []string{"JOB ID", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND"} {
 		table.columns = append(table.columns, tableColumn{header: header})
@@ -1230,7 +1235,7 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 		if stage == "" {
 			stage = "-"
 		}
-		dependsOn := model.FormatDependencies(job.DependsOn, job.DependsOnFinished, ",")
+		dependsOn := declaredDependencies[job.ID]
 		if dependsOn == "" {
 			dependsOn = "-"
 		}

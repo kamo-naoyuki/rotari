@@ -891,6 +891,20 @@ func FormatDependencies(dependsOn, dependsOnFinished []string, separator string)
 	return strings.Join(names, separator)
 }
 
+// DeclaredDependencies maps each job of commands to its command's
+// dependencies as FormatDependencies prints them, as written: a stage,
+// matrix, or array name is not expanded to its members.
+func DeclaredDependencies(commands []QueuedCommand, separator string) map[string]string {
+	declared := make(map[string]string)
+	for _, queued := range commands {
+		text := FormatDependencies(queued.DependsOn, queued.DependsOnFinished, separator)
+		for _, job := range queueCommandToJobs(queued) {
+			declared[job.ID] = text
+		}
+	}
+	return declared
+}
+
 var arrayTaskDependency = regexp.MustCompile(`^(.*)\[(\d+)\]$`)
 
 // joinArrayTasks joins the tasks of one array among names, which a stage or
