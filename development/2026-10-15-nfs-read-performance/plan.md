@@ -1,7 +1,7 @@
 # Plan: Read-Side Performance on NFS
 
 **Created:** 2026-10-15
-**Status:** Planned; no phase started.
+**Status:** Phase 0 done; Phase 1 next. See [work-log.md](work-log.md).
 
 ## Purpose
 
