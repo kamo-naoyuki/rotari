@@ -356,6 +356,17 @@ rotari delete -p sweep --all
 Delete a run by `RUN_ID` or `--run-id/-r ID`. Deleting every saved run requires
 `--all`; without a run ID or `--all`, nothing is deleted.
 
+Delete a whole project, with its queue, saved runs, and project configuration:
+
+```sh
+rotari delete -p sweep --project
+```
+
+The project must be named with `--project-name/-p` on the command line; a
+project from `ROTARI_PROJECT_NAME`, `.rotari.toml`, or a configuration file is
+not used. A running or interrupted project cannot be deleted. The Delete
+button on each row of the Web UI's All projects page does the same.
+
 The commands affect the current queue and saved run history differently:
 
 ```mermaid

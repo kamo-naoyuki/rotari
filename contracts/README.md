@@ -166,6 +166,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
 | SAFE-10 | `show` displays an active/interrupted run and a non-empty next queue separately | conformance | `TestShowActiveRunIncludesNextQueue` |
 | SAFE-11 | Every reader of the run lock (CLI, Web API, MCP) removes a stale local lock once the project passes the consistency checks, under the state lock; the run stays interrupted | conformance | `TestCommandsRemoveStaleRunLock`, `TestMCPRemovesStaleRunLock` |
+| SAFE-12 | `delete --project` and `/api/delete-project` delete a whole idle project and its runs' registry entries, leave other projects alone, and on the CLI need the project named on the command line | conformance | `TestDeleteProjectRemovesOnlyThatProject`, `TestInterruptedProjectNeedsRecovery`, `TestRunningProjectRejectsSecondRunAndDelete` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
@@ -261,3 +262,4 @@ the IDs, this table, and those calls disagree.
 | WEB-8 | A run report reads each job's log from the attempt that produced its result, following carried jobs | conformance | `TestRunReportReadsCarriedJobLogs` |
 | WEB-9 | A static export page shows the live page's tables, columns, row actions, and panels, also when opened from disk | partial | `TestStaticExportPagesShowWhatLivePagesShow` |
 | WEB-10 | `/api/activity` lists the runs of every registered basedir that meet a validated range, marks missing and unreadable basedirs, and rejects bad ranges | conformance | `TestActivityListsRunsAcrossRegisteredBasedirs` |
+| WEB-11 | Each All projects row has a Delete button, disabled for a running project, that deletes the project through `/api/delete-project` as `delete --project` does; read-only servers answer 403 | conformance | `TestDeleteProjectRemovesOnlyThatProject` |

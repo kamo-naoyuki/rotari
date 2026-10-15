@@ -248,7 +248,7 @@ func TestCopyIntoQueueWithoutTerminal(t *testing.T) {
 }
 
 func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
-	covers(t, "CORE-3", "SAFE-2", "CORE-5")
+	covers(t, "CORE-3", "SAFE-2", "CORE-5", "SAFE-12")
 	e := support.NewEnv(t)
 	e.FinishedJobRun("live")
 	run := e.StartRun("live", 1, false)
@@ -257,9 +257,10 @@ func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
 		t.Errorf("queue of a running project is not empty: %s", r)
 	}
 	for name, args := range map[string][]string{
-		"run":    {"run", "-p", "live", "--async"},
-		"retry":  {"retry", "-p", "live", "--async"},
-		"delete": {"delete", "-p", "live", "--all"},
+		"run":              {"run", "-p", "live", "--async"},
+		"retry":            {"retry", "-p", "live", "--async"},
+		"delete":           {"delete", "-p", "live", "--all"},
+		"delete --project": {"delete", "-p", "live", "--project"},
 	} {
 		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {
 			t.Errorf("%s of a running project was not rejected: %s", name, r)
@@ -281,7 +282,7 @@ func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
 }
 
 func TestInterruptedProjectNeedsRecovery(t *testing.T) {
-	covers(t, "SAFE-3", "SAFE-4")
+	covers(t, "SAFE-3", "SAFE-4", "SAFE-12")
 	e := support.NewEnv(t)
 	e.FinishedJobRun("live")
 	run := e.StartRun("live", 1, false)
@@ -788,5 +789,65 @@ func TestDeleteRemovesRunAttachmentState(t *testing.T) {
 	e.MustRotari("delete", "-p", project, "--all")
 	if got := markers(); len(got) != 0 {
 		t.Fatalf("after delete --all, attachment files = %v, want none", got)
+	}
+}
+
+// TestDeleteProjectRemovesOnlyThatProject deletes one project from the CLI
+// and another from the Web API, beside a project that keeps its runs and a
+// running project that both refuse to delete.
+func TestDeleteProjectRemovesOnlyThatProject(t *testing.T) {
+	covers(t, "SAFE-12", "WEB-11")
+	e := support.NewEnv(t)
+	cliRun, _ := e.FinishedJobRun("by-cli")
+	webRun, _ := e.FinishedJobRun("by-web")
+	keptRun, _ := e.FinishedJobRun("kept")
+	if err := os.WriteFile(filepath.Join(e.Base, "projects", "kept", "config.toml"), []byte("[run]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.FinishedJobRun("live")
+	e.StartRun("live", 1, false)
+
+	// The project must be named on the command line, not taken from a default.
+	if r := e.WithVar("ROTARI_PROJECT_NAME", "by-cli").Rotari("delete", "--project"); r.Code == 0 || !strings.Contains(r.Stderr, "--project-name/-p") {
+		t.Errorf("delete --project without -p: %s", r)
+	}
+	if r := e.Rotari("delete", "-p", "by-cli", "--project", "--dry-run"); r.Code != 0 || !strings.Contains(r.Stdout, "dry run: deleted project=by-cli runs=1") {
+		t.Errorf("delete --project --dry-run: %s", r)
+	}
+	if r := e.MustRotari("delete", "-p", "by-cli", "--project"); !strings.Contains(r.Stdout, "deleted project=by-cli runs=1") {
+		t.Errorf("delete --project: %s", r)
+	}
+
+	base := e.StartWeb()
+	if got := e.HTTPPostJSON(base+"/api/delete-project", map[string]any{"project_name": "by-web"}); got.Status != 200 || !strings.Contains(got.Body, "deleted project=by-web runs=1") {
+		t.Errorf("/api/delete-project: %d %s", got.Status, got.Body)
+	}
+	if got := e.HTTPPostJSON(base+"/api/delete-project", map[string]any{"project_name": "live"}); got.Status == 200 || !strings.Contains(got.Body, "is running") {
+		t.Errorf("/api/delete-project of a running project: %d %s", got.Status, got.Body)
+	}
+	if got := e.HTTPPostJSON(e.StartWeb("--allow-control=false")+"/api/delete-project", map[string]any{"project_name": "kept"}); got.Status != 403 {
+		t.Errorf("read-only /api/delete-project: %d %s", got.Status, got.Body)
+	}
+
+	projects := e.MustRotari("projects", "-b", e.Base).Stdout
+	for name, want := range map[string]bool{"by-cli": false, "by-web": false, "kept": true, "live": true} {
+		if strings.Contains(projects, name) != want {
+			t.Errorf("projects lists %s = %v, want %v:\n%s", name, !want, want, projects)
+		}
+	}
+	for _, runID := range []string{cliRun, webRun} {
+		if r := e.Rotari("show", runID); r.Code == 0 {
+			t.Errorf("run %s of a deleted project is still found: %s", runID, r)
+		}
+	}
+	e.MustRotari("show", keptRun)
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "kept", "config.toml")); err != nil {
+		t.Errorf("other project's configuration was removed: %v", err)
+	}
+	if state := e.CheckState("live"); state != "running" {
+		t.Errorf("running project after the rejected delete: state %q", state)
+	}
+	if entries, _ := os.ReadDir(e.Base); slices.ContainsFunc(entries, func(entry os.DirEntry) bool { return entry.Name() == ".rotari-deleted" }) {
+		t.Errorf("deleted project files were left in %s", e.Base)
 	}
 }

@@ -428,6 +428,24 @@ shown when they differ; a hidden column's editors stay in the row, so Save
 still sends their values. Covered by `TestWebQueueTable` in
 [queue_table_test.go](../internal/webui/queue_table_test.go).
 
+**WEB-11** Each row of the All projects page ends with Path and Delete.
+Delete asks for confirmation and then deletes the whole project through
+`POST /api/delete-project` with `{"project_name": NAME}`, which calls the
+same `Editor.DeleteProject` as `delete --project` (SAFE-12) and returns its
+message and any warnings. The button is disabled for a project the page
+shows as running; the server rejects a running or interrupted project and
+an invalid name, and a read-only server or static export answers `403`.
+`deleteProjectButton` in
+[web_app_core.js](../internal/webui/assets/web_app_core.js) and
+`deleteProject` in
+[web_app_actions.js](../internal/webui/assets/web_app_actions.js); covered by
+`TestWebAllProjectsDeleteProject` in
+[delete_project_test.go](../internal/webui/delete_project_test.go),
+`TestWebDeleteProjectEndpoint` in
+[webui_test.go](../internal/webui/webui_test.go), and
+`TestDeleteProjectRemovesOnlyThatProject` in
+[conformance/04-coordination/private_state_test.go](../conformance/04-coordination/private_state_test.go).
+
 Run job projections include each persisted attempt. The jobs table defaults to
 the latest attempt, but stores a browser-local selection per job so rows can
 independently display a prior attempt's result, timestamps, and log. The log

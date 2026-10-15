@@ -85,7 +85,7 @@ JSDOM.fromFile(path, {
 	if want := []string{"Project", "Queued", "Runs", "Running", "Latest run", "Status", "Started", "Actions"}; !reflect.DeepEqual(home.Headers, want) {
 		t.Errorf("exported overview columns = %q, want %q", home.Headers, want)
 	}
-	if want := [][]string{{"Path"}, {"Path"}}; !reflect.DeepEqual(home.RowActions, want) {
+	if want := [][]string{{"Path", "Delete"}, {"Path", "Delete"}}; !reflect.DeepEqual(home.RowActions, want) {
 		t.Errorf("exported overview row actions = %q, want %q", home.RowActions, want)
 	}
 

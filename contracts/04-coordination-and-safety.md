@@ -191,13 +191,15 @@ A project is in one of three states, derived from `running.lock` and
   A run whose coordinator is gone, for example killed with SIGKILL, leaves
   the project interrupted, never idle; a dead local lock is removed, and the
   metadata alone then marks the run.
-- **SAFE-2** While a project is running, `run`, `retry`, and `delete` are
+- **SAFE-2** While a project is running, `run`, `retry`, and `delete`
+  (including `delete --project`) are
   rejected and change nothing, so no second run or in-run retry starts.
   Queue edits, including `reset`, still apply only to the next run. Other
   projects are unaffected. The `retry` rejection also names the
   `retry --to-project NEW_PROJECT` command that reruns in another project
   (RUN-19); a project named by `--to-project` is the one that must be idle.
-- **SAFE-3** While a project is interrupted, `run` and `delete` fail with a
+- **SAFE-3** While a project is interrupted, `run` and `delete` (including
+  `delete --project`) fail with a
   message that names the interrupted run, the `show` and `unlock`
   commands to inspect and recover it, and the `retry --run-id` command that
   reruns its failed and unfinished jobs afterwards.
@@ -273,6 +275,31 @@ A project is in one of three states, derived from `running.lock` and
   [conformance/04-coordination/stale_lock_test.go](../conformance/04-coordination/stale_lock_test.go)
   and `TestMCPRemovesStaleRunLock` in
   [conformance/03-interfaces/mcp_test.go](../conformance/03-interfaces/mcp_test.go).
+- **SAFE-12** `delete --project -p NAME` and the Web API's
+  `POST /api/delete-project` delete a whole idle project: its directory, with
+  the queue, run history, client-attachment state, and project-scope
+  configuration and notification files, and its runs' run registry entries.
+  Other projects, and basedir, workspace, and global configuration, are left
+  alone. The project leaves every listing at once: under the state lock its
+  directory is renamed out of `projects/`, and it is removed after the lock
+  is released. If that removal fails, for example on NFS while another
+  process holds a file open, the project is still reported deleted, with a
+  warning that names the leftover directory. On the CLI the project must be
+  named by `--project-name/-p` on the command line; one that would come from
+  `ROTARI_PROJECT_NAME`, `.rotari.toml`, or a configuration file is refused.
+  `--project` cannot be combined with a run ID or `--all`, and takes
+  `--dry-run` and `--if-revision` (CLI-7). A running or interrupted project
+  is rejected as SAFE-2 and SAFE-3 say, and a missing project as CLI-11
+  says. Implemented once by `Editor.DeleteProject` in
+  [internal/queueops/delete.go](../internal/queueops/delete.go), which
+  [cmd/rotari/delete.go](../cmd/rotari/delete.go) and
+  [internal/webui/webui.go](../internal/webui/webui.go) call; covered by
+  `TestDeleteProjectRemovesOnlyThatProject` and
+  `TestDeleteProjectRejectsActiveRun` in
+  [internal/queueops/delete_test.go](../internal/queueops/delete_test.go)
+  and through the binary and the Web API by
+  `TestDeleteProjectRemovesOnlyThatProject` in
+  [conformance/04-coordination/private_state_test.go](../conformance/04-coordination/private_state_test.go).
 
 Further rules:
 

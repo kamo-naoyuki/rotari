@@ -290,7 +290,7 @@ are checked against this graph by
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `assets/` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
-| [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs, and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
+| [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs or a whole project (`DeleteProject`), and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
 | [internal/workflowstate](../internal/workflowstate/) | Applies workflow manifests to saved project state: reads saved runs as sources to reconcile a manifest, imports a manifest into the queue under a `project.Guard`, and loads a settled run for export. Shared by `rotari import`, `rotari export`, and the MCP import and export tools. | `import.go` (`Import.Apply`), `sources.go`, `export.go` (`LoadSettledRun`) |
@@ -395,7 +395,9 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 
 `change`, `copy`, and `remove` follow the same path through their
 `queueops.Editor` methods, and `import` through its own callback; `delete`
-uses `project.Edit` for the lock and idle check alone. `copy --to-project`
+uses `project.Edit` for the lock and idle check alone, and `delete --project`
+(`Editor.DeleteProject`) moves the project directory out of `projects/` under
+the lock and removes it after. `copy --to-project`
 (`Editor.CopyTo`) reads the run from the source project and edits, or
 creates, the destination's queue under the destination's lock only. The Web
 UI and the supervisor call the same `queueops.Editor` methods.

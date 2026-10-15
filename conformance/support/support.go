@@ -433,8 +433,9 @@ func (e *Env) ExportFinishedRun(project string) string {
 // next run's jobs.
 func GuardedCommands(project string) map[string][]string {
 	return map[string][]string{
-		"run":    {"run", "-p", project},
-		"delete": {"delete", "-p", project, "--all"},
+		"run":              {"run", "-p", project},
+		"delete":           {"delete", "-p", project, "--all"},
+		"delete --project": {"delete", "-p", project, "--project"},
 	}
 }
 

@@ -1,7 +1,7 @@
 # Plan: Delete a Whole Project
 
 **Created:** 2026-10-15
-**Status:** Planned; no phase started.
+**Status:** Phases 1–4 done. See [work-log.md](work-log.md).
 
 ## Purpose
 
@@ -110,7 +110,7 @@ shared operation.
 
 ## Phases
 
-### Phase 1: Shared operation
+### Phase 1: Shared operation (done)
 
 1. `Editor.DeleteProject` per D1, D3, D4, D6, with dry-run support.
 2. Unit tests in `internal/queueops/delete_test.go`, with two projects that
@@ -119,7 +119,12 @@ shared operation.
    interrupted projects are rejected unchanged; a missing project fails; a
    stale `--if-revision` fails; names with `/` and `\` are rejected.
 
-### Phase 2: CLI
+### Phase 2: CLI (done)
+
+The `delete --project` pairs of `TestCLIFlagPairMutations` get
+`--project-name` from the adapter unless it is under test, and accept the
+usage rejection with `--all` or `--run-id`. SEL-10 rows cover the
+exclusions and a missing project.
 
 1. `--project` in `cmd/rotari/delete.go` and the `delete` entry of
    `cmd/rotari/cli_spec.go` (D2).
@@ -132,7 +137,11 @@ shared operation.
    `conformance/03-interfaces/flag_pairs_test.go`, and
    `docs/internal/testing/cli-flag-pair-coverage.md`.
 
-### Phase 3: Web
+### Phase 3: Web (done)
+
+The route was also added to `TestWebAPIRejectsUnsafePathElements`
+(RES-9, RES-10). The system Node (v12) cannot run the page scripts; the
+jsdom tests were run with the VS Code server's Node 24 first on `PATH`.
 
 1. `/api/delete-project` in [internal/webui/webui.go](../../internal/webui/webui.go) (D7).
 2. `deleteProject` in `web_app_actions.js` and the row button in
@@ -143,7 +152,13 @@ shared operation.
    button, disabled for a running project. The local Node cannot run some
    webui JS tests (see repository memory); report which ones did not run.
 
-### Phase 4: Contracts and documentation
+### Phase 4: Contracts and documentation (done)
+
+`delete --project` joined `support.GuardedCommands` and the SAFE-2 test's
+commands, so `TestInterruptedProjectNeedsRecovery` and
+`TestRunningProjectRejectsSecondRunAndDelete` also cover SAFE-12. The
+conformance test checks WEB-11 through the Web API; the button itself is
+checked by `TestWebAllProjectsDeleteProject`.
 
 1. New **SAFE-12**: `delete --project` and `/api/delete-project` remove the
    project directory and its runs' registry entries, leave other projects

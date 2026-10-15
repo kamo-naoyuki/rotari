@@ -93,6 +93,10 @@ Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, basedir/workspace/global
 
 Run `rotari projects`. Use `--basedir DIR` to limit the list to a state directory, `--masterdir DIR` to select the registry, and `rotari show -p PROJECT` to inspect a project.
 
+### How do I delete a project?
+
+Run `rotari delete -p PROJECT --project`, or use Delete on the project's row of the Web UI's All projects page. It deletes the project's queue, saved runs, and project-scope `config.*` and `notifications.toml`, and removes its runs from the run registry; other projects and basedir, workspace, and global configuration stay. The project must be named with `-p` on the command line, and a running or interrupted project is refused. Add `--dry-run` to see how many runs would be deleted. `rotari delete -p PROJECT --all` instead deletes only the saved runs and keeps the project.
+
 ### Why does `show NAME` mention a missing project?
 
 `show NAME` tries an attempt ID, registered run ID, `latest`, and an existing
