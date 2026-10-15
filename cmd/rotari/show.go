@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -968,7 +969,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
-	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
+	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
 	now := time.Now()
 	// Each job's row is read concurrently; counts and the table are built in
 	// job order below.
@@ -1018,10 +1019,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if stage == "" {
 			stage = "-"
 		}
-		taskText := "-"
-		if jobSpec.ArrayTaskID != nil {
-			taskText = strconv.Itoa(*jobSpec.ArrayTaskID)
-		}
 		dependsOn := model.FormatDependencies(jobSpec.DependsOn, jobSpec.DependsOnFinished, ",")
 		if dependsOn == "" {
 			dependsOn = "-"
@@ -1051,7 +1048,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
 		row.shown = true
 		row.changeHint = statusOK && status != 0
-		row.cells = []string{jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText,
+		row.cells = []string{jobID, latestAttemptLabel, name, stage, dependsOn, statusText, executorText,
 			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts,
 			joblist.ShortenText(command, showCommandWidth)}
 		rows[index] = row
@@ -1221,7 +1218,7 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	markedStatusByID := model.QueueMarkedStatusByJobID(queue)
 	table := textTable{}
-	for _, header := range []string{"JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND"} {
+	for _, header := range []string{"JOB ID", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND"} {
 		table.columns = append(table.columns, tableColumn{header: header})
 	}
 	for _, job := range jobs {
@@ -1237,10 +1234,6 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
-		taskText := "-"
-		if job.ArrayTaskID != nil {
-			taskText = strconv.Itoa(*job.ArrayTaskID)
-		}
 		executorText := queueExecutorText(queue, job)
 		sourceRun := "-"
 		origin := originByID[job.ID]
@@ -1248,7 +1241,7 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 			sourceRun = origin.RunID + "/" + origin.JobID
 		}
 		sourceStatus := model.QueuedStatusText(origin, markedStatusByID[job.ID])
-		table.rows = append(table.rows, []string{job.ID, taskText, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " ")})
+		table.rows = append(table.rows, []string{job.ID, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " ")})
 	}
 	table.write(os.Stdout)
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
@@ -2061,8 +2054,7 @@ func printShowJobTable(table [][]string) {
 	for index, header := range table[0] {
 		columns[index] = tableColumn{header: header}
 	}
-	const statusColumn = 6
-	columns[statusColumn].color = colorShowJobStatus
+	columns[slices.Index(table[0], "STATUS")].color = colorShowJobStatus
 	textTable{columns: columns, rows: table[1:]}.write(os.Stdout)
 }
 

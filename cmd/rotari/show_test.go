@@ -1054,7 +1054,7 @@ func TestShowColorsInterruptedAndUnknownStatusesYellow(t *testing.T) {
 	}
 }
 
-func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
+func TestShowQueueDisplaysArrayTasks(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1082,7 +1082,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("showQueue exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"TASK", "STAGE", "training", "train-1", "train-2"} {
+	for _, want := range []string{"train[1]", "STAGE", "training", "train-1", "train-2"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("showQueue output does not contain %q:\n%s", want, output)
 		}
