@@ -69,9 +69,14 @@ fi
 
 ln -sf "$lsf_top/conf/profile.lsf" /etc/profile.d/lsf.sh
 set +u
+# profile.lsf may return nonzero; LSF_SERVERDIR shows whether it set up the environment.
 # shellcheck disable=SC1091
-. "$lsf_top/conf/profile.lsf"
+. "$lsf_top/conf/profile.lsf" || true
 set -u
+if [[ -z "${LSF_SERVERDIR:-}" ]]; then
+    echo "$lsf_top/conf/profile.lsf did not set LSF_SERVERDIR" >&2
+    false
+fi
 "$LSF_SERVERDIR/lsf_daemons" start
 
 echo "LSF started"
