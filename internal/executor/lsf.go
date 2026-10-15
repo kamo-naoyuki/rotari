@@ -272,8 +272,12 @@ func waitLSFJob(store state.Store, runDir string, job lsfJobMetadata) model.JobR
 			return schedulerQuery{State: state, Err: err}
 		},
 		Accounting: func() schedulerAccounting {
-			exitCode, ok, err := lsfAccounting(job.LSFJobID)
-			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Err: err}
+			exitCode, state, ok, err := lsfAccounting(job.LSFJobID)
+			accounting := schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Err: err}
+			if !ok {
+				accounting.State = state
+			}
+			return accounting
 		},
 	})
 }
@@ -298,45 +302,86 @@ func lsfJobState(jobID string) (string, error) {
 	if err != nil {
 		return "", SchedulerCommandHint("bjobs", output, err)
 	}
-	switch strings.ToUpper(strings.TrimSpace(string(output))) {
-	case "PEND":
-		return "pending", nil
-	case "RUN":
-		return "running", nil
-	case "PSUSP", "USUSP", "SSUSP":
-		return "suspended", nil
-	case "WAIT":
-		return "waiting", nil
-	case "DONE", "EXIT":
+	stat := strings.ToUpper(strings.TrimSpace(string(output)))
+	if stat == "DONE" || stat == "EXIT" {
 		// bjobs lists finished jobs until CLEAN_PERIOD passes; accounting reads their result.
 		return "", nil
-	default:
-		return strings.ToLower(strings.TrimSpace(string(output))), nil
 	}
+	if state := lsfStateName(stat); state != "" {
+		return state, nil
+	}
+	return strings.ToLower(stat), nil
 }
 
-func lsfAccounting(jobID string) (int, bool, error) {
+// lsfStateName names the bjobs STAT of a job that has not ended, or returns "".
+func lsfStateName(stat string) string {
+	switch stat {
+	case "PEND":
+		return "pending"
+	case "RUN":
+		return "running"
+	case "PSUSP", "USUSP", "SSUSP":
+		return "suspended"
+	case "WAIT":
+		return "waiting"
+	case "PROV", "UNKWN", "ZOMBI":
+		return strings.ToLower(stat)
+	}
+	return ""
+}
+
+// lsfHistoryResult matches the event that ended a job in bhist -l output. Only
+// event lines start with a time stamp; the command and the time summary,
+// which hold arbitrary text and numbers, do not.
+var lsfHistoryResult = regexp.MustCompile(`(?m)^[A-Z][a-z]{2} [A-Z][a-z]{2} +[0-9]+ [0-9:]+(?: [0-9]{4})?: (Done successfully|Exited)(.*)$`)
+
+var lsfExitCode = regexp.MustCompile(`exit code ([0-9]+)`)
+
+// lsfAccounting reads a job's result from bjobs, or from bhist once bjobs no
+// longer lists it. ok reports an ended job; otherwise a non-empty state is
+// the state of a job that has not ended.
+func lsfAccounting(jobID string) (int, string, bool, error) {
 	commands := lsfAccountingCommands(jobID)
-	output, err := runLSFCommandWithInput(nil, commands[0]...)
-	if err != nil {
-		output, err = runLSFCommandWithInput(nil, commands[1]...)
-		if err != nil {
-			return 0, false, SchedulerCommandHint("bhist", output, err)
+	if output, err := runLSFCommandWithInput(nil, commands[0]...); err == nil {
+		fields := strings.Fields(string(output))
+		if len(fields) > 0 {
+			stat := strings.ToUpper(fields[0])
+			switch {
+			case stat == "DONE":
+				return 0, "done", true, nil
+			case stat == "EXIT":
+				code := 0
+				if len(fields) > 1 {
+					code, _ = strconv.Atoi(fields[1])
+				}
+				if code == 0 {
+					code = 1
+				}
+				return code, "exit", true, nil
+			case lsfStateName(stat) != "":
+				return 0, lsfStateName(stat), false, nil
+			}
 		}
 	}
-	text := string(output)
-	if strings.Contains(text, "DONE") || strings.Contains(text, "Done successfully") {
-		return 0, true, nil
+	output, err := runLSFCommandWithInput(nil, commands[1]...)
+	if err != nil {
+		return 0, "", false, SchedulerCommandHint("bhist", output, err)
 	}
-	if match := regexp.MustCompile(`(?:EXIT|Exited)\s*\(?([0-9]+)\)?`).FindStringSubmatch(text); len(match) == 2 {
-		code, parseErr := strconv.Atoi(match[1])
-		return code, parseErr == nil, parseErr
+	matches := lsfHistoryResult.FindAllStringSubmatch(string(output), -1)
+	if len(matches) == 0 {
+		return 0, "", false, nil
 	}
-	if match := regexp.MustCompile(`\s([0-9]+)\s*$`).FindStringSubmatch(strings.TrimSpace(text)); len(match) == 2 {
-		code, parseErr := strconv.Atoi(match[1])
-		return code, parseErr == nil, parseErr
+	last := matches[len(matches)-1]
+	if last[1] == "Done successfully" {
+		return 0, "done", true, nil
 	}
-	return 0, false, nil
+	code := 1
+	if match := lsfExitCode.FindStringSubmatch(last[2]); match != nil {
+		if parsed, err := strconv.Atoi(match[1]); err == nil && parsed != 0 {
+			code = parsed
+		}
+	}
+	return code, "exit", true, nil
 }
 
 func runLSFCommand(name string, args ...string) ([]byte, error) {

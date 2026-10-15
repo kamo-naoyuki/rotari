@@ -158,7 +158,7 @@ printf 'PEND\n'
 	if err != nil || state != "pending" {
 		t.Fatalf("lsfJobState = %q, %v; want pending, nil", state, err)
 	}
-	exitCode, ok, err := lsfAccounting("123")
+	exitCode, _, ok, err := lsfAccounting("123")
 	if err != nil || !ok || exitCode != 0 {
 		t.Fatalf("lsfAccounting = %d, %v, %v; want 0, true, nil", exitCode, ok, err)
 	}
@@ -176,6 +176,109 @@ func TestLSFJobStateTreatsFinishedJobsAsEnded(t *testing.T) {
 			state, err := lsfJobState("123")
 			if err != nil || state != "" {
 				t.Fatalf("lsfJobState = %q, %v; want no queue state", state, err)
+			}
+		})
+	}
+}
+
+const lsfHistoryPending = `
+Job <2>, User <rotari>, Project <default>, Command <#BSUB -o '/state/r179204861
+                     8535565155/output';sh -c 'exit 1'>
+Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>,
+                      Output File </state/output>;
+
+
+Summary of time in seconds spent in various states by  Thu Oct 15 07:17:02
+  PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
+  1        0        0        0        0        0        1           
+`
+
+const lsfHistoryExited = `
+Job <3>, User <rotari>, Project <default>, Command <echo DONE; exit 3>
+Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>;
+Thu Oct 15 07:17:02: Dispatched 1 Task(s) on Host(s) <lsfhost>, Allocated 1 Slot
+                     (s) on Host(s) <lsfhost>, Effective RES_REQ <select[type 
+                     == any] order[r15s:pg] >;
+Thu Oct 15 07:17:02: Starting (Pid 123);
+Thu Oct 15 07:17:03: Exited with exit code 3. The CPU time used is 0.0 seconds;
+Thu Oct 15 07:17:03: Completed <exit>;
+
+
+Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
+  PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
+  1        0        1        0        0        0        2           
+`
+
+const lsfHistoryDone = `
+Job <4>, User <rotari>, Project <default>, Command <echo Exited with exit code 7>
+Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>;
+Thu Oct 15 07:17:02: Starting (Pid 123);
+Thu Oct 15 07:17:03: Done successfully. The CPU time used is 0.0 seconds;
+Thu Oct 15 07:17:03: Post job process done successfully;
+
+
+Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
+  PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
+  1        0        1        0        0        0        2           
+`
+
+const lsfHistoryKilled = `
+Job <5>, User <rotari>, Project <default>, Command <sleep 300>
+Thu Oct 15 07:17:01: Submitted from host <lsfhost>, to Queue <normal>, CWD </>;
+Thu Oct 15 07:17:02: Signal <KILL> requested by user or administrator <rotari>;
+Thu Oct 15 07:17:02: Exited by LSF signal TERM_OWNER. The CPU time used is 0.0 seconds;
+Thu Oct 15 07:17:02: Completed <exit>; TERM_OWNER: job killed by owner;
+
+
+Summary of time in seconds spent in various states by  Thu Oct 15 07:17:04
+  PEND     PSUSP    RUN      USUSP    SSUSP    UNKWN    TOTAL
+  1        0        0        0        0        0        1           
+`
+
+// A job bjobs does not list yet or any more is read from bhist, whose time
+// summary and command text hold numbers and words that are not its result.
+func TestLSFAccountingReadsOnlyTheJobResult(t *testing.T) {
+	notFound := "Job <2> is not found\n"
+	for _, test := range []struct {
+		name     string
+		bjobs    string
+		bjobsErr bool
+		bhist    string
+		code     int
+		ok       bool
+		state    string
+	}{
+		{name: "pending job missing from bjobs", bjobs: notFound, bjobsErr: true, bhist: lsfHistoryPending},
+		{name: "bjobs pending", bjobs: "PEND -\n", bhist: lsfHistoryPending, state: "pending"},
+		{name: "bjobs running", bjobs: "RUN -\n", bhist: lsfHistoryPending, state: "running"},
+		{name: "bjobs done", bjobs: "DONE -\n", code: 0, ok: true},
+		{name: "bjobs exit", bjobs: "EXIT 3\n", code: 3, ok: true},
+		{name: "bjobs exit without code", bjobs: "EXIT -\n", code: 1, ok: true},
+		{name: "bhist exited", bjobs: notFound, bjobsErr: true, bhist: lsfHistoryExited, code: 3, ok: true},
+		{name: "bhist done", bjobs: notFound, bjobsErr: true, bhist: lsfHistoryDone, code: 0, ok: true},
+		{name: "bhist killed", bjobs: notFound, bjobsErr: true, bhist: lsfHistoryKilled, code: 1, ok: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			bjobsOutput := filepath.Join(binDir, "bjobs.out")
+			bhistOutput := filepath.Join(binDir, "bhist.out")
+			if err := os.WriteFile(bjobsOutput, []byte(test.bjobs), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(bhistOutput, []byte(test.bhist), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			bjobsExit := 0
+			if test.bjobsErr {
+				bjobsExit = 255
+			}
+			writeExecutable(t, binDir, "bjobs", fmt.Sprintf("#!/bin/sh\ncat %q\nexit %d\n", bjobsOutput, bjobsExit))
+			writeExecutable(t, binDir, "bhist", fmt.Sprintf("#!/bin/sh\ncat %q\n", bhistOutput))
+			t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			code, state, ok, err := lsfAccounting("2")
+			if err != nil || ok != test.ok || code != test.code || (!ok && state != test.state) {
+				t.Fatalf("lsfAccounting = %d, %q, %v, %v; want %d, %q, %v, nil", code, state, ok, err, test.code, test.state, test.ok)
 			}
 		})
 	}
