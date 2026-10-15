@@ -62,7 +62,7 @@ func TestCollectRunStopsAtOldCompletedRun(t *testing.T) {
 	}
 	writeTestJobsRun(t, baseDir, "demo", "20260920-090000-00000001", "old-job", now.Add(-48*time.Hour), now.Add(-25*time.Hour), 0)
 
-	rows, include, stop, err := collectRun(testStore(), paths, "20260920-090000-00000001", now, now.Add(-24*time.Hour))
+	rows, include, stop, err := collectRun(testStore(), paths, "20260920-090000-00000001", false, now, now.Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCollectRunIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t *tes
 		t.Fatal(err)
 	}
 
-	rows, include, stop, err := collectRun(testStore(), paths, runID, now, now.Add(-24*time.Hour))
+	rows, include, stop, err := collectRun(testStore(), paths, runID, false, now, now.Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestCollectRunUsesCarriedStatusAndOriginTimestamps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, _, _, err := collectRun(testStore(), paths, runID, now, now.Add(-24*time.Hour))
+	rows, _, _, err := collectRun(testStore(), paths, runID, false, now, now.Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

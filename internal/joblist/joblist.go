@@ -128,8 +128,8 @@ func Projects(baseDir, requested string) ([]string, error) {
 func Collect(store state.Store, baseDir string, projects []string, now time.Time, window time.Duration) ([]Row, error) {
 	cutoff := now.Add(-window)
 	rows := make([]Row, 0)
-	for _, project := range projects {
-		paths, err := state.ResolveProjectPaths(baseDir, project)
+	for _, projectName := range projects {
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +138,7 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 			if os.IsNotExist(err) {
 				continue
 			}
-			return nil, fmt.Errorf("failed to read runs for project %q: %w", project, err)
+			return nil, fmt.Errorf("failed to read runs for project %q: %w", projectName, err)
 		}
 		runs := make([]os.DirEntry, 0, len(runEntries))
 		for _, entry := range runEntries {
@@ -147,8 +147,12 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 			}
 		}
 		sort.SliceStable(runs, func(left, right int) bool { return runs[left].Name() > runs[right].Name() })
+		activeRunID := ""
+		if lockState, lock, err := project.InspectRunLock(paths); err == nil && (lockState == state.LockActive || lockState == state.LockRemote) {
+			activeRunID = lock.RunID
+		}
 		for _, run := range runs {
-			runRows, include, _, err := collectRun(store, paths, run.Name(), now, cutoff)
+			runRows, include, _, err := collectRun(store, paths, run.Name(), run.Name() == activeRunID, now, cutoff)
 			if err != nil {
 				return nil, err
 			}
@@ -162,14 +166,13 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 	return rows, nil
 }
 
-func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]Row, bool, bool, error) {
+func collectRun(store state.Store, paths state.ProjectPaths, runID string, active bool, now, cutoff time.Time) ([]Row, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	run, err := state.LoadRunSnapshot(runDir)
 	if err != nil {
 		return nil, false, false, err
 	}
 	summary, summaryErr := run.Summary, run.SummaryErr
-	active := project.RunActive(paths, runID)
 	if summaryErr == nil && !active {
 		finishedAt, err := parseTimestamp(summary.FinishedAt)
 		if err == nil && finishedAt.Before(cutoff) {

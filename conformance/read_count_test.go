@@ -63,18 +63,18 @@ func TestReadCountsStayBounded(t *testing.T) {
 		bounds map[string]int
 	}{
 		{name: "show executed run", args: []string{"show", "-p", "reads", "-r", executed}, bounds: readBounds(map[string]int{
-			"list attempts": 9, "open attempt/command.json": 4, "open attempt/status.json": 3, "stat attempt": 3,
-			"open project/meta.json": 5, "open project/running.lock": 5, "open run/commands.json": 8, "open run/summary.json": 7,
+			"list attempts": 8, "open attempt/command.json": 3, "open attempt/status.json": 3, "stat attempt": 3,
+			"open project/meta.json": 5, "open project/running.lock": 5, "open run/commands.json": 3, "open run/summary.json": 5,
 		})},
 		{name: "show latest run", args: []string{"show", "-p", "reads"}, bounds: readBounds(map[string]int{
-			"list attempts": 9, "list runs": 3, "open attempt/command.json": 4, "open attempt/status.json": 3, "stat attempt": 3, "stat job": 3,
+			"list attempts": 8, "list runs": 3, "open attempt/command.json": 3, "open attempt/status.json": 3, "stat attempt": 3, "stat job": 3,
 			"open project/meta.json": 8, "open project/queue.json": 3, "open project/running.lock": 7,
-			"open run/commands.json": 12, "open run/summary.json": 8, "stat run": 9,
+			"open run/commands.json": 7, "open run/summary.json": 6, "stat run": 9,
 		})},
 		{name: "jobs", args: []string{"jobs"}, bounds: readBounds(map[string]int{"list attempts": 4, "stat run": 4})},
 		{name: "jobs running only", args: []string{"jobs", "--since", "0"}, bounds: readBounds(nil)},
 		{name: "runs", args: []string{"runs"}, bounds: readBounds(nil)},
-		{name: "info", args: []string{"info", "-p", "reads"}, bounds: readBounds(map[string]int{"open project/running.lock": 3})},
+		{name: "info", args: []string{"info", "-p", "reads"}, bounds: readBounds(nil)},
 		{name: "lineage", args: []string{"lineage", "-p", "reads"}, bounds: readBounds(map[string]int{"stat run": 4})},
 	} {
 		t.Run(test.name, func(t *testing.T) {

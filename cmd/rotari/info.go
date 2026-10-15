@@ -239,8 +239,19 @@ func infoProjectRuns(name string, paths state.ProjectPaths) ([]infoRun, error) {
 		return nil, fmt.Errorf("list runs for project %q: %w", name, err)
 	}
 	runs := make([]infoRun, 0)
+	var inspection *project.Inspection
 	for _, entry := range entries {
-		run, active, err := inspectInfoRun(name, paths, entry)
+		if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
+			continue
+		}
+		if inspection == nil {
+			inspected, err := project.Inspect(paths)
+			if err != nil {
+				return nil, fmt.Errorf("inspect run %q in project %q: %w", entry.Name(), name, err)
+			}
+			inspection = &inspected
+		}
+		run, active, err := inspectInfoRun(name, paths, *inspection, entry.Name())
 		if err != nil {
 			return nil, err
 		}
@@ -251,26 +262,22 @@ func infoProjectRuns(name string, paths state.ProjectPaths) ([]infoRun, error) {
 	return runs, nil
 }
 
-func inspectInfoRun(name string, paths state.ProjectPaths, entry os.DirEntry) (infoRun, bool, error) {
-	if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
-		return infoRun{}, false, nil
-	}
-	phase, err := project.RunPhaseOf(paths, entry.Name())
-	if err != nil {
-		return infoRun{}, false, fmt.Errorf("inspect run %q in project %q: %w", entry.Name(), name, err)
-	}
+// inspectInfoRun reports runID when it is the project's running or
+// interrupted run; no other run can be, so no summary is read.
+func inspectInfoRun(name string, paths state.ProjectPaths, inspection project.Inspection, runID string) (infoRun, bool, error) {
+	phase := project.PhaseFrom(inspection, runID, false)
 	if phase != project.RunPhaseRunning && phase != project.RunPhaseInterrupted {
 		return infoRun{}, false, nil
 	}
-	runDir, err := state.SafeJoin(paths.RunsDir, entry.Name())
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return infoRun{}, false, err
 	}
 	jobs, err := infoRunJobLiveness(runDir)
 	if err != nil {
-		return infoRun{}, false, fmt.Errorf("inspect jobs in run %q for project %q: %w", entry.Name(), name, err)
+		return infoRun{}, false, fmt.Errorf("inspect jobs in run %q for project %q: %w", runID, name, err)
 	}
-	return infoRun{Project: name, RunID: entry.Name(), Phase: phase, Jobs: jobs}, true, nil
+	return infoRun{Project: name, RunID: runID, Phase: phase, Jobs: jobs}, true, nil
 }
 
 func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
