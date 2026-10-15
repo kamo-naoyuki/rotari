@@ -103,12 +103,17 @@ func (project containerProject) shellAs(user string, timeout time.Duration, scri
 // rotariCommand runs rotari with the project's basedir.
 func (project containerProject) rotariCommand(timeout time.Duration, args ...string) (string, int) {
 	project.t.Helper()
+	return project.shell(timeout, project.rotariShell(args...))
+}
+
+// rotariShell is the shell command line that runs rotari with the project's basedir.
+func (project containerProject) rotariShell(args ...string) string {
 	quoted := make([]string, 0, len(args))
 	for _, arg := range args {
 		quoted = append(quoted, executor.ShellQuote(arg))
 	}
 	env := "ROTARI_BASEDIR=" + executor.ShellQuote(project.baseDir) + " ROTARI_MASTERDIR=" + executor.ShellQuote(project.baseDir+"/master")
-	return project.shell(timeout, env+" "+executor.ShellQuote(project.rotari)+" "+strings.Join(quoted, " "))
+	return env + " " + executor.ShellQuote(project.rotari) + " " + strings.Join(quoted, " ")
 }
 
 // add queues a job for the scheduler under test.
@@ -120,11 +125,20 @@ func (project containerProject) add(args ...string) {
 	}
 }
 
-// run starts the queue synchronously and returns its exit code.
+// run starts the queue synchronously and returns its exit code. A run that
+// does not finish in time is reported with a bug-report of its jobs.
 func (project containerProject) run(args ...string) int {
 	project.t.Helper()
 	full := append([]string{"run", "-p", "p"}, args...)
-	output, code := project.rotariCommand(4*time.Minute, full...)
+	// KILL detaches the client without cancelling the jobs, so the report shows them as they were.
+	script := "timeout -s KILL 210 " + project.rotariShell(full...) + `
+code=$?
+if [ "$code" -eq 137 ]; then
+    echo "== rotari run did not finish in 210s"
+    ` + project.rotariShell("bug-report", "-p", "p", "--no-redact") + `
+fi
+exit "$code"`
+	output, code := project.shell(4*time.Minute, script)
 	project.t.Logf("rotari %v exit = %d\n%s", full, code, output)
 	return code
 }
