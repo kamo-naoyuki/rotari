@@ -78,3 +78,40 @@
   `lineage -p p1` 329 → 299, `show -p p1 -r FIRST` 584 → 532; wall times
   were too noisy on this shared NFS to compare.
 - **Remaining:** Phases 2–6.
+
+## 2026-10-15 13:38:42 +0900 — `9ab3a858`: Phase 2 attempt-level files
+
+- **Change:** `state.LatestAttempt` lists a job's `attempts/` once and
+  returns the latest attempt ID with the directory holding its state;
+  `show`'s run table and single-job view, `show --json`'s job resolution,
+  `jobs`, `runview.LoadRun`, the Web loader, and rerun planning use it
+  instead of calling `LatestAttemptJobDir` and `LatestAttemptID` in turn.
+  `jobstatus.Timestamps` takes that directory, so reading a job's times no
+  longer lists `attempts/` twice more. `jobfilter.Job.LoadAttributes` makes
+  a job's execution attributes lazy: `jobstatus.FilterJob` locates the
+  attempt and reads its files only for a filter with host or time
+  conditions (`Filter.Selects` skips them otherwise), where `show` read them
+  for every job. `show`'s run table reads each attempt's `command.json`
+  once, in `runJobSpecs`, and takes the executor and command from it, and
+  the single-job view reads only its own job's `command.json` (`runJobSpec`)
+  instead of every job's. The read-count test gained a `show -j JOB` case
+  bounded to one job's files.
+- **Reason:** Phase 2, D2 (attempt location and facts) and D3 (lazy
+  optional facts).
+- **Plan impact:** the attempt-facts value of D2 was not needed: once each
+  attempt is located once and filters read lazily, the remaining repeats are
+  the run table plus the failure grouping, which loads the run again
+  through `runview.LoadRun` (each attempt's status files are read twice),
+  and per-invocation reads of the project and run files (lifecycle, client
+  status, report). Phase 3 can take those as they are; merging the failure
+  grouping into the table's pass is left open.
+- **Validation:** unit tests of the touched packages passed; `cmd/rotari`
+  failed only its two Node tests. Full `go test ./conformance/...` failed
+  only `TestShowReportsElapsedAndQuietTime` (NFS clock skew) and
+  `TestStaticExportPagesShowWhatLivePagesShow` (old Node). The read-count
+  test passed four runs after its single-job case was made to pick a job
+  directory with attempts (the run directory also has `configs/`). Script
+  counts on NFS (opens / directory listings): `show -p p1 -r FIRST`
+  532 / 171 → 301 / 45, `jobs` 996 / 303 → 765 / 84, `lineage -p p1`
+  299 / 72 → 264 / 37, `show -p p1` 75 / 13 → 64 / 7.
+- **Remaining:** Phases 3–6.
