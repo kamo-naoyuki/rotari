@@ -131,7 +131,7 @@ func (project containerProject) run(args ...string) int {
 	project.t.Helper()
 	full := append([]string{"run", "-p", "p"}, args...)
 	// KILL detaches the client without cancelling the jobs, so the report shows them as they were.
-	script := "timeout -s KILL 210 " + project.rotariShell(full...) + `
+	script := "timeout -s KILL 210 env " + project.rotariShell(full...) + `
 code=$?
 if [ "$code" -eq 137 ]; then
     echo "== rotari run did not finish in 210s"
