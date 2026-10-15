@@ -11,10 +11,10 @@ import (
 
 // Timestamps returns a job's submitted and finished times. A carried result
 // uses timestamps from its origin; a job executed in this run uses only its
-// own attempt timestamps.
-func Timestamps(runDir, jobID string, origin *model.JobOrigin, carried bool) (submittedAt, finishedAt string) {
+// own latest attempt's, read from jobDir as state.LatestAttempt returns it.
+func Timestamps(runDir, jobDir string, origin *model.JobOrigin, carried bool) (submittedAt, finishedAt string) {
 	if !carried || origin == nil {
-		return state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
+		return state.ResolveAttemptTimestamp(jobDir, "submitted_at"), state.ResolveAttemptTimestamp(jobDir, "finished_at")
 	}
 	return resolveOriginTimestamps(origin.SubmittedAt, origin.FinishedAt, origin, func(runID, sourceJobID string) (string, string) {
 		sourceRunDir, err := state.SafeJoin(filepath.Dir(runDir), runID)

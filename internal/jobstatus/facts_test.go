@@ -33,13 +33,14 @@ func TestFilterJobFollowsCarriedOrigin(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			job := FilterJob(testStore(), runsDir, origin, "queued", result, true, time.Time{})
-			if job.ID != "queued" || !reflect.DeepEqual(job.Attributes.Hosts, []string{"node1"}) {
-				t.Fatalf("job = %+v, want ID queued on node1", job)
+			attributes := job.ExecutionAttributes()
+			if job.ID != "queued" || !reflect.DeepEqual(attributes.Hosts, []string{"node1"}) {
+				t.Fatalf("job = %+v, attributes = %+v, want ID queued on node1", job, attributes)
 			}
-			if got := job.Attributes.StartedAt.Format(time.RFC3339); got != "2026-01-01T00:00:10Z" {
+			if got := attributes.StartedAt.Format(time.RFC3339); got != "2026-01-01T00:00:10Z" {
 				t.Fatalf("started = %s", got)
 			}
-			if got := job.Attributes.FinishedAt.Format(time.RFC3339); got != "2026-01-01T00:00:20Z" {
+			if got := attributes.FinishedAt.Format(time.RFC3339); got != "2026-01-01T00:00:20Z" {
 				t.Fatalf("finished = %s", got)
 			}
 			if !job.Diagnosis([]string{"cuda-gpu-memory-exhausted"}) {
@@ -53,8 +54,9 @@ func TestFilterJobPrefersResultHostsAndCarriedTimes(t *testing.T) {
 	runsDir := t.TempDir()
 	origin := model.JobOrigin{RunID: "20260101-000000-aaaaaaaa", JobID: "gone", SubmittedAt: "2026-01-01T00:00:00Z", FinishedAt: "2026-01-01T00:01:00Z"}
 	job := FilterJob(testStore(), runsDir, origin, "gone", model.JobResult{ExitCode: 1, Hosts: []string{"summary-host"}}, true, time.Time{})
-	if !reflect.DeepEqual(job.Attributes.Hosts, []string{"summary-host"}) || job.Attributes.StartedAt.IsZero() || job.Attributes.FinishedAt.IsZero() {
-		t.Fatalf("attributes = %+v, want summary hosts and the carry's times", job.Attributes)
+	attributes := job.ExecutionAttributes()
+	if !reflect.DeepEqual(attributes.Hosts, []string{"summary-host"}) || attributes.StartedAt.IsZero() || attributes.FinishedAt.IsZero() {
+		t.Fatalf("attributes = %+v, want summary hosts and the carry's times", attributes)
 	}
 	if job.Diagnosis([]string{"cuda-gpu-memory-exhausted"}) {
 		t.Fatal("diagnosis matched without a log")

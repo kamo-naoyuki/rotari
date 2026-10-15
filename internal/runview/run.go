@@ -58,14 +58,13 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s context: %w", runID, err)
 	}
 	for _, spec := range model.QueueToJobs(commands.Commands) {
-		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
+		attemptID, jobDir, err := state.LatestAttempt(runDir, spec.ID)
 		if err != nil {
 			return runlineage.Run{}, fmt.Errorf("invalid job ID %q: %w", spec.ID, err)
 		}
 		summaryResult, hasSummary := results[spec.ID]
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
 		status := LineageStatus(resolved)
-		attemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		origin := origins[spec.ID]
 		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked(), hasSummary)
 		diagnoses := make([]string, 0, len(summaryResult.Diagnoses))

@@ -878,7 +878,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		return 1
 	}
 	runQueue, runQueueErr := files.Queue()
-	jobSpecs := runJobSpecs(runDir, runQueue, runQueueErr)
+	jobSpecs, attempts := runJobSpecs(runDir, runQueue, runQueueErr)
 	scoped, err := scopedJobIDs(runScopeCommands(runQueue, runQueueErr, jobSpecs), filter.scope, filter.filter)
 	if err != nil {
 		printErrorf("run %s: %v", runID, err)
@@ -971,15 +971,20 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
 	now := time.Now()
 	for _, jobID := range jobIDs {
-		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
-		if err != nil {
-			continue
+		latest, listed := attempts[jobID]
+		if !listed {
+			attemptID, jobDir, err := state.LatestAttempt(runDir, jobID)
+			if err != nil {
+				continue
+			}
+			latest = latestAttempt{id: attemptID, dir: jobDir}
 		}
+		jobDir := latest.dir
 		jobSpec := jobSpecs[jobID]
 		if scoped != nil && !scoped[jobID] {
 			continue
 		}
-		latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
+		latestAttemptID := latest.id
 		latestAttemptLabel := latestAttemptID
 		if latestAttemptLabel == "" {
 			latestAttemptLabel = "-"
@@ -1013,13 +1018,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		summaryResult, hasSummary := resultByID[jobSpec.ID]
 		resolved := jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)
 		status, statusOK, blocked := resolved.ExitCode, resolved.Finished(), resolved.Blocked()
-		// An attempt records the executor it ran on, which a run-level
-		// --executor can make differ from the job's definition.
-		executorSpec := jobSpec
-		if recorded := state.ReadAttemptExecutor(jobDir); recorded != "" {
-			executorSpec.Executor = recorded
-		}
-		executorText := queueExecutorText(runQueue, executorSpec)
+		// An attempt's command.json, which jobSpecs holds for it, records the
+		// executor it ran on, which a run-level --executor can make differ
+		// from the job's definition.
+		executorText := queueExecutorText(runQueue, jobSpec)
 		jobResult, _ := resolved.Result(jobSpec)
 		origin := originByID[jobID]
 		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
@@ -1052,7 +1054,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			continue
 		}
 		displayed[jobID] = true
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobDir, origin, carried)
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
 		}
@@ -1060,10 +1062,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if resolvedHosts := resolved.Hosts(); len(resolvedHosts) > 0 {
 			hosts = strings.Join(resolvedHosts, ",")
 		}
-		command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
-		if command == "" {
-			command = strings.Join(jobSpec.Command, " ")
-		}
+		command := strings.Join(jobSpec.Command, " ")
 		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
 		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
 		table = append(table, []string{jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText,
@@ -1362,13 +1361,40 @@ func colorExecutor(executor string) string {
 
 func loadRunJobSpecs(runDir string) map[string]model.JobSpec {
 	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
-	return runJobSpecs(runDir, queue, err)
+	specs, _ := runJobSpecs(runDir, queue, err)
+	return specs
+}
+
+// latestAttempt is a job's latest attempt ID and the directory holding its
+// state, as state.LatestAttempt returns them.
+type latestAttempt struct{ id, dir string }
+
+// runJobSpec is runJobSpecs for one job, whose latest attempt's state is in
+// latestDir: only that job's command.json is read. ok reports whether the
+// run has the job.
+func runJobSpec(queue model.Queue, queueErr error, jobID, latestDir string) (spec model.JobSpec, ok bool) {
+	if queueErr == nil {
+		for _, job := range model.QueueToJobs(queue.Commands) {
+			if job.ID == jobID {
+				spec, ok = job, true
+				break
+			}
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(latestDir, commandJSONName)); err == nil {
+		var job model.JobSpec
+		if json.Unmarshal(data, &job) == nil {
+			return job, true
+		}
+	}
+	return spec, ok
 }
 
 // runJobSpecs is loadRunJobSpecs from the run's command snapshot as already
-// read.
-func runJobSpecs(runDir string, queue model.Queue, queueErr error) map[string]model.JobSpec {
+// read. It also returns the latest attempt of each job directory it listed.
+func runJobSpecs(runDir string, queue model.Queue, queueErr error) (map[string]model.JobSpec, map[string]latestAttempt) {
 	specs := make(map[string]model.JobSpec)
+	attempts := make(map[string]latestAttempt)
 	if queueErr == nil {
 		for _, job := range model.QueueToJobs(queue.Commands) {
 			specs[job.ID] = job
@@ -1376,16 +1402,17 @@ func runJobSpecs(runDir string, queue model.Queue, queueErr error) map[string]mo
 	}
 	entries, err := os.ReadDir(runDir)
 	if err != nil {
-		return specs
+		return specs, attempts
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		jobDir, err := state.LatestAttemptJobDir(runDir, entry.Name())
+		attemptID, jobDir, err := state.LatestAttempt(runDir, entry.Name())
 		if err != nil {
 			continue
 		}
+		attempts[entry.Name()] = latestAttempt{id: attemptID, dir: jobDir}
 		data, err := os.ReadFile(filepath.Join(jobDir, commandJSONName))
 		if err != nil {
 			continue
@@ -1395,7 +1422,7 @@ func runJobSpecs(runDir string, queue model.Queue, queueErr error) map[string]mo
 			specs[entry.Name()] = job
 		}
 	}
-	return specs
+	return specs, attempts
 }
 
 func showJob(writer io.Writer, paths state.ProjectPaths, runID, jobID string) int {
@@ -1411,26 +1438,28 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	jobDir, err := state.LatestAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID)
+	runDir := filepath.Join(paths.RunsDir, runID)
+	latestAttemptID, latestDir, err := state.LatestAttempt(runDir, jobID)
+	jobDir := latestDir
 	if attemptID != "" {
-		jobDir, err = state.SpecificAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID, attemptID)
+		jobDir, err = state.SpecificAttemptJobDir(runDir, jobID, attemptID)
 	}
 	if err != nil {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := state.CheckRunVersions(runDir); err != nil {
+	files, err := state.LoadRunSnapshot(runDir)
+	if err != nil {
 		printErrorf("failed to read run: %v", err)
 		return 1
 	}
-	jobSpecs := loadRunJobSpecs(runDir)
+	runQueue, runQueueErr := files.Queue()
+	jobSpec, inRun := runJobSpec(runQueue, runQueueErr, jobID, latestDir)
 	// A job of the run that never started, such as one blocked by a failed
 	// dependency, has no attempt directory; its summary result decides it.
-	_, inRun := jobSpecs[jobID]
 	neverRan := false
 	if info, err := os.Stat(jobDir); err != nil || !info.IsDir() {
-		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
+		if origin := runQueue.OriginOf(jobID); runQueueErr == nil && origin != nil {
 			if runResultAccepted(runDir, jobID) {
 				// The destination result is an accepted success; the source
 				// details below keep the original attempt and exit code.
@@ -1458,7 +1487,6 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		clientStatus = model.RunClientStatus{State: "unknown"}
 	}
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Lifecycle:"), colorRunLifecycle(lifecycle), cyan("Client:"), colorClientStatus(runview.ClientStatusLabel(clientStatus)))
-	latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
 		selectedAttemptID = latestAttemptID
@@ -1486,15 +1514,15 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	name := state.ReadJobName(jobDir)
 	if name == "" {
-		name = jobSpecs[jobID].Name
+		name = jobSpec.Name
 	}
 	if name != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Name:"), name)
 	}
-	if stage := jobSpecs[jobID].Stage; stage != "" {
+	if stage := jobSpec.Stage; stage != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Stage:"), stage)
 	}
-	executor, options := jobSpecs[jobID].Executor, jobSpecs[jobID].ExecutorOptions
+	executor, options := jobSpec.Executor, jobSpec.ExecutorOptions
 	if executor == "" {
 		executor = "local"
 	}
@@ -1502,16 +1530,16 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if len(options) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Executor options:"), strings.Join(options, " "))
 	}
-	if dependencies := model.FormatDependencies(jobSpecs[jobID].DependsOn, jobSpecs[jobID].DependsOnFinished, ", "); dependencies != "" {
+	if dependencies := model.FormatDependencies(jobSpec.DependsOn, jobSpec.DependsOnFinished, ", "); dependencies != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), dependencies)
 	}
-	if timeout := jobSpecs[jobID].Timeout; timeout != "" {
+	if timeout := jobSpec.Timeout; timeout != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Timeout:"), timeout)
 	}
-	if retry := model.FormatRetryPolicy(jobSpecs[jobID]); retry != "" {
+	if retry := model.FormatRetryPolicy(jobSpec); retry != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Retry:"), retry)
 	}
-	submittedAt, finishedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
+	submittedAt, finishedAt := state.ResolveAttemptTimestamp(latestDir, "submitted_at"), state.ResolveAttemptTimestamp(latestDir, "finished_at")
 	if !latest {
 		submittedAt, finishedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at"), state.ReadAttemptTimestamp(jobDir, "finished_at")
 	}
@@ -1520,9 +1548,9 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(submittedAt))
 	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(finishedAt))
-	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
+	summaryResult, hasSummary := jobstatus.RecordedResults(files)[jobSpec.ID]
 	resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, summaryResult, hasSummary)
-	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), colorJobStatus(resolved.DisplayStatus(jobSpecs[jobID])))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Execution state:"), colorJobStatus(resolved.DisplayStatus(jobSpec)))
 	if !neverRan {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Elapsed:"), showJobElapsed(submittedAt, finishedAt, resolved.Finished(), jobDir, time.Now()))
 	}
@@ -1538,7 +1566,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
 	if neverRan {
-		command = strings.Join(jobSpecs[jobID].Command, " ")
+		command = strings.Join(jobSpec.Command, " ")
 	}
 	if resolved.HasSummary {
 		writeJobDiagnoses(writer, resolved.Summary)

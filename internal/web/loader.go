@@ -181,14 +181,13 @@ func LoadJobs(store state.Store, runDir string, files state.RunSnapshot, selecte
 	jobs := make([]Job, 0, len(taskJobs))
 	for _, jobSpec := range taskJobs {
 		selected := jobSpec.ID == selectedJobID
-		jobDir, pathErr := state.LatestAttemptJobDir(runDir, jobSpec.ID)
+		latestAttemptID, jobDir, pathErr := state.LatestAttempt(runDir, jobSpec.ID)
 		if selected {
 			jobDir, pathErr = state.SpecificAttemptJobDir(runDir, jobSpec.ID, selectedAttemptID)
 		}
 		if pathErr != nil {
 			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
 		}
-		latestAttemptID, _ := state.LatestAttemptID(runDir, jobSpec.ID)
 		origin := origins[jobSpec.ID]
 		summaryResult, hasSummary := results[jobSpec.ID]
 		attemptID := jobSpec.AttemptID
@@ -215,7 +214,7 @@ func LoadJobs(store state.Store, runDir string, files state.RunSnapshot, selecte
 			job.SubmittedAt = state.ResolveAttemptTimestamp(jobDir, "submitted_at")
 			job.FinishedAt = state.ResolveAttemptTimestamp(jobDir, "finished_at")
 		} else {
-			job.SubmittedAt, job.FinishedAt = jobstatus.Timestamps(runDir, jobSpec.ID, origin, job.Carried)
+			job.SubmittedAt, job.FinishedAt = jobstatus.Timestamps(runDir, jobDir, origin, job.Carried)
 		}
 		if result, ok := resolved.Result(jobSpec); ok {
 			if selected {

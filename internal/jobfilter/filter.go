@@ -130,9 +130,26 @@ type Job struct {
 	Result     model.JobResult
 	Finished   bool
 	Attributes Attributes
+	// LoadAttributes, when set, reads Attributes instead. It is called only
+	// for a filter with host or time conditions.
+	LoadAttributes func() Attributes
 	// Diagnosis reports whether the job's diagnosis matches any selector. It
 	// is called only for a filter with diagnosis conditions; nil never matches.
 	Diagnosis func(selectors []string) bool
+}
+
+// ExecutionAttributes returns the job's Attributes, read through
+// LoadAttributes when it is set.
+func (job Job) ExecutionAttributes() Attributes {
+	if job.LoadAttributes != nil {
+		return job.LoadAttributes()
+	}
+	return job.Attributes
+}
+
+// hasAttributeConditions reports whether MatchesAttributes reads anything.
+func (filter Filter) hasAttributeConditions() bool {
+	return len(filter.Hosts) > 0 || filter.StartedAfter != nil || filter.StartedBefore != nil || filter.FinishedAfter != nil || filter.FinishedBefore != nil || filter.LongerThan > 0 || filter.ShorterThan > 0
 }
 
 // Selects reports whether job is selected by a result selection and every
@@ -147,7 +164,7 @@ func (filter Filter) Selects(selection string, job Job) bool {
 	if (len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0) && !filter.matchesResult(job.Result, job.Finished) {
 		return false
 	}
-	if !filter.MatchesDefinition(job.ID) || !filter.MatchesAttributes(job.Attributes) {
+	if !filter.MatchesDefinition(job.ID) || filter.hasAttributeConditions() && !filter.MatchesAttributes(job.ExecutionAttributes()) {
 		return false
 	}
 	if len(filter.Diagnoses) > 0 && (job.Diagnosis == nil || !job.Diagnosis(filter.Diagnoses)) {

@@ -22,23 +22,37 @@ const maxCarryDepth = 16
 // ID for definition conditions. Hosts recorded on result take precedence over
 // the attempt's, and times the carry records fill in ones the attempt lacks.
 func FilterJob(store state.Store, runsDir string, origin model.JobOrigin, id string, result model.JobResult, finished bool, now time.Time) jobfilter.Job {
-	attemptDir, carries := locateAttempt(runsDir, origin, 0)
-	attributes := AttemptAttributes(store, attemptDir, now)
-	if len(result.Hosts) > 0 {
-		attributes.Hosts = result.Hosts
-	}
-	for _, carry := range append([]model.JobOrigin{origin}, carries...) {
-		if attributes.StartedAt.IsZero() {
-			attributes.StartedAt, _ = jobfilter.ParseTimestamp(carry.SubmittedAt)
+	// The attempt is located, and its files read, only for a filter that
+	// asks for them.
+	var located bool
+	var attemptDir string
+	var carries []model.JobOrigin
+	locate := func() string {
+		if !located {
+			attemptDir, carries = locateAttempt(runsDir, origin, 0)
+			located = true
 		}
-		if attributes.FinishedAt.IsZero() {
-			attributes.FinishedAt, _ = jobfilter.ParseTimestamp(carry.FinishedAt)
-		}
+		return attemptDir
 	}
 	return jobfilter.Job{
-		ID: id, Result: result, Finished: finished, Attributes: attributes,
+		ID: id, Result: result, Finished: finished,
+		LoadAttributes: func() jobfilter.Attributes {
+			attributes := AttemptAttributes(store, locate(), now)
+			if len(result.Hosts) > 0 {
+				attributes.Hosts = result.Hosts
+			}
+			for _, carry := range append([]model.JobOrigin{origin}, carries...) {
+				if attributes.StartedAt.IsZero() {
+					attributes.StartedAt, _ = jobfilter.ParseTimestamp(carry.SubmittedAt)
+				}
+				if attributes.FinishedAt.IsZero() {
+					attributes.FinishedAt, _ = jobfilter.ParseTimestamp(carry.FinishedAt)
+				}
+			}
+			return attributes
+		},
 		Diagnosis: func(selectors []string) bool {
-			log, err := ReadLog(attemptDir)
+			log, err := ReadLog(locate())
 			return err == nil && diagnose.MatchesResultSelectors(selectors, result, log)
 		},
 	}

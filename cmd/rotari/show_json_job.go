@@ -117,14 +117,13 @@ func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[str
 	results := jobstatus.RecordedResults(files)
 	entries := make([]showJSONJob, 0, len(selected))
 	for _, spec := range selected {
-		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
+		latestAttemptID, jobDir, err := state.LatestAttempt(runDir, spec.ID)
 		if attemptID != "" {
 			jobDir, err = state.SpecificAttemptJobDir(runDir, spec.ID, attemptID)
 		}
 		if err != nil {
 			return nil, err
 		}
-		latestAttemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		latest := attemptID == "" || attemptID == latestAttemptID
 		saved, hasSummary := results[spec.ID]
 		resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, saved, hasSummary)

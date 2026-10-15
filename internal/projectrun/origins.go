@@ -240,7 +240,7 @@ func unsummarizedRunResults(store state.Store, runDir string) (map[string]model.
 	recorded := jobstatus.RecordedResults(files)
 	results := make(map[string]model.JobResult)
 	for _, spec := range model.QueueToJobs(commands.Commands) {
-		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
+		latestAttemptID, jobDir, err := state.LatestAttempt(runDir, spec.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +250,7 @@ func unsummarizedRunResults(store state.Store, runDir string) (map[string]model.
 			continue
 		}
 		if !carried {
-			result.AttemptID, _ = state.LatestAttemptID(runDir, spec.ID)
+			result.AttemptID = latestAttemptID
 		}
 		results[spec.ID] = result
 	}

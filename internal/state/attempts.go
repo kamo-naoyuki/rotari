@@ -71,15 +71,23 @@ func AttemptJobDir(runDir string, job model.JobSpec) (string, error) {
 }
 
 func LatestAttemptJobDir(runDir, jobID string) (string, error) {
-	jobDir, err := SafeJoin(runDir, jobID)
+	_, jobDir, err := LatestAttempt(runDir, jobID)
+	return jobDir, err
+}
+
+// LatestAttempt lists jobID's attempts once and returns the latest attempt's
+// ID, "" when there is none, and the directory holding the job's state: that
+// attempt's directory, or the job directory without one.
+func LatestAttempt(runDir, jobID string) (attemptID, jobDir string, err error) {
+	jobDir, err = SafeJoin(runDir, jobID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	attemptID, err := LatestAttemptID(runDir, jobID)
+	attemptID, err = LatestAttemptID(runDir, jobID)
 	if err != nil || attemptID == "" {
-		return jobDir, nil
+		return "", jobDir, nil
 	}
-	return filepath.Join(jobDir, "attempts", attemptID), nil
+	return attemptID, filepath.Join(jobDir, "attempts", attemptID), nil
 }
 
 func LatestAttemptID(runDir, jobID string) (string, error) {

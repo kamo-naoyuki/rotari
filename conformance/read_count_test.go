@@ -56,6 +56,19 @@ func TestReadCountsStayBounded(t *testing.T) {
 	if executed == latest.RunID {
 		executed = runs[1].Name()
 	}
+	jobDirs, err := os.ReadDir(filepath.Join(e.base, "projects", "reads", "runs", executed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oneJob := ""
+	for _, entry := range jobDirs {
+		if info, err := os.Stat(filepath.Join(e.base, "projects", "reads", "runs", executed, entry.Name(), "attempts")); err == nil && info.IsDir() {
+			oneJob = entry.Name()
+		}
+	}
+	if oneJob == "" {
+		t.Fatalf("run %s has no job with an attempt", executed)
+	}
 
 	for _, test := range []struct {
 		name   string
@@ -63,24 +76,29 @@ func TestReadCountsStayBounded(t *testing.T) {
 		bounds map[string]int
 	}{
 		{name: "show executed run", args: []string{"show", "-p", "reads", "-r", executed}, bounds: readBounds(map[string]int{
-			"list attempts": 8, "open attempt/command.json": 3, "open attempt/status.json": 3, "stat attempt": 3,
 			"open project/meta.json": 5, "open project/running.lock": 5, "open run/commands.json": 3, "open run/summary.json": 5,
 		})},
 		{name: "show latest run", args: []string{"show", "-p", "reads"}, bounds: readBounds(map[string]int{
-			"list attempts": 8, "list runs": 3, "open attempt/command.json": 3, "open attempt/status.json": 3, "stat attempt": 3, "stat job": 3,
-			"open project/meta.json": 8, "open project/queue.json": 3, "open project/running.lock": 7,
-			"open run/commands.json": 7, "open run/summary.json": 6, "stat run": 9,
+			"list runs": 3, "open project/meta.json": 8, "open project/queue.json": 3, "open project/running.lock": 7,
+			"open run/commands.json": 3, "open run/summary.json": 6, "stat run": 9,
 		})},
-		{name: "jobs", args: []string{"jobs"}, bounds: readBounds(map[string]int{"list attempts": 4, "stat run": 4})},
+		{name: "jobs", args: []string{"jobs"}, bounds: readBounds(map[string]int{"stat run": 4})},
 		{name: "jobs running only", args: []string{"jobs", "--since", "0"}, bounds: readBounds(nil)},
 		{name: "runs", args: []string{"runs"}, bounds: readBounds(nil)},
 		{name: "info", args: []string{"info", "-p", "reads"}, bounds: readBounds(nil)},
 		{name: "lineage", args: []string{"lineage", "-p", "reads"}, bounds: readBounds(map[string]int{"stat run": 4})},
+		{name: "show one job", args: []string{"show", "-p", "reads", "-r", executed, "-j", oneJob}, bounds: readBounds(map[string]int{
+			"files attempts": 1, "files attempt/command.json": 1,
+			"open attempt/command.json": 3, "stat attempt": 3, "open project/meta.json": 3, "open project/running.lock": 4, "open run/summary.json": 4,
+		})},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			counts := traceStateReads(t, e.in(t), strace, test.args...)
 			for _, kind := range sortedKeys(counts) {
 				bound, ok := test.bounds[kind]
+				if !ok && strings.HasPrefix(kind, "files ") {
+					continue
+				}
 				if !ok {
 					bound = test.bounds["*"]
 				}
@@ -105,7 +123,8 @@ func readBounds(specific map[string]int) map[string]int {
 
 // traceStateReads runs rotari under strace and returns, for each kind of
 // state file and each of list, open, and stat, the most times one file of
-// that kind was touched.
+// that kind was touched; and, as "files KIND", how many files of that kind
+// were touched at all.
 func traceStateReads(t *testing.T, e *env, strace string, args ...string) map[string]int {
 	t.Helper()
 	output := filepath.Join(t.TempDir(), "trace")
@@ -147,9 +166,17 @@ func traceStateReads(t *testing.T, e *env, strace string, args ...string) map[st
 		t.Fatal(err)
 	}
 	counts := make(map[string]int)
+	files := make(map[string]map[string]bool)
 	for key, count := range perPath {
-		kind := key[0] + " " + stateFileKind(key[1])
-		counts[kind] = max(counts[kind], count)
+		kind := stateFileKind(key[1])
+		counts[key[0]+" "+kind] = max(counts[key[0]+" "+kind], count)
+		if files[kind] == nil {
+			files[kind] = make(map[string]bool)
+		}
+		files[kind][key[1]] = true
+	}
+	for kind, paths := range files {
+		counts["files "+kind] = len(paths)
 	}
 	return counts
 }

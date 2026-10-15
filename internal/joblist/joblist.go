@@ -186,7 +186,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, activ
 	resultByID := jobstatus.RecordedResults(run)
 	rows := make([]Row, 0)
 	for _, job := range model.QueueToJobs(runQueue.Commands) {
-		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
+		latestAttemptID, jobDir, err := state.LatestAttempt(runDir, job.ID)
 		if err != nil {
 			continue
 		}
@@ -194,12 +194,11 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, activ
 		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
 		statusOK := resolved.Finished()
 		displayStatus := resolved.DisplayStatus(model.JobSpec{ID: job.ID, Command: job.Command})
-		latestAttemptID, _ := state.LatestAttemptID(runDir, job.ID)
 		origin := runQueue.OriginOf(job.ID)
 		carried := runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked(), hasSummary)
 		jobState := jobstatus.DisplayLabel(displayStatus, resolved.Accepted(), carried)
 		pending := displayStatus == jobstatus.StatusPending
-		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, origin, carried)
+		submittedText, finishedText := jobstatus.Timestamps(runDir, jobDir, origin, carried)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
 			startedAt, err = parseTimestamp(resolved.Attempt.Wrapper.StartedAt)
