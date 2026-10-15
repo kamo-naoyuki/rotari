@@ -408,7 +408,7 @@ func cmdShow(args []string) int {
 				return 1
 			}
 			if *jsonOutput {
-				return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
+				return showRunJobJSON(paths, runID, *jobIDOption, "", resultSelection)
 			}
 			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
 		}
@@ -429,7 +429,7 @@ func cmdShow(args []string) int {
 			return 0
 		}
 		if *jsonOutput {
-			return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
+			return showRunJobJSON(paths, runID, *jobIDOption, attemptID, resultSelection)
 		}
 		running, err := isRunning(paths.LockFile)
 		if err != nil {
@@ -619,7 +619,7 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		return 1
 	}
 	result.Commands = commands
-	result.Jobs, err = resolveRunJSONJobs(result.RunDir, model.QueueToJobs(commands.Commands), model.QueueOriginsByJobID(commands), result.Summary)
+	result.Jobs, err = resolveRunJSONJobs(result.RunDir, model.QueueToJobs(commands.Commands), model.QueueOriginsByJobID(commands), result.Summary, "")
 	if err != nil {
 		printErrorf("failed to read job states: %v", err)
 		return 1

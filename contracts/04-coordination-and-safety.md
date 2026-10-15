@@ -39,7 +39,8 @@ Representative implementation and tests:
   run and of a job, `jobs`, reports, and the Web UI all use it, so they never
   disagree about a job; each labels a job as `show` does, through
   `jobstatus.DisplayLabel`, including `success (accepted)` and `(carried)`. The summary result belongs to the latest attempt, so
-  a selected older attempt (`show ATTEMPT_ID` or the Web UI attempt selector)
+  a selected older attempt (`show ATTEMPT_ID`, its `--json` view, or the Web
+  UI attempt selector)
   resolves from its own files only and shows its own timestamps.
 - **DUR-6** This does not kill or reconcile leftover jobs during recovery;
   `unlock` requires the operator to confirm that jobs have stopped, and a job

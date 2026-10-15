@@ -27,8 +27,9 @@ type showJSONJob struct {
 // showRunJobJSON resolves each expanded job through the same status fallback
 // used by the human-readable run and job views. An array command includes
 // its tasks, rather than pretending that the command has one attempt. A
-// non-empty selection keeps only the jobs it selects.
-func showRunJobJSON(paths state.ProjectPaths, runID, jobID, selection string) int {
+// non-empty attemptID resolves that attempt of the job instead of its latest.
+// A non-empty selection keeps only the jobs it selects.
+func showRunJobJSON(paths state.ProjectPaths, runID, jobID, attemptID, selection string) int {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printError(err)
@@ -60,16 +61,17 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID, selection string) in
 		Project      string                `json:"project_name"`
 		RunID        string                `json:"run_id"`
 		JobID        string                `json:"job_id"`
+		AttemptID    string                `json:"attempt_id,omitempty"`
 		Lifecycle    string                `json:"lifecycle"`
 		ClientStatus model.RunClientStatus `json:"client_status"`
 		Jobs         []showJSONJob         `json:"jobs"`
-	}{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: jobID}
+	}{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, JobID: jobID, AttemptID: attemptID}
 	output.Lifecycle, _ = runview.RunLifecycleLabel(paths, runID)
 	output.ClientStatus, _ = runview.ClientStatus(paths, runID)
 	if output.ClientStatus.State == "" {
 		output.ClientStatus.State = "unknown"
 	}
-	output.Jobs, err = resolveRunJSONJobs(runDir, selected, model.QueueOriginsByJobID(queue), summary)
+	output.Jobs, err = resolveRunJSONJobs(runDir, selected, model.QueueOriginsByJobID(queue), summary, attemptID)
 	if err != nil {
 		printError(err)
 		return 1
@@ -113,24 +115,28 @@ func selectRunJSONJobs(queue model.Queue, jobID string) []model.JobSpec {
 	return nil
 }
 
-func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[string]*model.JobOrigin, summary *model.RunSummary) ([]showJSONJob, error) {
+func resolveRunJSONJobs(runDir string, selected []model.JobSpec, origins map[string]*model.JobOrigin, summary *model.RunSummary, attemptID string) ([]showJSONJob, error) {
 	results := jobstatus.RecordedResults(runDir, summary)
 	entries := make([]showJSONJob, 0, len(selected))
 	for _, spec := range selected {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
+		if attemptID != "" {
+			jobDir, err = state.SpecificAttemptJobDir(runDir, spec.ID, attemptID)
+		}
 		if err != nil {
 			return nil, err
 		}
-		saved, hasSummary := results[spec.ID]
-		resolved := jobstatus.ReadJob(jsonStore(), jobDir, saved, hasSummary)
 		latestAttemptID, _ := state.LatestAttemptID(runDir, spec.ID)
-		carried := runlineage.IsCarried(origins[spec.ID], latestAttemptID, resolved.Blocked(), hasSummary)
+		latest := attemptID == "" || attemptID == latestAttemptID
+		saved, hasSummary := results[spec.ID]
+		resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, saved, hasSummary)
+		carried := latest && runlineage.IsCarried(origins[spec.ID], latestAttemptID, resolved.Blocked(), hasSummary)
 		status := resolved.DisplayStatus(spec)
 		if carried {
 			status += " (carried)"
 		}
 		item := showJSONJob{Job: spec, Finished: resolved.Finished(), Status: status, Carried: carried,
-			Artifacts: jobstatus.ListArtifacts(jsonStore(), filepath.Dir(runDir), model.JobOrigin{RunID: filepath.Base(runDir), JobID: spec.ID})}
+			Artifacts: jobstatus.ListArtifacts(jsonStore(), filepath.Dir(runDir), model.JobOrigin{RunID: filepath.Base(runDir), JobID: spec.ID, AttemptID: attemptID})}
 		if result, ok := resolved.Result(spec); ok {
 			item.Result = &result
 		}

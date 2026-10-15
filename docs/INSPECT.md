@@ -243,7 +243,10 @@ rotari show RUN_ID --report
 
 The run/job JSON view includes the resolved run and project, a `jobs` array
 with each job's definition, a `finished` flag, and a `result` when available.
-For a running job, `finished` is false and no `result` is present. With
+For a running job, `finished` is false and no `result` is present. With an
+attempt ID, the job JSON also has `attempt_id` and resolves that attempt as
+the human view does, so `show ATTEMPT_ID --json` gives an attempt's project,
+run, job, and result without its logs. With
 `--failed`, the run JSON keeps only the failed jobs' summary results and
 failure groups (the `commands` snapshot stays whole), and the job and array
 JSON keeps only the failed jobs, as the job table does. When a next queue is

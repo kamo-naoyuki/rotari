@@ -223,6 +223,42 @@ func TestCLIShowSelectedOlderAttemptIgnoresLatestSummary(t *testing.T) {
 	if !strings.Contains(e.MustRotari("show", "--run-id", runID, "--job-id", jobID, "--json").Stdout, "latest-host") {
 		t.Fatalf("latest summary metadata was not visible in the current job view")
 	}
+	// A distinct exit code tells the older attempt's result from the latest's.
+	if err := os.WriteFile(filepath.Join(olderDir, "status"), []byte("4\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		args     []string
+		attempt  string
+		exitCode int
+	}{
+		{[]string{olderAttempt}, olderAttempt, 4},
+		{[]string{"-j", olderAttempt}, olderAttempt, 4},
+		{[]string{latestAttempt}, latestAttempt, 0},
+	} {
+		out := e.MustRotari(append(append([]string{"show"}, test.args...), "--json")...).Stdout
+		var shown struct {
+			ProjectName string `json:"project_name"`
+			RunID       string `json:"run_id"`
+			JobID       string `json:"job_id"`
+			AttemptID   string `json:"attempt_id"`
+			Jobs        []struct {
+				Result *model.JobResult `json:"result"`
+			} `json:"jobs"`
+		}
+		if err := json.Unmarshal([]byte(out), &shown); err != nil {
+			t.Fatal(err)
+		}
+		if shown.ProjectName != project || shown.RunID != runID || shown.JobID != jobID || shown.AttemptID != test.attempt || len(shown.Jobs) != 1 {
+			t.Fatalf("show %v --json = %s", test.args, out)
+		}
+		if shown.Jobs[0].Result == nil || shown.Jobs[0].Result.ExitCode != test.exitCode {
+			t.Errorf("show %v --json resolved another attempt: %s", test.args, out)
+		}
+		if test.attempt == olderAttempt && strings.Contains(out, "latest-host") {
+			t.Errorf("show %v --json leaked latest summary metadata: %s", test.args, out)
+		}
+	}
 }
 
 func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
