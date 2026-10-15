@@ -201,8 +201,8 @@ const (
 	stateFileName          = "name"
 )
 
-func isRunning(lockPath string) (bool, error) {
-	lockState, _, err := state.InspectLock(lockPath, true)
+func isRunning(paths state.ProjectPaths) (bool, error) {
+	lockState, _, err := project.InspectRunLock(paths)
 	return lockState == state.LockActive || lockState == state.LockRemote, err
 }
 

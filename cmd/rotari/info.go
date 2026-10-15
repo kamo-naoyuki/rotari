@@ -212,7 +212,7 @@ func infoRuns(baseDir string, projects []string) ([]infoRunLock, []infoRun, erro
 }
 
 func inspectInfoRunLock(name string, paths state.ProjectPaths) (*infoRunLock, error) {
-	lockState, lock, err := state.InspectLock(paths.LockFile, false)
+	lockState, lock, err := project.InspectRunLock(paths)
 	if err != nil {
 		return nil, fmt.Errorf("project %q: %w", name, err)
 	}

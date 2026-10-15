@@ -14,14 +14,14 @@ import (
 // runID, or any when runID is empty. Their results are not final, so a
 // manifest of them would re-execute jobs that may yet succeed. See
 // project.EnsureRunSettled.
-func RequireSettledRun(paths state.ProjectPaths, runID string, cleanupStale bool) error {
-	return project.EnsureRunSettled(paths, runID, "export", cleanupStale)
+func RequireSettledRun(paths state.ProjectPaths, runID string) error {
+	return project.EnsureRunSettled(paths, runID, "export")
 }
 
 // LoadSettledRun reads a settled run as a source for export, after checking
 // with validate that its command snapshot can run.
-func LoadSettledRun(paths state.ProjectPaths, runID string, validate func(model.Queue) error, cleanupStale bool) (workflow.SourceRun, error) {
-	if err := RequireSettledRun(paths, runID, cleanupStale); err != nil {
+func LoadSettledRun(paths state.ProjectPaths, runID string, validate func(model.Queue) error) (workflow.SourceRun, error) {
+	if err := RequireSettledRun(paths, runID); err != nil {
 		return workflow.SourceRun{}, err
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)

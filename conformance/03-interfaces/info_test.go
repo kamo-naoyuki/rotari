@@ -15,7 +15,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
+func TestInfoReportsContextAndRunLocks(t *testing.T) {
 	covers(t, "CLI-21")
 	e := support.NewEnv(t)
 	if err := os.MkdirAll(e.Base, 0o755); err != nil {
@@ -115,13 +115,6 @@ func TestInfoReportsContextAndLeavesStaleLockUntouched(t *testing.T) {
 	}
 	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].RunID != runID || report.ActiveRuns[0].Jobs.Finished != 1 || report.ActiveRuns[0].Jobs.Alive != 1 {
 		t.Fatalf("active runs = %#v, want one finished and one live local job in %s", report.ActiveRuns, runID)
-	}
-	gotLock, err := os.ReadFile(lockPath)
-	if err != nil {
-		t.Fatalf("info removed the stale lock: %v", err)
-	}
-	if string(gotLock) != string(lock) {
-		t.Fatalf("info changed stale lock: got %s, want %s", gotLock, lock)
 	}
 }
 

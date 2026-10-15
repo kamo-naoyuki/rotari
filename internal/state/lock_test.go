@@ -48,7 +48,7 @@ func TestLoadLockReadsModelContract(t *testing.T) {
 }
 
 func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
-	missing, _, err := InspectLock(filepath.Join(t.TempDir(), "running.lock"), false)
+	missing, _, err := InspectLock(filepath.Join(t.TempDir(), "running.lock"))
 	if err != nil || missing != LockNone {
 		t.Fatalf("missing lock = %q, error = %v, want none", missing, err)
 	}
@@ -57,7 +57,7 @@ func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
 	if err := os.WriteFile(remotePath, []byte(`{"run_id":"remote-run","host":"other-host"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	remote, _, err := InspectLock(remotePath, false)
+	remote, _, err := InspectLock(remotePath)
 	if err != nil || remote != LockRemote {
 		t.Fatalf("remote lock = %q, error = %v, want remote", remote, err)
 	}
@@ -70,13 +70,36 @@ func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
 	if err := os.WriteFile(stalePath, []byte(fmt.Sprintf(`{"run_id":"stale-run","pid":-1,"host":%q}`, host)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	stale, _, err := InspectLock(stalePath, true)
+	stale, _, err := InspectLock(stalePath)
 	if err != nil || stale != LockStale {
 		t.Fatalf("stale lock = %q, error = %v, want stale", stale, err)
 	}
-	if _, err := os.Stat(stalePath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("stale lock stat error = %v, want removed lock", err)
+	if _, err := os.Stat(stalePath); err != nil {
+		t.Fatalf("stale lock stat error = %v, want the lock left for internal/project", err)
 	}
+}
+
+func TestTryAcquireStateReadLockYieldsToExclusiveHolder(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "state.lock")
+	release, ok, err := TryAcquireStateReadLock(lockPath)
+	if err != nil || !ok {
+		t.Fatalf("first shared lock ok = %v, error = %v", ok, err)
+	}
+	second, ok, err := TryAcquireStateReadLock(lockPath)
+	if err != nil || !ok {
+		t.Fatalf("second shared lock ok = %v, error = %v, want shared holders together", ok, err)
+	}
+	second()
+	release()
+
+	exclusive, err := AcquireStateLock(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := TryAcquireStateReadLock(lockPath); err != nil || ok {
+		t.Fatalf("shared lock under an exclusive holder ok = %v, error = %v, want not acquired", ok, err)
+	}
+	exclusive()
 }
 
 func TestAcquireRunLockRefusesActiveLock(t *testing.T) {

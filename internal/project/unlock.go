@@ -77,7 +77,7 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, 
 		if lock.RunID != runID {
 			return UnlockResult{}, fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
 		}
-		lockState, _, err := state.InspectLock(paths.LockFile, false)
+		lockState, _, err := state.InspectLock(paths.LockFile)
 		if err != nil {
 			return UnlockResult{}, fmt.Errorf("failed to inspect run lock: %w", err)
 		}

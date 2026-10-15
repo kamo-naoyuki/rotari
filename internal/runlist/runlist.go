@@ -126,7 +126,7 @@ func collectProject(baseDir, projectName string, bounds *window) ([]Run, error) 
 	}
 	// The project is inspected once, before any run's summary is read, as
 	// project.RunPhaseOf reads them for one run.
-	inspection, err := project.Inspect(paths, false)
+	inspection, err := project.Inspect(paths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect project %q: %w", projectName, err)
 	}

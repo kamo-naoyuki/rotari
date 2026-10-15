@@ -192,7 +192,7 @@ func TestEditQueueKeepsTheRunsPhase(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if inspection, err := Inspect(paths, false); err != nil || inspection.State != test.want {
+			if inspection, err := Inspect(paths); err != nil || inspection.State != test.want {
 				t.Fatalf("fixture state = %v, %v; want %v", inspection.State, err, test.want)
 			}
 			err := EditQueue(paths, func(queue *model.Queue) error {

@@ -334,11 +334,14 @@ func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 }
 
 func TestIsRunningRetainsRemoteHostLock(t *testing.T) {
-	lockPath := t.TempDir() + "/running.lock"
-	if err := writeJSON(lockPath, model.LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}); err != nil {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
 		t.Fatal(err)
 	}
-	running, err := isRunning(lockPath)
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}); err != nil {
+		t.Fatal(err)
+	}
+	running, err := isRunning(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,18 +355,25 @@ func TestIsRunningRemovesDeadLocalHostLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lockPath := t.TempDir() + "/running.lock"
-	if err := writeJSON(lockPath, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
 		t.Fatal(err)
 	}
-	running, err := isRunning(lockPath)
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "run-1")
+	running, err := isRunning(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if running {
 		t.Fatal("dead local lock was retained")
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
 		t.Fatalf("lock file still exists: %v", err)
 	}
 }

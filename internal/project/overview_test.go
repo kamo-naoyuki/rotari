@@ -33,7 +33,7 @@ func writeOverviewProject(t *testing.T, baseDir, name string, queue model.Queue,
 
 func TestOverviewsDescribesEachProject(t *testing.T) {
 	baseDir := t.TempDir()
-	if overviews, err := Overviews(baseDir, false); err != nil || overviews != nil {
+	if overviews, err := Overviews(baseDir); err != nil || overviews != nil {
 		t.Fatalf("Overviews without projects = %v, %v", overviews, err)
 	}
 	alpha := writeOverviewProject(t, baseDir, "alpha",
@@ -54,7 +54,7 @@ func TestOverviewsDescribesEachProject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	overviews, err := Overviews(baseDir, false)
+	overviews, err := Overviews(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestOverviewsDescribesEachProject(t *testing.T) {
 func TestOverviewsReportsUnreadableProject(t *testing.T) {
 	baseDir := t.TempDir()
 	writeOverviewProject(t, baseDir, "broken", model.Queue{}, model.Meta{Phase: "exploded"})
-	if _, err := Overviews(baseDir, false); err == nil || !strings.Contains(err.Error(), `failed to check project "broken" state`) {
+	if _, err := Overviews(baseDir); err == nil || !strings.Contains(err.Error(), `failed to check project "broken" state`) {
 		t.Fatalf("Overviews error = %v", err)
 	}
 
@@ -80,7 +80,7 @@ func TestOverviewsReportsUnreadableProject(t *testing.T) {
 	if err := os.WriteFile(paths.QueueFile, []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Overviews(baseDir, false); err == nil || !strings.Contains(err.Error(), `failed to load queue for project "badqueue"`) {
+	if _, err := Overviews(baseDir); err == nil || !strings.Contains(err.Error(), `failed to load queue for project "badqueue"`) {
 		t.Fatalf("Overviews error = %v", err)
 	}
 }

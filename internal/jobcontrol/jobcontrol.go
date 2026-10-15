@@ -22,6 +22,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -634,7 +635,7 @@ func (controller Controller) finishJobCancelMessage(message string, paths state.
 }
 
 func (controller Controller) jobsStopped(paths state.ProjectPaths, runDir, runID string, jobIDs []string) bool {
-	if lockState, lock, err := state.InspectLock(paths.LockFile, false); err == nil && (lockState != state.LockActive && lockState != state.LockRemote || lock.RunID != runID) {
+	if lockState, lock, err := project.InspectRunLock(paths); err == nil && (lockState != state.LockActive && lockState != state.LockRemote || lock.RunID != runID) {
 		return true
 	}
 	for _, jobID := range jobIDs {
@@ -664,7 +665,7 @@ func finishCancelMessage(message string, paths state.ProjectPaths, runID string,
 	if wait {
 		deadline := time.Now().Add(5 * time.Minute)
 		for {
-			lockState, _, err := state.InspectLock(paths.LockFile, true)
+			lockState, _, err := project.InspectRunLock(paths)
 			if err != nil {
 				return "", err
 			}

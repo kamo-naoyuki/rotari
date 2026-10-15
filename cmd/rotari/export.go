@@ -222,7 +222,7 @@ func exportProject(baseDir, projectName string) (workflow.Manifest, string, erro
 	if err != nil {
 		return workflow.Manifest{}, "", err
 	}
-	if err := workflowstate.RequireSettledRun(paths, "", true); err != nil {
+	if err := workflowstate.RequireSettledRun(paths, ""); err != nil {
 		return workflow.Manifest{}, "", err
 	}
 	queue, err := state.LoadQueue(paths.QueueFile)
@@ -287,5 +287,5 @@ func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, 
 	}
 	return workflowstate.LoadSettledRun(paths, runID, func(queue model.Queue) error {
 		return projectRunner().ValidateQueue(queue, "", nil, nil)
-	}, true)
+	})
 }

@@ -165,14 +165,12 @@ files per run in the project's whole history.
   the Go job. Bounds are limits, not exact counts, so that unrelated reads
   added later do not churn the test; each phase tightens the bounds it
   achieves.
-- **D8 Stale lock removal stays sequential, once per project.** `jobs`,
-  `show`, the report, and selector resolution remove a stale local run lock
-  while reading
-  (`project.RunActive` and `project.Inspect` with cleanup). Phase 1 reads the
-  lock once per project, before the project's runs are read, and removes it
-  there; the concurrent reads that follow see only that result. This keeps
-  today's behavior. Whether read commands should remove stale locks at all
-  is a separate question, recorded in [ISSUES.md](../ISSUES.md).
+- **D8 Stale lock removal stays sequential, once per project.** Every reader
+  removes a stale local run lock through `project.Inspect` /
+  `InspectRunLock` (SAFE-11): after the consistency checks, under a shared
+  state lock taken without waiting. Phase 1 reads the lock once per project,
+  before the project's runs are read, and the removal happens there; the
+  concurrent reads that follow see only that result.
 
 ## Phases
 

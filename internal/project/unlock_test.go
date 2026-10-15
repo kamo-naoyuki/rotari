@@ -78,7 +78,7 @@ func TestUnlockByProjectState(t *testing.T) {
 			if err != nil || result.RunID != test.want {
 				t.Fatalf("Unlock = %+v, %v; want run %q", result, err, test.want)
 			}
-			if inspection, err := Inspect(paths, false); err != nil || inspection.State != Idle {
+			if inspection, err := Inspect(paths); err != nil || inspection.State != Idle {
 				t.Fatalf("after Unlock state = %v, %v; want idle", inspection.State, err)
 			}
 			if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {

@@ -58,7 +58,7 @@ func TestResetByProjectState(t *testing.T) {
 			if err != nil || applied != test.want || len(loadQueueForTest(t, paths).Commands) != 0 {
 				t.Fatalf("reset = %+v, %v; queue %+v", applied, err, loadQueueForTest(t, paths))
 			}
-			if inspection, _ := Inspect(paths, false); inspection.State != test.state {
+			if inspection, _ := Inspect(paths); inspection.State != test.state {
 				t.Fatalf("project state after reset = %v, want %v", inspection.State, test.state)
 			}
 		})

@@ -350,7 +350,7 @@ func cmdShow(args []string) int {
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
-		inspection, err := project.Inspect(paths, true)
+		inspection, err := project.Inspect(paths)
 		projectState, stateRunID := inspection.State, inspection.RunID
 		if err != nil {
 			printErrorf("failed to check project state: %v", err)
@@ -431,7 +431,7 @@ func cmdShow(args []string) int {
 		if *jsonOutput {
 			return showRunJobJSON(paths, runID, *jobIDOption, attemptID, resultSelection)
 		}
-		running, err := isRunning(paths.LockFile)
+		running, err := isRunning(paths)
 		if err != nil {
 			printErrorf("failed to check queue state: %v", err)
 			return 1
@@ -645,7 +645,7 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 }
 
 func nextQueueForRun(paths state.ProjectPaths, runID string) (*model.Queue, error) {
-	inspection, err := project.Inspect(paths, false)
+	inspection, err := project.Inspect(paths)
 	if err != nil {
 		return nil, err
 	}
@@ -802,7 +802,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	} else {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Queue:"), paths.QueueFile)
 	}
-	if inspection, err := project.Inspect(paths, true); err == nil {
+	if inspection, err := project.Inspect(paths); err == nil {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(inspection.State))
 	}
 	if pid, running := serverinternal.Running(paths.ProjectDir); running {

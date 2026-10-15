@@ -40,8 +40,8 @@ func IsRunID(value string) bool {
 	return runIDPattern.MatchString(value)
 }
 
-func isRunning(lockPath string) (bool, error) {
-	lockState, _, err := state.InspectLock(lockPath, true)
+func isRunning(paths state.ProjectPaths) (bool, error) {
+	lockState, _, err := project.InspectRunLock(paths)
 	return lockState == state.LockActive || lockState == state.LockRemote, err
 }
 
@@ -127,7 +127,7 @@ func activeRunWithJobs(cliBaseDir string, jobIDs []string) (Run, bool, error) {
 		if err != nil {
 			return Run{}, false, err
 		}
-		running, err := isRunning(paths.LockFile)
+		running, err := isRunning(paths)
 		if err != nil && !os.IsNotExist(err) {
 			return Run{}, false, err
 		}
@@ -353,7 +353,7 @@ func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]
 // activeRunNamed returns the ID of the project's active run when it is named
 // runName, and "" otherwise.
 func activeRunNamed(paths state.ProjectPaths, runName string) (string, error) {
-	running, err := isRunning(paths.LockFile)
+	running, err := isRunning(paths)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -431,7 +431,7 @@ func RequireProject(baseDir, projectName string) error {
 // can be told apart: " (last run RUN_ID failed, 7 of 15 failed)", or "" for a
 // project without a readable run.
 func lastRunNote(baseDir, projectName string) string {
-	overviews, err := project.Overviews(baseDir, false)
+	overviews, err := project.Overviews(baseDir)
 	if err != nil {
 		return ""
 	}
@@ -550,7 +550,7 @@ type Job struct {
 // the queue when it starts, so the queue holds only the next run's jobs and
 // the same order applies in every project state.
 func defaultJobs(paths state.ProjectPaths, selector string, byName bool) ([]Job, error) {
-	inspection, err := project.Inspect(paths, true)
+	inspection, err := project.Inspect(paths)
 	if err != nil {
 		return nil, err
 	}

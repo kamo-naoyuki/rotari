@@ -61,7 +61,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 	}
 	projects := make([]projectInfo, 0)
 	for _, baseDir := range baseDirs {
-		overviews, err := project.Overviews(baseDir, true)
+		overviews, err := project.Overviews(baseDir)
 		if err != nil {
 			printError(err)
 			return 1

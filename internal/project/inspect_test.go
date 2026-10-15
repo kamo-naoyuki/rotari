@@ -145,11 +145,84 @@ func TestInspectConsistentKeepsStaleLockWhenValidationFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := InspectConsistent(paths, true); err == nil {
+	if _, err := InspectConsistent(paths); err == nil {
 		t.Fatal("InspectConsistent accepted mismatched state")
 	}
 	if _, err := os.Stat(paths.LockFile); err != nil {
 		t.Fatalf("stale lock was removed before validation: %v", err)
+	}
+}
+
+func TestReadersRemoveStaleLockOnlyWhenConsistentAndUnlocked(t *testing.T) {
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	readers := map[string]func(state.ProjectPaths) error{
+		"Inspect": func(paths state.ProjectPaths) error {
+			_, err := Inspect(paths)
+			return err
+		},
+		"InspectRunLock": func(paths state.ProjectPaths) error {
+			_, _, err := InspectRunLock(paths)
+			return err
+		},
+		"RunActive": func(paths state.ProjectPaths) error {
+			RunActive(paths, "run-1")
+			return nil
+		},
+		"RunPhaseOf": func(paths state.ProjectPaths) error {
+			_, err := RunPhaseOf(paths, "run-1")
+			return err
+		},
+	}
+	cases := []struct {
+		name        string
+		lock        model.LockInfo
+		metaRunID   string
+		holdState   bool
+		wantRemoved bool
+	}{
+		{name: "stale and consistent", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: host}, metaRunID: "run-1", wantRemoved: true},
+		{name: "stale but metadata names another run", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: host}, metaRunID: "run-2"},
+		{name: "stale while the state lock is held exclusively", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: host}, metaRunID: "run-1", holdState: true},
+		{name: "active", lock: model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}, metaRunID: "run-1"},
+		{name: "remote", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}, metaRunID: "run-1"},
+	}
+	for readerName, read := range readers {
+		for _, test := range cases {
+			t.Run(readerName+"/"+test.name, func(t *testing.T) {
+				paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := state.WriteJSON(paths.LockFile, test.lock); err != nil {
+					t.Fatal(err)
+				}
+				if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: test.metaRunID}); err != nil {
+					t.Fatal(err)
+				}
+				writeTestRunStateFiles(t, paths, test.metaRunID)
+				if test.holdState {
+					release, err := state.AcquireStateLock(paths.StateLockFile)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer release()
+				}
+				if err := read(paths); err != nil {
+					t.Fatal(err)
+				}
+				_, statErr := os.Stat(paths.LockFile)
+				if removed := os.IsNotExist(statErr); removed != test.wantRemoved {
+					t.Fatalf("lock removed = %v (stat error %v), want %v", removed, statErr, test.wantRemoved)
+				}
+				meta, err := state.LoadMeta(paths.MetaFile)
+				if err != nil || meta.Phase != "running" || meta.LastRunID != test.metaRunID {
+					t.Fatalf("metadata = %#v, %v, want it unchanged", meta, err)
+				}
+			})
+		}
 	}
 }
 

@@ -35,7 +35,7 @@ func (runner Runner) Check(paths state.ProjectPaths, deep func(model.Queue) erro
 	}
 	defer release()
 
-	inspection, err := project.InspectConsistent(paths, false)
+	inspection, err := project.InspectConsistent(paths)
 	if err != nil {
 		return Check{}, fmt.Errorf("inspect project state: %w", err)
 	}

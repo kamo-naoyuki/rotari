@@ -134,7 +134,7 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 	}
 }
 
-func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
+func TestCheckProjectRemovesStaleLockAfterChecks(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -162,8 +162,8 @@ func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 	if result.State != "interrupted" || result.Runnable || result.Lock != "stale" || result.RunID != "run-1" || !result.QueuedKnown || result.Queued != 1 {
 		t.Fatalf("check = %#v", result)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("check removed stale lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("check left the stale lock: %v", err)
 	}
 }
 
@@ -221,8 +221,8 @@ func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 	if result.State != "ready" || !result.Runnable || result.Lock != "stale" {
 		t.Fatalf("check = %#v", result)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("check removed stale lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("check left the stale lock: %v", err)
 	}
 }
 

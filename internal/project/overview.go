@@ -28,9 +28,8 @@ type LastRun struct {
 	Failed int
 }
 
-// Overviews lists the projects of baseDir. With cleanupStale, a stale local
-// lock is removed while inspecting, as Inspect does.
-func Overviews(baseDir string, cleanupStale bool) ([]Overview, error) {
+// Overviews lists the projects of baseDir, inspecting each as Inspect does.
+func Overviews(baseDir string) ([]Overview, error) {
 	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -51,7 +50,7 @@ func Overviews(baseDir string, cleanupStale bool) ([]Overview, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to load queue for project %q: %w", entry.Name(), err)
 		}
-		inspection, err := Inspect(paths, cleanupStale)
+		inspection, err := Inspect(paths)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check project %q state: %w", entry.Name(), err)
 		}

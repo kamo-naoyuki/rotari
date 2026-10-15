@@ -24,11 +24,12 @@ const (
 )
 
 // RunPhaseOf reports runID's phase from the project's lock and metadata and
-// the run's summary, without writing. The lock is read before the summary,
-// and a run writes its summary before it releases the lock, so a run that
-// finishes in between is reported as finished.
+// the run's summary. Like Inspect, it writes nothing but the removal of a
+// stale lock. The lock is read before the summary, and a run writes its
+// summary before it releases the lock, so a run that finishes in between is
+// reported as finished.
 func RunPhaseOf(paths state.ProjectPaths, runID string) (RunPhase, error) {
-	inspection, err := Inspect(paths, false)
+	inspection, err := Inspect(paths)
 	if err != nil {
 		return "", err
 	}

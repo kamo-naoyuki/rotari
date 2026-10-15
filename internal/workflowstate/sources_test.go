@@ -166,27 +166,27 @@ func TestLoadSettledRunRefusesUnsettledRuns(t *testing.T) {
 	writeSourceRun(t, paths, "run-1")
 	accept := func(model.Queue) error { return nil }
 
-	run, err := LoadSettledRun(paths, "run-1", accept, false)
+	run, err := LoadSettledRun(paths, "run-1", accept)
 	if err != nil || run.ID != "run-1" || len(run.Queue.Commands) != 1 {
 		t.Fatalf("LoadSettledRun(settled) = %+v, %v", run, err)
 	}
-	if _, err := LoadSettledRun(paths, "run-1", func(model.Queue) error { return errors.New("bad executor") }, false); err == nil || !strings.Contains(err.Error(), "invalid run run-1 commands: bad executor") {
+	if _, err := LoadSettledRun(paths, "run-1", func(model.Queue) error { return errors.New("bad executor") }); err == nil || !strings.Contains(err.Error(), "invalid run run-1 commands: bad executor") {
 		t.Fatalf("LoadSettledRun(invalid) error = %v", err)
 	}
-	if _, err := LoadSettledRun(paths, "missing", accept, false); err == nil || !strings.Contains(err.Error(), "failed to load run missing") {
+	if _, err := LoadSettledRun(paths, "missing", accept); err == nil || !strings.Contains(err.Error(), "failed to load run missing") {
 		t.Fatalf("LoadSettledRun(missing) error = %v", err)
 	}
-	if _, err := LoadSettledRun(paths, "../run-1", accept, false); err == nil {
+	if _, err := LoadSettledRun(paths, "../run-1", accept); err == nil {
 		t.Fatal("LoadSettledRun accepted an unsafe run ID")
 	}
 
 	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadSettledRun(paths, "run-1", accept, false); err == nil || !strings.Contains(err.Error(), "was interrupted; recover it with 'rotari unlock demo'") {
+	if _, err := LoadSettledRun(paths, "run-1", accept); err == nil || !strings.Contains(err.Error(), "was interrupted; recover it with 'rotari unlock demo'") {
 		t.Fatalf("LoadSettledRun(interrupted) error = %v", err)
 	}
-	if err := RequireSettledRun(paths, "run-0", false); err != nil {
+	if err := RequireSettledRun(paths, "run-0"); err != nil {
 		t.Fatalf("another run of an interrupted project = %v", err)
 	}
 
@@ -197,7 +197,7 @@ func TestLoadSettledRunRefusesUnsettledRuns(t *testing.T) {
 	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireSettledRun(paths, "", false); err == nil || !strings.Contains(err.Error(), "is still running; wait for it with 'rotari wait demo'") {
+	if err := RequireSettledRun(paths, ""); err == nil || !strings.Contains(err.Error(), "is still running; wait for it with 'rotari wait demo'") {
 		t.Fatalf("RequireSettledRun(running) error = %v", err)
 	}
 
@@ -207,7 +207,7 @@ func TestLoadSettledRunRefusesUnsettledRuns(t *testing.T) {
 	if err := os.Remove(paths.LockFile); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireSettledRun(paths, "", false); err == nil || !strings.Contains(err.Error(), "failed to check project state") {
+	if err := RequireSettledRun(paths, ""); err == nil || !strings.Contains(err.Error(), "failed to check project state") {
 		t.Fatalf("RequireSettledRun(bad meta) error = %v", err)
 	}
 }

@@ -72,7 +72,7 @@ func activeClientStatus(paths state.ProjectPaths, runID string, status model.Run
 		status.State = model.RunClientAttached
 		return status, nil
 	}
-	lockState, lock, err := state.InspectLock(paths.LockFile, false)
+	lockState, lock, err := project.InspectRunLock(paths)
 	if err != nil {
 		return model.RunClientStatus{}, err
 	}

@@ -101,8 +101,9 @@ element of its path; they contain no absolute paths, and errors write
 `BASEDIR` for a registered state directory's path. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
 to catch every secret. Queue edits other than import and reset, deleting
-history, and `gc` are not exposed. The server removes a stale lock only
-through `rotari_unlock` and does not migrate registries.
+history, and `gc` are not exposed. Like every reader, the server removes a
+stale lock left by a coordinator that died on its host; the run stays
+interrupted until `rotari_unlock`. It does not migrate registries.
 
 ## Start the server
 

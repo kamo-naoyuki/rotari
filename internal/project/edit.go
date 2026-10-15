@@ -100,7 +100,7 @@ func EditQueueGuarded(paths state.ProjectPaths, guard Guard, edit func(queue *mo
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	inspection, err := InspectConsistent(paths, true)
+	inspection, err := InspectConsistent(paths)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}

@@ -50,13 +50,21 @@ func TestUnlockDerivesInterruptedRun(t *testing.T) {
 			support.WaitUntil(t, 15*time.Second, func() (bool, string) {
 				return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
 			})
+			lockPath := filepath.Join(e.Base, "projects", "unlock", "running.lock")
+			lock, err := os.ReadFile(lockPath)
+			if err != nil {
+				t.Fatal(err)
+			}
 			support.KillStrays(t, e.Root)
 			support.WaitForInterrupted(t, e, "unlock")
-			if removeLock {
-				lockPath := filepath.Join(e.Base, "projects", "unlock", "running.lock")
-				if err := os.Remove(lockPath); err != nil {
+			// Checking the state removes the dead coordinator's lock (SAFE-11);
+			// put it back so unlock has a lock to derive the run from.
+			if !removeLock {
+				if err := os.WriteFile(lockPath, lock, 0o600); err != nil {
 					t.Fatal(err)
 				}
+			} else if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
 			}
 			e.MustRotari("unlock", "unlock")
 			// The run took the queue when it started, so recovery leaves it empty.

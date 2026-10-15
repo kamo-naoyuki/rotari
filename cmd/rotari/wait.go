@@ -688,7 +688,7 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string, origin *model.L
 			return nil, 0, pathErr
 		}
 		// One read: a finishing run removes its lock between two reads.
-		lockState, lock, lockErr := state.InspectLock(paths.LockFile, false)
+		lockState, lock, lockErr := project.InspectRunLock(paths)
 		if lockErr != nil {
 			return nil, 0, lockErr
 		}
@@ -728,7 +728,7 @@ func warnInterruptedWaitRuns(cliBaseDir string, origin *model.LaunchOrigin) erro
 		if err != nil {
 			return err
 		}
-		inspection, err := project.Inspect(paths, false)
+		inspection, err := project.Inspect(paths)
 		if err != nil {
 			return err
 		}
@@ -773,7 +773,7 @@ func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	inspection, err := project.Inspect(paths, false)
+	inspection, err := project.Inspect(paths)
 	state, runID := inspection.State, inspection.RunID
 	if err != nil {
 		return "", fmt.Errorf("failed to check project state: %w", err)
@@ -1053,7 +1053,6 @@ func runEndedWithInvalidSummary(paths state.ProjectPaths, runID string) (string,
 
 // runEndedWithoutSummary reports whether runID is no longer active although it
 // never wrote summaryPath, for example because its supervisor exited early.
-// It leaves a stale run lock in place for show and unlock.
 func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, bool) {
 	// RunPhaseOf reads the summary again, so a run that finished since the
 	// caller's read is not reported as ended.

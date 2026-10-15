@@ -253,6 +253,26 @@ A project is in one of three states, derived from `running.lock` and
   `next_queue`; it never substitutes the next queue for the run's jobs.
   `check` continues to report the next queue's count. Checked through the
   binary by `TestShowActiveRunIncludesNextQueue`.
+- **SAFE-11** Every command and interface that reads a project's run lock
+  (CLI, Web API, and MCP alike) removes a stale lock: one recorded for this
+  host whose coordinator PID is no longer alive. It removes the lock only once
+  the project passes the consistency checks below, and only while holding the
+  project state lock, at least shared, so it never removes a lock that a
+  starting run has just written. A lock that fails the checks is left in
+  place and reported. While another holder has the state lock exclusively,
+  the reader leaves the lock for a later command instead of waiting. Removal
+  changes nothing else: an interrupted run stays interrupted through
+  `meta.json` until `unlock`, and output describes the lock as found. A lock
+  from another host is never stale (COORD-3). One implementation decides
+  this, `Inspect`, `InspectRunLock`, and `InspectConsistent` in
+  [internal/project/inspect.go](../internal/project/inspect.go); covered by
+  `TestReadersRemoveStaleLockOnlyWhenConsistentAndUnlocked` in
+  [internal/project/inspect_test.go](../internal/project/inspect_test.go)
+  and through the binary, the Web API, and MCP by
+  `TestCommandsRemoveStaleRunLock` in
+  [conformance/04-coordination/stale_lock_test.go](../conformance/04-coordination/stale_lock_test.go)
+  and `TestMCPRemovesStaleRunLock` in
+  [conformance/03-interfaces/mcp_test.go](../conformance/03-interfaces/mcp_test.go).
 
 Further rules:
 
@@ -262,8 +282,8 @@ Further rules:
   initial `context.json` exist. An interrupted run must also have its
   `commands.json` snapshot. A run writes `commands.json` before it takes the
   run lock, so an active run has it as well; the check still tolerates an
-  active run without it, as an earlier rotari could leave one. Stale locks are removed only after these checks
-  succeed.
+  active run without it, as an earlier rotari could leave one. A stale lock
+  is removed only after these checks succeed (SAFE-11).
 - The message for an interrupted run lists the jobs whose `status` or
   `status.json` is still non-terminal, with phase and last-update time;
   missing or unparseable job status counts as still running. The detail warns

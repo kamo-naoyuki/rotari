@@ -14,7 +14,7 @@ An uncreated selected project is marked on the same line as its name. For
 unfinished local-executor attempts, `info` best-effort checks whether the
 recorded process group exists; other executors and remote hosts are
 unverified. This does not prove process identity. The run lock separately
-reports coordinator liveness on this host, and stale locks are never removed.
+reports coordinator liveness on this host.
 Run rows count jobs with a recorded final result and carried results as
 `finished`; a failed attempt waiting for retry is not final yet.
 Headings and states are colored on a terminal; redirected text and `--json`

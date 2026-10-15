@@ -1051,9 +1051,9 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
 
 ## Validation and readiness
 
-- `run`, `reset`, and `check` share the same project-state inspector. `run` and
-  `reset` remove a stale local lock only after consistency checks pass; read-only
-  `check` never removes it.
+- `run`, `reset`, and `check` share the same project-state inspector. Like
+  every reader of the run lock, they remove a stale local lock only after
+  consistency checks pass (SAFE-11); `check` changes nothing else.
 - `run` and `check` share queue loading and preflight validation: dependency
   resolution, executor names and option tokenizing, SSH target requirements,
   reserved native-array options, array range/task consistency, expanded job ID

@@ -99,7 +99,7 @@ func runInfoJSON(t *testing.T, args ...string) infoReport {
 	return report
 }
 
-func TestCmdInfoShowsAmbiguousProjectsAndDoesNotCleanStaleLock(t *testing.T) {
+func TestCmdInfoShowsAmbiguousProjectsAndRemovesStaleLock(t *testing.T) {
 	baseDir := t.TempDir()
 	masterDir := t.TempDir()
 	for _, name := range []string{"alpha", "beta"} {
@@ -136,8 +136,8 @@ func TestCmdInfoShowsAmbiguousProjectsAndDoesNotCleanStaleLock(t *testing.T) {
 	if len(report.RunLocks) != 1 || report.RunLocks[0].State != state.LockStale {
 		t.Fatalf("run locks = %#v, want stale lock", report.RunLocks)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("info removed or changed stale lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("info left the stale lock: %v", err)
 	}
 }
 

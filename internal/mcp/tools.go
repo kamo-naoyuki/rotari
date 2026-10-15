@@ -50,7 +50,8 @@ type UnreadableBaseDir struct {
 }
 
 // listProjects lists the projects of every basedir registered under
-// masterDir, as `rotari show` does, without writing.
+// masterDir, as `rotari show` does, writing nothing but the removal of a
+// stale run lock (project.Inspect).
 func listProjects(masterDir string) (ListProjectsOutput, error) {
 	baseDirs, _, err := basedirregistry.Discover(masterDir)
 	if err != nil {
@@ -58,7 +59,7 @@ func listProjects(masterDir string) (ListProjectsOutput, error) {
 	}
 	output := ListProjectsOutput{Projects: []ProjectOverview{}}
 	for _, baseDir := range baseDirs {
-		overviews, err := project.Overviews(baseDir, false)
+		overviews, err := project.Overviews(baseDir)
 		if err != nil {
 			output.Unreadable = append(output.Unreadable, UnreadableBaseDir{
 				BaseDirRef: basedirregistry.Ref(baseDir), BaseDirName: filepath.Base(baseDir),

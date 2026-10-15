@@ -455,7 +455,10 @@ do not combine it with `--project-name`.
 A project that does not exist yet is reported as `state=empty` with zero queued
 jobs and exit status 1; `check` does not create the project.
 
-The command is read-only and does not reserve the project or remove a stale
-lock. `run` and `reset` repeat the applicable checks before changing state, so
-they remain safe if the project changes after `check` returns. Inconsistent
-saved state is reported instead of starting or recovering a run.
+The command does not reserve the project. Like every command that reads the
+run lock, it removes a stale lock left by a coordinator that died on this
+host, but only when the lock, metadata, and run directory agree; the run stays
+interrupted until `unlock`. `run` and `reset` repeat the applicable checks
+before changing state, so they remain safe if the project changes after
+`check` returns. Inconsistent saved state is reported instead of starting or
+recovering a run.

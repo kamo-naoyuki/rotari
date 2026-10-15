@@ -73,16 +73,18 @@ Representative implementation and tests:
 - `wait --json` emits one `RunSummary` object per requested run, using NDJSON
   when multiple IDs are supplied.
 - `wait` polls for the run's `summary.json`. While it is missing, `wait` also
-  inspects the project state without removing a stale lock; when the run is no
-  longer active (for example, interrupted because its supervisor exited), it
+  inspects the project state, removing a stale lock as every reader does
+  (SAFE-11); when the run is no longer active (for example, interrupted
+  because its supervisor exited), it
   prints how to inspect and recover the run and exits 1 instead of waiting
   forever. A malformed summary is treated as still being written while its
   run is active; if the run has ended without a valid summary, `wait` reports
   that failure. A summary from a newer state version fails with an upgrade
   message. A readable summary is returned only after the project has stopped
   running that run; if the run was interrupted after writing it, `wait` reports
-  the interruption rather than treating it as finalized. Selector resolution
-  must also leave stale run locks in place for recovery.
+  the interruption rather than treating it as finalized. Removing a stale
+  lock does not end the interruption: the metadata still records the run
+  until `unlock`.
 - `show --json` emits one object with the resolved location, available run
   summary, and saved commands. With `--run-id` and `--job-id`, it emits a job
   view with the selected command's expanded jobs, whether each has finished,
@@ -154,8 +156,8 @@ does not promise to detect a lost remote client.
   job counts include jobs with a recorded final result and carried results as
   `finished`, and those of them that failed also as `failed`; terminal
   attempts awaiting a retry and `pending` jobs, not yet dispatched, are counted as
-  `pending`. It is read-only
-  and does not remove stale locks. Coordinator liveness is reported only for
+  `pending`. It changes no state except removing a stale lock (SAFE-11), and
+  reports the lock as found. Coordinator liveness is reported only for
   local locks. Human-readable output uses the standard CLI colors only on a
   terminal; JSON and redirected output remain plain. The implementation is in
   [`cmd/rotari/info.go`](../cmd/rotari/info.go), with CLI and non-mutation

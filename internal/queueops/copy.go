@@ -71,7 +71,7 @@ func (editor Editor) CopySnapshot(baseDir, sourceProject, runID, destinationProj
 	if err != nil {
 		return model.Queue{}, 0, err
 	}
-	if err := project.EnsureRunSettled(paths, runID, "copy", false); err != nil {
+	if err := project.EnsureRunSettled(paths, runID, "copy"); err != nil {
 		return model.Queue{}, 0, err
 	}
 	sourceRunDir, err := state.SafeJoin(paths.RunsDir, runID)

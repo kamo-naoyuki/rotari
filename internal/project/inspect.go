@@ -8,6 +8,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -34,10 +35,19 @@ type Inspection struct {
 	LockRunID string
 }
 
-// Inspect classifies a project from its lock and metadata. With cleanupStale,
-// a stale local lock is removed while inspecting.
-func Inspect(paths state.ProjectPaths, cleanupStale bool) (Inspection, error) {
-	lockState, lock, err := state.InspectLock(paths.LockFile, cleanupStale)
+// Inspect classifies a project from its lock and metadata, and removes a
+// stale local lock as removeStaleLock does. The inspection describes the lock
+// as found.
+func Inspect(paths state.ProjectPaths) (Inspection, error) {
+	inspection, err := inspect(paths)
+	if err == nil && inspection.Lock == state.LockStale {
+		removeStaleLock(paths)
+	}
+	return inspection, err
+}
+
+func inspect(paths state.ProjectPaths) (Inspection, error) {
+	lockState, lock, err := state.InspectLock(paths.LockFile)
 	if err != nil {
 		return Inspection{}, err
 	}
@@ -59,27 +69,62 @@ func Inspect(paths state.ProjectPaths, cleanupStale bool) (Inspection, error) {
 	return Inspection{State: Idle, Lock: lockState, LockRunID: lock.RunID}, nil
 }
 
+// InspectRunLock classifies the project's run lock as found, and removes a
+// stale local lock as removeStaleLock does.
+func InspectRunLock(paths state.ProjectPaths) (state.LockState, model.LockInfo, error) {
+	lockState, lock, err := state.InspectLock(paths.LockFile)
+	if err == nil && lockState == state.LockStale {
+		removeStaleLock(paths)
+	}
+	return lockState, lock, err
+}
+
 // RunActive reports whether runID holds the project's run lock. A stale local
-// lock is removed while checking.
+// lock is removed as removeStaleLock does.
 func RunActive(paths state.ProjectPaths, runID string) bool {
-	lockState, lock, err := state.InspectLock(paths.LockFile, true)
+	lockState, lock, err := InspectRunLock(paths)
 	return err == nil && (lockState == state.LockActive || lockState == state.LockRemote) && lock.RunID == runID
 }
 
+// removeStaleLock removes the project's stale local run lock when the project
+// passes ValidateConsistency. It holds the state lock shared meanwhile, so it
+// cannot remove a lock that a starting run has just written; while the state
+// lock is held exclusively, by another process or by the caller, the lock is
+// left for a later inspection. A failure leaves the lock in place.
+func removeStaleLock(paths state.ProjectPaths) {
+	release, ok, err := state.TryAcquireStateReadLock(paths.StateLockFile)
+	if err != nil || !ok {
+		return
+	}
+	defer release()
+	inspection, err := inspect(paths)
+	if err != nil || inspection.Lock != state.LockStale || ValidateConsistency(paths, inspection) != nil {
+		return
+	}
+	_ = removeLockFile(paths)
+}
+
+func removeLockFile(paths state.ProjectPaths) error {
+	// codeql[go/path-injection]: LockFile is rooted in the resolved project directory.
+	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
+		return err
+	}
+	return nil
+}
+
 // InspectConsistent inspects a project and rejects lock, metadata, and run
-// directory combinations that disagree. A stale lock is removed only after
-// the check passes.
-func InspectConsistent(paths state.ProjectPaths, cleanupStale bool) (Inspection, error) {
-	inspection, err := Inspect(paths, false)
+// directory combinations that disagree. The caller holds the state lock; a
+// stale lock is removed only after the check passes.
+func InspectConsistent(paths state.ProjectPaths) (Inspection, error) {
+	inspection, err := inspect(paths)
 	if err != nil {
 		return Inspection{}, err
 	}
 	if err := ValidateConsistency(paths, inspection); err != nil {
 		return Inspection{}, err
 	}
-	if cleanupStale && inspection.Lock == state.LockStale {
-		// codeql[go/path-injection]: LockFile is rooted in the resolved project directory.
-		if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
+	if inspection.Lock == state.LockStale {
+		if err := removeLockFile(paths); err != nil {
 			return Inspection{}, err
 		}
 	}
@@ -132,7 +177,7 @@ func (err *RunningError) Error() string {
 // EnsureIdle rejects operation unless the project is idle. The error for an
 // interrupted run tells the user how to inspect and recover it.
 func EnsureIdle(paths state.ProjectPaths, operation string) error {
-	inspection, err := InspectConsistent(paths, true)
+	inspection, err := InspectConsistent(paths)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}
@@ -161,9 +206,9 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 // EnsureRunSettled refuses the project's active or interrupted run: runID, or
 // any when runID is empty. Its results are not final and its jobs may still
 // run, so operation, such as copy or export, would act on results that may
-// yet change. cleanupStale is passed to Inspect.
-func EnsureRunSettled(paths state.ProjectPaths, runID, operation string, cleanupStale bool) error {
-	inspection, err := Inspect(paths, cleanupStale)
+// yet change.
+func EnsureRunSettled(paths state.ProjectPaths, runID, operation string) error {
+	inspection, err := Inspect(paths)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}

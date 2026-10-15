@@ -62,7 +62,9 @@ func LoadLock(path string) (model.LockInfo, error) {
 	return lock, nil
 }
 
-func InspectLock(path string, cleanupStale bool) (LockState, model.LockInfo, error) {
+// InspectLock classifies the run lock at path without changing it. A stale
+// lock is removed by internal/project, which checks the project first.
+func InspectLock(path string) (LockState, model.LockInfo, error) {
 	lock, err := LoadLock(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -80,12 +82,6 @@ func InspectLock(path string, cleanupStale bool) (LockState, model.LockInfo, err
 	}
 	if lock.PID > 0 && ProcessAlive(lock.PID) {
 		return LockActive, lock, nil
-	}
-	if cleanupStale {
-		// codeql[go/path-injection]: path is the resolved project lock file.
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return LockStale, lock, err
-		}
 	}
 	return LockStale, lock, nil
 }
@@ -155,9 +151,32 @@ func AcquireStateReadLock(lockPath string) (func(), error) {
 	}, nil
 }
 
+// TryAcquireStateReadLock takes the shared project state lock at lockPath
+// without waiting, creating the lock file as AcquireStateLock does. ok is
+// false while another holder, possibly in this process, has it exclusively.
+func TryAcquireStateReadLock(lockPath string) (release func(), ok bool, err error) {
+	// codeql[go/path-injection]: lockPath is resolved from the trusted state root.
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, FileMode()) // NOSONAR: lockPath is resolved from the trusted state root.
+	if err != nil {
+		return nil, false, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); err != nil {
+		f.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}, true, nil
+}
+
 // AcquireRunLock publishes info as the run lock at lockPath. It fails while
 // another run holds an active or remote lock, and never replaces an existing
-// lock file.
+// lock file. The caller holds the state lock exclusively and has checked the
+// project, so a stale lock left at lockPath is removed first.
 func AcquireRunLock(lockPath string, info model.LockInfo) error {
 	if info.Host == "" {
 		host, err := os.Hostname()
@@ -166,12 +185,18 @@ func AcquireRunLock(lockPath string, info model.LockInfo) error {
 		}
 		info.Host = host
 	}
-	lockState, _, err := InspectLock(lockPath, true)
+	lockState, _, err := InspectLock(lockPath)
 	if err != nil {
 		return err
 	}
 	if lockState == LockActive || lockState == LockRemote {
 		return errors.New("active lock exists")
+	}
+	if lockState == LockStale {
+		// codeql[go/path-injection]: lockPath is the resolved project lock file.
+		if err := os.Remove(lockPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 
 	b, err := json.MarshalIndent(info, "", "  ")

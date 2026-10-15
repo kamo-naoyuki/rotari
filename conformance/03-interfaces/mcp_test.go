@@ -523,3 +523,39 @@ func TestMCPUnlockRecoversAnInterruptedRun(t *testing.T) {
 		t.Fatalf("after the unlock: %s", r)
 	}
 }
+
+func TestMCPRemovesStaleRunLock(t *testing.T) {
+	covers(t, "SAFE-11")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "demo", "--", "true")
+	projectDir := filepath.Join(e.Base, "projects", "demo")
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20261015-120000-00000000"
+	runDir := filepath.Join(projectDir, "runs", runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(projectDir, "running.lock")
+	for path, content := range map[string]string{
+		filepath.Join(runDir, "context.json"):  `{"hostname":"` + host + `"}`,
+		filepath.Join(runDir, "commands.json"): `{"commands":[{"id":"job-a","command":["true"]}]}`,
+		filepath.Join(projectDir, "meta.json"): `{"phase":"running","last_run_id":"` + runID + `"}`,
+		lockPath:                               `{"pid":999999999,"run_id":"` + runID + `","host":"` + host + `"}`,
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	session := startMCP(t, e)
+	baseDirRef(t, session, "demo")
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("rotari_list_projects left the stale lock: %v", err)
+	}
+	if state := e.CheckState("demo"); state != "interrupted" {
+		t.Fatalf("after rotari_list_projects: state %q, want the run still interrupted", state)
+	}
+}

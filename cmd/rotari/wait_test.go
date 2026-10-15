@@ -405,7 +405,7 @@ func TestCmdWaitReportsInterruptedRunWithoutSummary(t *testing.T) {
 	}
 }
 
-func TestCmdWaitProjectSelectorPreservesInterruptedRunLock(t *testing.T) {
+func TestCmdWaitProjectSelectorRemovesStaleLockOfInterruptedRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
 	paths := writeInterruptedResetProject(t, baseDir)
@@ -434,8 +434,8 @@ func TestCmdWaitProjectSelectorPreservesInterruptedRunLock(t *testing.T) {
 	if code != 1 || !strings.Contains(string(output), "was interrupted before it wrote a summary") {
 		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("wait removed the interrupted run lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("wait left the stale lock: %v", err)
 	}
 }
 
@@ -471,12 +471,12 @@ func TestCmdWaitDoesNotReturnSummaryBeforeProjectFinalization(t *testing.T) {
 	if code != 1 || !strings.Contains(string(output), "was interrupted after writing its summary") {
 		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("wait removed the interrupted run lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("wait left the stale lock: %v", err)
 	}
 }
 
-func TestResolveActiveWaitTargetsPreservesStaleRunLock(t *testing.T) {
+func TestResolveActiveWaitTargetsRemovesStaleRunLock(t *testing.T) {
 	baseDir := t.TempDir()
 	paths := writeInterruptedResetProject(t, baseDir)
 	if err := writeJSON(paths.LockFile, staleTestRunLock(t, "run-1")); err != nil {
@@ -489,8 +489,8 @@ func TestResolveActiveWaitTargetsPreservesStaleRunLock(t *testing.T) {
 	if len(targets) != 0 {
 		t.Fatalf("active targets = %#v, want none", targets)
 	}
-	if _, err := os.Stat(paths.LockFile); err != nil {
-		t.Fatalf("active-run scan removed the interrupted run lock: %v", err)
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
+		t.Fatalf("active-run scan left the stale lock: %v", err)
 	}
 }
 

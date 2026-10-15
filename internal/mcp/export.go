@@ -41,7 +41,7 @@ func exportRun(masterDir string, input ExportRunInput) (ExportRunOutput, error) 
 	runner := writeTools{masterDir: masterDir}.runner()
 	run, err := workflowstate.LoadSettledRun(paths, location.RunID, func(queue model.Queue) error {
 		return runner.ValidateQueue(queue, "", nil, nil)
-	}, false)
+	})
 	if err != nil {
 		return ExportRunOutput{}, err
 	}
