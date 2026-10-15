@@ -41,6 +41,7 @@ LSF_MASTER_LIST="$(hostname)"
 LSF_TARDIR="$work/distrib"
 LSF_SILENT_INSTALL_TARLIST="ALL"
 SILENT_INSTALL="Y"
+ACCEPT_LICENSE="Y"
 ENABLE_EGO="N"
 EOF
 entitlement=$(find /lsf-distrib -name '*entitlement*' -type f | head -n 1)
