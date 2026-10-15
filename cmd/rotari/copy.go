@@ -118,7 +118,7 @@ func cmdCopy(args []string) int {
 			}
 			jobIDs = stringSliceFlag{target.JobID}
 		} else {
-			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobName, true, false)
+			targets, err := resolve.Jobs(cliScope(fs, *basedir), *queueNameOption, *jobName, true, false)
 			if err != nil {
 				printError(err)
 				return 1
@@ -169,7 +169,7 @@ func cmdCopy(args []string) int {
 				}
 				*basedir, *queueNameOption, *runID = baseDir, projectName, latestRunID
 			} else {
-				target, err := resolve.LatestJobIDs(*basedir, *queueNameOption, jobIDs)
+				target, err := resolve.LatestJobIDs(cliScope(fs, *basedir), *queueNameOption, jobIDs)
 				if err != nil {
 					printError(err)
 					return 1

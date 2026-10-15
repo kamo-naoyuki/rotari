@@ -68,7 +68,7 @@ func TestActiveRunWithJobsPropagatesSnapshotError(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "commands.json"), []byte(`{"state_version":999}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = activeRunWithJobs(baseDir, []string{"job-1"})
+	_, _, err = activeRunWithJobs(Scope{BaseDir: baseDir, Pinned: true}, []string{"job-1"})
 	if !errors.Is(err, state.ErrNewerStateVersion) || !strings.Contains(err.Error(), "upgrade rotari") {
 		t.Fatalf("activeRunWithJobs error = %v", err)
 	}

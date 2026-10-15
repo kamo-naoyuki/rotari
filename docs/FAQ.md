@@ -101,7 +101,9 @@ Run `rotari delete -p PROJECT --project`, or use Delete on the project's row of 
 
 `show NAME` tries an attempt ID, registered run ID, `latest`, and an existing
 project before searching run names, job IDs, and job names. Those searches use
-the selected basedir and project scope. If the selected project does not exist,
+the selected basedir and project scope; without `--basedir` and a project, a
+project, run name, or job the selected basedir lacks is also looked for in the
+other registered basedirs. If the selected project does not exist,
 the error names both the requested selector and the missing project rather
 than silently changing scope.
 
@@ -112,7 +114,7 @@ the error also gives a `--basedir` hint.
 
 ### I don't know which basedir contains my jobs. How do I find it?
 
-Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry.
+Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry. `rotari show PROJECT`, `rotari show JOB_ID`, and other job selectors also find a project or job in another registered basedir when the current one has none.
 
 ### Where can I put option defaults?
 

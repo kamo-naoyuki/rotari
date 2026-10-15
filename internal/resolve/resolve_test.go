@@ -54,7 +54,7 @@ func TestJobSelectionPassesThroughPlainJobIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := JobSelection(baseDir, "demo", []string{"job-1", "job-2"})
+	got, err := JobSelection(Scope{BaseDir: baseDir}, "demo", []string{"job-1", "job-2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestJobSelectionResolvesBareRunIDAndStripsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := JobSelection("", "", []string{runID, "job-1"})
+	got, err := JobSelection(Scope{}, "", []string{runID, "job-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestJobSelectionResolvesAttemptID(t *testing.T) {
 	}
 	attemptID := state.MakeAttemptID(runID, "job-1", 0)
 
-	got, err := JobSelection("", "", []string{attemptID})
+	got, err := JobSelection(Scope{}, "", []string{attemptID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestJobSelectionRejectsMixedRuns(t *testing.T) {
 	otherRunID := "20260922-000000-11111111"
 	attemptID := state.MakeAttemptID("20260922-000000-00000000", "job-1", 0)
 
-	if _, err := JobSelection("", "", []string{otherRunID, attemptID}); err == nil ||
+	if _, err := JobSelection(Scope{}, "", []string{otherRunID, attemptID}); err == nil ||
 		!strings.Contains(err.Error(), "belongs to run") {
 		t.Fatalf("JobSelection() error = %v, want run mismatch error", err)
 	}
-	if _, err := JobSelection("", "", []string{otherRunID, "20260922-000000-00000000"}); err == nil ||
+	if _, err := JobSelection(Scope{}, "", []string{otherRunID, "20260922-000000-00000000"}); err == nil ||
 		!strings.Contains(err.Error(), "selection mixes run") {
 		t.Fatalf("JobSelection() error = %v, want mixed-run error", err)
 	}
@@ -159,21 +159,21 @@ func TestJobSelectionSearchesActiveRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := JobSelection(baseDir, "", []string{"job-1", "job-2"})
+	got, err := JobSelection(Scope{BaseDir: baseDir}, "", []string{"job-1", "job-2"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.ProjectName != "alpha" || got.RunID != "20260922-000000-aaaaaaaa" || strings.Join(got.JobIDs, ",") != "job-1,job-2" {
 		t.Fatalf("got = %+v, want alpha's active run", got)
 	}
-	if _, err := JobSelection(baseDir, "", []string{"job-2"}); err == nil ||
+	if _, err := JobSelection(Scope{BaseDir: baseDir}, "", []string{"job-2"}); err == nil ||
 		!strings.Contains(err.Error(), "project=alpha run=20260922-000000-aaaaaaaa") || !strings.Contains(err.Error(), "project=beta run=20260922-000000-bbbbbbbb") {
 		t.Fatalf("JobSelection() error = %v, want both active runs listed", err)
 	}
-	if _, err := JobSelection(baseDir, "", []string{"job-3"}); err == nil || !strings.Contains(err.Error(), "no active run") {
+	if _, err := JobSelection(Scope{BaseDir: baseDir}, "", []string{"job-3"}); err == nil || !strings.Contains(err.Error(), "no active run") {
 		t.Fatalf("JobSelection() error = %v, want no active run", err)
 	}
-	got, err = JobSelection(baseDir, "beta", []string{"job-1"})
+	got, err = JobSelection(Scope{BaseDir: baseDir}, "beta", []string{"job-1"})
 	if err != nil || got.ProjectName != "beta" || got.RunID != "" {
 		t.Fatalf("JobSelection() with a project = %+v, %v; want beta without a search", got, err)
 	}
@@ -539,11 +539,11 @@ func TestJobsLooksInTheQueueFirstInEveryState(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got, err := Jobs(baseDir, "demo", "train", true, true)
+			got, err := Jobs(Scope{BaseDir: baseDir, Pinned: true}, "demo", "train", true, true)
 			if err != nil || len(got) != 1 || !got[0].FromQueue || got[0].JobID != "queued-train" {
 				t.Fatalf("Jobs(train) = %+v, %v; want the queued job", got, err)
 			}
-			got, err = Jobs(baseDir, "demo", "eval", true, true)
+			got, err = Jobs(Scope{BaseDir: baseDir, Pinned: true}, "demo", "eval", true, true)
 			if err != nil || len(got) != 1 || got[0].FromQueue || got[0].RunID != "run-1" || got[0].JobID != "run-eval" {
 				t.Fatalf("Jobs(eval) = %+v, %v; want the run's job", got, err)
 			}

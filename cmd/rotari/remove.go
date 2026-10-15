@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 )
 
 // cmdRemove removes jobs from the current queue or prepares a filtered
@@ -50,12 +51,14 @@ func cmdRemove(args []string) int {
 	}
 
 	if *queueNameOption == "" && *runID == "" {
-		project, err := locateQueuedJobs(*basedir, selector)
+		target, found, err := resolve.QueueWithJobs(cliScope(fs, *basedir), selector)
 		if err != nil {
 			printError(err)
 			return 1
 		}
-		*queueNameOption = project
+		if found {
+			*basedir, *queueNameOption = target.BaseDir, target.ProjectName
+		}
 	}
 	baseDir, queueName, err := resolveCLIExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {

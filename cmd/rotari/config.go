@@ -49,6 +49,7 @@ func loadCLIConfig(args []string) error {
 	cliLocationDefaults = nil
 	cliFileConfig = config.Loaded{Values: map[string]any{}}
 	baseDir, projectName := configLocationArgs(args)
+	cliBaseDirGiven := baseDir != ""
 	invocationOptions, positional := configInvocationOptions(args)
 	aggregate := aggregateCommandInvocation(cliConfigCommand, invocationOptions, positional)
 	cliIgnoreImplicitLocationDefaults = ignoredImplicitLocationDefaults(cliConfigCommand, aggregate)
@@ -146,8 +147,14 @@ func loadCLIConfig(args []string) error {
 	if !projectFlagGiven && len(positional) > 0 && (cliConfigCommand == "show" || cliConfigCommand == "export" || cliConfigCommand == "wait") {
 		candidate := positional[0]
 		if candidate != "latest" && state.IsValidPathElement(candidate) && !resolve.IsRunID(candidate) {
-			if info, err := os.Stat(filepath.Join(resolvedBaseDir, "projects", candidate)); err == nil && info.IsDir() {
-				projectName = candidate
+			if cliConfigCommand == "export" {
+				if info, err := os.Stat(filepath.Join(resolvedBaseDir, "projects", candidate)); err == nil && info.IsDir() {
+					projectName = candidate
+					cliLocationExplicit["project-name"] = true
+				}
+			} else if projectBaseDir, found, err := resolve.ProjectBaseDir(resolve.Scope{BaseDir: resolvedBaseDir, Pinned: cliBaseDirGiven}, candidate); err == nil && found {
+				// An error is left to the command, which looks the project up the same way.
+				resolvedBaseDir, projectName = projectBaseDir, candidate
 				cliLocationExplicit["project-name"] = true
 			}
 		}

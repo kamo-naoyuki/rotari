@@ -65,6 +65,20 @@ matches in more than one place fails with `resolve.AmbiguousError`, which
 lists each candidate's project, run or queue, and job. A group selector
 (`--stage`, `--matrix`, `--all`) still needs a single project.
 
+**SEL-13** When nothing in the base directory matches, the same search
+continues in the other base directories registered in the master directory
+(see `basedirs`), unless `--basedir` is given on the command line;
+`ROTARI_BASEDIR` and a config file only choose the base directory searched
+first. A match in the base directory wins over matches elsewhere, and
+matches in more than one other base directory are ambiguous, listed with
+each candidate's base directory. This applies to job IDs, job names, and
+run names without a project in every command above, and to a positional
+project of `show` and `wait`. `--project-name` and `ROTARI_PROJECT_NAME`
+keep the search in the base directory. Implemented by `resolve.Scope` in
+[internal/resolve/scope.go](../internal/resolve/scope.go), tested by
+[its tests](../internal/resolve/scope_test.go) and `TestCrossBaseDirSelectors` in
+[conformance/06-selectors/basedir_test.go](../conformance/06-selectors/basedir_test.go).
+
 ## What each command reads
 
 | Command | Without `--run-id` | With `--run-id` |
@@ -347,8 +361,8 @@ General rules:
 | `check`, `reset` | `[PROJECT]` | the project | `--project-name` |
 | `jobs` | `[PROJECT]` | the project to list; overrides environment and config defaults | `--project-name` |
 | `unlock` | `[PROJECT]` | the project; the run ID to verify is always `--run-id` | `--project-name` |
-| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given); otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, and list options; a run name, job ID, or job name also excludes log, follow, JSON, and report options, which an attempt ID, run ID, `latest`, or project takes like its option |
-| `wait` | `[SELECTOR ...]` | each: `latest`, then a project, then a run name, then a registered run ID; a project or run name means its active run, or else its latest run | – (added to `--run-id`) |
+| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given), in the base directory or else a registered one (SEL-13); otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, and list options; a run name, job ID, or job name also excludes log, follow, JSON, and report options, which an attempt ID, run ID, `latest`, or project takes like its option |
+| `wait` | `[SELECTOR ...]` | each: `latest`, then a project (as in `show`), then a run name, then a registered run ID; a project or run name means its active run, or else its latest run | – (added to `--run-id`) |
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that names the run, which must be active (see [Job control](#job-control)) | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
 | `copy`, `run`, `retry` | `[RUN_ID]` | the run to copy or rerun from | `--run-id` |

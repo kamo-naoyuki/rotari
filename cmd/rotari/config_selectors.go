@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -54,7 +55,7 @@ func resolveCLIAttempt(attempt, base, project, runID string) (string, string, st
 	return resolve.Attempt(attempt, base, project, runID)
 }
 
-func resolveCLIJobSelection(base, project string, ids []string) (resolve.JobControl, error) {
+func resolveCLIJobSelection(scope resolve.Scope, project string, ids []string) (resolve.JobControl, error) {
 	for _, id := range ids {
 		runID := id
 		if strings.HasPrefix(id, "att_") {
@@ -66,12 +67,18 @@ func resolveCLIJobSelection(base, project string, ids []string) (resolve.JobCont
 		}
 		if resolve.IsRunID(runID) {
 			var err error
-			base, project, err = configRegistrySelectors(base, project, runID)
+			scope.BaseDir, project, err = configRegistrySelectors(scope.BaseDir, project, runID)
 			if err != nil {
 				return resolve.JobControl{}, err
 			}
 			break
 		}
 	}
-	return resolve.JobSelection(base, project, ids)
+	return resolve.JobSelection(scope, project, ids)
+}
+
+// cliScope is where a command looks for a selector without a project: only
+// --basedir keeps it in one state directory.
+func cliScope(fs *flag.FlagSet, baseDir string) resolve.Scope {
+	return resolve.Scope{BaseDir: baseDir, Pinned: cliOptionSet(fs, "basedir")}
 }

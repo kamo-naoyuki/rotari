@@ -64,7 +64,7 @@ func cmdWait(args []string) int {
 		targets = append(targets, resolve.Run{BaseDir: *basedir, ProjectName: *queueNameOption, RunID: runID})
 	}
 	for _, selector := range selectors {
-		target, err := resolveWaitTarget(*basedir, *queueNameOption, selector)
+		target, err := resolveWaitTarget(cliScope(fs, *basedir), *queueNameOption, selector)
 		if err != nil {
 			printError(err)
 			return 1
@@ -534,23 +534,25 @@ func (output *waitOutput) error(err error) {
 	output.errorf("%v", err)
 }
 
-func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run, error) {
+func resolveWaitTarget(scope resolve.Scope, cliProjectName, selector string) (resolve.Run, error) {
 	if selector == model.Latest {
-		baseDir, projectName, runID, err := resolveCLIExistingRunID(cliBaseDir, cliProjectName, selector)
+		baseDir, projectName, runID, err := resolveCLIExistingRunID(scope.BaseDir, cliProjectName, selector)
 		if err != nil {
 			return resolve.Run{}, err
 		}
 		return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID}, nil
 	}
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
 	if err != nil {
 		return resolve.Run{}, err
 	}
 	// A project or run name waits for its active run, or else returns the
 	// latest matching run's result, so a run that ends before wait is called
 	// is not an error.
-	if resolve.ProjectExists(baseDir, selector) {
-		return resolveProjectWaitTarget(baseDir, selector)
+	if projectBaseDir, found, err := resolve.ProjectBaseDir(scope, selector); err != nil {
+		return resolve.Run{}, err
+	} else if found {
+		return resolveProjectWaitTarget(projectBaseDir, selector)
 	}
 	selectedProject := cliProjectName
 	if selectedProject == "" {
@@ -562,12 +564,12 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		}
 	}
 
-	activeTargets, err := resolve.RunsByName(baseDir, cliProjectName, selector, true)
+	activeTargets, err := resolve.RunsByName(scope, cliProjectName, selector, true)
 	if err != nil {
 		return resolve.Run{}, err
 	}
 	if len(activeTargets) == 0 {
-		named, err := resolve.RunsByName(baseDir, cliProjectName, selector, false)
+		named, err := resolve.RunsByName(scope, cliProjectName, selector, false)
 		if err != nil {
 			return resolve.Run{}, err
 		}
@@ -589,7 +591,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		// A run ID locates its own run, and an explicit base directory or
 		// project that disagrees with the registry is an error, as with
 		// --run-id and every other command.
-		baseDir, projectName, err := resolveCLIExistingRun(cliBaseDir, cliProjectName, selector)
+		baseDir, projectName, err := resolveCLIExistingRun(scope.BaseDir, cliProjectName, selector)
 		if err != nil {
 			return resolve.Run{}, err
 		}

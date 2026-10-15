@@ -169,7 +169,7 @@ func runJobs(args []string, defaultSelection string) int {
 			jobIDs = stringSliceFlag{target.JobID}
 		} else {
 			// A non-empty queue is preferred to the latest run, as in show.
-			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobNameOption, true, true)
+			targets, err := resolve.Jobs(cliScope(fs, *basedir), *queueNameOption, *jobNameOption, true, true)
 			if err != nil {
 				printError(err)
 				return 1
@@ -215,7 +215,7 @@ func runJobs(args []string, defaultSelection string) int {
 	if *runIDOption == "" && len(jobIDs) > 0 && !attemptSelection {
 		// Jobs in a non-empty queue run from it, keeping its edits; otherwise
 		// the latest run that holds them is restored first.
-		target, resolveErr := resolve.QueuedOrLatestJobIDs(*basedir, *queueNameOption, jobIDs)
+		target, resolveErr := resolve.QueuedOrLatestJobIDs(cliScope(fs, *basedir), *queueNameOption, jobIDs)
 		if resolveErr != nil {
 			printError(resolveErr)
 			return 1

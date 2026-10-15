@@ -38,9 +38,9 @@ const (
 	jobNotFoundMessage = "job %q not found in run %q"
 )
 
-func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, byName bool) ([]resolve.Job, error) {
+func resolveShowJobTargets(scope resolve.Scope, cliProjectName, runID, selector string, byName bool) ([]resolve.Job, error) {
 	if runID != "" {
-		baseDir, projectName, err := resolveCLIExistingRun(cliBaseDir, cliProjectName, runID)
+		baseDir, projectName, err := resolveCLIExistingRun(scope.BaseDir, cliProjectName, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -54,33 +54,11 @@ func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, b
 		}
 		return []resolve.Job{target}, nil
 	}
-	return resolve.Jobs(cliBaseDir, cliProjectName, selector, byName, true)
+	return resolve.Jobs(scope, cliProjectName, selector, byName, true)
 }
 
-func resolveShowSelector(cliBaseDir, cliProjectName, selector string) ([]resolve.Job, error) {
-	runTargets, err := resolve.RunsByName(cliBaseDir, cliProjectName, selector, false)
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]resolve.Job, 0, len(runTargets))
-	for _, target := range runTargets {
-		targets = append(targets, resolve.Job{Run: target})
-	}
-
-	for _, byName := range []bool{false, true} {
-		jobTargets, err := resolveShowJobTargets(cliBaseDir, cliProjectName, "", selector, byName)
-		if err != nil {
-			return nil, err
-		}
-		for _, target := range jobTargets {
-			targets = append(targets, target)
-		}
-	}
-	return targets, nil
-}
-
-func showJobNameTargets(cliBaseDir, cliProjectName, runID, jobName string) ([]resolve.Job, error) {
-	return resolveShowJobTargets(cliBaseDir, cliProjectName, runID, jobName, true)
+func showJobNameTargets(scope resolve.Scope, cliProjectName, runID, jobName string) ([]resolve.Job, error) {
+	return resolveShowJobTargets(scope, cliProjectName, runID, jobName, true)
 }
 
 func applyShowSelectorTarget(target resolve.Job, basedir, projectName, runID, jobID *string, showQueue *bool) {
@@ -202,13 +180,13 @@ func cmdShow(args []string) int {
 	if selector != "" && !cliOptionSet(fs, "project-name") {
 		// A project name comes next, as in wait: "show sweep" is
 		// "show -p sweep".
-		baseDir, _, err := state.ResolveBaseDir(*basedir)
+		baseDir, found, err := resolve.ProjectBaseDir(cliScope(fs, *basedir), selector)
 		if err != nil {
 			printError(err)
 			return 1
 		}
-		if resolve.ProjectExists(baseDir, selector) {
-			*queueNameOption = selector
+		if found {
+			*basedir, *queueNameOption = baseDir, selector
 			selector = ""
 		}
 	}
@@ -229,7 +207,7 @@ func cmdShow(args []string) int {
 		*basedir, *queueNameOption, *runIDOption, *jobIDOption = baseDir, projectName, resolvedRunID, resolvedJobID
 	}
 	if *jobIDOption != "" && attemptID == "" && *runIDOption == "" {
-		targets, err := resolveShowJobTargets(*basedir, *queueNameOption, "", *jobIDOption, false)
+		targets, err := resolveShowJobTargets(cliScope(fs, *basedir), *queueNameOption, "", *jobIDOption, false)
 		if err != nil {
 			printError(err)
 			return 1
@@ -245,7 +223,7 @@ func cmdShow(args []string) int {
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
 	if selector != "" {
-		targets, err := resolveShowSelector(*basedir, *queueNameOption, selector)
+		targets, err := resolve.RunsOrJobs(cliScope(fs, *basedir), *queueNameOption, selector)
 		if err != nil {
 			var missingProject *resolve.ProjectNotFoundError
 			if errors.As(err, &missingProject) {
@@ -265,7 +243,7 @@ func cmdShow(args []string) int {
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
 	if *jobNameOption != "" {
-		targets, err := showJobNameTargets(*basedir, *queueNameOption, *runIDOption, *jobNameOption)
+		targets, err := showJobNameTargets(cliScope(fs, *basedir), *queueNameOption, *runIDOption, *jobNameOption)
 		if err != nil {
 			printError(err)
 			return 1

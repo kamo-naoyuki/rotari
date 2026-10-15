@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
@@ -67,8 +66,8 @@ type JobControl struct {
 // bare run ID locates the target run through the run registry and is not
 // itself a job selector, so it is removed from the job IDs. Without a run,
 // an attempt, or a project, plain job IDs are looked for in the active run of
-// every project, and must all be in one.
-func JobSelection(cliBaseDir, cliProjectName string, ids []string) (JobControl, error) {
+// every project of scope, and must all be in one.
+func JobSelection(scope Scope, cliProjectName string, ids []string) (JobControl, error) {
 	targetRunID := ""
 	jobIDs := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -93,7 +92,7 @@ func JobSelection(cliBaseDir, cliProjectName string, ids []string) (JobControl, 
 		}
 	}
 	if targetRunID == "" && len(jobIDs) > 0 && !state.ProjectNameGiven(cliProjectName) {
-		target, found, err := activeRunWithJobs(cliBaseDir, jobIDs)
+		target, found, err := activeRunWithJobs(scope, jobIDs)
 		if err != nil {
 			return JobControl{}, err
 		}
@@ -101,48 +100,68 @@ func JobSelection(cliBaseDir, cliProjectName string, ids []string) (JobControl, 
 			return JobControl{Run: target, JobIDs: jobIDs}, nil
 		}
 	}
-	baseDir, projectName, err := ExistingRun(cliBaseDir, cliProjectName, targetRunID)
+	baseDir, projectName, err := ExistingRun(scope.BaseDir, cliProjectName, targetRunID)
 	if err != nil {
 		return JobControl{}, err
 	}
 	return JobControl{Run: Run{BaseDir: baseDir, ProjectName: projectName, RunID: targetRunID}, JobIDs: jobIDs}, nil
 }
 
-// activeRunWithJobs finds the one active run, among the projects of a base
-// directory with more than one, that holds every job ID. It reports false
-// when the base directory has at most one project, which normal project
-// resolution then selects.
-func activeRunWithJobs(cliBaseDir string, jobIDs []string) (Run, bool, error) {
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+// activeRunWithJobs finds the one active run of scope that holds every job
+// ID. When none does, it reports false for a base directory with at most one
+// project, which normal project resolution then selects.
+func activeRunWithJobs(scope Scope, jobIDs []string) (Run, bool, error) {
+	targets, err := search(scope, func(baseDir string) ([]Job, error) {
+		return activeRunsWithJobs(baseDir, jobIDs)
+	})
 	if err != nil {
 		return Run{}, false, err
 	}
-	projects, err := ProjectNames(baseDir, "")
+	switch len(targets) {
+	case 0:
+	case 1:
+		return targets[0].Run, true, nil
+	default:
+		return Run{}, false, AmbiguousError(fmt.Sprintf("job %s", strings.Join(jobIDs, ", ")), targets)
+	}
+	baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+	if err != nil {
+		return Run{}, false, err
+	}
+	projects, err := ExistingProjectNames(baseDir)
 	if err != nil || len(projects) <= 1 {
 		return Run{}, false, err
+	}
+	return Run{}, false, fmt.Errorf("no active run in state directory %q holds job %s; pass --project-name or a run ID", baseDir, strings.Join(jobIDs, ", "))
+}
+
+func activeRunsWithJobs(baseDir string, jobIDs []string) ([]Job, error) {
+	projects, err := ExistingProjectNames(baseDir)
+	if err != nil {
+		return nil, err
 	}
 	targets := make([]Job, 0, 1)
 	for _, projectName := range projects {
 		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
-			return Run{}, false, err
+			return nil, err
 		}
 		running, err := isRunning(paths)
 		if err != nil && !os.IsNotExist(err) {
-			return Run{}, false, err
+			return nil, err
 		}
 		if !running {
 			continue
 		}
 		lock, err := state.LoadLock(paths.LockFile)
 		if err != nil {
-			return Run{}, false, err
+			return nil, err
 		}
 		holdsAll := true
 		for _, jobID := range jobIDs {
 			_, found, err := JobInRun(paths, lock.RunID, jobID, false)
 			if err != nil {
-				return Run{}, false, err
+				return nil, err
 			}
 			if !found {
 				holdsAll = false
@@ -153,14 +172,7 @@ func activeRunWithJobs(cliBaseDir string, jobIDs []string) (Run, bool, error) {
 			targets = append(targets, Job{Run: Run{BaseDir: baseDir, ProjectName: projectName, RunID: lock.RunID}, JobID: strings.Join(jobIDs, ",")})
 		}
 	}
-	switch len(targets) {
-	case 0:
-		return Run{}, false, fmt.Errorf("no active run in state directory %q holds job %s; pass --project-name or a run ID", baseDir, strings.Join(jobIDs, ", "))
-	case 1:
-		return targets[0].Run, true, nil
-	default:
-		return Run{}, false, AmbiguousError(fmt.Sprintf("job %s", strings.Join(jobIDs, ", ")), targets)
-	}
+	return targets, nil
 }
 
 // SplitProjectOrRun classifies positional selectors that name either a
@@ -300,13 +312,15 @@ type Run struct {
 	RunID       string
 }
 
-// RunsByName finds runs named runName in the selected projects: the active
-// run of each project, and unless activeOnly every saved run as well.
-func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-	if err != nil {
-		return nil, err
-	}
+// RunsByName finds runs named runName in the selected projects of scope: the
+// active run of each project, and unless activeOnly every saved run as well.
+func RunsByName(scope Scope, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
+	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Run, error) {
+		return runsByName(baseDir, cliProjectName, runName, activeOnly)
+	})
+}
+
+func runsByName(baseDir, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
 	projectNames, err := ProjectNames(baseDir, cliProjectName)
 	if err != nil {
 		return nil, err
@@ -449,21 +463,16 @@ func lastRunNote(baseDir, projectName string) string {
 // registry that cannot be read gives none, since callers only add it to an
 // error as a hint.
 func RegisteredProjectBaseDirs(projectName, except string) []string {
-	masterDir, err := state.ResolveMasterDir("")
-	if err != nil {
-		return nil
-	}
-	baseDirs, _, err := basedirregistry.Discover(masterDir)
+	baseDirs, err := otherBaseDirs(except)
 	if err != nil {
 		return nil
 	}
 	var found []string
 	for _, baseDir := range baseDirs {
-		if filepath.Clean(baseDir) != filepath.Clean(except) && ProjectExists(baseDir, projectName) {
+		if ProjectExists(baseDir, projectName) {
 			found = append(found, baseDir)
 		}
 	}
-	sort.Strings(found)
 	return found
 }
 
@@ -506,12 +515,25 @@ func ExistingProjectNames(baseDir string) ([]string, error) {
 
 // AmbiguousError reports that selector, described by what (such as "job
 // name \"prep\""), matches several targets, and lists them so the caller
-// can pick one with --project-name or --run-id.
+// can pick one with --project-name or --run-id, or --basedir when they are
+// in more than one state directory.
 func AmbiguousError(what string, targets []Job) error {
-	var message strings.Builder
-	fmt.Fprintf(&message, "%s matches more than one target; pass --project-name or --run-id:", what)
+	baseDirs := map[string]bool{}
 	for _, target := range targets {
-		fmt.Fprintf(&message, "\n  project=%s", target.ProjectName)
+		baseDirs[target.BaseDir] = true
+	}
+	var message strings.Builder
+	if len(baseDirs) > 1 {
+		fmt.Fprintf(&message, "%s matches more than one target; pass --basedir, --project-name, or --run-id:", what)
+	} else {
+		fmt.Fprintf(&message, "%s matches more than one target; pass --project-name or --run-id:", what)
+	}
+	for _, target := range targets {
+		message.WriteString("\n ")
+		if len(baseDirs) > 1 {
+			fmt.Fprintf(&message, " basedir=%s", target.BaseDir)
+		}
+		fmt.Fprintf(&message, " project=%s", target.ProjectName)
 		switch {
 		case target.FromQueue:
 			message.WriteString(" queue")
@@ -697,14 +719,42 @@ func JobInRun(paths state.ProjectPaths, runID, selector string, byName bool) (Jo
 	}, true, nil
 }
 
-// Jobs finds a job by ID or name across the selected projects. With
-// includeQueue it applies defaultJobs to each project and keeps the best
-// candidates; otherwise it looks only in each project's latest run.
-func Jobs(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool) ([]Job, error) {
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-	if err != nil {
-		return nil, err
-	}
+// Jobs finds a job by ID or name across the selected projects of scope.
+// With includeQueue it applies defaultJobs to each project and keeps the
+// best candidates of each state directory; otherwise it looks only in each
+// project's latest run.
+func Jobs(scope Scope, cliProjectName, selector string, byName, includeQueue bool) ([]Job, error) {
+	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Job, error) {
+		return jobs(baseDir, cliProjectName, selector, byName, includeQueue)
+	})
+}
+
+// RunsOrJobs finds what selector names as a run name, a job ID, or a job
+// name, for a selector that may be any of them: every run named selector,
+// and the best job candidates by ID and by name, all from one state
+// directory of scope unless none matches there.
+func RunsOrJobs(scope Scope, cliProjectName, selector string) ([]Job, error) {
+	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Job, error) {
+		runs, err := runsByName(baseDir, cliProjectName, selector, false)
+		if err != nil {
+			return nil, err
+		}
+		targets := make([]Job, 0, len(runs))
+		for _, run := range runs {
+			targets = append(targets, Job{Run: run})
+		}
+		for _, byName := range []bool{false, true} {
+			found, err := jobs(baseDir, cliProjectName, selector, byName, true)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, found...)
+		}
+		return targets, nil
+	})
+}
+
+func jobs(baseDir, cliProjectName, selector string, byName, includeQueue bool) ([]Job, error) {
 	projects, err := ProjectNames(baseDir, cliProjectName)
 	if err != nil {
 		return nil, err
@@ -744,25 +794,25 @@ func Jobs(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool
 
 // LatestJobIDs finds the one latest run that contains every job ID. It fails
 // when an ID is missing, ambiguous, or the IDs span different runs.
-func LatestJobIDs(cliBaseDir, cliProjectName string, jobIDs []string) (Job, error) {
-	return jobIDsTarget(cliBaseDir, cliProjectName, jobIDs, false)
+func LatestJobIDs(scope Scope, cliProjectName string, jobIDs []string) (Job, error) {
+	return jobIDsTarget(scope, cliProjectName, jobIDs, false)
 }
 
 // QueuedOrLatestJobIDs finds where every job ID is, like LatestJobIDs, but
 // prefers a project's non-empty queue to its latest run, as Jobs does with
 // includeQueue.
-func QueuedOrLatestJobIDs(cliBaseDir, cliProjectName string, jobIDs []string) (Job, error) {
-	return jobIDsTarget(cliBaseDir, cliProjectName, jobIDs, true)
+func QueuedOrLatestJobIDs(scope Scope, cliProjectName string, jobIDs []string) (Job, error) {
+	return jobIDsTarget(scope, cliProjectName, jobIDs, true)
 }
 
-func jobIDsTarget(cliBaseDir, cliProjectName string, jobIDs []string, includeQueue bool) (Job, error) {
+func jobIDsTarget(scope Scope, cliProjectName string, jobIDs []string, includeQueue bool) (Job, error) {
 	where := "latest runs"
 	if includeQueue {
 		where = "queues or latest runs"
 	}
 	var target Job
 	for index, jobID := range jobIDs {
-		targets, err := Jobs(cliBaseDir, cliProjectName, jobID, false, includeQueue)
+		targets, err := Jobs(scope, cliProjectName, jobID, false, includeQueue)
 		if err != nil {
 			return Job{}, err
 		}

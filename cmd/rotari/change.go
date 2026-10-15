@@ -2,14 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
-	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // cmdChange updates queued jobs or prepares a modified follow-up run from a
@@ -103,12 +100,14 @@ func cmdChange(args []string) int {
 	}
 
 	if *queueNameOption == "" && *runID == "" {
-		project, err := locateQueuedJobs(*basedir, selector)
+		target, found, err := resolve.QueueWithJobs(cliScope(fs, *basedir), selector)
 		if err != nil {
 			printError(err)
 			return 1
 		}
-		*queueNameOption = project
+		if found {
+			*basedir, *queueNameOption = target.BaseDir, target.ProjectName
+		}
 	}
 	baseDir, queueName, err := resolveCLIExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
@@ -143,47 +142,4 @@ func optionalRetry(fs *flag.FlagSet, value int) *int {
 		return nil
 	}
 	return &value
-}
-
-// locateQueuedJobs finds the project whose queue holds the jobs a job ID or
-// name selector names, for queue edits without a project, as other commands
-// search every project. It returns "" when selector names a group or no
-// queue holds the jobs, leaving the normal project resolution to report it.
-func locateQueuedJobs(cliBaseDir string, selector model.CommandSelector) (string, error) {
-	if len(selector.IDs) == 0 && selector.Name == "" {
-		return "", nil
-	}
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-	if err != nil {
-		return "", err
-	}
-	projects, err := resolve.ProjectNames(baseDir, "")
-	if err != nil {
-		return "", err
-	}
-	var targets []resolve.Job
-	for _, project := range projects {
-		paths, err := state.ResolveProjectPaths(baseDir, project)
-		if err != nil {
-			return "", err
-		}
-		queue, err := state.LoadQueue(paths.QueueFile)
-		if err != nil || len(queue.Commands) == 0 {
-			continue
-		}
-		if indexes, err := model.SelectCommands(queue.Commands, selector); err == nil {
-			targets = append(targets, resolve.Job{Run: resolve.Run{BaseDir: baseDir, ProjectName: project}, JobID: queue.Commands[indexes[0]].ID, FromQueue: true})
-		}
-	}
-	switch len(targets) {
-	case 0:
-		return "", nil
-	case 1:
-		return targets[0].ProjectName, nil
-	}
-	what := fmt.Sprintf("job %q", strings.Join(selector.IDs, ","))
-	if selector.Name != "" {
-		what = fmt.Sprintf("job name %q", selector.Name)
-	}
-	return "", resolve.AmbiguousError(what, targets)
 }

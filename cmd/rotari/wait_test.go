@@ -296,7 +296,7 @@ func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 		{selector: "run-id", want: resolve.Run{BaseDir: baseDir, ProjectName: "build", RunID: "run-id"}},
 	}
 	for _, test := range tests {
-		got, err := resolveWaitTarget(baseDir, "", test.selector)
+		got, err := resolveWaitTarget(resolve.Scope{BaseDir: baseDir, Pinned: true}, "", test.selector)
 		if err != nil {
 			t.Fatalf("resolveWaitTarget(%q): %v", test.selector, err)
 		}
@@ -318,7 +318,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := resolveWaitTarget(baseDir, "", "nightly"); err == nil || !strings.Contains(err.Error(), "matches more than one target") {
+	if _, err := resolveWaitTarget(resolve.Scope{BaseDir: baseDir, Pinned: true}, "", "nightly"); err == nil || !strings.Contains(err.Error(), "matches more than one target") {
 		t.Fatalf("resolveWaitTarget() error = %v, want ambiguity error", err)
 	}
 }

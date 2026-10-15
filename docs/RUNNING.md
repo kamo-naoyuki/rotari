@@ -308,7 +308,8 @@ has taken effect: the whole run has stopped or, with a job selection, each
 selected job has stopped while the rest of the run continues. An array job ID
 selects all unfinished tasks. A run or attempt ID must belong to the active
 run; an earlier run's ID is rejected rather than cancelling the current run.
-Without `-p`, a job ID is looked up in every project's active run.
+Without `-p`, a job ID is looked up in every project's active run, and,
+without `-b`, in the other registered state directories when none holds it.
 
 A cancelled job records the error `cancelled`, so
 `--filter-failure-kind cancelled` selects it and failure summaries group it

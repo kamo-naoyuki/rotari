@@ -225,6 +225,12 @@ acting on whatever run is active now. An array job's ID selects its running
 tasks, and without `--project-name/-p` a `JOB_ID` is looked for in the active
 run of every project.
 
+Without `--basedir/-b`, a project name given positionally to `show` or `wait`,
+and a job ID, job name, or run name without `--project-name/-p`, is looked for
+in the other registered state directories (see `rotari basedirs`) when the
+current one has no match. A match in the current state directory wins; matches
+in several other state directories are reported as ambiguous with their paths.
+
 ## Dependencies and stages
 
 Jobs can depend on other jobs or on a stage: a dependent job waits until its
