@@ -1,7 +1,7 @@
 # Plan: Read-Side Performance on NFS
 
 **Created:** 2026-10-15
-**Status:** Phases 0–2 done; Phase 3 next. See [work-log.md](work-log.md).
+**Status:** Phases 0–3 done; Phase 4 next. See [work-log.md](work-log.md).
 
 ## Purpose
 
@@ -287,9 +287,7 @@ recorded here before any implementation.
 
 ## Open questions
 
-- **Q2** Is a fixed worker count enough across NFS servers, or does it need an
-  environment variable? Today every read is sequential, so there is no
-  setting. Decide from the Phase 3 measurements.
-
-Q1 (read-count guard) became D7, and Q3 (stale lock removal under concurrent
-reads) became D8.
+None. Q1 (read-count guard) became D7, Q3 (stale lock removal under
+concurrent reads) became D8, and Q2 (worker count) was decided by the Phase 3
+measurements: a fixed limit of 16, without an environment variable (see
+[work-log.md](work-log.md)).

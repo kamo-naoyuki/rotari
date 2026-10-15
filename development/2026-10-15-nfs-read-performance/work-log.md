@@ -115,3 +115,40 @@
   532 / 171 → 301 / 45, `jobs` 996 / 303 → 765 / 84, `lineage -p p1`
   299 / 72 → 264 / 37, `show -p p1` 75 / 13 → 64 / 7.
 - **Remaining:** Phases 3–6.
+
+## 2026-10-15 14:04:24 +0900 — `48d871e9`: Phase 3 concurrent reads
+
+- **Change:** `state.ReadEach` calls a read function for each index from
+  up to `state.ReadConcurrency` (16) goroutines; callers keep results in a
+  slice indexed like their input and report the first error in input order.
+  It reads the runs of a project in `jobs` (`joblist.Collect`), the jobs of
+  a run in `runview.LoadRun`, the Web loader, and `show`'s run table
+  (whose job counts and table are then built in job order), each job
+  directory's latest attempt and `command.json` in `show`'s
+  `runJobSpecs`, the start times in `runview.RunsByStart`, and the runs of
+  the `lineage` list. The helper is in `internal/state` because four
+  packages use it. Nothing that writes runs concurrently: stale lock
+  removal stays one step per project before the runs are read (D8).
+- **Reason:** Phase 3, D4.
+- **Plan impact:** Phase 3 done. Q2 decided: a fixed limit of 16, without an
+  environment variable. Median wall time of five runs on this host's NFS
+  `$TMPDIR` (3 projects × 20 runs, 50-task array; the client cache was warm,
+  as dropping it needs root) for limits 1 / 4 / 16 / 32: `jobs` 0.375 /
+  0.254 / 0.227 / 0.231 s, `lineage -p p1` 0.095 / 0.030 / 0.029 / 0.026 s,
+  `show -r FIRST` 0.124 / 0.050 / 0.040 / 0.039 s, `jobs --since 0` 0.114 /
+  0.056 / 0.045 / 0.044 s. 16 is within noise of 32. A single run of the
+  measurement script per limit was too noisy to use (`jobs` varied between
+  0.4 and 2.9 s).
+- **Validation:** `go test -race` passed for `internal/state`,
+  `internal/joblist`, `internal/runview`, `internal/web`,
+  `internal/jobfilter`, and `internal/jobstatus`; `go test -race
+  ./cmd/rotari` reported no race and failed only its two Node tests.
+  `TestReadEachCallsEveryIndexOnceWithBoundedConcurrency` covers the
+  helper. Full `go test ./conformance/...` failed only
+  `TestShowReportsElapsedAndQuietTime` (NFS clock skew),
+  `TestStaticExportPagesShowWhatLivePagesShow` (old Node), and
+  `TestContractStatus`, on SAFE-12 and WEB-11 rows that another work in
+  progress had added to the contracts without their status rows yet; the
+  working tree held that work's uncommitted changes, which this commit
+  leaves out.
+- **Remaining:** Phases 4–6.
