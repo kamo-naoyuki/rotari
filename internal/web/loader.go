@@ -178,15 +178,14 @@ func LoadJobs(store state.Store, runDir string, files state.RunSnapshot, selecte
 			matrices[command.ID] = &Matrix{GroupID: spec.GroupID, BaseName: spec.BaseName, Dimensions: spec.Dimensions, Values: spec.Values}
 		}
 	}
-	jobs := make([]Job, 0, len(taskJobs))
-	for _, jobSpec := range taskJobs {
+	loadJob := func(jobSpec model.JobSpec) (Job, error) {
 		selected := jobSpec.ID == selectedJobID
 		latestAttemptID, jobDir, pathErr := state.LatestAttempt(runDir, jobSpec.ID)
 		if selected {
 			jobDir, pathErr = state.SpecificAttemptJobDir(runDir, jobSpec.ID, selectedAttemptID)
 		}
 		if pathErr != nil {
-			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
+			return Job{}, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
 		}
 		origin := origins[jobSpec.ID]
 		summaryResult, hasSummary := results[jobSpec.ID]
@@ -231,8 +230,18 @@ func LoadJobs(store state.Store, runDir string, files state.RunSnapshot, selecte
 			job.FinishedAt = attempt.Wrapper.FinishedAt
 		}
 		job.Attempts = loadAttempts(store, runDir, jobSpec)
-		jobs = append(jobs, job)
-		delete(results, jobSpec.ID)
+		return job, nil
+	}
+	jobs := make([]Job, len(taskJobs))
+	errs := make([]error, len(taskJobs))
+	state.ReadEach(len(taskJobs), func(index int) {
+		jobs[index], errs[index] = loadJob(taskJobs[index])
+	})
+	for index, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+		delete(results, taskJobs[index].ID)
 	}
 	for _, result := range summary.Results {
 		if _, exists := results[result.ID]; !exists {

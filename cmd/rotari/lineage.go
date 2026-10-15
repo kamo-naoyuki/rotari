@@ -361,9 +361,13 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		printError(err)
 		return 1
 	}
+	loaded := make([]runlineage.Run, len(runIDs))
+	errs := make([]error, len(runIDs))
+	state.ReadEach(len(runIDs), func(index int) {
+		loaded[index], errs[index] = runview.LoadRun(paths, runIDs[index], jsonStore())
+	})
 	runs := make([]runlineage.Run, 0, len(runIDs))
-	for _, runID := range runIDs {
-		run, err := runview.LoadRun(paths, runID, jsonStore())
+	for index, err := range errs {
 		if err != nil {
 			// An active run may not have written commands.json yet.
 			if errors.Is(err, os.ErrNotExist) {
@@ -372,7 +376,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			printError(err)
 			return 1
 		}
-		runs = append(runs, run)
+		runs = append(runs, loaded[index])
 	}
 	entries := runlineage.Lineage(runs)
 	if jsonOutput {

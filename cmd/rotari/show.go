@@ -970,19 +970,30 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	changeHints := make([]model.JobSpec, 0)
 	table := [][]string{{"JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "ELAPSED", "HOSTS", "COMMAND"}}
 	now := time.Now()
-	for _, jobID := range jobIDs {
+	// Each job's row is read concurrently; counts and the table are built in
+	// job order below.
+	type jobRow struct {
+		counted     bool
+		countStatus string
+		shown       bool
+		changeHint  bool
+		cells       []string
+	}
+	rows := make([]jobRow, len(jobIDs))
+	state.ReadEach(len(jobIDs), func(index int) {
+		jobID := jobIDs[index]
 		latest, listed := attempts[jobID]
 		if !listed {
 			attemptID, jobDir, err := state.LatestAttempt(runDir, jobID)
 			if err != nil {
-				continue
+				return
 			}
 			latest = latestAttempt{id: attemptID, dir: jobDir}
 		}
 		jobDir := latest.dir
 		jobSpec := jobSpecs[jobID]
 		if scoped != nil && !scoped[jobID] {
-			continue
+			return
 		}
 		latestAttemptID := latest.id
 		latestAttemptLabel := latestAttemptID
@@ -1025,9 +1036,31 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		jobResult, _ := resolved.Result(jobSpec)
 		origin := originByID[jobID]
 		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
-		displayStatus := resolved.DisplayStatus(jobSpec)
-		countStatus := displayStatus
-		switch countStatus {
+		row := jobRow{counted: true, countStatus: resolved.DisplayStatus(jobSpec)}
+		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
+			rows[index] = row
+			return
+		}
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobDir, origin, carried)
+		hosts := "-"
+		if resolvedHosts := resolved.Hosts(); len(resolvedHosts) > 0 {
+			hosts = strings.Join(resolvedHosts, ",")
+		}
+		command := strings.Join(jobSpec.Command, " ")
+		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
+		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
+		row.shown = true
+		row.changeHint = statusOK && status != 0
+		row.cells = []string{jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText,
+			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts,
+			joblist.ShortenText(command, showCommandWidth)}
+		rows[index] = row
+	})
+	for index, row := range rows {
+		if !row.counted {
+			continue
+		}
+		switch row.countStatus {
 		case "success":
 			jobCounts.success++
 		case "failed":
@@ -1047,27 +1080,15 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		default:
 			jobCounts.unknown++
 		}
-		if carried {
-			displayStatus += " (carried)"
-		}
-		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
+		if !row.shown {
 			continue
 		}
+		jobID := jobIDs[index]
 		displayed[jobID] = true
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobDir, origin, carried)
-		if statusOK && status != 0 {
-			changeHints = append(changeHints, jobSpec)
+		if row.changeHint {
+			changeHints = append(changeHints, jobSpecs[jobID])
 		}
-		hosts := "-"
-		if resolvedHosts := resolved.Hosts(); len(resolvedHosts) > 0 {
-			hosts = strings.Join(resolvedHosts, ",")
-		}
-		command := strings.Join(jobSpec.Command, " ")
-		statusText := jobstatus.DisplayLabel(resolved.DisplayStatus(jobSpec), resolved.Accepted(), carried)
-		elapsed := showJobElapsed(submittedAt, finishedAt, statusOK, jobDir, now)
-		table = append(table, []string{jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText,
-			model.FormatDisplayTimestamp(submittedAt), model.FormatDisplayTimestamp(finishedAt), elapsed, hosts,
-			joblist.ShortenText(command, showCommandWidth)})
+		table = append(table, row.cells)
 	}
 	printShowJobTable(table)
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, cancelled: %d, running (recorded): %d, waiting (recorded): %d, pending: %d, suspended (recorded): %d, unknown: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.cancelled, jobCounts.running, jobCounts.waiting, jobCounts.pending, jobCounts.suspended, jobCounts.unknown)
@@ -1404,22 +1425,40 @@ func runJobSpecs(runDir string, queue model.Queue, queueErr error) (map[string]m
 	if err != nil {
 		return specs, attempts
 	}
-	for _, entry := range entries {
+	type jobFiles struct {
+		listed  bool
+		latest  latestAttempt
+		spec    model.JobSpec
+		hasSpec bool
+	}
+	read := make([]jobFiles, len(entries))
+	state.ReadEach(len(entries), func(index int) {
+		entry := entries[index]
 		if !entry.IsDir() {
-			continue
+			return
 		}
 		attemptID, jobDir, err := state.LatestAttempt(runDir, entry.Name())
 		if err != nil {
-			continue
+			return
 		}
-		attempts[entry.Name()] = latestAttempt{id: attemptID, dir: jobDir}
+		read[index] = jobFiles{listed: true, latest: latestAttempt{id: attemptID, dir: jobDir}}
 		data, err := os.ReadFile(filepath.Join(jobDir, commandJSONName))
 		if err != nil {
-			continue
+			return
 		}
 		var job model.JobSpec
 		if json.Unmarshal(data, &job) == nil {
-			specs[entry.Name()] = job
+			read[index].spec, read[index].hasSpec = job, true
+		}
+	})
+	for index, files := range read {
+		if !files.listed {
+			continue
+		}
+		name := entries[index].Name()
+		attempts[name] = files.latest
+		if files.hasSpec {
+			specs[name] = files.spec
 		}
 	}
 	return specs, attempts

@@ -31,9 +31,12 @@ func RunsByStart(paths state.ProjectPaths) ([]string, error) {
 	runs := make([]startedRun, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
-			runs = append(runs, startedRun{id: entry.Name(), started: runStartTime(paths, entry.Name())})
+			runs = append(runs, startedRun{id: entry.Name()})
 		}
 	}
+	state.ReadEach(len(runs), func(index int) {
+		runs[index].started = runStartTime(paths, runs[index].id)
+	})
 	sort.Slice(runs, func(i, j int) bool {
 		if !runs[i].started.Equal(runs[j].started) {
 			return runs[i].started.Before(runs[j].started)

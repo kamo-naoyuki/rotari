@@ -57,35 +57,49 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if run.StartedBy, err = state.LoadRunStartedBy(store, runDir); err != nil {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s context: %w", runID, err)
 	}
-	for _, spec := range model.QueueToJobs(commands.Commands) {
-		attemptID, jobDir, err := state.LatestAttempt(runDir, spec.ID)
+	specs := model.QueueToJobs(commands.Commands)
+	jobs := make([]runlineage.Job, len(specs))
+	errs := make([]error, len(specs))
+	state.ReadEach(len(specs), func(index int) {
+		jobs[index], errs[index] = loadRunJob(store, runDir, specs[index], results, origins)
+	})
+	for _, err := range errs {
 		if err != nil {
-			return runlineage.Run{}, fmt.Errorf("invalid job ID %q: %w", spec.ID, err)
+			return runlineage.Run{}, err
 		}
-		summaryResult, hasSummary := results[spec.ID]
-		resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
-		status := LineageStatus(resolved)
-		origin := origins[spec.ID]
-		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked(), hasSummary)
-		diagnoses := make([]string, 0, len(summaryResult.Diagnoses))
-		for _, diagnosis := range summaryResult.Diagnoses {
-			diagnoses = append(diagnoses, diagnosis.Name)
-		}
-		result, _ := resolved.Result(spec)
-		// While the run is active, a job that reached its final result has
-		// recorded it, diagnosis included, beside its attempt.
-		var finalResult model.JobResult
-		final := hasSummary || store.ReadJSON(filepath.Join(jobDir, state.FinalResultFileName), &finalResult) == nil
-		if !hasSummary && final {
-			finalResult.ExitCode = result.ExitCode
-			result = finalResult
-		}
-		run.Jobs = append(run.Jobs, runlineage.Job{
-			Spec: spec, Status: status, Origin: origin, Carried: carried,
-			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses, Result: result, Final: final,
-		})
 	}
+	run.Jobs = append(run.Jobs, jobs...)
 	return run, nil
+}
+
+// loadRunJob resolves one job of LoadRun. It only reads results and origins.
+func loadRunJob(store state.Store, runDir string, spec model.JobSpec, results map[string]model.JobResult, origins map[string]*model.JobOrigin) (runlineage.Job, error) {
+	attemptID, jobDir, err := state.LatestAttempt(runDir, spec.ID)
+	if err != nil {
+		return runlineage.Job{}, fmt.Errorf("invalid job ID %q: %w", spec.ID, err)
+	}
+	summaryResult, hasSummary := results[spec.ID]
+	resolved := jobstatus.ReadJob(store, jobDir, summaryResult, hasSummary)
+	status := LineageStatus(resolved)
+	origin := origins[spec.ID]
+	carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked(), hasSummary)
+	diagnoses := make([]string, 0, len(summaryResult.Diagnoses))
+	for _, diagnosis := range summaryResult.Diagnoses {
+		diagnoses = append(diagnoses, diagnosis.Name)
+	}
+	result, _ := resolved.Result(spec)
+	// While the run is active, a job that reached its final result has
+	// recorded it, diagnosis included, beside its attempt.
+	var finalResult model.JobResult
+	final := hasSummary || store.ReadJSON(filepath.Join(jobDir, state.FinalResultFileName), &finalResult) == nil
+	if !hasSummary && final {
+		finalResult.ExitCode = result.ExitCode
+		result = finalResult
+	}
+	return runlineage.Job{
+		Spec: spec, Status: status, Origin: origin, Carried: carried,
+		DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses, Result: result, Final: final,
+	}, nil
 }
 
 // LineageStatus classifies a resolved job for run lineage summaries, which

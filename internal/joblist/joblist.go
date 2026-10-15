@@ -151,16 +151,26 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 		if lockState, lock, err := project.InspectRunLock(paths); err == nil && (lockState == state.LockActive || lockState == state.LockRemote) {
 			activeRunID = lock.RunID
 		}
-		for _, run := range runs {
-			runRows, include, _, err := collectRun(store, paths, run.Name(), run.Name() == activeRunID, now, cutoff)
-			if err != nil {
-				return nil, err
+		type runRows struct {
+			rows    []Row
+			include bool
+			err     error
+		}
+		collected := make([]runRows, len(runs))
+		state.ReadEach(len(runs), func(index int) {
+			name := runs[index].Name()
+			rows, include, _, err := collectRun(store, paths, name, name == activeRunID, now, cutoff)
+			collected[index] = runRows{rows: rows, include: include, err: err}
+		})
+		// An older interrupted run can retain an unfinished attempt even
+		// after recovery and a later completed run, so every run is read.
+		for _, run := range collected {
+			if run.err != nil {
+				return nil, run.err
 			}
-			if include {
-				rows = append(rows, runRows...)
+			if run.include {
+				rows = append(rows, run.rows...)
 			}
-			// An older interrupted run can retain an unfinished attempt even
-			// after recovery and a later completed run. Keep scanning history.
 		}
 	}
 	return rows, nil
