@@ -13,43 +13,44 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// Scope is where a selector without a project is looked for. BaseDir is the
-// command's state directory value, from --basedir, ROTARI_BASEDIR, or a
-// config file, or "" for the local default. A selector is looked for there
-// first and, when nothing matches there and --basedir did not pin it, in the
-// other state directories registered in the master directory.
+// Scope is where a selector is looked for. Pinned, for --basedir or a
+// command that runs or changes jobs, keeps the search in BaseDir, the
+// command's state directory value. Otherwise BaseDir, from ROTARI_BASEDIR or
+// a config file, is only searched first: when nothing matches there, the
+// local default state directory and those registered in the master
+// directory are searched alike, so a selector matching in more than one of
+// them is ambiguous. ExplicitProject reports a project named on the command
+// line, which keeps a selector in that project; a project from
+// ROTARI_PROJECT_NAME or a config file is only searched first.
 type Scope struct {
-	BaseDir string
-	Pinned  bool
+	BaseDir         string
+	Pinned          bool
+	ExplicitProject bool
 }
 
-// forProject pins scope when a project is chosen: only a selector without
-// one leaves the state directory.
-func (scope Scope) forProject(cliProjectName string) Scope {
-	if state.ProjectNameGiven(cliProjectName) {
-		scope.Pinned = true
-	}
-	return scope
-}
-
-// search applies find to scope's state directory and, when that finds
-// nothing and scope is not pinned, to every other registered state
-// directory, returning what they find together.
+// search applies find to scope's preferred state directory and, when that
+// finds nothing and scope is not pinned, to every other one alike,
+// returning what they find together.
 func search[T any](scope Scope, find func(baseDir string) ([]T, error)) ([]T, error) {
-	baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+	first := ""
+	if scope.Pinned || scope.BaseDir != "" {
+		baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+		if err != nil {
+			return nil, err
+		}
+		found, err := find(baseDir)
+		if err != nil || len(found) > 0 || scope.Pinned {
+			return found, err
+		}
+		first = baseDir
+	}
+	baseDirs, err := otherBaseDirs(first)
 	if err != nil {
 		return nil, err
 	}
-	found, err := find(baseDir)
-	if err != nil || len(found) > 0 || scope.Pinned {
-		return found, err
-	}
-	others, err := otherBaseDirs(baseDir)
-	if err != nil {
-		return nil, err
-	}
-	for _, other := range others {
-		more, err := find(other)
+	var found []T
+	for _, baseDir := range baseDirs {
+		more, err := find(baseDir)
 		if err != nil {
 			return nil, err
 		}
@@ -58,9 +59,69 @@ func search[T any](scope Scope, find func(baseDir string) ([]T, error)) ([]T, er
 	return found, nil
 }
 
-// otherBaseDirs lists, sorted, the state directories registered in the
-// master directory other than except.
+// searchProjects applies find to the projects scope selects. A project named
+// on the command line is looked for as ProjectBaseDir does, and find gets
+// only it. A project from ROTARI_PROJECT_NAME or a config file is tried
+// first in its state directory; when find has nothing there, or without a
+// project, find gets every project of the state directories search covers.
+func searchProjects[T any](scope Scope, cliProjectName string, find func(baseDir string, projects []string) ([]T, error)) ([]T, error) {
+	if scope.Pinned {
+		baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+		if err != nil {
+			return nil, err
+		}
+		projects, err := ProjectNames(baseDir, cliProjectName)
+		if err != nil {
+			return nil, err
+		}
+		return find(baseDir, projects)
+	}
+	if state.ProjectNameGiven(cliProjectName) {
+		projectName, err := state.ResolveProjectName("", cliProjectName)
+		if err != nil {
+			return nil, err
+		}
+		if scope.ExplicitProject {
+			baseDir, found, err := ProjectBaseDir(scope, projectName)
+			if err != nil {
+				return nil, err
+			}
+			if !found {
+				baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+				if err != nil {
+					return nil, err
+				}
+				return nil, RequireProject(baseDir, projectName)
+			}
+			return find(baseDir, []string{projectName})
+		}
+		baseDir, _, err := state.ResolveBaseDir(scope.BaseDir)
+		if err != nil {
+			return nil, err
+		}
+		if ProjectExists(baseDir, projectName) {
+			found, err := find(baseDir, []string{projectName})
+			if err != nil || len(found) > 0 {
+				return found, err
+			}
+		}
+	}
+	return search(scope, func(baseDir string) ([]T, error) {
+		projects, err := ExistingProjectNames(baseDir)
+		if err != nil {
+			return nil, err
+		}
+		return find(baseDir, projects)
+	})
+}
+
+// otherBaseDirs lists, sorted, the local default state directory and those
+// registered in the master directory, other than except.
 func otherBaseDirs(except string) ([]string, error) {
+	local, err := state.ResolveBaseDirDefault()
+	if err != nil {
+		return nil, err
+	}
 	masterDir, err := state.ResolveMasterDir("")
 	if err != nil {
 		return nil, err
@@ -69,23 +130,24 @@ func otherBaseDirs(except string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	seen := map[string]bool{filepath.Clean(except): true}
-	others := make([]string, 0, len(registered))
-	for _, baseDir := range registered {
+	seen := map[string]bool{}
+	if except != "" {
+		seen[filepath.Clean(except)] = true
+	}
+	baseDirs := make([]string, 0, len(registered)+1)
+	for _, baseDir := range append(registered, local) {
 		baseDir = filepath.Clean(baseDir)
 		if !seen[baseDir] {
 			seen[baseDir] = true
-			others = append(others, baseDir)
+			baseDirs = append(baseDirs, baseDir)
 		}
 	}
-	sort.Strings(others)
-	return others, nil
+	sort.Strings(baseDirs)
+	return baseDirs, nil
 }
 
-// ProjectBaseDir finds the state directory of scope that has projectName,
-// for a positional selector that may name a project. It reports false when
-// none has it, and fails when several registered ones, but not scope's own,
-// have it.
+// ProjectBaseDir finds the state directory of scope that has projectName. It
+// reports false when none has it, and fails when several have it.
 func ProjectBaseDir(scope Scope, projectName string) (string, bool, error) {
 	if !state.IsValidPathElement(projectName) {
 		return "", false, nil
@@ -103,7 +165,7 @@ func ProjectBaseDir(scope Scope, projectName string) (string, bool, error) {
 		return found[0], true, nil
 	}
 	var message strings.Builder
-	fmt.Fprintf(&message, "project %q exists in more than one registered state directory; pass --basedir:", projectName)
+	fmt.Fprintf(&message, "project %q exists in more than one state directory; pass --basedir:", projectName)
 	for _, baseDir := range found {
 		fmt.Fprintf(&message, "\n  basedir=%s%s", strconv.Quote(baseDir), lastRunNote(baseDir, projectName))
 	}

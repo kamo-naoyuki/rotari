@@ -77,8 +77,13 @@ func resolveCLIJobSelection(scope resolve.Scope, project string, ids []string) (
 	return resolve.JobSelection(scope, project, ids)
 }
 
-// cliScope is where a command looks for a selector without a project: only
-// --basedir keeps it in one state directory.
+// cliScope is where a command looks for a selector: across the state
+// directories for a read-only command without --basedir, and otherwise in
+// the resolved one.
 func cliScope(fs *flag.FlagSet, baseDir string) resolve.Scope {
-	return resolve.Scope{BaseDir: baseDir, Pinned: cliOptionSet(fs, "basedir")}
+	return resolve.Scope{
+		BaseDir:         baseDir,
+		Pinned:          !crossBaseDirCommands[fs.Name()] || cliOptionSet(fs, "basedir"),
+		ExplicitProject: cliOptionSet(fs, "project-name"),
+	}
 }

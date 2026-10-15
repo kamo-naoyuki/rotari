@@ -65,18 +65,35 @@ matches in more than one place fails with `resolve.AmbiguousError`, which
 lists each candidate's project, run or queue, and job. A group selector
 (`--stage`, `--matrix`, `--all`) still needs a single project.
 
-**SEL-13** When nothing in the base directory matches, the same search
-continues in the other base directories registered in the master directory
-(see `basedirs`), unless `--basedir` is given on the command line;
-`ROTARI_BASEDIR` and a config file only choose the base directory searched
-first. A match in the base directory wins over matches elsewhere, and
-matches in more than one other base directory are ambiguous, listed with
-each candidate's base directory. This applies to job IDs, job names, and
-run names without a project in every command above, and to a positional
-project of `show` and `wait`. `--project-name` and `ROTARI_PROJECT_NAME`
-keep the search in the base directory. Implemented by `resolve.Scope` in
-[internal/resolve/scope.go](../internal/resolve/scope.go), tested by
-[its tests](../internal/resolve/scope_test.go) and `TestCrossBaseDirSelectors` in
+**SEL-13** The read-only commands `show`, `wait`, `export`, `lineage`,
+`info`, and `check` search more than one base directory unless `--basedir`
+is given on the command line. As in the aggregate views (RES-26), an
+implicit location (`ROTARI_BASEDIR`, `ROTARI_PROJECT_NAME`, or a config
+file) never narrows the search; it is only tried first:
+
+- A project named on the command line (positionally or with
+  `--project-name`) is the one in the implicit base directory if it has it,
+  and otherwise in whichever of the local default base directory (cwd-local,
+  XDG, or home) and the base directories registered in the master directory
+  (see `basedirs`) has it. A job ID, job name, or run name is then looked
+  for only in that project.
+- With a project from `ROTARI_PROJECT_NAME` or a config file, a job ID, job
+  name, or run name is looked for in that project of the implicit base
+  directory first; when it is not there, it is looked for as without a
+  project. A project from them with no selector is resolved as before.
+- Without a project, a job ID, job name, or run name is looked for in every
+  project of the implicit base directory first, and when nothing matches
+  there, in every project of the default and registered base directories.
+
+The default and registered base directories are searched alike: a project
+or selector found in more than one of them is ambiguous, and the error lists
+each candidate's base directory. Commands that run or change jobs (`run`,
+`retry`, `copy`, `change`, `remove`, `cancel`, `suspend`, `resume`, and the
+rest) resolve one base directory as before and search only it. Implemented
+by `resolve.Scope` in [internal/resolve/scope.go](../internal/resolve/scope.go)
+and `crossBaseDirCommands` in [cmd/rotari/config.go](../cmd/rotari/config.go),
+tested by [its tests](../internal/resolve/scope_test.go) and
+`TestCrossBaseDirSelectors` in
 [conformance/06-selectors/basedir_test.go](../conformance/06-selectors/basedir_test.go).
 
 ## What each command reads
@@ -361,7 +378,7 @@ General rules:
 | `check`, `reset` | `[PROJECT]` | the project | `--project-name` |
 | `jobs` | `[PROJECT]` | the project to list; overrides environment and config defaults | `--project-name` |
 | `unlock` | `[PROJECT]` | the project; the run ID to verify is always `--run-id` | `--project-name` |
-| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given), in the base directory or else a registered one (SEL-13); otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, and list options; a run name, job ID, or job name also excludes log, follow, JSON, and report options, which an attempt ID, run ID, `latest`, or project takes like its option |
+| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given), in any base directory SEL-13 searches; otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, and list options; a run name, job ID, or job name also excludes log, follow, JSON, and report options, which an attempt ID, run ID, `latest`, or project takes like its option |
 | `wait` | `[SELECTOR ...]` | each: `latest`, then a project (as in `show`), then a run name, then a registered run ID; a project or run name means its active run, or else its latest run | – (added to `--run-id`) |
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that names the run, which must be active (see [Job control](#job-control)) | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |

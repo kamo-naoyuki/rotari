@@ -943,6 +943,9 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 				}
 			}
 		}
+		if name == "basedir" && cliLocatedBaseDir != "" {
+			defaultValue = cliLocatedBaseDir
+		}
 	}
 	target := new(string)
 	*target = defaultValue

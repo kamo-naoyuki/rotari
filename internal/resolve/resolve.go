@@ -315,16 +315,12 @@ type Run struct {
 // RunsByName finds runs named runName in the selected projects of scope: the
 // active run of each project, and unless activeOnly every saved run as well.
 func RunsByName(scope Scope, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
-	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Run, error) {
-		return runsByName(baseDir, cliProjectName, runName, activeOnly)
+	return searchProjects(scope, cliProjectName, func(baseDir string, projects []string) ([]Run, error) {
+		return runsByName(baseDir, projects, runName, activeOnly)
 	})
 }
 
-func runsByName(baseDir, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
-	projectNames, err := ProjectNames(baseDir, cliProjectName)
-	if err != nil {
-		return nil, err
-	}
+func runsByName(baseDir string, projectNames []string, runName string, activeOnly bool) ([]Run, error) {
 	targets := make([]Run, 0)
 	for _, projectName := range projectNames {
 		paths, pathErr := state.ResolveProjectPaths(baseDir, projectName)
@@ -458,10 +454,10 @@ func lastRunNote(baseDir, projectName string) string {
 	return ""
 }
 
-// RegisteredProjectBaseDirs returns, sorted, the state directories registered
-// in the master directory, other than except, that have projectName. A
-// registry that cannot be read gives none, since callers only add it to an
-// error as a hint.
+// RegisteredProjectBaseDirs returns, sorted, the local default state
+// directory and those registered in the master directory, other than except,
+// that have projectName. A registry that cannot be read gives none, since
+// callers only add it to an error as a hint.
 func RegisteredProjectBaseDirs(projectName, except string) []string {
 	baseDirs, err := otherBaseDirs(except)
 	if err != nil {
@@ -724,18 +720,17 @@ func JobInRun(paths state.ProjectPaths, runID, selector string, byName bool) (Jo
 // best candidates of each state directory; otherwise it looks only in each
 // project's latest run.
 func Jobs(scope Scope, cliProjectName, selector string, byName, includeQueue bool) ([]Job, error) {
-	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Job, error) {
-		return jobs(baseDir, cliProjectName, selector, byName, includeQueue)
+	return searchProjects(scope, cliProjectName, func(baseDir string, projects []string) ([]Job, error) {
+		return jobs(baseDir, projects, selector, byName, includeQueue)
 	})
 }
 
 // RunsOrJobs finds what selector names as a run name, a job ID, or a job
 // name, for a selector that may be any of them: every run named selector,
-// and the best job candidates by ID and by name, all from one state
-// directory of scope unless none matches there.
+// and the best job candidates by ID and by name of each state directory.
 func RunsOrJobs(scope Scope, cliProjectName, selector string) ([]Job, error) {
-	return search(scope.forProject(cliProjectName), func(baseDir string) ([]Job, error) {
-		runs, err := runsByName(baseDir, cliProjectName, selector, false)
+	return searchProjects(scope, cliProjectName, func(baseDir string, projects []string) ([]Job, error) {
+		runs, err := runsByName(baseDir, projects, selector, false)
 		if err != nil {
 			return nil, err
 		}
@@ -744,7 +739,7 @@ func RunsOrJobs(scope Scope, cliProjectName, selector string) ([]Job, error) {
 			targets = append(targets, Job{Run: run})
 		}
 		for _, byName := range []bool{false, true} {
-			found, err := jobs(baseDir, cliProjectName, selector, byName, true)
+			found, err := jobs(baseDir, projects, selector, byName, true)
 			if err != nil {
 				return nil, err
 			}
@@ -754,11 +749,7 @@ func RunsOrJobs(scope Scope, cliProjectName, selector string) ([]Job, error) {
 	})
 }
 
-func jobs(baseDir, cliProjectName, selector string, byName, includeQueue bool) ([]Job, error) {
-	projects, err := ProjectNames(baseDir, cliProjectName)
-	if err != nil {
-		return nil, err
-	}
+func jobs(baseDir string, projects []string, selector string, byName, includeQueue bool) ([]Job, error) {
 	targets := make([]Job, 0)
 	for _, projectName := range projects {
 		paths, err := state.ResolveProjectPaths(baseDir, projectName)

@@ -558,7 +558,7 @@ func resolveWaitTarget(scope resolve.Scope, cliProjectName, selector string) (re
 	if selectedProject == "" {
 		selectedProject = os.Getenv(envProjectName)
 	}
-	if selectedProject != "" {
+	if selectedProject != "" && scope.Pinned {
 		if err := resolve.RequireProject(baseDir, selectedProject); err != nil {
 			return resolve.Run{}, err
 		}

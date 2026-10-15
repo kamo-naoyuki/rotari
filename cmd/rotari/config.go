@@ -28,6 +28,17 @@ var cliLocationExplicit map[string]bool
 var cliLocationDefaults map[string]string
 var cliIgnoreImplicitLocationDefaults map[string]bool
 
+// cliLocatedBaseDir is the state directory found to hold the named project;
+// it replaces implicit basedir defaults for --basedir.
+var cliLocatedBaseDir string
+
+// crossBaseDirCommands only read state, so without --basedir they look for a
+// project or selector beyond the resolved state directory (SEL-13). Commands
+// that run or change jobs stay in the resolved state directory.
+var crossBaseDirCommands = map[string]bool{
+	"check": true, "export": true, "info": true, "lineage": true, "show": true, "wait": true,
+}
+
 func init() {
 	// Config warnings use the CLI's error style.
 	config.Warnf = printErrorf
@@ -47,16 +58,19 @@ func loadCLIConfig(args []string) error {
 	cliConfig = nil
 	cliConfigPath = ""
 	cliLocationDefaults = nil
+	cliLocatedBaseDir = ""
 	cliFileConfig = config.Loaded{Values: map[string]any{}}
 	baseDir, projectName := configLocationArgs(args)
 	cliBaseDirGiven := baseDir != ""
 	invocationOptions, positional := configInvocationOptions(args)
 	aggregate := aggregateCommandInvocation(cliConfigCommand, invocationOptions, positional)
 	cliIgnoreImplicitLocationDefaults = ignoredImplicitLocationDefaults(cliConfigCommand, aggregate)
+	_, help := invocationOptions["help"]
+	if _, short := invocationOptions["h"]; short {
+		help = true
+	}
 	// Help reports ordinary option provenance; it does not execute a listing.
-	if _, help := invocationOptions["help"]; help {
-		cliIgnoreImplicitLocationDefaults = nil
-	} else if _, help := invocationOptions["h"]; help {
+	if help {
 		cliIgnoreImplicitLocationDefaults = nil
 	}
 	if len(positional) > 0 && (cliConfigCommand == "check" || cliConfigCommand == "reset" || cliConfigCommand == "unlock" || cliConfigCommand == "jobs" || cliConfigCommand == "runs") && projectName == "" {
@@ -110,17 +124,20 @@ func loadCLIConfig(args []string) error {
 			baseDir = os.Getenv(envBaseDir)
 		}
 	}
+	explicitProject := projectName
 	if projectName == "" {
 		if !cliIgnoreImplicitLocationDefaults["project-name"] {
 			projectName = os.Getenv(envProjectName)
 		}
 	}
+	runLocated := false
 	if runID := configRunIDArg(args); runID != "" {
 		location, found, err := resolveRunLocation(runID)
 		if err != nil {
 			return err
 		}
 		if found {
+			runLocated = true
 			if baseDir == "" {
 				baseDir = location.BaseDir
 			}
@@ -147,16 +164,20 @@ func loadCLIConfig(args []string) error {
 	if !projectFlagGiven && len(positional) > 0 && (cliConfigCommand == "show" || cliConfigCommand == "export" || cliConfigCommand == "wait") {
 		candidate := positional[0]
 		if candidate != "latest" && state.IsValidPathElement(candidate) && !resolve.IsRunID(candidate) {
-			if cliConfigCommand == "export" {
-				if info, err := os.Stat(filepath.Join(resolvedBaseDir, "projects", candidate)); err == nil && info.IsDir() {
-					projectName = candidate
-					cliLocationExplicit["project-name"] = true
-				}
-			} else if projectBaseDir, found, err := resolve.ProjectBaseDir(resolve.Scope{BaseDir: resolvedBaseDir, Pinned: cliBaseDirGiven}, candidate); err == nil && found {
-				// An error is left to the command, which looks the project up the same way.
-				resolvedBaseDir, projectName = projectBaseDir, candidate
+			// An error is left to the command, which looks the project up the same way.
+			if _, found, err := resolve.ProjectBaseDir(resolve.Scope{BaseDir: baseDir, Pinned: cliBaseDirGiven}, candidate); err == nil && found {
+				projectName, explicitProject = candidate, candidate
 				cliLocationExplicit["project-name"] = true
 			}
+		}
+	}
+	if !cliBaseDirGiven && !runLocated && !help && explicitProject != "" && crossBaseDirCommands[cliConfigCommand] {
+		found, ok, err := resolve.ProjectBaseDir(resolve.Scope{BaseDir: baseDir}, explicitProject)
+		if err != nil {
+			return err
+		}
+		if ok {
+			resolvedBaseDir, cliLocatedBaseDir = found, found
 		}
 	}
 	skipAggregateBaseLayer := aggregate && cliConfigCommand == "show" && len(invocationOptions["basedir"]) == 0 || cliConfigCommand == "jobs" && !cliLocationExplicit["basedir"]

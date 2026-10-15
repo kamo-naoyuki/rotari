@@ -11,9 +11,10 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// scopeFixture registers three state directories: local, which the scope
-// resolves to, and two others. Each holds projects and jobs that tell apart
-// a local match, a match in one other, and a match in both others.
+// scopeFixture registers three state directories: local, the default state
+// directory under XDG_STATE_HOME, and two others. Each holds projects and
+// jobs that tell apart a match in one of them, in two including local, and
+// in the two others.
 //
 //	local:  project "shared" (queue: shared-job "prep"), run "nightly" of "shared"
 //	other:  project "shared" (queue: shared-job), project "far" (queue: far-job "train",
@@ -24,7 +25,10 @@ func scopeFixture(t *testing.T) (local, other, third string) {
 	master := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", master)
 	t.Setenv("ROTARI_PROJECT_NAME", "")
-	local, other, third = t.TempDir(), t.TempDir(), t.TempDir()
+	xdg := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", xdg)
+	local, other, third = filepath.Join(xdg, "rotari"), t.TempDir(), t.TempDir()
+	t.Setenv("ROTARI_BASEDIR", "")
 	for _, baseDir := range []string{local, other, third} {
 		if err := basedirregistry.Open(master).Register(baseDir); err != nil {
 			t.Fatal(err)
@@ -71,19 +75,22 @@ func scopeFixture(t *testing.T) (local, other, third string) {
 func TestProjectBaseDirLooksInRegisteredStateDirectories(t *testing.T) {
 	local, other, third := scopeFixture(t)
 	for _, test := range []struct {
-		name, project string
-		pinned        bool
-		want          string
-		wantError     []string
+		name, project, preferred string
+		pinned                   bool
+		want                     string
+		wantError                []string
 	}{
-		{name: "local first", project: "shared", want: local},
+		{name: "local and other", project: "shared", wantError: []string{local, other}},
 		{name: "two others", project: "far", wantError: []string{other, third}},
+		{name: "preferred has it", project: "shared", preferred: other, want: other},
+		{name: "preferred lacks it", project: "far", preferred: local, wantError: []string{other, third}},
 		{name: "missing", project: "nowhere"},
-		{name: "pinned", project: "far", pinned: true},
+		{name: "pinned", project: "shared", preferred: local, pinned: true, want: local},
+		{name: "pinned elsewhere", project: "far", preferred: local, pinned: true},
 		{name: "path", project: "../far"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			got, found, err := ProjectBaseDir(Scope{BaseDir: local, Pinned: test.pinned}, test.project)
+			got, found, err := ProjectBaseDir(Scope{BaseDir: test.preferred, Pinned: test.pinned}, test.project)
 			if len(test.wantError) > 0 {
 				for _, want := range append(test.wantError, "--basedir") {
 					if err == nil || !strings.Contains(err.Error(), want) {
@@ -100,15 +107,16 @@ func TestProjectBaseDirLooksInRegisteredStateDirectories(t *testing.T) {
 	if err := os.RemoveAll(filepath.Join(third, "projects", "far")); err != nil {
 		t.Fatal(err)
 	}
-	if got, found, err := ProjectBaseDir(Scope{BaseDir: local}, "far"); err != nil || !found || got != other {
+	if got, found, err := ProjectBaseDir(Scope{}, "far"); err != nil || !found || got != other {
 		t.Fatalf("ProjectBaseDir(far) = %q, %v, %v; want %q", got, found, err, other)
 	}
 }
 
 // TestSelectorsLookInRegisteredStateDirectories gives every selector search
-// the same fixture: a match in the local state directory wins, a match only
-// elsewhere is found there, matches in two others are ambiguous, and
-// --basedir or a project keeps the search local.
+// the same fixture: a preferred state directory or implicit project that
+// has a match wins, a match in one state directory is found there, matches
+// in two are ambiguous, and --basedir or a project named on the command line
+// keeps the search in one state directory or project.
 func TestSelectorsLookInRegisteredStateDirectories(t *testing.T) {
 	local, other, third := scopeFixture(t)
 	type target struct{ baseDir, project string }
@@ -121,10 +129,7 @@ func TestSelectorsLookInRegisteredStateDirectories(t *testing.T) {
 			found, err := RunsOrJobs(scope, project, selector)
 			return jobTargets(found, func(job Job) target { return target{job.BaseDir, job.ProjectName} }), err
 		},
-		"QueueWithJobs": func(scope Scope, project, selector string) ([]target, error) {
-			if project != "" {
-				return nil, nil
-			}
+		"QueueWithJobs": func(scope Scope, _, selector string) ([]target, error) {
 			run, found, err := QueueWithJobs(scope, model.CommandSelector{IDs: []string{selector}})
 			if !found {
 				return nil, err
@@ -133,29 +138,47 @@ func TestSelectorsLookInRegisteredStateDirectories(t *testing.T) {
 		},
 	}
 	for _, test := range []struct {
-		name, selector, project string
-		pinned                  bool
-		want                    []target
-		ambiguous               bool
+		name, selector, preferred, project string
+		pinned, explicit                   bool
+		want                               []target
+		ambiguous                          []string
+		err                                string
 	}{
-		{name: "local first", selector: "shared-job", want: []target{{local, "shared"}}},
+		{name: "local and other", selector: "shared-job", ambiguous: []string{local, other}},
 		{name: "one other", selector: "far-job", want: []target{{other, "far"}}},
-		{name: "two others", selector: "both-job", ambiguous: true},
-		{name: "pinned", selector: "far-job", pinned: true},
-		{name: "project", selector: "far-job", project: "shared"},
+		{name: "two others", selector: "both-job", ambiguous: []string{other, third}},
+		{name: "preferred has it", selector: "shared-job", preferred: local, want: []target{{local, "shared"}}},
+		{name: "preferred lacks it", selector: "both-job", preferred: local, ambiguous: []string{other, third}},
+		{name: "pinned", selector: "shared-job", preferred: local, pinned: true, want: []target{{local, "shared"}}},
+		{name: "pinned elsewhere", selector: "far-job", preferred: local, pinned: true},
+		{name: "explicit project", selector: "shared-job", preferred: other, project: "shared", explicit: true, want: []target{{other, "shared"}}},
+		{name: "explicit project lacks it", selector: "far-job", preferred: local, project: "shared", explicit: true},
+		{name: "explicit project in two", selector: "far-job", project: "far", explicit: true, err: "exists in more than one state directory"},
+		{name: "implicit project has it", selector: "shared-job", preferred: local, project: "shared", want: []target{{local, "shared"}}},
+		{name: "implicit project lacks it", selector: "far-job", preferred: local, project: "shared", want: []target{{other, "far"}}},
 	} {
 		for searchName, search := range searches {
+			if searchName == "QueueWithJobs" && test.project != "" {
+				continue
+			}
 			t.Run(test.name+"/"+searchName, func(t *testing.T) {
-				got, err := search(Scope{BaseDir: local, Pinned: test.pinned}, test.project, test.selector)
-				if test.ambiguous {
+				scope := Scope{BaseDir: test.preferred, Pinned: test.pinned, ExplicitProject: test.explicit}
+				got, err := search(scope, test.project, test.selector)
+				if test.err != "" {
+					if err == nil || !strings.Contains(err.Error(), test.err) {
+						t.Fatalf("error = %v, want %q", err, test.err)
+					}
+					return
+				}
+				if len(test.ambiguous) > 0 {
 					if searchName == "QueueWithJobs" {
-						if err == nil || !strings.Contains(err.Error(), "basedir="+other) || !strings.Contains(err.Error(), "basedir="+third) {
+						if err == nil || !strings.Contains(err.Error(), "basedir="+test.ambiguous[0]) || !strings.Contains(err.Error(), "basedir="+test.ambiguous[1]) {
 							t.Fatalf("error = %v, want both state directories", err)
 						}
 						return
 					}
-					if err != nil || len(got) != 2 {
-						t.Fatalf("got %v, %v; want a candidate in each other state directory", got, err)
+					if err != nil || len(got) != 2 || got[0].baseDir == got[1].baseDir {
+						t.Fatalf("got %v, %v; want a candidate in each of %v", got, err, test.ambiguous)
 					}
 					return
 				}

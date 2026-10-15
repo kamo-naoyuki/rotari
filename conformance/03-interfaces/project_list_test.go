@@ -82,11 +82,15 @@ func TestMissingProjectNamesWhereItIs(t *testing.T) {
 	e := support.NewEnv(t)
 	elsewhere := filepath.Join(e.Root, "elsewhere")
 	e.MustRotari("add", "-b", elsewhere, "-p", "exp", "--", "true")
-	for _, args := range [][]string{{"show", "-p", "exp"}, {"lineage", "-p", "exp"}} {
+	for _, args := range [][]string{{"show", "-b", e.Base, "-p", "exp"}, {"lineage", "-b", e.Base, "-p", "exp"}, {"copy", "-p", "exp"}} {
 		result := e.Rotari(args...)
 		if result.Code == 0 || !strings.Contains(result.Stderr, elsewhere) || !strings.Contains(result.Stderr, "--basedir") {
 			t.Errorf("%v = %s, want an error naming %s and --basedir", args, result, elsewhere)
 		}
+	}
+	// Without --basedir, read-only commands find it there (SEL-13).
+	if result := e.Rotari("show", "-p", "exp"); result.Code != 0 || !strings.Contains(result.Stdout, elsewhere) {
+		t.Errorf("show -p exp did not find the project in %s: %s", elsewhere, result)
 	}
 	if result := e.MustRotari("jobs", "exp"); !strings.Contains(result.Stdout, "exp") {
 		t.Errorf("jobs exp did not find the project across basedirs: %s", result)

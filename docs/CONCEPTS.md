@@ -225,11 +225,15 @@ acting on whatever run is active now. An array job's ID selects its running
 tasks, and without `--project-name/-p` a `JOB_ID` is looked for in the active
 run of every project.
 
-Without `--basedir/-b`, a project name given positionally to `show` or `wait`,
-and a job ID, job name, or run name without `--project-name/-p`, is looked for
-in the other registered state directories (see `rotari basedirs`) when the
-current one has no match. A match in the current state directory wins; matches
-in several other state directories are reported as ambiguous with their paths.
+Without `--basedir/-b`, the read-only commands `show`, `wait`, `export`,
+`lineage`, `info`, and `check` look beyond one state directory. A project
+named on the command line, and a job ID, job name, or run name, is looked for
+first where `ROTARI_BASEDIR`, `ROTARI_PROJECT_NAME`, or a config file points,
+and otherwise in the local default state directory and every registered one
+(see `rotari basedirs`) alike; a match in more than one of them is an error
+that lists them, so pass `--basedir` to choose. A job selector stays in a
+project named with `-p`. Commands that run or change jobs, such as `run`,
+`copy`, `change`, and `cancel`, use only the state directory they resolve.
 
 ## Dependencies and stages
 

@@ -94,8 +94,10 @@ Basedir defaults are command-specific:
   explicit options, defaults, or sole-project discovery is shown in detail; if
   there are multiple projects and no selector, it errors and directs the user
   to `rotari projects`. A positional project name selects that project's
-  detail view, found in another registered basedir when the resolved one
-  lacks it (SEL-13 in [06-selectors.md](06-selectors.md)).
+  detail view. Without CLI `--basedir`, a project named positionally or with
+  `--project-name` is looked for in the implicit basedir first and then
+  across the default and registered basedirs (SEL-13 in
+  [06-selectors.md](06-selectors.md)).
 - Argumentless `lineage` ignores implicit project defaults but retains normal
   basedir precedence: CLI, environment, workspace/basedir/global file defaults,
   then local/XDG/home fallback. It selects the sole existing project, errors

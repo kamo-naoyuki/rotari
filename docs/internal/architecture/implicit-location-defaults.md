@@ -17,6 +17,7 @@ an implicit `ROTARI_BASEDIR` value.
 | `lineage` with no selector or project option | No | Yes | Search the normally resolved basedir without choosing its default project. |
 | `config --list` | No | Yes | List config files in the normally resolved basedir without selecting its default project. |
 | `wait` with no selector, `--run-id`, or `--project-name` | No | Yes | Wait for the active runs that the same parent process started, attached or not, in the normally resolved basedir, and warn about its interrupted runs; `--all` waits for every active run. |
+| `show`, `wait`, `export`, `lineage`, `info`, `check` naming a project or selector | Tried first | Tried first | Look for the project, or for a job or run name, in the implicit basedir and project first, then across the default and registered basedirs alike (SEL-13); a match in more than one is ambiguous. |
 
 A selector or explicit project option changes the invocation out of its
 aggregate form where applicable, so normal project selection rules apply. In
