@@ -126,7 +126,7 @@ func (project containerProject) add(args ...string) {
 }
 
 // run starts the queue synchronously and returns its exit code. A run that
-// does not finish in time is reported with a bug-report of its jobs.
+// fails or does not finish in time is reported with a bug-report of its jobs.
 func (project containerProject) run(args ...string) int {
 	project.t.Helper()
 	full := append([]string{"run", "-p", "p"}, args...)
@@ -135,6 +135,9 @@ func (project containerProject) run(args ...string) int {
 code=$?
 if [ "$code" -eq 137 ]; then
     echo "== rotari run did not finish in 210s"
+fi
+if [ "$code" -ne 0 ]; then
+    echo "== rotari bug-report"
     ` + project.rotariShell("bug-report", "-p", "p", "--no-redact") + `
 fi
 exit "$code"`
