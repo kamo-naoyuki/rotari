@@ -118,6 +118,15 @@ rotari unlock -p sweep RUN_ID
 to queue collection. Never use it while the run may still be executing, or a
 second run could start for the same queue.
 
+On NFS every file a command opens, stats, or lists costs a round trip to the
+server, so read commands such as `jobs`, `runs`, `show`, `info`, and
+`lineage` read each state file once and read independent runs and jobs
+concurrently. Their cost still grows with the history they cover: `jobs` and
+`runs` without a project read every project of every known state directory.
+Name the project (`-p`) and state directory (`-b`) to read less. `jobs` reads
+only the summary of a finished run outside its `--since` window, and `show -j`
+reads only the selected job's files.
+
 ## Security model
 
 Rotari assumes a trusted single-user or HPC/lab environment. The Web UI token

@@ -1,7 +1,8 @@
 # Plan: Read-Side Performance on NFS
 
 **Created:** 2026-10-15
-**Status:** Phases 0–3 done; Phase 4 next. See [work-log.md](work-log.md).
+**Status:** Done. Phases 0–4 and 6 done; Phase 5 not needed after Phase 4.
+See [work-log.md](work-log.md).
 
 ## Purpose
 
@@ -254,8 +255,8 @@ recorded here before any implementation.
 
 ### Phase 6: Documentation
 
-- `docs/OPERATIONS.md`: state that `-b` / `-p` narrow the scan, and that
-  `--since` does not.
+- `docs/OPERATIONS.md`: state that `-b` / `-p` narrow the scan, and what
+  `--since` still reads for runs outside the window.
 - `docs/ARCHITECTURE.md`: describe the run loader and the attempt-facts
   reader as the read path for run and job views.
 - `contracts/README.md`: update only if Phase 5 adds a contract.

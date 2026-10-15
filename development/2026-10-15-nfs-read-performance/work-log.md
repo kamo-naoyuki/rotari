@@ -152,3 +152,47 @@
   working tree held that work's uncommitted changes, which this commit
   leaves out.
 - **Remaining:** Phases 4–6.
+
+## 2026-10-15 14:08:18 +0900 — `0201feb3`: Phase 4 skip unneeded files
+
+- **Change:** `jobs` reads only the summary head of a run that is not
+  active, and skips a finished run whose finish time is before the
+  `--since` cutoff without reading its `commands.json`, `carried.json`, or
+  job directories. A summary with a newer state version is still an error.
+  `runs` reads the runs of a project with `state.ReadEach`; it already read
+  only the summary head. The read-count test bounds `jobs --since 0` to no
+  reads of `commands.json` or `carried.json`.
+- **Reason:** Phase 4.
+- **Plan impact:** Phase 4 done, with two items kept as they were:
+  - `lineage` list: it prints each job's resolved result, so it keeps
+    resolving every job through the DUR-5 chain.
+  - `info`: Phase 1 already made it inspect the project once and take the
+    phase from that inspection.
+  A skipped old run no longer reports a newer `commands.json` version;
+  the next command that reads that run still does.
+  Opens / lists from `scripts/measure-state-reads.sh` (baseline → now):
+  `info` 108 → 22, `jobs` 1177 → 708, `jobs --since 0` 447 → 128,
+  `show -r FIRST` 584 → 302 (lists 194 → 45), `lineage` 329 → 265. Wall
+  time on this host's NFS: `jobs` 0.117 s, `jobs --since 0` 0.022 s.
+- **Validation:** conformance tests matching
+  `Jobs|Runs|Newer|Unversioned|StatusViews|Agree|Window` passed;
+  `go test -race ./internal/joblist ./internal/runlist` passed;
+  `TestReadCountsStayBounded` passed. The full conformance suite was not
+  rerun for this phase.
+- **Remaining:** Phases 5–6.
+
+## 2026-10-15 — Phase 5 not done; Phase 6 documentation
+
+- **Change:** No finished-run index. `docs/OPERATIONS.md` says what read
+  commands cost on NFS and that `-p` / `-b` narrow it. It also says that
+  `jobs` reads only the summary of a finished run outside `--since`.
+  `docs/ARCHITECTURE.md` describes `RunSnapshot`, `LatestAttempt`, and
+  `ReadEach` in `internal/state` and SAFE-11 in `internal/project`.
+- **Reason:** After Phase 4, `jobs --since 0` opens about two files per
+  old run, read 16 at a time. An index would save little of that and would
+  need a new contract and a rebuild path (CORE-1).
+- **Plan impact:** Phase 5 not needed; reconsider it if very long histories
+  are still slow. Phase 6 done; the plan text for `--since` now matches
+  Phase 4. No contract change.
+- **Validation:** `go test ./internal/doclinks` passed.
+- **Remaining:** None.
