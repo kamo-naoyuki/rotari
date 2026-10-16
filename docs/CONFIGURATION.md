@@ -120,10 +120,14 @@ directory in which jobs execute; see
 
 ### Project defaults and listings
 
-The location defaults created by `rotari init` select storage and a project
-for single-project commands such as `add`, `run`, and `show`. They do not
-narrow the cross-workspace listings `projects`, `runs`, and `jobs`: those
-commands still scan all known basedirs unless you explicitly select one.
+The location defaults created by `rotari init` select the preferred storage
+and project for single-project commands such as `add` and `run`. Read-only
+commands such as `show` try that location first, then search other known
+basedirs if the requested target is not found. Multiple matches in the
+fallback search are reported as ambiguous; use `--basedir` to limit the
+search. The defaults do not narrow the cross-workspace listings `projects`,
+`runs`, and `jobs`: those commands still scan all known basedirs unless you
+explicitly select one.
 Use `--basedir .rotari-state` to inspect only the storage below the current
 experiment directory, and a command's project filter to narrow it further.
 For command examples, see

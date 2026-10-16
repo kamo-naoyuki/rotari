@@ -226,14 +226,15 @@ tasks, and without `--project-name/-p` a `JOB_ID` is looked for in the active
 run of every project.
 
 Without `--basedir/-b`, the read-only commands `show`, `wait`, `export`,
-`lineage`, `info`, and `check` look beyond one state directory. A project
-named on the command line, and a job ID, job name, or run name, is looked for
-first where `ROTARI_BASEDIR`, `ROTARI_PROJECT_NAME`, or a config file points,
-and otherwise in the local default state directory and every registered one
-(see `rotari basedirs`) alike; a match in more than one of them is an error
-that lists them, so pass `--basedir` to choose. A job selector stays in a
-project named with `-p`. Commands that run or change jobs, such as `run`,
-`copy`, `change`, and `cancel`, use only the state directory they resolve.
+`lineage`, `info`, and `check` search the basedir selected by options or
+defaults first. If they do not find the requested project or selector there,
+they also search the default and registered basedirs (see `rotari basedirs`).
+If multiple targets match in that fallback search, the error lists the
+candidates; pass `--basedir` to limit the search. Commands that run or change
+jobs, such as `run`, `copy`, `change`, and `cancel`, use only the state
+directory they resolve. With `-p`, a job selector stays within the named
+project; a project default from the environment or config is only preferred,
+so a missed job selector falls back across projects.
 
 ## Dependencies and stages
 

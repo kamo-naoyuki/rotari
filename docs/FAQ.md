@@ -101,21 +101,22 @@ Run `rotari delete -p PROJECT --project`, or use Delete on the project's row of 
 
 `show NAME` tries an attempt ID, registered run ID, `latest`, and an existing
 project before searching run names, job IDs, and job names. Without
-`--basedir`, those searches try the basedir and project that
-`ROTARI_BASEDIR`, `ROTARI_PROJECT_NAME`, or config select first, and then the
-default basedir and every registered one alike; a match in more than one of
-those is an error that lists them. If the selected project does not exist,
-the error names both the requested selector and the missing project rather
-than silently changing scope.
+`--basedir`, read-only commands try the basedir selected by options or
+defaults first. If the requested project or selector is not found there, they
+also search the default and registered basedirs. Multiple matches in that
+fallback search are reported as ambiguous; use `--basedir` to limit the
+search. With `-p`, job lookup stays within that project; an environment or
+config project default is only preferred, so an unmatched job can fall back
+across projects. If no match is found, the error names the selector and
+project.
 
-Missing-project errors, including from bare `show`, list the projects in the
-selected basedir, or `(none)` if there are none. Select one with
-`--project-name`; if the named project exists in another registered basedir,
-the error also gives a `--basedir` hint.
+Missing-project errors list the projects in the selected basedir, or `(none)`
+if there are none. If `--basedir` limits the search and the named project is
+in another registered basedir, the error gives a `--basedir` hint.
 
 ### I don't know which basedir contains my jobs. How do I find it?
 
-Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry. `rotari show PROJECT`, `rotari show -p PROJECT`, `rotari show JOB_ID`, and `rotari wait PROJECT` also find a project or job in whichever registered basedir has it.
+Run `rotari basedirs`, then list jobs/runs across known directories with `rotari jobs` or `rotari runs`. Use `--basedir DIR` on either command to narrow the view, and `--masterdir DIR` to select the registry. Without `--basedir`, read-only commands also look beyond the basedir selected by options or defaults when the requested target is not found there; if multiple targets match, use `--basedir` to choose.
 
 ### Where can I put option defaults?
 
