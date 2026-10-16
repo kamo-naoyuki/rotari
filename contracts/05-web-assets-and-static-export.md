@@ -422,6 +422,13 @@ toggle's starting value for an origin that has never set the `localStorage`
 flag; an explicit prior toggle click always wins. The static Job activity page
 shows this local toggle too, but does not poll for live job events.
 
+When the page cannot use notifications, because it is not a secure context
+(plain HTTP from a non-loopback host) or the site's permission is denied, the
+toggle on both the application and Job activity pages stays visible but
+disabled, and its title gives the reason from `notificationUnavailableReason`
+in `web_shell.js`. Covered by
+`TestNotificationToggleExplainsWhyItIsUnavailable`.
+
 ## Web UI model and reports
 
 The Web UI is a projection of the same persisted model, not a separate

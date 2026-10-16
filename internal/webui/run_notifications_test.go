@@ -107,3 +107,73 @@ setTimeout(async () => {
 		t.Fatalf("browser notifications: %v\n%s", err, output)
 	}
 }
+
+// Browsers allow notifications only in a secure context, and an insecure page
+// may not expose Notification at all. The toggle on the application and Job
+// activity pages then stays visible but disabled, and says why, instead of
+// disappearing or being disabled silently.
+func TestNotificationToggleExplainsWhyItIsUnavailable(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const cases = [
+	{ name: 'secure, permission not asked', secure: true, permission: 'default', hidden: false, disabled: false, title: '' },
+	{ name: 'secure, permission denied', secure: true, permission: 'denied', hidden: false, disabled: true, title: 'blocked' },
+	{ name: 'secure, no Notification API', secure: true, permission: null, hidden: true },
+	{ name: 'insecure, permission denied', secure: false, permission: 'denied', hidden: false, disabled: true, title: 'localhost' },
+	{ name: 'insecure, no Notification API', secure: false, permission: null, hidden: false, disabled: true, title: 'localhost' },
+];
+const failures = [];
+let pending = cases.length;
+for (const test of cases) {
+	const errors = [];
+	const virtualConsole = new VirtualConsole();
+	virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+	const dom = new JSDOM(html, {
+		runScripts: 'dangerously',
+		url: 'http://example.test/',
+		virtualConsole,
+		beforeParse(window) {
+			window.isSecureContext = test.secure;
+			if (test.permission !== null)
+				window.Notification = { permission: test.permission, requestPermission: async () => test.permission };
+			window.setInterval = () => 1;
+			window.fetch = async () => { throw new Error('offline'); };
+		},
+	});
+	setTimeout(() => {
+		const button = dom.window.document.getElementById('notify-toggle');
+		const got = !button ? 'no button'
+			: button.hidden ? 'hidden'
+			: 'disabled=' + button.disabled + ' title=' + JSON.stringify(button.title);
+		const ok = button && button.hidden === test.hidden &&
+			(test.hidden || (button.disabled === test.disabled && (test.title === '' ? button.title === '' : button.title.includes(test.title))));
+		if (!ok) failures.push(test.name + ': got ' + got);
+		failures.push(...errors.map(error => test.name + ': ' + error));
+		if (--pending === 0 && failures.length) {
+			console.error(failures.join('\n'));
+			process.exit(1);
+		}
+	}, 50);
+}
+`
+	pages := map[string]string{
+		"application":  testSite().webHTML(),
+		"job activity": jobsHTML("/", nil, nil, "", true, true),
+	}
+	for name, page := range pages {
+		t.Run(name, func(t *testing.T) {
+			htmlPath := filepath.Join(t.TempDir(), "index.html")
+			if err := os.WriteFile(htmlPath, []byte(page), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+				t.Fatalf("notification toggle: %v\n%s", err, output)
+			}
+		})
+	}
+}

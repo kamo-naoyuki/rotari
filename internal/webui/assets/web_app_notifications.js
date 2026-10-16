@@ -66,13 +66,15 @@ function setNotificationsEnabled(enabled) {
 function updateNotifyToggleLabel() {
   const button = document.getElementById("notify-toggle");
   if (!button) return;
-  if (!notificationsSupported()) {
+  const reason = notificationUnavailableReason();
+  if (!reason && !notificationsSupported()) {
     button.hidden = true;
     return;
   }
-  button.disabled = Notification.permission === "denied";
+  button.disabled = reason !== "";
+  button.title = reason;
   const enabled =
-    Notification.permission === "granted" && notificationsEnabled();
+    !reason && Notification.permission === "granted" && notificationsEnabled();
   button.textContent = enabled ? "Notification on" : "Notification off";
   button.classList.toggle("notifications-on", enabled);
   button.setAttribute("aria-pressed", String(enabled));

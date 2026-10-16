@@ -8,6 +8,9 @@ declare const __ROTARI_BASEDIRS__: { id: string; path: string; current: boolean 
 declare const __ROTARI_STATUS_TONES__: Record<string, string>;
 declare const diagnosisGuidance: { noMatchNext: string; unavailableNext: string; outdatedNote: string };
 
+// Defined by web_shell.js, which runs before the page script.
+declare function notificationUnavailableReason(): string;
+
 // Static-export data that web_static_bootstrap.js puts on the window.
 interface Window {
   __ROTARI_STATIC_STATE__?: unknown;

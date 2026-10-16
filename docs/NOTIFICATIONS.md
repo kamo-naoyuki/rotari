@@ -37,6 +37,19 @@ Use `--notifications=false` or `ROTARI_WEB_NOTIFICATIONS=false` on `rotari web`
 to make the initial toggle state off. Once a browser has changed the toggle,
 that explicit choice takes precedence over the server default.
 
+Browsers allow notifications only on HTTPS or a localhost address, so a page
+opened as `http://HOST:PORT` from another machine cannot enable them; the
+button is then disabled and its tooltip says why. Leave `rotari web` on its
+default loopback host, forward its port over SSH, and open the page on
+localhost instead:
+
+```bash
+ssh -L 8787:localhost:8787 HOST
+```
+
+Then open `http://localhost:8787`. Use the port that `rotari web` prints if it
+differs.
+
 ### Browser events and details
 
 The `[browser]` section controls local notifications:

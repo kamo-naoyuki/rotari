@@ -1,6 +1,7 @@
 // The page frame shared by the application and Job activity pages, inlined
 // in <head> of both: the viewer's theme, the Settings menu, the navigation
-// drawer on narrow screens, and the sidebar's width.
+// drawer on narrow screens, the sidebar's width, and why notifications are
+// unavailable.
 //
 // The theme is "light", "dark", or "system" to follow the OS. It is kept per
 // browser and applied before the page is drawn, so a stored choice never
@@ -48,6 +49,20 @@
   window.toggleDrawer = () =>
     setDrawerOpen(!document.body.classList.contains("drawer-open"));
   window.closeDrawer = () => setDrawerOpen(false);
+
+  // The reason the notification toggle cannot be used, or "" when it can.
+  // Browsers allow notifications only in a secure context, so a page opened
+  // over plain HTTP from a non-loopback host cannot enable them.
+  window.notificationUnavailableReason = () => {
+    if (window.isSecureContext === false)
+      return "Browser notifications need HTTPS or a localhost address. Forward the port with ssh -L and open http://localhost:PORT.";
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission === "denied"
+    )
+      return "Notifications are blocked for this site in the browser's settings.";
+    return "";
+  };
 
   const widthKey = "rotari-sidebar-width";
   const clampWidth = (width) => Math.max(190, Math.min(520, width));
