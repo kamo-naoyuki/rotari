@@ -40,24 +40,26 @@ func writeStaleLockProject(t *testing.T, e *support.Env, lockRunID string) strin
 	return filepath.Join(projectDir, "running.lock")
 }
 
+// lockReaders read a project's run lock through the binary and the Web API.
+var lockReaders = map[string]func(e *support.Env){
+	"show":     func(e *support.Env) { e.Rotari("show", "-p", "demo") },
+	"show run": func(e *support.Env) { e.Rotari("show", "-p", "demo", "-r", staleLockRunID) },
+	"jobs":     func(e *support.Env) { e.Rotari("jobs") },
+	"runs":     func(e *support.Env) { e.Rotari("runs") },
+	"projects": func(e *support.Env) { e.Rotari("projects") },
+	"info":     func(e *support.Env) { e.Rotari("info", "-p", "demo") },
+	"check":    func(e *support.Env) { e.Rotari("check", "demo") },
+	"lineage":  func(e *support.Env) { e.Rotari("lineage", "-p", "demo") },
+	"wait":     func(e *support.Env) { e.Rotari("wait", "-p", "demo", "--timeout", "1s") },
+	"web api": func(e *support.Env) {
+		url := e.StartWeb()
+		e.HTTPGet(url + "/api/state")
+	},
+}
+
 func TestCommandsRemoveStaleRunLock(t *testing.T) {
 	covers(t, "SAFE-11")
-	readers := map[string]func(e *support.Env){
-		"show":     func(e *support.Env) { e.Rotari("show", "-p", "demo") },
-		"show run": func(e *support.Env) { e.Rotari("show", "-p", "demo", "-r", staleLockRunID) },
-		"jobs":     func(e *support.Env) { e.Rotari("jobs") },
-		"runs":     func(e *support.Env) { e.Rotari("runs") },
-		"projects": func(e *support.Env) { e.Rotari("projects") },
-		"info":     func(e *support.Env) { e.Rotari("info", "-p", "demo") },
-		"check":    func(e *support.Env) { e.Rotari("check", "demo") },
-		"lineage":  func(e *support.Env) { e.Rotari("lineage", "-p", "demo") },
-		"wait":     func(e *support.Env) { e.Rotari("wait", "-p", "demo", "--timeout", "1s") },
-		"web api": func(e *support.Env) {
-			url := e.StartWeb()
-			e.HTTPGet(url + "/api/state")
-		},
-	}
-	for name, read := range readers {
+	for name, read := range lockReaders {
 		t.Run(name, func(t *testing.T) {
 			t.Run("consistent", func(t *testing.T) {
 				e := support.NewEnv(t)
@@ -80,5 +82,41 @@ func TestCommandsRemoveStaleRunLock(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+// A lock written in another PID namespace on this host, such as by a run
+// started outside a sandbox that cannot see its coordinator, is not stale.
+func TestLockFromAnotherPIDNamespaceIsLocked(t *testing.T) {
+	covers(t, "COORD-2", "COORD-3", "SAFE-11")
+	writeLock := func(t *testing.T, e *support.Env) string {
+		lockPath := writeStaleLockProject(t, e, staleLockRunID)
+		setJSONField(t, lockPath, "pid_namespace", "pid:[1]")
+		return lockPath
+	}
+	for name, read := range lockReaders {
+		t.Run(name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			lockPath := writeLock(t, e)
+			read(e)
+			if _, err := os.Stat(lockPath); err != nil {
+				t.Fatalf("%s removed a lock from another PID namespace: %v", name, err)
+			}
+			if state := e.CheckState("demo"); state != "locked" {
+				t.Fatalf("after %s: state %q, want locked", name, state)
+			}
+		})
+	}
+	e := support.NewEnv(t)
+	writeLock(t, e)
+	if r := e.Rotari("cancel", "-p", "demo"); r.Code == 0 || !strings.Contains(r.Stderr, "PID namespace pid:[1]") {
+		t.Errorf("whole cancel accepted: %s", r)
+	}
+	if r := e.Rotari("run", "-p", "demo"); r.Code == 0 || !strings.Contains(r.Stderr, "is running") {
+		t.Errorf("run accepted: %s", r)
+	}
+	e.MustRotari("unlock", "demo")
+	if state := e.CheckState("demo"); state != "ready" {
+		t.Errorf("after unlock state %q, want ready", state)
 	}
 }

@@ -22,6 +22,10 @@ const (
 	LockRemote LockState = "remote"
 )
 
+// StaleLockRemovalFileName is the record, in a run's directory, of the reader
+// that removed the run's stale lock.
+const StaleLockRemovalFileName = "stale_lock_removed.json"
+
 // ProcessStart is Linux's per-process start-time identity from field 22 of
 // /proc/PID/stat, which tells a process from a later one reusing its PID. An
 // empty value means the platform cannot verify PID reuse.
@@ -46,6 +50,22 @@ func ProcessAlive(pid int) bool {
 	return err == nil || err == syscall.EPERM
 }
 
+// PIDNamespace names this process's PID namespace, within which alone a PID
+// identifies a process. It is empty when the platform does not expose it.
+func PIDNamespace() string {
+	link, err := os.Readlink("/proc/self/ns/pid")
+	if err != nil {
+		return ""
+	}
+	return link
+}
+
+// OtherPIDNamespace reports whether lock records a PID namespace other than
+// this process's, where its PID names another process or none.
+func OtherPIDNamespace(lock model.LockInfo) bool {
+	return lock.PIDNamespace != "" && lock.PIDNamespace != PIDNamespace()
+}
+
 func LoadLock(path string) (model.LockInfo, error) {
 	if err := ValidateStatePath(path); err != nil {
 		return model.LockInfo{}, err
@@ -62,8 +82,11 @@ func LoadLock(path string) (model.LockInfo, error) {
 	return lock, nil
 }
 
-// InspectLock classifies the run lock at path without changing it. A stale
-// lock is removed by internal/project, which checks the project first.
+// InspectLock classifies the run lock at path without changing it. A lock
+// whose coordinator PID cannot be checked here, because it was written on
+// another host or in another PID namespace such as a sandbox or container, is
+// remote. A stale lock is removed by internal/project, which checks the
+// project first.
 func InspectLock(path string) (LockState, model.LockInfo, error) {
 	lock, err := LoadLock(path)
 	if err != nil {
@@ -78,6 +101,9 @@ func InspectLock(path string) (LockState, model.LockInfo, error) {
 		return LockNone, model.LockInfo{}, fmt.Errorf("determine local host: %w", err)
 	}
 	if lock.Host == "" || lock.Host != localHost {
+		return LockRemote, lock, nil
+	}
+	if OtherPIDNamespace(lock) {
 		return LockRemote, lock, nil
 	}
 	if lock.PID > 0 && ProcessAlive(lock.PID) {
@@ -184,6 +210,9 @@ func AcquireRunLock(lockPath string, info model.LockInfo) error {
 			return fmt.Errorf("determine lock host: %w", err)
 		}
 		info.Host = host
+	}
+	if info.PIDNamespace == "" {
+		info.PIDNamespace = PIDNamespace()
 	}
 	lockState, _, err := InspectLock(lockPath)
 	if err != nil {

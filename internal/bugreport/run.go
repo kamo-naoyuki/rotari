@@ -16,7 +16,7 @@ import (
 var runStateFiles = []string{
 	"summary.json", "commands.json", "context.json", state.RunClientStatusFileName,
 	state.CarriedResultsFileName, state.RunSourcesFileName, state.ProgressFileName,
-	state.LoadSamplesFileName, state.RunNotesFileName,
+	state.LoadSamplesFileName, state.RunNotesFileName, state.StaleLockRemovalFileName,
 }
 
 var attemptStateFiles = []string{

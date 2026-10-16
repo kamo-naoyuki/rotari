@@ -1,6 +1,7 @@
 package project
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,6 +189,7 @@ func TestReadersRemoveStaleLockOnlyWhenConsistentAndUnlocked(t *testing.T) {
 		{name: "stale while the state lock is held exclusively", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: host}, metaRunID: "run-1", holdState: true},
 		{name: "active", lock: model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}, metaRunID: "run-1"},
 		{name: "remote", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}, metaRunID: "run-1"},
+		{name: "other PID namespace", lock: model.LockInfo{PID: -1, RunID: "run-1", Host: host, PIDNamespace: "pid:[1]"}, metaRunID: "run-1"},
 	}
 	for readerName, read := range readers {
 		for _, test := range cases {
@@ -216,6 +218,18 @@ func TestReadersRemoveStaleLockOnlyWhenConsistentAndUnlocked(t *testing.T) {
 				_, statErr := os.Stat(paths.LockFile)
 				if removed := os.IsNotExist(statErr); removed != test.wantRemoved {
 					t.Fatalf("lock removed = %v (stat error %v), want %v", removed, statErr, test.wantRemoved)
+				}
+				var record model.StaleLockRemoval
+				data, recordErr := os.ReadFile(filepath.Join(paths.RunsDir, test.metaRunID, state.StaleLockRemovalFileName))
+				if recordErr == nil {
+					recordErr = json.Unmarshal(data, &record)
+				}
+				if test.wantRemoved {
+					if recordErr != nil || record.Lock != test.lock || record.ReaderPID != os.Getpid() || record.ReaderHost != host || record.ReaderPIDNamespace != state.PIDNamespace() || record.RemovedAt == "" {
+						t.Fatalf("removal record = %#v, %v, want the lock and this reader", record, recordErr)
+					}
+				} else if !os.IsNotExist(recordErr) {
+					t.Fatalf("removal record without removal: %#v, %v", record, recordErr)
 				}
 				meta, err := state.LoadMeta(paths.MetaFile)
 				if err != nil || meta.Phase != "running" || meta.LastRunID != test.metaRunID {

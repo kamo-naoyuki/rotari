@@ -165,11 +165,11 @@ the IDs, this table, and those calls disagree.
 | SAFE-8 | Queue edits, including reset, apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun`, `TestResetClearsQueueBesideActiveRun`, `TestResetOfInterruptedProject` |
 | SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
 | SAFE-10 | `show` displays an active/interrupted run and a non-empty next queue separately | conformance | `TestShowActiveRunIncludesNextQueue` |
-| SAFE-11 | Every reader of the run lock (CLI, Web API, MCP) removes a stale local lock once the project passes the consistency checks, under the state lock; the run stays interrupted | conformance | `TestCommandsRemoveStaleRunLock`, `TestMCPRemovesStaleRunLock` |
+| SAFE-11 | Every reader of the run lock (CLI, Web API, MCP) removes a stale local lock once the project passes the consistency checks, under the state lock; the run stays interrupted | conformance | `TestCommandsRemoveStaleRunLock`, `TestLockFromAnotherPIDNamespaceIsLocked`, `TestMCPRemovesStaleRunLock` |
 | SAFE-12 | `delete --project` and `/api/delete-project` delete a whole idle project and its runs' registry entries, leave other projects alone, and on the CLI need the project named on the command line | conformance | `TestDeleteProjectRemovesOnlyThatProject`, `TestInterruptedProjectNeedsRecovery`, `TestRunningProjectRejectsSecondRunAndDelete` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
-| COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
-| COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
+| COORD-2 | Cancelling a run whose coordinator is on another host or in another PID namespace fails, naming it | conformance | `TestControlFromAnotherHost`, `TestLockFromAnotherPIDNamespaceIsLocked` |
+| COORD-3 | A lock from another host or another PID namespace keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost`, `TestLockFromAnotherPIDNamespaceIsLocked` |
 | COORD-4 | A missing scheduler command fails the job with an error naming it | partial | `TestMissingSchedulerCommand` |
 | COORD-5 | `ROTARI_PRIVATE_STATE` makes new paths owner-only; the static export stays publishable | partial | `TestPrivateStateModes` |
 | COORD-6 | Suspend/resume preflight every selected target; errors after partial scheduler actions identify already-acted jobs | partial | `TestSuspendAndResumePreflightAllSelectedJobs` |

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
@@ -104,12 +105,40 @@ func removeStaleLock(paths state.ProjectPaths) {
 	_ = removeLockFile(paths)
 }
 
+// removeLockFile removes the stale run lock and records the removal in the
+// lock's run directory.
 func removeLockFile(paths state.ProjectPaths) error {
+	lock, loadErr := state.LoadLock(paths.LockFile)
 	// codeql[go/path-injection]: LockFile is rooted in the resolved project directory.
-	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
+	if err := os.Remove(paths.LockFile); err != nil { // NOSONAR: lockFile is rooted in the resolved project directory.
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return err
 	}
+	if loadErr == nil {
+		recordStaleLockRemoval(paths, lock)
+	}
 	return nil
+}
+
+func recordStaleLockRemoval(paths state.ProjectPaths, lock model.LockInfo) {
+	runDir, err := state.SafeJoin(paths.RunsDir, lock.RunID)
+	if err != nil {
+		return
+	}
+	host, _ := os.Hostname()
+	record := model.StaleLockRemoval{
+		RemovedAt:          time.Now().UTC().Format(time.RFC3339Nano),
+		Lock:               lock,
+		ReaderPID:          os.Getpid(),
+		ReaderHost:         host,
+		ReaderPIDNamespace: state.PIDNamespace(),
+	}
+	if len(os.Args) > 1 {
+		record.ReaderCommand = os.Args[1]
+	}
+	_ = state.WriteJSON(filepath.Join(runDir, state.StaleLockRemovalFileName), record)
 }
 
 // InspectConsistent inspects a project and rejects lock, metadata, and run

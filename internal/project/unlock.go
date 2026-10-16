@@ -34,7 +34,7 @@ type UnlockResult struct {
 // run's lock, unless the run's coordinator is alive on this host, and returns
 // the project to collecting. runID must name that run; when it is empty, the
 // run the lock or metadata names is recovered, and a project without one is
-// left unchanged. A lock from another host cannot be checked, so it is
+// left unchanged. A lock from another host or PID namespace cannot be checked, so it is
 // removed on the caller's word that the run stopped. The queue is left as it
 // is: the run took its jobs when it started, and they are rerun from the run.
 // `rotari unlock` and the MCP unlock tools use it.

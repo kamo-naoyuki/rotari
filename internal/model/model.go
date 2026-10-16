@@ -447,7 +447,19 @@ type LockInfo struct {
 	RunName        string `json:"run_name,omitempty"`
 	StartedAt      string `json:"started_at"`
 	Host           string `json:"host,omitempty"`
+	PIDNamespace   string `json:"pid_namespace,omitempty"`
 	ClientAttached bool   `json:"client_attached,omitempty"`
+}
+
+// StaleLockRemoval records which reader removed a run's stale lock, since the
+// lock itself is gone afterwards.
+type StaleLockRemoval struct {
+	RemovedAt          string   `json:"removed_at"`
+	Lock               LockInfo `json:"lock"`
+	ReaderPID          int      `json:"reader_pid"`
+	ReaderHost         string   `json:"reader_host"`
+	ReaderPIDNamespace string   `json:"reader_pid_namespace,omitempty"`
+	ReaderCommand      string   `json:"reader_command,omitempty"`
 }
 
 const (

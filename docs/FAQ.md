@@ -398,7 +398,7 @@ Without `--run-id`, `unlock` of a project with no lock or a project not yet crea
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?
 
-A lock from another host cannot be cleared by checking its PID. Confirm that the job stopped, then run `rotari unlock PROJECT` explicitly.
+A lock from another host, or from another PID namespace such as a sandbox or container, cannot be cleared by checking its PID. Confirm that the job stopped, then run `rotari unlock PROJECT` explicitly.
 
 ## Client control and job cancellation
 

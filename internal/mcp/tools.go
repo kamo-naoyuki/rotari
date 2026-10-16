@@ -247,7 +247,7 @@ type CheckProjectInput struct {
 type CheckProjectOutput struct {
 	BaseDirRef string `json:"basedir_ref"`
 	Project    string `json:"project"`
-	State      string `json:"state" jsonschema:"ready, empty, running, locked (running on another host), or interrupted"`
+	State      string `json:"state" jsonschema:"ready, empty, running, locked (running on another host or in another PID namespace), or interrupted"`
 	Runnable   bool   `json:"runnable"`
 	Queued     *int   `json:"queued" jsonschema:"queued jobs; null when the queue of an active or interrupted project cannot be read"`
 	Lock       string `json:"lock"`

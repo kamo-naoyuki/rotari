@@ -10,8 +10,8 @@ import (
 
 // Check is what `rotari check` reports about a project.
 type Check struct {
-	// State is ready, empty, running, locked (running on another host), or
-	// interrupted.
+	// State is ready, empty, running, locked (running on another host or in
+	// another PID namespace), or interrupted.
 	State    string
 	Runnable bool
 	// RunID is the active or interrupted run, if any.

@@ -111,13 +111,20 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
   or signalling an unrelated process with the same PID.
 - **COORD-2** A whole-run cancel of a run whose coordinator runs on another
   host fails the same way, naming that host, instead of reporting success
-  while the run goes on.
+  while the run goes on. So does one from another PID namespace on the same
+  host, such as a sandbox or container, naming both namespaces.
 - **COORD-3** A run lock from another host counts as running: `check`
   reports the project `locked`, and the commands of SAFE-2 are rejected. Its
   coordinator cannot be checked, so the lock stays until the operator
-  confirms that the run stopped and uses `unlock` (SAFE-4). This is
-  coordination, not distributed locking: it cannot fence a host after a
-  network partition.
+  confirms that the run stopped and uses `unlock` (SAFE-4). The same holds
+  for a lock written in another PID namespace on this host, which the lock
+  records as `pid_namespace`: a sandbox or container cannot see the
+  coordinator's PID. A lock without `pid_namespace`, from an earlier rotari,
+  is checked by its PID. Covered with COORD-2 by
+  `TestLockFromAnotherPIDNamespaceIsLocked` in
+  [conformance/04-coordination/stale_lock_test.go](../conformance/04-coordination/stale_lock_test.go).
+  This is coordination, not distributed locking: it cannot fence a host
+  after a network partition.
 - **COORD-4** A scheduler job whose scheduler command is not installed fails
   with an error naming the command, which `show` of the job reports.
   Scheduler executors and SSH work from any host with the required access,
@@ -181,13 +188,13 @@ A project is in one of three states, derived from `running.lock` and
 | State | `running.lock` | `meta.json` phase | `run`/`retry`/`delete` | `add`/`copy`/`change`/`remove`/`import` | `reset` |
 | --- | --- | --- | --- | --- | --- |
 | `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed | allowed |
-| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | allowed, except `copy` of the running run | allowed; clears only the next queue |
+| `Running` | present; owning coordinator PID is alive, or it runs on another host or in another PID namespace | `running`/`cancelling` | rejected: "is running; ... is not allowed" | allowed, except `copy` of the running run | allowed; clears only the next queue |
 | `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | allowed, except `copy` of the interrupted run | allowed; clears only the next queue |
 
 - **SAFE-1** `check` and `show` report a project's state as the table says;
   `check` names an idle project `ready` or `empty` (with or without queued
   jobs), a running one `running`, or `locked` when its lock comes from
-  another host (COORD-3), and an interrupted one `interrupted`.
+  another host or PID namespace (COORD-3), and an interrupted one `interrupted`.
   A run whose coordinator is gone, for example killed with SIGKILL, leaves
   the project interrupted, never idle; a dead local lock is removed, and the
   metadata alone then marks the run.
@@ -257,15 +264,18 @@ A project is in one of three states, derived from `running.lock` and
   binary by `TestShowActiveRunIncludesNextQueue`.
 - **SAFE-11** Every command and interface that reads a project's run lock
   (CLI, Web API, and MCP alike) removes a stale lock: one recorded for this
-  host whose coordinator PID is no longer alive. It removes the lock only once
+  host and PID namespace whose coordinator PID is no longer alive. It removes the lock only once
   the project passes the consistency checks below, and only while holding the
   project state lock, at least shared, so it never removes a lock that a
   starting run has just written. A lock that fails the checks is left in
   place and reported. While another holder has the state lock exclusively,
   the reader leaves the lock for a later command instead of waiting. Removal
   changes nothing else: an interrupted run stays interrupted through
-  `meta.json` until `unlock`, and output describes the lock as found. A lock
-  from another host is never stale (COORD-3). One implementation decides
+  `meta.json` until `unlock`, and output describes the lock as found. The
+  removal is recorded in the run's `stale_lock_removed.json`: the lock as
+  found and the removing command, PID, host, and PID namespace, which
+  `bug-report` collects. A lock
+  from another host or PID namespace is never stale (COORD-3). One implementation decides
   this, `Inspect`, `InspectRunLock`, and `InspectConsistent` in
   [internal/project/inspect.go](../internal/project/inspect.go); covered by
   `TestReadersRemoveStaleLockOnlyWhenConsistentAndUnlocked` in

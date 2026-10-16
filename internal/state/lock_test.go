@@ -77,6 +77,41 @@ func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
 	if _, err := os.Stat(stalePath); err != nil {
 		t.Fatalf("stale lock stat error = %v, want the lock left for internal/project", err)
 	}
+
+	// A sandbox or container on this host cannot see the coordinator's PID.
+	otherNamespacePath := filepath.Join(t.TempDir(), "running.lock")
+	if err := os.WriteFile(otherNamespacePath, []byte(fmt.Sprintf(`{"run_id":"sandboxed-run","pid":-1,"host":%q,"pid_namespace":"pid:[1]"}`, host)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if PIDNamespace() == "" {
+		t.Skip("PID namespace is not available")
+	}
+	otherNamespace, _, err := InspectLock(otherNamespacePath)
+	if err != nil || otherNamespace != LockRemote {
+		t.Fatalf("lock from another PID namespace = %q, error = %v, want remote", otherNamespace, err)
+	}
+
+	sameNamespacePath := filepath.Join(t.TempDir(), "running.lock")
+	if err := os.WriteFile(sameNamespacePath, []byte(fmt.Sprintf(`{"run_id":"stale-run","pid":-1,"host":%q,"pid_namespace":%q}`, host, PIDNamespace())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if sameNamespace, _, err := InspectLock(sameNamespacePath); err != nil || sameNamespace != LockStale {
+		t.Fatalf("dead lock from this PID namespace = %q, error = %v, want stale", sameNamespace, err)
+	}
+}
+
+func TestAcquireRunLockRecordsPIDNamespace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "running.lock")
+	if err := AcquireRunLock(path, model.LockInfo{PID: os.Getpid(), RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := LoadLock(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lock.PIDNamespace != PIDNamespace() {
+		t.Fatalf("lock PID namespace = %q, want %q", lock.PIDNamespace, PIDNamespace())
+	}
 }
 
 func TestTryAcquireStateReadLockYieldsToExclusiveHolder(t *testing.T) {

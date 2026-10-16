@@ -99,11 +99,12 @@ the filesystem providing consistent exclusive file creation, atomic rename, and
 advisory `flock` behavior; do not use the same project through mounts that can
 disagree about the state files.
 
-An active run is recorded in `running.lock` with its run ID, PID, and host. On
-the host that started the run, rotari detects when that PID is gone, removes
-the lock, and keeps the run as interrupted until you recover it with
-`unlock`. A lock created on another host is always treated
-as active, because rotari cannot tell whether a remote PID is still alive.
+An active run is recorded in `running.lock` with its run ID, PID, host, and PID
+namespace. On the host that started the run, rotari detects when that PID is
+gone, removes the lock, and keeps the run as interrupted until you recover it
+with `unlock`. A lock created on another host, or in another PID namespace
+such as a sandbox or container on the same host, is always treated as active,
+because rotari cannot tell whether that PID is still alive.
 Using different project names on different hosts is therefore much safer than
 sharing one project.
 

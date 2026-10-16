@@ -201,6 +201,9 @@ func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []str
 	if host, mismatch := runnerHostMismatch(lock); mismatch {
 		return "", fmt.Errorf("run %q is owned by host %q; run cancel from that host", lock.RunID, host)
 	}
+	if state.OtherPIDNamespace(lock) {
+		return "", fmt.Errorf("run %q is owned by a process in PID namespace %s, not %s; run cancel outside this sandbox or container", lock.RunID, lock.PIDNamespace, state.PIDNamespace())
+	}
 	if err := markCancelling(paths); err != nil {
 		return "", err
 	}
