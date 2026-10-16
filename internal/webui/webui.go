@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
@@ -210,23 +211,24 @@ func webJobIDs(single string, multiple []string) ([]string, error) {
 }
 
 func (s site) handler() http.Handler {
-	baseDirs := make(map[string]string)
-	for _, entry := range s.basedirEntries() {
-		baseDirs[entry.ID] = entry.Path
-	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(basedirRoutePrefix, func(writer http.ResponseWriter, request *http.Request) {
 		value := strings.TrimPrefix(request.URL.Path, basedirRoutePrefix)
 		id, remainder, _ := strings.Cut(value, "/")
-		baseDir, ok := baseDirs[id]
+		baseDir, ok := s.basedirPath(id)
+		if !ok && s.reloadBaseDirs() == nil {
+			// A page opened directly at a newly registered basedir.
+			baseDir, ok = s.basedirPath(id)
+		}
 		if !ok {
 			http.NotFound(writer, request)
 			return
 		}
 		child := s
-		// baseDir is looked up from s.basedirEntries(), a fixed, server-configured
-		// allow-list; id is used only as a lookup key, never as a path or URL, so
-		// this does not forward attacker-controlled destinations.
+		// baseDir is looked up from s.basedirEntries(), a server-side allow-list
+		// read from the basedir registry; id is used only as a lookup key,
+		// never as a path or URL, so this does not forward attacker-controlled
+		// destinations.
 		child.BaseDir = baseDir // NOSONAR
 		clone := request.Clone(request.Context())
 		urlCopy := *request.URL
@@ -244,9 +246,51 @@ func (s site) handler() http.Handler {
 	return mux
 }
 
+// registeredBaseDirs is the server's registered basedir list. Page loads and
+// /api/basedirs reload it; the 2-second polls reuse it.
+type registeredBaseDirs struct {
+	mu     sync.Mutex
+	dirs   []string
+	reload func() ([]string, error)
+}
+
+func (r *registeredBaseDirs) list() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.dirs...)
+}
+
+// reloadBaseDirs rereads the registered basedirs; on failure the previous
+// list stays.
+func (s site) reloadBaseDirs() error {
+	if s.registered == nil || s.registered.reload == nil {
+		return nil
+	}
+	dirs, err := s.registered.reload()
+	if err != nil {
+		return err
+	}
+	s.registered.mu.Lock()
+	s.registered.dirs = dirs
+	s.registered.mu.Unlock()
+	return nil
+}
+
+func (s site) basedirPath(id string) (string, bool) {
+	for _, entry := range s.basedirEntries() {
+		if entry.ID == id {
+			return entry.Path, true
+		}
+	}
+	return "", false
+}
+
 func (s site) basedirEntries() []webBaseDir {
 	byPath := make(map[string]bool)
 	candidates := append([]string(nil), s.BaseDirs...)
+	if s.registered != nil {
+		candidates = s.registered.list()
+	}
 	candidates = append(candidates, s.RootBaseDir, s.BaseDir)
 	for _, candidate := range candidates {
 		if candidate == "" {
@@ -315,6 +359,7 @@ func (s site) baseHandler() http.Handler {
 	baseDir, allowControl := s.BaseDir, s.AllowControl
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		_ = s.reloadBaseDirs()
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(s.webHTML()))
 	})
@@ -356,11 +401,23 @@ func (s site) baseHandler() http.Handler {
 			return
 		}
 		joblist.Sort(rows)
+		_ = s.reloadBaseDirs()
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(jobsHTMLWithSession(s.currentBasePrefix()+"/", projects, rows, sinceText, true, s.Notifications, s.notificationSession, s.basedirEntries())))
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, s.currentBasePrefix()+"/jobs/", http.StatusMovedPermanently)
+	})
+	mux.HandleFunc("/api/basedirs", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		if err := s.reloadBaseDirs(); err != nil {
+			http.Error(writer, "failed to list registered base directories: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeWebJSON(writer, map[string][]webBaseDir{"basedirs": s.basedirEntries()})
 	})
 	mux.HandleFunc("/api/state", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {

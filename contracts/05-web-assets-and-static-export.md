@@ -296,6 +296,32 @@ initialized from its current state, so existing completed jobs do not produce
 retroactive notifications. Notifications remain controlled by the global
 notification permission and on/off toggle.
 
+**WEB-12** `rotari web` reads the registered basedir list at startup and
+rereads the basedir registry on every page load and on `GET /api/basedirs`,
+which the Refresh button calls. A basedir registered or unregistered after the
+server started therefore appears or disappears without a restart. A mount
+whose basedir ID is not listed rereads the registry once before answering 404,
+so a page opened directly at a newly registered basedir is served. When the
+reread fails, `/api/basedirs` answers 500 and the previous list stays. The
+ways to update the application page are ordered; each reads everything the
+one before it reads:
+
+1. The 2-second poll reads `/api/state`, the selected project when its
+   revision changed, and the run details it needs. It does not reread the
+   basedir list.
+2. Refresh also reloads the selected project whatever its revision, rereads
+   the basedir list, and drops the other basedirs' cached project lists, so an
+   expanded basedir lists its projects again.
+3. Reloading the page also discards every browser-side cache and the
+   sidebar's expansion state.
+4. Restarting `rotari web` also rereads its options and configuration and
+   starts a new notification session.
+
+The Job activity page's Refresh reloads the page. Covered by
+[`TestWebRereadsRegisteredBasedirsWithoutRestart`](../internal/webui/basedir_reload_test.go),
+[`TestWebRefreshButtonRereadsBasedirs`](../internal/webui/basedir_reload_test.go),
+and [`TestWebListsBasedirsRegisteredAfterStart`](../conformance/05-web/basedir_reload_test.go).
+
 ## Web server and control-plane security
 
 - `web` binds `--host`/`--port`, defaulting to `127.0.0.1:8787`.

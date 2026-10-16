@@ -561,6 +561,10 @@ names without scanning its run history. `rotari web --project-name` is not
 supported; choose the project from the sidebar instead. Static exports remain
 limited to the basedir used to generate them.
 
+A basedir registered after `rotari web` started appears after Refresh or a
+page reload; the server does not need a restart. The automatic 2-second update
+does not reread the basedir list.
+
 ## Background server (supervisor)
 
 ### Do I need to start a server manually?

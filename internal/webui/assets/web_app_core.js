@@ -1,5 +1,5 @@
 const executorNames = __ROTARI_EXECUTORS__;
-const registeredBasedirs = __ROTARI_BASEDIRS__;
+let registeredBasedirs = __ROTARI_BASEDIRS__;
 const mountedBasedirID = (() => {
   const parts = location.pathname.split("/").filter(Boolean);
   return parts[0] === "_basedir" ? parts[1] : "";
@@ -324,6 +324,20 @@ async function refresh(forceProject = true) {
     // The primary index request failed; keep the existing view and show its disconnected state.
     document.getElementById("disconnect-banner").classList.add("show");
   }
+}
+// The Refresh button: what the 2-second poll reads, plus the registered
+// basedirs and the other basedirs' project lists.
+async function refreshWithBasedirs() {
+  if (typeof rewriteStaticLinks !== "function") {
+    const data = await fetchWebJSON("/api/basedirs");
+    if (data) {
+      registeredBasedirs = data.basedirs;
+      for (const id of Object.keys(remoteProjectsByBasedir))
+        delete remoteProjectsByBasedir[id];
+      stateJSON = "";
+    }
+  }
+  await refresh();
 }
 function render() {
   const queues = state.projects || [];

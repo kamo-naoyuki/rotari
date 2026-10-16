@@ -123,6 +123,7 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 		printErrorf("failed to list registered base directories: %v", err)
 		return 1
 	}
+	options.ReloadBaseDirs = registry.BaseDirs
 	options.ArtifactRoots = flags.artifactRoots
 	if !webui.IsLoopbackHost(flags.host) && flags.authToken == "" {
 		controlWarning := "registered basedir paths, job logs, artifact files under job working directories and --artifact-root, and environment variable names"

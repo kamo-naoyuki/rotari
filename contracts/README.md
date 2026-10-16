@@ -264,3 +264,4 @@ the IDs, this table, and those calls disagree.
 | WEB-9 | A static export page shows the live page's tables, columns, row actions, and panels, also when opened from disk | partial | `TestStaticExportPagesShowWhatLivePagesShow` |
 | WEB-10 | `/api/activity` lists the runs of every registered basedir that meet a validated range, marks missing and unreadable basedirs, and rejects bad ranges | conformance | `TestActivityListsRunsAcrossRegisteredBasedirs` |
 | WEB-11 | Each All projects row has a Delete button, disabled for a running project, that deletes the project through `/api/delete-project` as `delete --project` does; read-only servers answer 403 | conformance | `TestDeleteProjectRemovesOnlyThatProject` |
+| WEB-12 | A basedir registered after `rotari web` started is listed by `/api/basedirs` (Refresh) and on a page load, and its mount is served, without a restart | conformance | `TestWebListsBasedirsRegisteredAfterStart` |

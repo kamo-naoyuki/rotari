@@ -22,6 +22,9 @@ type Options struct {
 	// BaseDirs are previously registered state directories available to switch
 	// to from the sidebar. BaseDir is always included.
 	BaseDirs []string
+	// ReloadBaseDirs, when set, rereads BaseDirs on each page load and on
+	// /api/basedirs (the Refresh button); other requests reuse the last list.
+	ReloadBaseDirs func() ([]string, error)
 	// AllowControl enables the endpoints that edit queues, configs, and runs.
 	AllowControl bool
 	// Notifications is the default of the desktop notification toggle.
@@ -55,6 +58,8 @@ type Options struct {
 type site struct {
 	Options
 	notificationSession string
+	// registered is shared by every basedir mount of one server.
+	registered *registeredBaseDirs
 }
 
 func (s site) environments() []web.EnvironmentDefinition {
@@ -66,7 +71,8 @@ func Handler(options Options) http.Handler {
 	if options.WorkspaceDir == "" {
 		options.WorkspaceDir, _ = os.Getwd()
 	}
-	return site{Options: options, notificationSession: newNotificationSession()}.handler()
+	registered := &registeredBaseDirs{dirs: options.BaseDirs, reload: options.ReloadBaseDirs}
+	return site{Options: options, notificationSession: newNotificationSession(), registered: registered}.handler()
 }
 
 // GenerateStatic writes a read-only static export of the Web UI to
