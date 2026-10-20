@@ -193,6 +193,9 @@ func (runner Runner) Finish(paths state.ProjectPaths, runID string, exitCode int
 	if removeErr := removeOwnLock(paths, runID); removeErr != nil && err == nil {
 		err = removeErr
 	}
+	if err == nil {
+		err = runner.finishCoordinator(paths, runID)
+	}
 	return err
 }
 

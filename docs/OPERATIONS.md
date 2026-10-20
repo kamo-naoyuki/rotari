@@ -15,6 +15,21 @@ unfinished local-executor attempts, `info` best-effort checks whether the
 recorded process group exists; other executors and remote hosts are
 unverified. This does not prove process identity. The run lock separately
 reports coordinator liveness on this host.
+For new runs, the run context also retains the coordinator's host, PID,
+PID namespace, and process start time independently of that lock. Each active
+or interrupted run reports a separate `coordinator` assessment in `info --json`
+(`state`, `reason`, `observed_at`, and the recorded `identity`), or a
+`coordinator=live|stopped|unknown` line in text output. A matching local
+process identity is live; a missing process or a verified reused PID is
+stopped. Another host/namespace, insufficient identity, or inaccessible
+process evidence is unknown. Legacy runs without the record remain unknown.
+Unreadable or malformed context is reported as an error.
+
+The record's `management_finished_at` marks successful completion of run
+management, not process death. It never overrides a live-process observation.
+This assessment does not check whether jobs stopped and does not change
+`unlock` behavior or automatically recover an interrupted run.
+
 Run rows count jobs with a recorded final result and carried results as
 `finished`; a failed attempt waiting for retry is not final yet.
 Headings and states are colored on a terminal; redirected text and `--json`

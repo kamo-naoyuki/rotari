@@ -149,3 +149,78 @@ func TestInfoCountsFailedJobsOfActiveRuns(t *testing.T) {
 		t.Fatalf("info text lacks the failed count:\n%s", text)
 	}
 }
+
+func TestInfoCoordinatorIdentityWithoutRunLock(t *testing.T) {
+	covers(t, "CLI-21")
+	e := support.NewEnv(t)
+	project := "coordinator"
+	runID, _ := e.FinishedJobRun(project)
+	projectDir := filepath.Join(e.Base, "projects", project)
+	contextPath := filepath.Join(projectDir, "runs", runID, "context.json")
+	var data []byte
+	var context struct {
+		Coordinator struct {
+			Host                 string `json:"host"`
+			PID                  int    `json:"pid"`
+			PIDNamespace         string `json:"pid_namespace"`
+			ProcessStart         string `json:"process_start"`
+			RecordedAt           string `json:"recorded_at"`
+			ManagementFinishedAt string `json:"management_finished_at"`
+		} `json:"coordinator"`
+	}
+	support.WaitUntil(t, 10*time.Second, func() (bool, string) {
+		var err error
+		data, err = os.ReadFile(contextPath)
+		if err != nil {
+			return false, err.Error()
+		}
+		if err := json.Unmarshal(data, &context); err != nil {
+			return false, err.Error()
+		}
+		identity := context.Coordinator
+		return identity.ManagementFinishedAt != "" && syscall.Kill(identity.PID, 0) == syscall.ESRCH, string(data)
+	})
+	identity := context.Coordinator
+	if identity.Host == "" || identity.PID <= 0 || identity.RecordedAt == "" || identity.ManagementFinishedAt == "" {
+		t.Fatalf("new run did not preserve completed coordinator identity: %s", data)
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "running.lock")); !os.IsNotExist(err) {
+		t.Fatalf("completed run still has a lock: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "meta.json"), []byte(`{"phase":"running","last_run_id":"`+runID+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		ActiveRuns []struct {
+			Phase       string `json:"phase"`
+			Coordinator struct {
+				State      string `json:"state"`
+				Reason     string `json:"reason"`
+				ObservedAt string `json:"observed_at"`
+			} `json:"coordinator"`
+		} `json:"active_runs"`
+	}
+	out := e.MustRotari("info", "--json").Stdout
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].Phase != "interrupted" {
+		t.Fatalf("missing interrupted run: %s", out)
+	}
+	assessment := report.ActiveRuns[0].Coordinator
+	want := "stopped"
+	if identity.PIDNamespace == "" {
+		want = "unknown"
+	}
+	if assessment.State != want || assessment.Reason == "" || assessment.ObservedAt == "" {
+		t.Fatalf("coordinator after lock removal: %s", out)
+	}
+	after, err := os.ReadFile(contextPath)
+	if err != nil || string(after) != string(data) {
+		t.Fatalf("info changed coordinator context: %v", err)
+	}
+	text := e.MustRotari("info").Stdout
+	if !strings.Contains(text, "coordinator="+want) || !strings.Contains(text, "reason=") {
+		t.Fatalf("text lacks coordinator evidence: %s", text)
+	}
+}

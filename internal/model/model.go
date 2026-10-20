@@ -649,12 +649,13 @@ type FileConfigSnapshot struct {
 }
 
 type RunContext struct {
-	CWD                 string         `json:"cwd"`
-	ConfigSources       []ConfigSource `json:"config_sources,omitempty"`
-	ConfigPaths         []string       `json:"config_paths,omitempty"`
-	ConfigSnapshotFiles []string       `json:"config_snapshot_files,omitempty"`
-	ConfigSnapshotPaths []string       `json:"config_snapshot_paths,omitempty"`
-	Hostname            string         `json:"hostname,omitempty"`
+	CWD                 string          `json:"cwd"`
+	ConfigSources       []ConfigSource  `json:"config_sources,omitempty"`
+	ConfigPaths         []string        `json:"config_paths,omitempty"`
+	ConfigSnapshotFiles []string        `json:"config_snapshot_files,omitempty"`
+	ConfigSnapshotPaths []string        `json:"config_snapshot_paths,omitempty"`
+	Hostname            string          `json:"hostname,omitempty"`
+	Coordinator         *RunCoordinator `json:"coordinator,omitempty"`
 	// LaunchOrigin is the process that ran the rotari command starting the
 	// run, such as a shell or script; wait without a selector follows the
 	// runs its own parent started. Runs started by the Web UI or MCP have
@@ -666,6 +667,17 @@ type RunContext struct {
 	StartedLoad  *LoadAverage `json:"started_load,omitempty"`
 	FinishedLoad *LoadAverage `json:"finished_load,omitempty"`
 	LoadSamples  []LoadSample `json:"load_samples,omitempty"`
+}
+
+// RunCoordinator identifies the supervisor independently of the removable run
+// lock. ManagementFinishedAt is informational, not evidence of process death.
+type RunCoordinator struct {
+	Host                 string `json:"host"`
+	PID                  int    `json:"pid"`
+	PIDNamespace         string `json:"pid_namespace,omitempty"`
+	ProcessStart         string `json:"process_start,omitempty"`
+	RecordedAt           string `json:"recorded_at"`
+	ManagementFinishedAt string `json:"management_finished_at,omitempty"`
 }
 
 // LaunchOrigin identifies a process on a host. ProcessStart, when known,

@@ -1,7 +1,17 @@
 # Plan: Verified Unlock of Interrupted Runs
 
 Created: 2026-10-20
-Status: Proposed; implementation not started
+Status: Phase 1a implemented and validated. Phases 1b-4 not started.
+
+Phase 1a stores coordinator identity in the existing run context rather than
+a separate run-directory filename, avoiding collisions with arbitrary job IDs.
+`info` exposes the shared read-only assessment independently of the run lock.
+The management completion marker is informational and never overrides process
+evidence. Unlock policy and job-liveness checks are unchanged.
+CLI-21 documents the added observational output; unlock contracts are unchanged.
+Validation: targeted tests, changed-file pre-commit, short checks, and the full
+normal/race check passed. An initial unrelated cancellation timing failure and
+its isolated passing repetitions are recorded in [ISSUES.md](../ISSUES.md).
 
 ## Purpose
 

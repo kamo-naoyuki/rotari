@@ -1,6 +1,8 @@
 package projectrun
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,8 +22,17 @@ func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPa
 	if err != nil {
 		return err
 	}
-	hostname, _ := os.Hostname()
-	context := model.RunContext{CWD: cwd, Hostname: hostname, LaunchOrigin: origin, StartedBy: startedBy, StartedLoad: readLoadAverage()}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("identify coordinator host: %w", err)
+	}
+	context := model.RunContext{
+		CWD: cwd, Hostname: hostname, LaunchOrigin: origin, StartedBy: startedBy, StartedLoad: readLoadAverage(),
+		Coordinator: &model.RunCoordinator{
+			Host: hostname, PID: os.Getpid(), PIDNamespace: state.PIDNamespace(),
+			ProcessStart: state.ProcessStart(os.Getpid()), RecordedAt: runner.timestampNano(),
+		},
+	}
 	var snapshot *model.FileConfigSnapshot
 	if len(snapshots) > 0 {
 		snapshot = snapshots[0]
@@ -88,6 +99,8 @@ func (runner Runner) FinishContext(paths state.ProjectPaths, runID string) error
 	context := model.RunContext{}
 	if loaded, err := state.LoadContext(runner.Store, runDir); err == nil {
 		context = loaded
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("load run context: %w", err)
 	}
 	context.FinishedLoad = readLoadAverage()
 	if context.FinishedLoad != nil {
@@ -96,6 +109,25 @@ func (runner Runner) FinishContext(paths state.ProjectPaths, runID string) error
 		}
 	}
 	return state.SaveContext(runner.Store, runDir, context)
+}
+
+func (runner Runner) finishCoordinator(paths state.ProjectPaths, runID string) error {
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return err
+	}
+	context, err := state.LoadContext(runner.Store, runDir)
+	if err != nil {
+		return fmt.Errorf("load coordinator context: %w", err)
+	}
+	if context.Coordinator == nil {
+		return nil
+	}
+	context.Coordinator.ManagementFinishedAt = runner.timestampNano()
+	if err := state.SaveContext(runner.Store, runDir, context); err != nil {
+		return fmt.Errorf("save coordinator completion: %w", err)
+	}
+	return nil
 }
 
 func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string, error) {

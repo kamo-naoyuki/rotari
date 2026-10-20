@@ -53,10 +53,11 @@ type infoRunLock struct {
 }
 
 type infoRun struct {
-	Project string           `json:"project"`
-	RunID   string           `json:"run_id"`
-	Phase   project.RunPhase `json:"phase"`
-	Jobs    *infoJobLiveness `json:"jobs,omitempty"`
+	Project     string                        `json:"project"`
+	RunID       string                        `json:"run_id"`
+	Phase       project.RunPhase              `json:"phase"`
+	Jobs        *infoJobLiveness              `json:"jobs,omitempty"`
+	Coordinator project.CoordinatorAssessment `json:"coordinator"`
 }
 
 type infoJobLiveness struct {
@@ -277,7 +278,11 @@ func inspectInfoRun(name string, paths state.ProjectPaths, inspection project.In
 	if err != nil {
 		return infoRun{}, false, fmt.Errorf("inspect jobs in run %q for project %q: %w", runID, name, err)
 	}
-	return infoRun{Project: name, RunID: runID, Phase: phase, Jobs: jobs}, true, nil
+	coordinator, err := project.AssessCoordinator(jsonStore(), runDir)
+	if err != nil {
+		return infoRun{}, false, fmt.Errorf("inspect coordinator in run %q for project %q: %w", runID, name, err)
+	}
+	return infoRun{Project: name, RunID: runID, Phase: phase, Jobs: jobs, Coordinator: coordinator}, true, nil
 }
 
 func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
@@ -449,6 +454,10 @@ func printInfoRuns(runs []infoRun) {
 		fmt.Printf("  project=%s run=%s phase=%s", run.Project, run.RunID, infoRunPhase(run.Phase))
 		if run.Jobs != nil {
 			fmt.Printf(" jobs=%s:%s %s:%s %s:%s %s:%s %s:%s %s:%s", cyan("finished"), cyan(fmt.Sprint(run.Jobs.Finished)), red("failed"), red(fmt.Sprint(run.Jobs.Failed)), cyan("pending"), cyan(fmt.Sprint(run.Jobs.Pending)), green("alive"), green(fmt.Sprint(run.Jobs.Alive)), red("gone"), red(fmt.Sprint(run.Jobs.Gone)), yellow("unknown"), yellow(fmt.Sprint(run.Jobs.Unknown)))
+		}
+		fmt.Printf(" coordinator=%s reason=%q", run.Coordinator.State, run.Coordinator.Reason)
+		if identity := run.Coordinator.Identity; identity != nil {
+			fmt.Printf(" host=%s pid=%d namespace=%s", identity.Host, identity.PID, identity.PIDNamespace)
 		}
 		fmt.Println()
 	}

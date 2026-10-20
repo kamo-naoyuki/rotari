@@ -12,8 +12,51 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+func TestInfoCoordinatorSurvivesMissingRunLock(t *testing.T) {
+	baseDir, masterDir := setupInfoActiveRun(t)
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	context, err := state.LoadContext(jsonStore(), runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	context.Coordinator = &model.RunCoordinator{
+		Host: context.Hostname, PID: os.Getpid(), PIDNamespace: state.PIDNamespace(),
+		ProcessStart: state.ProcessStart(os.Getpid()),
+	}
+	if context.Coordinator.PIDNamespace == "" || context.Coordinator.ProcessStart == "" {
+		t.Skip("process identity unavailable")
+	}
+	if err := state.SaveContext(jsonStore(), runDir, context); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(paths.LockFile); err != nil {
+		t.Fatal(err)
+	}
+	report := runInfoJSON(t, "--basedir", baseDir, "--masterdir", masterDir)
+	if len(report.RunLocks) != 0 || len(report.ActiveRuns) != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+	run := report.ActiveRuns[0]
+	if run.Phase != project.RunPhaseInterrupted || run.Coordinator.State != project.CoordinatorLive {
+		t.Fatalf("interrupted run lost live coordinator: %+v", run)
+	}
+	var output bytes.Buffer
+	captureShowStdout(t, &output, func() int { printInfoRuns(report.ActiveRuns); return 0 })
+	if !strings.Contains(output.String(), "coordinator=live") || !strings.Contains(output.String(), "reason=") {
+		t.Fatalf("text missing evidence: %s", output.String())
+	}
+}
 
 func TestCmdInfoReportsContextAndActiveRun(t *testing.T) {
 	baseDir, masterDir := setupInfoActiveRun(t)
@@ -29,6 +72,9 @@ func TestCmdInfoReportsContextAndActiveRun(t *testing.T) {
 	}
 	if len(report.ActiveRuns) != 1 || report.ActiveRuns[0].RunID != "run-1" {
 		t.Fatalf("active runs = %#v, want run-1", report.ActiveRuns)
+	}
+	if got := report.ActiveRuns[0].Coordinator; got.State != project.CoordinatorUnknown || got.Reason == "" {
+		t.Fatalf("legacy coordinator = %+v, want unknown with reason", got)
 	}
 	if got := report.ActiveRuns[0].Jobs; got == nil || got.Finished != 0 || got.Alive != 1 || got.Gone != 0 || got.Unknown != 0 {
 		t.Fatalf("job liveness = %#v, want one live local process group", got)

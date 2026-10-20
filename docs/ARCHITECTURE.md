@@ -62,6 +62,13 @@ flowchart LR
   It is not an authority for state: everything it knows is also on disk.
 - **Run execution.** Every run, sync or async, executes inside its
   supervisor; see [Sync and async runs](#sync-and-async-runs).
+  Before execution, `projectrun` saves its coordinator identity (host, PID,
+  PID namespace, and process start time) in the run's `context.json`, separate
+  from the removable execution lock. It records successful management
+  completion after finalization and lock cleanup, without treating that
+  marker as process death. `project.AssessCoordinator` owns the read-only
+  live/stopped/unknown assessment used by `info`, including when the run lock
+  has disappeared. It does not decide job liveness or unlock permission.
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
    It lists registered basedirs and lightweight project/run metadata, checks
    project locks across the selected basedir, and loads a project's queue and

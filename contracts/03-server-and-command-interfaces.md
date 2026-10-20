@@ -157,8 +157,18 @@ does not promise to detect a lost remote client.
   `finished`, and those of them that failed also as `failed`; terminal
   attempts awaiting a retry and `pending` jobs, not yet dispatched, are counted as
   `pending`. It changes no state except removing a stale lock (SAFE-11), and
-  reports the lock as found. Coordinator liveness is reported only for
-  local locks. Human-readable output uses the standard CLI colors only on a
+  reports the lock as found. Lock-based coordinator liveness is reported only
+  for local locks. Each active or interrupted run also reports coordinator
+  ownership independently of the run lock, using the identity persisted in
+  its context: `live`, `stopped`, or `unknown`, with a reason and observation
+  time. Only the same host and PID namespace can verify process identity;
+  missing legacy identity or unavailable evidence is unknown. A management
+  completion marker is not proof of process death. This read-only assessment
+  does not change unlock policy or assess job termination. Its implementation
+  is shared in [`internal/project/coordinator.go`](../internal/project/coordinator.go),
+  with evidence tests in
+  [`internal/project/coordinator_test.go`](../internal/project/coordinator_test.go).
+  Human-readable output uses the standard CLI colors only on a
   terminal; JSON and redirected output remain plain. The implementation is in
   [`cmd/rotari/info.go`](../cmd/rotari/info.go), with CLI and non-mutation
   coverage in [`cmd/rotari/info_test.go`](../cmd/rotari/info_test.go) and

@@ -31,8 +31,8 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 	runner, paths := testRunner(t)
 	var contextSeen bool
 	runner.RegisterRun = func(paths state.ProjectPaths, runID string) error {
-		_, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, runID))
-		contextSeen = err == nil
+		context, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, runID))
+		contextSeen = err == nil && context.Coordinator != nil && context.Coordinator.PID == os.Getpid()
 		return nil
 	}
 	if err := runner.Begin(paths, Start{RunID: "run-1", RunName: "nightly", CWD: "/work"}); err != nil {
@@ -52,6 +52,11 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 	context, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
 	if err != nil || context.CWD != "/work" {
 		t.Fatalf("context = %+v, err = %v", context, err)
+	}
+	if context.Coordinator == nil || context.Coordinator.Host != lock.Host ||
+		context.Coordinator.RecordedAt == "" || context.Coordinator.ProcessStart != state.ProcessStart(os.Getpid()) ||
+		context.Coordinator.PIDNamespace != state.PIDNamespace() {
+		t.Fatalf("coordinator identity = %+v", context.Coordinator)
 	}
 }
 
@@ -331,6 +336,47 @@ func TestFinishFinalizesProjectAndRemovesLock(t *testing.T) {
 	}
 	if len(notified) != 1 || notified[0] != 2 {
 		t.Fatalf("RunFinished calls = %v", notified)
+	}
+	context, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
+	if err != nil || context.Coordinator == nil || context.Coordinator.ManagementFinishedAt == "" ||
+		context.Coordinator.PID != os.Getpid() {
+		t.Fatalf("coordinator after Finish = %+v, %v", context.Coordinator, err)
+	}
+}
+
+func TestFailedFinishPreservesCoordinatorWithoutCompletionMarker(t *testing.T) {
+	runner, paths := testRunner(t)
+	if err := runner.Begin(paths, Start{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(paths.LockFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Finish(paths, "run-1", 0); err == nil {
+		t.Fatal("Finish succeeded without its lock")
+	}
+	context, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
+	if err != nil || context.Coordinator == nil || context.Coordinator.PID != os.Getpid() ||
+		context.Coordinator.ManagementFinishedAt != "" {
+		t.Fatalf("coordinator after failed Finish = %+v, %v", context.Coordinator, err)
+	}
+}
+
+func TestFinishDoesNotReplaceUnreadableCoordinatorContext(t *testing.T) {
+	runner, paths := testRunner(t)
+	if err := runner.Begin(paths, Start{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	path := state.ContextPath(filepath.Join(paths.RunsDir, "run-1"))
+	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Finish(paths, "run-1", 0); err == nil || !strings.Contains(err.Error(), "load run context") {
+		t.Fatalf("Finish error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "{" {
+		t.Fatalf("invalid identity was silently replaced: %s, %v", data, err)
 	}
 }
 
