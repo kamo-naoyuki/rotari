@@ -486,3 +486,36 @@ Commit: `3ba65525` (2026-10-20 21:57:23 +0900).
   - pre-commit passed on the changed files.
 - **Remaining:** none for this plan. The load-dependent failures seen in
   other suites during the launcher work are recorded in `ISSUES.md`.
+
+## Follow-up: Download and Launch with in artifact rows
+
+Commit: `edc591ec` (2026-10-21 04:12:01 +0900).
+
+- **Change:** `web_app_artifacts.js` adds Download and Launch columns to the
+  Artifacts listing and to an opened directory's children
+  (`artifactActionCells`). Download is offered for files the server may
+  serve; Launch with for files and directories it may serve. Other rows have
+  empty cells, and a static export without copied contents has no such
+  columns. `toggleArtifactLaunch` takes the clicked button: from a row, the
+  panel is a full-width row below it, and the same button closes it. In a
+  preview's title line, Download and Launch with are now 1rem apart. The
+  launching walkthrough in `docs/INSPECT.md` describes the row buttons.
+- **Reason:** The user asked for both actions in each table row rather than
+  only after opening an artifact, and found the title-line Download and
+  Launch with too close together.
+- **Plan impact:** None; this is a UI layout change within Phase 3's
+  Artifacts entry.
+- **Validation:**
+  - jsdom browser tests with Node 22, new assertions:
+    - `TestWebArtifactPreviewInBrowser`: the column headers; per-row
+      actions for an image, a directory, an entry outside the roots, and a
+      missing entry; the row download link; and file and directory child
+      rows.
+    - `TestWebLaunchInBrowser`: the row panel's placement, span, choices,
+      and closing.
+  - `go test` of `./internal/webui`, `./conformance/05-web`,
+    `./cmd/rotari`, and `./internal/doclinks` passed; `npm run typecheck`
+    and pre-commit passed.
+  - Not checked in a real browser (none on this host); the layout is
+    checked through jsdom's DOM only.
+- **Remaining:** None.
