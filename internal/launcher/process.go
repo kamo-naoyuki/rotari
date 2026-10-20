@@ -31,6 +31,10 @@ const Shell = "/bin/sh"
 // to finish its own cleanup before killing the group itself.
 const stopMargin = 5 * time.Second
 
+// outputWaitDelay is how long Wait keeps copying output after the wrapper
+// exits.
+const outputWaitDelay = 2 * time.Second
+
 // Lifetime is a pipe whose write end only its creator holds. Wrappers inherit
 // the read end and stop their command when it reports EOF, which the kernel
 // delivers when the creator exits, however it exits.
@@ -110,6 +114,9 @@ func Start(lifetime *Lifetime, spec Spec) (*Process, error) {
 	wrapper.Dir = spec.Dir
 	wrapper.Env = spec.Env
 	wrapper.Stdout, wrapper.Stderr = spec.Output, spec.Output
+	// A process that left the command's group can keep the output pipe
+	// open; do not let it keep Wait from returning.
+	wrapper.WaitDelay = outputWaitDelay
 	// Descriptors 3 and 4 in the wrapper; see RunWrapper.
 	wrapper.ExtraFiles = []*os.File{lifetime.reader, statusWriter}
 	// A group of its own keeps terminal signals sent to the caller's group

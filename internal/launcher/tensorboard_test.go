@@ -14,13 +14,14 @@ import (
 // tensorBoardEnv names the shell command that starts TensorBoard, for
 // example "tensorboard" or "conda run -n tb tensorboard". The test is
 // skipped without it; CI does not install TensorBoard.
-const tensorBoardEnv = "ROTARI_LAUNCHER_TEST_TENSORBOARD"
+const tensorBoardEnv = "ROTARI_TEST_LAUNCHER_TENSORBOARD"
 
 // TestTensorBoardBehindPrefix launches a real TensorBoard as a registered
 // command would and checks that its listener passes VerifyListener and that
 // it serves its data under the allocated prefix only. An empty log directory
 // is enough: the runs list is then "[]".
 func TestTensorBoardBehindPrefix(t *testing.T) {
+	t.Parallel()
 	tensorBoard := os.Getenv(tensorBoardEnv)
 	if tensorBoard == "" {
 		t.Skip(tensorBoardEnv + " is not set")

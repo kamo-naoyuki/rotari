@@ -51,6 +51,7 @@ func mkdir(t *testing.T, path string, mode os.FileMode) {
 }
 
 func TestOpenTrustedFileAcceptsPrivateFiles(t *testing.T) {
+	t.Parallel()
 	dir := trustedDir(t)
 	mkdir(t, filepath.Join(dir, "config"), 0o755)
 	path := filepath.Join(dir, "config", "launchers.toml")
@@ -71,6 +72,7 @@ func TestOpenTrustedFileAcceptsPrivateFiles(t *testing.T) {
 }
 
 func TestOpenTrustedFileRejectsWritableElements(t *testing.T) {
+	t.Parallel()
 	dir := trustedDir(t)
 	mkdir(t, filepath.Join(dir, "open"), 0o775)
 	writeFile(t, filepath.Join(dir, "open", "launchers.toml"), 0o600)
@@ -105,6 +107,7 @@ func TestOpenTrustedFileRejectsWritableElements(t *testing.T) {
 }
 
 func TestOpenTrustedFileReportsMissingFile(t *testing.T) {
+	t.Parallel()
 	dir := trustedDir(t)
 	_, err := OpenTrustedFile(filepath.Join(dir, "launchers.toml"))
 	if !errors.Is(err, fs.ErrNotExist) {
@@ -113,6 +116,7 @@ func TestOpenTrustedFileReportsMissingFile(t *testing.T) {
 }
 
 func TestOpenTrustedFileRejectsOtherFiles(t *testing.T) {
+	t.Parallel()
 	dir := trustedDir(t)
 	mkdir(t, filepath.Join(dir, "directory"), 0o700)
 	if err := os.Symlink("loop", filepath.Join(dir, "loop")); err != nil {

@@ -6,6 +6,7 @@ import (
 )
 
 func TestParseProcIP(t *testing.T) {
+	t.Parallel()
 	for text, want := range map[string]string{
 		"0100007F":                         "127.0.0.1",
 		"00000000":                         "0.0.0.0",

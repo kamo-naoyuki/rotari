@@ -1,8 +1,9 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Phase 1 (feasibility gates) passed; Phase 2 next. See
-[Phase 1 results](#phase-1-results).
+Status: Phase 1 (feasibility gates) passed; Phase 2 in progress: the
+registry and manager are in `internal/launcher`, and the `cmd/rotari` wiring
+is next. See [Phase 1 results](#phase-1-results).
 
 ## Goal
 
@@ -285,6 +286,13 @@ with that reason rather than skipping verification. A foreign listener stops
 the launch's process group and reports that another process holds the port;
 the launch never becomes ready, so its port is never proxied.
 
+A port can also be lost to an outgoing connection: loopback connections use
+ephemeral source ports from the same range that port 0 allocates from, and
+such a connection blocks the bind. The launcher's parallel tests hit this.
+The service then fails to bind and exits, which is reported as a startup
+failure; Phase 4 retries once with a newly allocated port when a service
+exits with no listener ever seen.
+
 The service must listen on exactly `127.0.0.1:PORT`. A service in the launch
 listening on `0.0.0.0` or `::` instead fails the check with a "bind it to
 127.0.0.1" error: it would be reachable from the network, and on macOS,
@@ -417,7 +425,7 @@ entry in `docs/ARCHITECTURE.md` and `contracts/00-overview.md`.
 | A process that wins the port race is never trusted | Passed on Linux; macOS compiles, untested (CI is Linux only) | `TestVerifyListenerRejectsForeignListener` (fails with the group check disabled), `TestVerifyListenerRejectsNonLoopbackBind`, `TestParseLsofListeners` |
 | Killing the Web process cleans up its launches | Passed | `TestKilledOwnerStopsLaunches` SIGKILLs a stand-in Web process (fails when the wrapper ignores lifetime EOF), `TestLifetimeCloseStopsCommands` |
 | `launchers.toml` cannot be written or replaced by another user | Passed for mode and ownership checks; another owner cannot be created without root, so that branch is untested | `TestOpenTrustedFileRejectsWritableElements` (file, directory, symlink in and to a writable directory), `TestOpenTrustedFileAcceptsPrivateFiles` (sticky directory) |
-| TensorBoard works behind a fixed-target prefix proxy on one port | Passed with TensorBoard 2.21.0 | Manual run behind `httputil.ReverseProxy`; `TestTensorBoardBehindPrefix` when `ROTARI_LAUNCHER_TEST_TENSORBOARD` is set |
+| TensorBoard works behind a fixed-target prefix proxy on one port | Passed with TensorBoard 2.21.0 | Manual run behind `httputil.ReverseProxy`; `TestTensorBoardBehindPrefix` when `ROTARI_TEST_LAUNCHER_TENSORBOARD` is set |
 
 TensorBoard findings:
 

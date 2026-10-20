@@ -3,16 +3,25 @@ package launcher
 import (
 	"errors"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-// listenCommand runs the test binary as a listener on address inside the
-// launch's process group.
-func listenCommand(address string) string {
-	return testRole + `=listen ROTARI_LAUNCHER_TEST_ADDR='` + address + `' exec "$ROTARI_LAUNCHER_TEST_BIN"`
+// startListener runs the test binary as a listener on host inside a
+// launch's process group and returns the launch and its port. The listener
+// binds port 0 itself: allocating a port first would race with the other
+// tests' connections.
+func startListener(t *testing.T, host string) (*Process, int) {
+	t.Helper()
+	portFile := filepath.Join(t.TempDir(), "port")
+	command := testRole + `=listen ROTARI_TEST_LAUNCHER_HOST='` + host + `' ROTARI_TEST_LAUNCHER_PORT_FILE="$PORT_FILE" exec "$ROTARI_TEST_LAUNCHER_BIN"`
+	spec := testSpec(command, outputFile(t))
+	spec.Env = append(spec.Env, "PORT_FILE="+portFile)
+	process := startTest(t, newTestLifetime(t), spec)
+	return process, readNumberFile(t, portFile)
 }
 
 func waitAccepting(t *testing.T, port int) {
@@ -39,10 +48,8 @@ func allocate(t *testing.T) int {
 }
 
 func TestVerifyListenerAcceptsLaunchListener(t *testing.T) {
-	lifetime := newTestLifetime(t)
-	port := allocate(t)
-	process := startTest(t, lifetime, testSpec(listenCommand(net.JoinHostPort(LoopbackHost, strconv.Itoa(port))), outputFile(t)))
-	waitAccepting(t, port)
+	t.Parallel()
+	process, port := startListener(t, LoopbackHost)
 	if err := VerifyListener(port, process.PGID()); err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +59,14 @@ func TestVerifyListenerAcceptsLaunchListener(t *testing.T) {
 // port first is detected while the launch is still running, so its
 // responses are never trusted.
 func TestVerifyListenerRejectsForeignListener(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
-	port := allocate(t)
-	foreign, err := net.Listen("tcp", net.JoinHostPort(LoopbackHost, strconv.Itoa(port)))
+	foreign, err := net.Listen("tcp", net.JoinHostPort(LoopbackHost, "0"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer foreign.Close()
+	port := foreign.Addr().(*net.TCPAddr).Port
 	process := startTest(t, lifetime, testSpec("sleep 300", outputFile(t)))
 	waitAccepting(t, port)
 	err = VerifyListener(port, process.PGID())
@@ -73,10 +81,8 @@ func TestVerifyListenerRejectsForeignListener(t *testing.T) {
 }
 
 func TestVerifyListenerRejectsNonLoopbackBind(t *testing.T) {
-	lifetime := newTestLifetime(t)
-	port := allocate(t)
-	process := startTest(t, lifetime, testSpec(listenCommand(net.JoinHostPort("0.0.0.0", strconv.Itoa(port))), outputFile(t)))
-	waitAccepting(t, port)
+	t.Parallel()
+	process, port := startListener(t, "0.0.0.0")
 	err := VerifyListener(port, process.PGID())
 	if err == nil || !strings.Contains(err.Error(), "bind it to 127.0.0.1") {
 		t.Fatalf("VerifyListener() = %v, want a bind address error", err)
@@ -84,6 +90,7 @@ func TestVerifyListenerRejectsNonLoopbackBind(t *testing.T) {
 }
 
 func TestVerifyListenerRejectsMissingListener(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	process := startTest(t, lifetime, testSpec("sleep 300", outputFile(t)))
 	err := VerifyListener(allocate(t), process.PGID())
@@ -93,6 +100,7 @@ func TestVerifyListenerRejectsMissingListener(t *testing.T) {
 }
 
 func TestParseLsofListeners(t *testing.T) {
+	t.Parallel()
 	output := "p100\nf5\nn127.0.0.1:8000\np200\nf6\nn*:8000\nf7\nn[::1]:8000\np300\nf8\nn127.0.0.1:9000\np400\n"
 	groups := map[int]int{100: 100, 200: 7}
 	groupOf := func(pid int) (int, error) {

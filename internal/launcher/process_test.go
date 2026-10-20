@@ -17,7 +17,7 @@ import (
 
 // testRole makes the test binary act as one of the processes a launch
 // involves; see TestMain.
-const testRole = "ROTARI_LAUNCHER_TEST_ROLE"
+const testRole = "ROTARI_TEST_LAUNCHER_ROLE"
 
 func TestMain(m *testing.M) {
 	switch os.Getenv(testRole) {
@@ -26,13 +26,13 @@ func TestMain(m *testing.M) {
 	case "web":
 		os.Exit(fakeWeb())
 	case "listen":
-		os.Exit(listenAndWait(os.Getenv("ROTARI_LAUNCHER_TEST_ADDR")))
+		os.Exit(listenAndWait(os.Getenv("ROTARI_TEST_LAUNCHER_HOST"), os.Getenv("ROTARI_TEST_LAUNCHER_PORT_FILE")))
 	}
 	os.Exit(m.Run())
 }
 
 // fakeWeb stands in for the Web server: it starts one launch from
-// ROTARI_LAUNCHER_TEST_COMMAND, prints its process group, and waits to be
+// ROTARI_TEST_LAUNCHER_COMMAND, prints its process group, and waits to be
 // killed without stopping it.
 func fakeWeb() int {
 	lifetime, err := NewLifetime()
@@ -40,7 +40,7 @@ func fakeWeb() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	process, err := Start(lifetime, testSpec(os.Getenv("ROTARI_LAUNCHER_TEST_COMMAND"), os.Stderr))
+	process, err := Start(lifetime, testSpec(os.Getenv("ROTARI_TEST_LAUNCHER_COMMAND"), os.Stderr))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -49,13 +49,20 @@ func fakeWeb() int {
 	select {}
 }
 
-func listenAndWait(address string) int {
-	listener, err := net.Listen("tcp", address)
+// listenAndWait listens on host and an unused port, and writes the port to
+// portFile once it accepts connections.
+func listenAndWait(host, portFile string) int {
+	listener, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := os.WriteFile(portFile, []byte(strconv.Itoa(port)+"\n"), 0o600); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	select {}
 }
 
@@ -66,7 +73,7 @@ func testSpec(command string, output *os.File) Spec {
 	return Spec{
 		Wrapper: []string{os.Args[0]},
 		Command: command,
-		Env:     append(os.Environ(), testRole+"=wrapper", "ROTARI_LAUNCHER_TEST_BIN="+os.Args[0]),
+		Env:     append(os.Environ(), testRole+"=wrapper", "ROTARI_TEST_LAUNCHER_BIN="+os.Args[0]),
 		Output:  output,
 		Grace:   300 * time.Millisecond,
 	}
@@ -108,8 +115,9 @@ func outputFile(t *testing.T) *os.File {
 	return file
 }
 
-// readPID waits for a command to write a PID to path.
-func readPID(t *testing.T, path string) int {
+// readNumberFile waits for a command to write a number (a PID or a port)
+// and a newline to path.
+func readNumberFile(t *testing.T, path string) int {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
@@ -143,6 +151,7 @@ func waitProcessGone(t *testing.T, pid int, why string) {
 }
 
 func TestStartReportsExitStatus(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	for _, test := range []struct {
 		command string
@@ -164,6 +173,7 @@ func TestStartReportsExitStatus(t *testing.T) {
 
 // Values reach the command through its environment, never as shell source.
 func TestStartPassesValuesThroughEnvironment(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	value := "dir with spaces/'quote\" $(touch pwned) `id` \\ ü"
 	work := t.TempDir()
@@ -187,6 +197,7 @@ func TestStartPassesValuesThroughEnvironment(t *testing.T) {
 }
 
 func TestStartRunsInDirWithEmptyStdin(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	work := t.TempDir()
 	// cat would block on an inherited terminal or pipe.
@@ -204,6 +215,7 @@ func TestStartRunsInDirWithEmptyStdin(t *testing.T) {
 }
 
 func TestStartFailsForMissingDirectory(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	spec := testSpec("true", outputFile(t))
 	spec.Dir = filepath.Join(t.TempDir(), "missing")
@@ -214,6 +226,7 @@ func TestStartFailsForMissingDirectory(t *testing.T) {
 }
 
 func TestStopEndsDescendants(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	for _, test := range []struct {
@@ -230,7 +243,7 @@ func TestStopEndsDescendants(t *testing.T) {
 			spec := testSpec(test.command, outputFile(t))
 			spec.Env = append(spec.Env, "PID_FILE="+pidFile)
 			process := startTest(t, lifetime, spec)
-			child := readPID(t, pidFile)
+			child := readNumberFile(t, pidFile)
 			result, err := process.Stop()
 			if err != nil || result.Signal != test.want {
 				t.Fatalf("Stop() = %+v, %v; want signal %v", result, err, test.want)
@@ -242,12 +255,13 @@ func TestStopEndsDescendants(t *testing.T) {
 
 // A command that exits and leaves members in its group does not leak them.
 func TestCommandExitEndsLeftoverGroupMembers(t *testing.T) {
+	t.Parallel()
 	lifetime := newTestLifetime(t)
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	spec := testSpec(`sleep 300 & echo $! > "$PID_FILE"`, outputFile(t))
 	spec.Env = append(spec.Env, "PID_FILE="+pidFile)
 	process := startTest(t, lifetime, spec)
-	child := readPID(t, pidFile)
+	child := readNumberFile(t, pidFile)
 	if result, err := process.Wait(); err != nil || result.ExitCode != 0 {
 		t.Fatalf("Wait() = %+v, %v", result, err)
 	}
@@ -255,6 +269,7 @@ func TestCommandExitEndsLeftoverGroupMembers(t *testing.T) {
 }
 
 func TestLifetimeCloseStopsCommands(t *testing.T) {
+	t.Parallel()
 	lifetime, err := NewLifetime()
 	if err != nil {
 		t.Fatal(err)
@@ -271,16 +286,17 @@ func TestLifetimeCloseStopsCommands(t *testing.T) {
 // Feasibility gate: killing the Web process with SIGKILL, which runs none of
 // its shutdown code, still stops its launches and their descendants.
 func TestKilledOwnerStopsLaunches(t *testing.T) {
+	t.Parallel()
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	web := exec.Command(os.Args[0])
 	web.Env = append(os.Environ(), testRole+"=web",
-		"ROTARI_LAUNCHER_TEST_COMMAND="+`sleep 300 & echo $! > "$PID_FILE"; wait`, "PID_FILE="+pidFile)
+		"ROTARI_TEST_LAUNCHER_COMMAND="+`sleep 300 & echo $! > "$PID_FILE"; wait`, "PID_FILE="+pidFile)
 	var stdout bytes.Buffer
 	web.Stdout, web.Stderr = &stdout, os.Stderr
 	if err := web.Start(); err != nil {
 		t.Fatal(err)
 	}
-	child := readPID(t, pidFile)
+	child := readNumberFile(t, pidFile)
 	if err := web.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
