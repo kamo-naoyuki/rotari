@@ -46,21 +46,36 @@ var artifactInlineTypes = map[string]string{
 type webArtifactListing struct {
 	jobstatus.ArtifactListing
 	Previewable []bool `json:"previewable,omitempty"`
+	// RootsNote explains why only --artifact-root is served, when another
+	// user could have chosen the listing's paths.
+	RootsNote string `json:"roots_note,omitempty"`
 }
 
 // artifactRoots returns the directories whose files the live server may
-// serve for a listing: its working directory and every --artifact-root.
-func (s site) artifactRoots(listing jobstatus.ArtifactListing) []string {
+// serve for a listing of a run in baseDir: every --artifact-root, and,
+// when no other user could have chosen the listing's paths
+// (artifactRecordsTrust), its working directory and the basedir's parent,
+// unless that parent is the filesystem root. The note explains a refusal.
+func (s site) artifactRoots(listing jobstatus.ArtifactListing, baseDir, projectName, runID string) ([]string, string) {
 	var roots []string
-	if filepath.IsAbs(listing.WorkingDirectory) {
-		roots = append(roots, filepath.Clean(listing.WorkingDirectory))
+	trusted, reason := artifactRecordsTrust(baseDir, projectName, runID)
+	if trusted {
+		if filepath.IsAbs(listing.WorkingDirectory) {
+			roots = append(roots, filepath.Clean(listing.WorkingDirectory))
+		}
+		if parent, ok := basedirParentRoot(baseDir); ok {
+			roots = append(roots, parent)
+		}
 	}
 	for _, root := range s.ArtifactRoots {
 		if filepath.IsAbs(root) {
 			roots = append(roots, filepath.Clean(root))
 		}
 	}
-	return roots
+	if trusted {
+		return roots, ""
+	}
+	return roots, artifactRootsNote(reason)
 }
 
 // artifactRootOf returns the first root that lexically contains path, and
@@ -76,8 +91,7 @@ func artifactRootOf(path string, roots []string) (string, string, bool) {
 	return "", "", false
 }
 
-func (s site) previewable(listing jobstatus.ArtifactListing) []bool {
-	roots := s.artifactRoots(listing)
+func (s site) previewable(listing jobstatus.ArtifactListing, roots []string) []bool {
 	previewable := make([]bool, len(listing.Entries))
 	for index, entry := range listing.Entries {
 		_, _, inside := artifactRootOf(entry.Path, roots)
@@ -125,9 +139,13 @@ func (s site) resolveArtifact(baseDir string, query url.Values) (servedArtifact,
 		return servedArtifact{}, fmt.Errorf("entry must name an artifact candidate of the attempt")
 	}
 	entry := listing.Entries[index]
-	root, relative, inside := artifactRootOf(entry.Path, s.artifactRoots(listing))
+	roots, note := s.artifactRoots(listing, baseDir, query.Get("project_name"), query.Get("run_id"))
+	root, relative, inside := artifactRootOf(entry.Path, roots)
 	if entry.Basis == artifact.BasisUnresolved || !inside {
-		return servedArtifact{}, fmt.Errorf("%w: %s is outside the allowed roots (the job's working directory and --artifact-root)", errNotServed, entry.Path)
+		if note != "" {
+			return servedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, entry.Path, note)
+		}
+		return servedArtifact{}, fmt.Errorf("%w: %s is outside the allowed roots (the job's working directory, the basedir's parent, and --artifact-root)", errNotServed, entry.Path)
 	}
 	if child := query.Get("child"); child != "" {
 		if filepath.IsAbs(child) || filepath.Clean(child) != child || child == ".." || strings.HasPrefix(child, ".."+string(filepath.Separator)) || strings.ContainsRune(child, 0) {

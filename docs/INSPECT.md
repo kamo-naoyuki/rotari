@@ -352,10 +352,15 @@ discovery notes instead of logs; `show -j JOB --json` includes them as
 A carried job shows candidates from the attempt that produced its result.
 
 In the live Web UI, Artifacts in a job's "⋯" menu opens the listing for the
-attempt shown by Log. Files under the job's working directory can be previewed in
-supported formats (including images, audio/video, NumPy arrays, CSV/TSV, and
-text) or downloaded; directories show their immediate contents. Other paths
-are listed but not opened unless allowed by `rotari web --artifact-root DIR`.
+attempt shown by Log. Files under the job's working directory, or under the
+directory holding its basedir (for example the experiment directory around
+`.rotari-state`), can be previewed in supported formats (including images,
+audio/video, NumPy arrays, CSV/TSV, and text) or downloaded; directories show
+their immediate contents. Other paths are listed but not opened unless allowed
+by `rotari web --artifact-root DIR`. When another user can write the project's
+state (a group-writable shared basedir, or one you do not own), that user could
+have chosen the job's working directory and paths, so only `--artifact-root`
+directories are served for its jobs and the Artifacts view says why.
 A static export records the listing as of export time. It includes no file
 contents by default; `--static-artifact-contents` copies previewable files
 (up to 10 MiB each and 100 MiB total) so they can be previewed there. Anyone

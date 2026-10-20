@@ -150,9 +150,15 @@ function renderArtifactListing() {
         "</li>",
     )
     .join("");
-  const hint = listing.previewable
-    ? ""
-    : '<p class="meta">Previews need the live Web UI, or a static export made with --static-artifact-contents.</p>';
+  const hint =
+    (listing.previewable
+      ? ""
+      : '<p class="meta">Previews need the live Web UI, or a static export made with --static-artifact-contents.</p>') +
+    (listing.roots_note
+      ? '<p class="meta artifact-roots-note">' +
+        esc(listing.roots_note) +
+        "</p>"
+      : "");
   artifactView().innerHTML =
     (listing.working_directory
       ? '<p class="meta">Relative to ' + esc(listing.working_directory) + "</p>"

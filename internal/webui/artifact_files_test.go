@@ -35,7 +35,9 @@ func write(t *testing.T, path, content string) {
 
 func newArtifactFixture(t *testing.T) artifactFixture {
 	t.Helper()
-	f := artifactFixture{baseDir: t.TempDir(), runID: "20260922-070308-0d83bd39", work: t.TempDir(), outside: t.TempDir(), entries: map[string]int{}}
+	// The basedir sits in a directory of its own, so its parent, which is
+	// served for a trusted basedir, holds neither work nor outside.
+	f := artifactFixture{baseDir: filepath.Join(t.TempDir(), "state", "base"), runID: "20260922-070308-0d83bd39", work: t.TempDir(), outside: t.TempDir(), entries: map[string]int{}}
 	write(t, filepath.Join(f.work, "plot.png"), "\x89PNG-bytes")
 	write(t, filepath.Join(f.work, "pic.svg"), `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)
 	write(t, filepath.Join(f.work, "data.csv"), "a,b\n1,2\n")

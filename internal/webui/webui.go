@@ -681,7 +681,8 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		writeWebJSON(writer, webArtifactListing{ArtifactListing: listing, Previewable: s.previewable(listing)})
+		roots, note := s.artifactRoots(listing, baseDir, projectName, runID)
+		writeWebJSON(writer, webArtifactListing{ArtifactListing: listing, Previewable: s.previewable(listing, roots), RootsNote: note})
 	})
 	s.registerLaunchRoutes(mux, baseDir)
 	for path, serve := range map[string]func(string, http.ResponseWriter, *http.Request){

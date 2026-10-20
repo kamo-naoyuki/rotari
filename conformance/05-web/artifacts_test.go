@@ -224,3 +224,77 @@ func TestStaticExportCopiesArtifactContents(t *testing.T) {
 		t.Fatalf("flag without --static-dir = %s", r)
 	}
 }
+
+// TestWebServesArtifactsOnlyFromTrustedRecords checks WEB-6's roots: a
+// project only this user can write also serves files beside its basedir;
+// one another user could write serves only --artifact-root, and says why.
+func TestWebServesArtifactsOnlyFromTrustedRecords(t *testing.T) {
+	covers(t, "WEB-6")
+	e := support.NewEnv(t)
+	beside := filepath.Join(e.Root, "outputs", "beside.txt")
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "tr", "--artifact", beside, "--artifact", "work.txt",
+		"--", "sh", "-c", `mkdir -p outputs && echo out > outputs/beside.txt && echo work > work.txt`))
+	e.MustRotari("run", "-p", "tr", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "tr", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	base := e.StartWeb()
+	query := url.Values{"project_name": {"tr"}, "run_id": {shown.RunID}, "job_id": {jobID}}
+	var listing struct {
+		Entries []struct {
+			Path string `json:"path"`
+		} `json:"entries"`
+		Previewable []bool `json:"previewable"`
+		RootsNote   string `json:"roots_note"`
+	}
+	read := func(base string) {
+		t.Helper()
+		if err := json.Unmarshal([]byte(e.HTTPGet(base+"/api/artifacts?"+query.Encode()).Body), &listing); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := func(base, path string) support.HTTPResult {
+		t.Helper()
+		for index, entry := range listing.Entries {
+			if entry.Path == path {
+				q := url.Values{"entry": {strconv.Itoa(index)}}
+				for key, value := range query {
+					q[key] = value
+				}
+				return e.HTTPGet(base + "/api/artifact-file?" + q.Encode())
+			}
+		}
+		t.Fatalf("listing has no %s: %+v", path, listing.Entries)
+		return support.HTTPResult{}
+	}
+	work := filepath.Join(e.Root, "work.txt")
+	read(base)
+	if listing.RootsNote != "" || file(base, beside).Body != "out\n" || file(base, work).Body != "work\n" {
+		t.Fatalf("trusted project: note %q, previewable %v", listing.RootsNote, listing.Previewable)
+	}
+
+	projectDir := filepath.Join(e.Base, "projects", "tr")
+	if err := os.Chmod(projectDir, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	read(base)
+	if !strings.Contains(listing.RootsNote, projectDir+" is writable by group or others") {
+		t.Fatalf("untrusted project note = %q", listing.RootsNote)
+	}
+	for _, path := range []string{beside, work} {
+		if r := file(base, path); r.Status != 403 {
+			t.Fatalf("untrusted project served %s: (%d, %s)", path, r.Status, r.Body)
+		}
+	}
+	withRoot := e.StartWeb("--artifact-root", filepath.Join(e.Root, "outputs"))
+	read(withRoot)
+	if r := file(withRoot, beside); r.Status != 200 || r.Body != "out\n" {
+		t.Fatalf("untrusted project under --artifact-root = (%d, %s)", r.Status, r.Body)
+	}
+	if r := file(withRoot, work); r.Status != 403 {
+		t.Fatalf("untrusted working directory served with --artifact-root elsewhere: (%d, %s)", r.Status, r.Body)
+	}
+}

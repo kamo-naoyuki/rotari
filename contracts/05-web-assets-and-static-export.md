@@ -624,9 +624,18 @@ and the view in `showArtifacts` in
 **WEB-6** The live server previews and downloads an artifact candidate's
 content only when (a) the request names an entry of the attempt's recorded
 listing by index, optionally with a clean relative child path inside a listed
-directory, never a free path; (b) the path is under the job's recorded
-working directory or an `rotari web --artifact-root DIR`; and (c) opening it
-through `os.Root` does not leave that root, including through a symlink.
+directory, never a free path; (b) the path is under an
+`rotari web --artifact-root DIR`, or, when no other user could have chosen
+the listing's paths, under the job's recorded working directory or the
+directory holding its basedir (never `/`); and (c) opening it through
+`os.Root` does not leave that root, including through a symlink. No other
+user could have chosen the paths when the basedir, its `projects`
+directory, the project's directory, `queue.json`, `meta.json`, `runs`, and the
+run's directory are each owned by the Web server's user or root and not
+writable by group or others (permission bits only; an ACL is not seen):
+whoever can write those can make a job record any working directory and
+path. Otherwise `/api/artifacts` adds `roots_note`, which says why only
+`--artifact-root` is served, and the Web UI shows it.
 `/api/artifacts` adds `previewable` per entry; a refused request is 403, a
 missing file 404. Images (png, jpg, jpeg, gif, svg), audio (wav, mp3, flac,
 ogg, oga, opus, m4a), and video (mp4, webm, mov) are served inline, with
@@ -647,16 +656,19 @@ children, directories first and then by name, 200 per page, reading at most
 WEB-7 applies. The
 handlers are in [internal/webui/artifact_files.go](../internal/webui/artifact_files.go)
 and the view in [web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js);
-covered by `TestWebPreviewsArtifactsUnderAllowedRoots` in
-[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+covered by `TestWebPreviewsArtifactsUnderAllowedRoots` and
+`TestWebServesArtifactsOnlyFromTrustedRecords` in
+[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go);
+the ownership rule is `artifactRecordsTrust` in
+[internal/webui/artifact_trust.go](../internal/webui/artifact_trust.go).
 Opening an entry, including a directory child, scrolls to the rendered preview
 below the listing; loading additional pages does not scroll it. This browser
 behavior is checked by `TestWebArtifactPreviewInBrowser` in
 [internal/webui/artifact_preview_test.go](../internal/webui/artifact_preview_test.go).
 
 **WEB-7** `rotari web --static-dir DIR --static-artifact-contents` copies the
-contents of the candidates WEB-6 would serve, with the job's working
-directory as the only root, into `DIR/artifact-files/`: each file of at most
+contents of the candidates WEB-6 would serve without `--artifact-root`
+(which static export rejects), into `DIR/artifact-files/`: each file of at most
 10 MiB, up to 100 MiB in all, one copy per file however many attempts list it.
 It embeds the first answer of the other previews (a text file of at most
 1 MiB as one page, an `.npy`/`.npz` description, a directory's first page),

@@ -264,7 +264,7 @@ the IDs, this table, and those calls disagree.
 | WEB-3 | Static export rejects live-server-only web options instead of silently ignoring them | conformance | `TestCLIFlagPairWebStaticServerOptions` |
 | WEB-4 | Static export applies `--notifications` to the initial browser-notification toggle | conformance | `TestCLIFlagPairWebNotificationsEffect` |
 | WEB-5 | The Web UI and `/api/artifacts` show a job attempt's artifact listing as the CLI does, including in the static export | conformance | `TestWebShowsArtifactCandidates` |
-| WEB-6 | The live server serves artifact content only for recorded entries under allowed roots, without symlink escapes, with safe headers and paged text and directories | conformance | `TestWebPreviewsArtifactsUnderAllowedRoots` |
+| WEB-6 | The live server serves artifact content only for recorded entries under allowed roots (`--artifact-root`, and for records no other user could write, the working directory and the basedir's parent), without symlink escapes, with safe headers and paged text and directories | conformance | `TestWebPreviewsArtifactsUnderAllowedRoots`, `TestWebServesArtifactsOnlyFromTrustedRecords` |
 | WEB-7 | `--static-artifact-contents` copies servable artifact contents into a static export within size limits | conformance | `TestStaticExportCopiesArtifactContents` |
 | WEB-8 | A run report reads each job's log from the attempt that produced its result, following carried jobs | conformance | `TestRunReportReadsCarriedJobLogs` |
 | WEB-9 | A static export page shows the live page's tables, columns, row actions, and panels, also when opened from disk | partial | `TestStaticExportPagesShowWhatLivePagesShow` |

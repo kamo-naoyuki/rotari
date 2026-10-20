@@ -373,11 +373,15 @@ provides HTTP authentication, not encryption.
   paths the job uses; it records only those paths, in each attempt's
   `artifacts.json`, never the files' contents. The live Web UI, however,
   serves the contents of recorded files and directories under each job's
-  working directory, so anyone who can open the Web UI can read them; with
-  job control enabled, they can also add a job that names another file there.
-  Paths outside the working directory, and symlinks leading out of it, are not
-  served unless `rotari web --artifact-root DIR` allows them; keep such roots
-  narrow. SVG files are shown only as images, so their scripts do not run.
+  working directory and under the directory holding its basedir, so anyone
+  who can open the Web UI can read them; with job control enabled, they can
+  also add a job that names another file there. The Web server reads files as
+  the user running it, whoever views the page. Whoever can write a project's
+  state decides what its jobs record, so for a basedir another user can write
+  (group-writable, or owned by someone else) neither the working directory nor
+  the basedir's parent is served, only `--artifact-root`. Paths outside the
+  allowed roots, and symlinks leading out of them, are not served unless
+  `rotari web --artifact-root DIR` allows them; keep such roots narrow. SVG files are shown only as images, so their scripts do not run.
   A static export contains only paths, unless it is made with
   `--static-artifact-contents`, which copies the files into the export: anyone
   who can read the export, such as a published site, can then read them.
