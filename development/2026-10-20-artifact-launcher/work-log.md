@@ -103,3 +103,36 @@ Commit: `d34f6cc9` (2026-10-20 14:56:52 +0900).
   `--allow-exec` keep their current authentication behavior.
 - **Validation:** Documentation only; no tests run.
 - **Remaining:** Phase 1 of the plan.
+
+## Feasibility gates and restored port ownership check
+
+Commits:
+
+- `191ba21c` (2026-10-20 15:09:36 +0900): feasibility gates.
+- `530761b7` (2026-10-20 15:18:46 +0900): ownership and permission checks.
+
+- **Change:** Phase 1 now ends with pass/fail gates, with matching
+  acceptance items:
+  - a process that wins the allocated-port race is never shown as ready or
+    proxied, even while the launched service is still alive;
+  - forcibly killing the Web process cleans up its launcher process groups;
+  - `launchers.toml` cannot be written or replaced by another OS user.
+
+  To meet the first gate, Service access again verifies, before the
+  readiness probe, that the listener on the allocated port belongs to the
+  launch's process group: through `/proc` on Linux and through `lsof` plus
+  `getpgid` on macOS. The launch fails if the check cannot run. Ownership is
+  re-verified before each new upstream connection to cover the window
+  between the service exiting and the manager observing it. Registered
+  commands gained OpenSSH `StrictModes`-style checks: the owner and mode of
+  the file and of every containing directory, applied through symlinks, with
+  the file read through the checked descriptor.
+- **Reason:** The user made the port race a hard gate, which contradicted the
+  known-limitation wording left from `e1459fc8`, and chose to keep the gate
+  (option 1) rather than relax it. Directory permissions are included because
+  a writable directory lets another user rename a different file into place.
+- **Plan impact:** Reverses `e1459fc8`; Phase 1 again includes per-OS
+  ownership checks, now with the per-connection re-check, and gains the
+  launcher file permission checks.
+- **Validation:** Documentation only; no tests run.
+- **Remaining:** Phase 1 of the plan.
