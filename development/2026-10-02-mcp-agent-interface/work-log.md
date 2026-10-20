@@ -850,3 +850,26 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `TestShowReportsElapsedAndQuietTime`, extended to `jobs` and `jobs --json`, failed on `739c3c77` in a temporary worktree with "jobs does not report elapsed and quiet time".
 - New unit tests: `TestMeasureRunTime`, `TestFormatRunTime`, and running and waiting rows in `TestCollectInterruptedRunIncludesRecordedAndUnknownAttempts`.
 - pre-commit on the changed files, `go test ./cmd/rotari ./internal/...`, `go test ./conformance/...`, and `scripts/check.sh` with the race detector passed.
+
+## 2026-10-20: fourth run of the zero-information agent trial
+
+- `a58dc663` (2026-10-20 11:38:51 +0900): a "Fourth run" section in [agent-trial-2026-10-10-zero-info.md](agent-trial-2026-10-10-zero-info.md), and two items in [ISSUES.md](../ISSUES.md).
+
+**Change:**
+- The s1 to s3 fixtures were rebuilt at `93863df6`, from a clean worktree so that another thread's uncommitted changes stayed out of the build. Three headless `claude -p` agents (CLI 2.1.296) were run with the same settings as before.
+- No code changed.
+
+**Reason:** the user asked for the trial to be run again. Notes on runs and attempts, and the guide's rule asking agents to leave them, were added after the third run.
+
+**Plan impact:**
+- All three agents completed their tasks. The scenarios took 12, 18, and 14 calls and 28, 39, and 24 KB, against 9, 18, and 12 calls and 13, 35, and 24 KB in the third run. Most of the increase is command help (about 10 KB each in s1 and s2) and about 2 KB of the guide's rule about notes.
+- Every agent left notes unprompted. s1 and s2 put results tables in their run notes.
+- M8's s3 check cannot be judged on this fixture: the healthy frames print once and sleep, so all running frames had the same quiet time. The fixture needs frames that print periodically, with the agent starting minutes later.
+- New issues: a failure group that matches no rule prints no example line, and the "Job failed" progress block does not name the job.
+
+**Validation:**
+- The agents' rotari calls were counted from the wrapper's logs, and their transcripts were read.
+- `lineage`, `show -j`, and the `retry --filter-failure-kind cancelled --dry-run` that s3 recommended were rerun by hand on the fixtures. The two issues were traced to `runlineage.classifyFailure` and `supervisor.runObserver`.
+- No tests were run, because no code changed.
+
+**Remaining:** the two ISSUES.md items, and an s3 fixture that can test quiet time.
