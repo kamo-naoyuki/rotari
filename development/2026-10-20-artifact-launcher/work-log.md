@@ -136,3 +136,60 @@ Commits:
   launcher file permission checks.
 - **Validation:** Documentation only; no tests run.
 - **Remaining:** Phase 1 of the plan.
+
+## Phase 1: launcher process lifecycle and ownership checks
+
+Commit: `d4ea8a1c` (2026-10-20 16:26:47 +0900).
+
+- **Change:** Added `internal/launcher`. It is not called yet.
+  - `Start`/`Process` run `/bin/sh -c COMMAND` under the hidden wrapper
+    `RunWrapper` (`rotari __launch`, dispatch to come in Phase 2). The
+    wrapper puts the command in a process group of its own. It stops that
+    group (SIGTERM, then SIGKILL after a grace period) on Stop, when the
+    shell exits and leaves members behind, or when a lifetime pipe held
+    only by the Web process reports EOF.
+  - `AllocatePort` picks the service port. `VerifyListener` requires a
+    listener on exactly `127.0.0.1:PORT` owned by the launch's group, and
+    no other listener that accepts loopback connections: `/proc` on Linux,
+    `lsof` on macOS, an error elsewhere.
+  - `OpenTrustedFile` applies StrictModes-style checks to every element of
+    the path and its symlinks, then reads through the checked descriptor.
+  - `TestTensorBoardBehindPrefix` runs a real TensorBoard and is skipped
+    unless `ROTARI_LAUNCHER_TEST_TENSORBOARD` is set.
+
+  The plan gained a Phase 1 results section, the `NO_PROXY` rule, the exact
+  `127.0.0.1` bind requirement, and the wrapper description.
+- **Reason:** Phase 1 requires the three feasibility gates and the TensorBoard
+  proxy check to pass before any Web proxy is built.
+- **Plan impact:** All gates passed, and Phase 1 is complete. Decided: the
+  runtime directory, log rotation (2 × 8 MiB per launch), limits (16 live
+  launches, 50 ended), the `launchers.toml` schema, the `/_launch/<ID>/`
+  route, and Host rules (loopback names with any port, the literal
+  `--host`, and a new `--allowed-host` in Phase 3). New findings:
+  - an inherited `http_proxy` without `no_proxy` broke TensorBoard's
+    loopback gRPC, so launches now add loopback to `NO_PROXY`;
+  - TensorBoard exits 255 when its port is taken;
+  - its redirects and assets are relative, so no rewriting is needed.
+- **Validation:**
+  - `go test -race -count=1 ./internal/launcher` passed with Go 1.25.8 (23
+    tests, including subtests; the TensorBoard test skipped without its
+    variable).
+  - With TensorBoard 2.21.0 installed in a scratch directory,
+    `TestTensorBoardBehindPrefix` passed.
+  - `go vet` passed for linux, darwin, and freebsd.
+  - Mutation checks: disabling lifetime EOF handling made
+    `TestKilledOwnerStopsLaunches` and `TestLifetimeCloseStopsCommands`
+    fail, and disabling the group comparison made
+    `TestVerifyListenerRejectsForeignListener` fail.
+  - pre-commit passed on the changed files.
+  - `scripts/check.sh --short` did not complete: the type check failed
+    because this host has Node v12. `go test -short ./...` failed only in
+    jsdom browser tests (`internal/webui`, `cmd/rotari`,
+    `conformance/05-web`) for the same reason; those packages do not import
+    `internal/launcher`. Under Go 1.27, `TestLiveServerServesEmbeddedFonts`
+    also failed. It passes with the go.mod toolchain (1.25.8), which CI
+    uses.
+  - The macOS `lsof` path is compiled but untested; CI runs Linux only.
+- **Remaining:** Phase 2: the manager, the `__launch` dispatch, loading
+  `launchers.toml`, `config --launchers`/`--list`, the archtest rule, and the
+  `docs/ARCHITECTURE.md` and `contracts/00-overview.md` package entries.
