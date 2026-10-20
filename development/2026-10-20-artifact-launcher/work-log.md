@@ -367,3 +367,78 @@ Commits:
   `/_launch/<ID>/` proxy, TensorBoard, the startup retry for a lost port,
   and replacing the "service mode is not available yet" notes), then
   Phase 5 (contract IDs and conformance rows).
+
+## Phase 4: services, readiness, and the `/_launch/` proxy
+
+Commits:
+
+- `d0b9846a` (2026-10-20 21:20:01 +0900): code.
+- `ea3c7495` (2026-10-20 21:20:01 +0900): docs, plan, and issues.
+
+- **Change:**
+  - **Manager (`internal/launcher`):**
+    - A service launch now has `StateStarting`, a port picked per start,
+      and `BasePath` from the new `ManagerConfig.ServicePath`. It gets
+      `ROTARI_LAUNCHER_PORT` and `ROTARI_LAUNCHER_BASE_PATH`.
+    - `service.go` checks readiness: connect, `VerifyListener`, then one
+      raw HTTP/1.1 GET. A service that exits without ever listening is
+      restarted once on a new port. A foreign or non-loopback listener, or
+      a timeout, stops the group and records the reason.
+    - `ServiceUpstream` exposes only ready services. `ready_path` may not
+      contain spaces.
+  - **Web (`internal/webui`):**
+    - `launch_proxy.go` serves `/_launch/ID/` at the top level (not under
+      basedir mounts). It uses a per-launch transport whose dialer reaches
+      only the loopback port and runs `VerifyListener` per connection.
+    - It strips `Authorization` and `X-Rotari-Token`, redirects the bare
+      prefix, and answers 503/404/403 for starting or ended, unknown, and
+      disabled launches.
+    - The UI follows a starting service to ready or failure and shows
+      **Open** in the panel and in Launches.
+  - **`cmd/rotari`:** sets `ServicePath: webui.LaunchProxyPath`.
+  - **Docs:** `CONFIGURATION.md` gains a Services section; `FAQ.md`,
+    `INSPECT.md`, `OPERATIONS.md` (service content is trusted, same origin;
+    token headers stripped; per-connection owner check), and
+    `ARCHITECTURE.md` now cover services in place of the "not available
+    yet" notes.
+- **Reason:** Phase 4 of the plan: TensorBoard and other HTTP services
+  through the existing Web port, with the port race gate enforced end to end.
+- **Plan impact:** Phase 4 is complete; decisions and the end-to-end result
+  are in the plan's "Phase 4 notes". The Phase 2 test that expected service
+  mode to be rejected now expects only a manager without `ServicePath` to
+  reject it. `internal/launcher` still imports no `net/http` (the probe uses
+  `net`).
+- **Validation:**
+  - **Service tests:** the new service tests (ready and upstream, never
+    ready, wildcard bind, exit without listening, foreign listener, retry on
+    a new port, stop while starting, missing `ServicePath`) passed in three
+    runs of `go test -race ./internal/launcher`. Darwin vet passed.
+  - **Mutation check:** without `VerifyListener` in readiness,
+    `TestServiceRejectsForeignListenerOnItsPort` failed.
+  - **Proxy and browser tests:**
+    - The `internal/webui` proxy tests pass: forwarded path, query,
+      header stripping, redirect, status codes, and the per-connection
+      owner check (`TestLaunchTransportChecksPortOwner`).
+    - The browser test's service flow, with the Open link and its proxied
+      page, passes with Node 22.
+    - With TensorBoard 2.21.0, `TestLaunchProxyTensorBoard` (the template
+      entry through the proxy) passed; it is skipped without the variable.
+  - **Manual end-to-end check:** with the built binary, TensorBoard was
+    served through the rotari port, `http_proxy` set, and an event fixture.
+    SIGKILL cleanup worked. Details are in the plan's notes; the scratch
+    directory and the killed server's runtime directory were removed.
+  - **Repository checks:**
+    - `go vet ./...`, `npm run typecheck`, and pre-commit passed.
+    - `go test -short ./...` failed only
+      `conformance/06-selectors` `TestPositionalArguments/check/project`,
+      which passed three times in isolation.
+    - The full `scripts/check.sh` failed only `conformance/06-selectors`
+      `TestSelectorTable/copy/named_filter_form_of_failed_and_stage`; the
+      whole package then passed three times in isolation. Both are now in
+      `ISSUES.md`.
+    - Because that run stopped before its race step, `go test -race
+      -timeout 15m ./...` was run separately and passed for every package.
+- **Remaining:** Phase 5: contract rules with IDs for the launcher
+  behaviors (capability and token, request guards, registered-only
+  starts, artifact selection, lifecycle, proxy), conformance rows through
+  the binary and the Web API, and the contract-status table.
