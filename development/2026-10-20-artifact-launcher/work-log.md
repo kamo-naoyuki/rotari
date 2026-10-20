@@ -193,3 +193,71 @@ Commit: `d4ea8a1c` (2026-10-20 16:26:47 +0900).
 - **Remaining:** Phase 2: the manager, the `__launch` dispatch, loading
   `launchers.toml`, `config --launchers`/`--list`, the archtest rule, and the
   `docs/ARCHITECTURE.md` and `contracts/00-overview.md` package entries.
+
+## Phase 2: registry, manager, and the `__launch` dispatch
+
+Commits:
+
+- `9573d8a9` (2026-10-20 16:53:07 +0900): package side.
+- `e5bcbb72` (2026-10-20 16:57:30 +0900): `cmd/rotari` wiring and boundary.
+
+- **Change:**
+  - `internal/launcher` gained `registry.go`: the `launchers.toml` schema
+    from the Phase 1 decisions, strict validation (unknown keys, duplicate
+    names or targets, missing required fields, mode-specific settings in
+    the wrong mode, relative or unclean cwd, non-positive durations), and
+    `LoadRegistry`, which reads only through `OpenTrustedFile` and treats a
+    missing file as no commands. `Template` holds the TensorBoard entry.
+  - `manager.go`:
+    - starts registered commands with `ROTARI_LAUNCHER_ARTIFACT`/`_CWD`,
+      loopback added to `NO_PROXY`/`no_proxy`, and inherited
+      `ROTARI_LAUNCHER_*` dropped;
+    - reuses a running launch with the same name, target, and cwd
+      unless asked for a new instance;
+    - records start failures as failed launches;
+    - limits live (16) and ended (50) launches, removing dropped logs;
+    - stops everything on `Close`. Service mode returns an error until
+      Phase 4.
+  - `log.go` keeps output in two rotating segments with paged reads that
+    report dropped output.
+  - `process.go` sets `WaitDelay`, so an escaped process holding the output
+    pipe cannot block `Wait`.
+  - `cmd/rotari` dispatches `__launch` before loading configuration.
+  - `internal/archtest` forbids rotari imports and `net/http` in
+    `internal/launcher`; `contracts/00-overview.md` and
+    `docs/ARCHITECTURE.md` list the package.
+- **Reason:** Phase 2 of the plan. `config --launchers`/`--list` moved to
+  Phase 3: they refer to `--allow-exec`, which does not exist yet, and the
+  plan forbids documenting options before they work. Adding them now would
+  also have touched `cli_spec.go` and the generated CLI files, which other
+  work had uncommitted changes in.
+- **Plan impact:** Phase 2 is complete; Phase 3 now includes `config
+  --launchers`/`--list`. Two issues the tests found:
+  - The test-only variables were named `ROTARI_LAUNCHER_TEST_*`, which the
+    manager correctly strips, so they were renamed
+    `ROTARI_TEST_LAUNCHER_*`. This includes
+    `ROTARI_TEST_LAUNCHER_TENSORBOARD`, which the Phase 1 entry calls
+    `ROTARI_LAUNCHER_TEST_TENSORBOARD`.
+  - Parallel tests showed that an allocated port can be taken by an
+    outgoing connection's ephemeral source port. The plan records that
+    Phase 4 retries once with a new port in that case.
+
+  `docs/ARCHITECTURE.md` had other uncommitted hunks, so the commit staged
+  HEAD plus only the launcher entries.
+- **Validation:**
+  - `go test -count=5 -race ./internal/launcher`, and three later runs of
+    `-count=3 -race` after the tests became parallel, all passed (Go
+    1.25.8). With TensorBoard 2.21.0, `TestTensorBoardBehindPrefix` passed.
+  - `go test ./internal/archtest ./internal/doclinks` passed.
+  - `go vet` passed for `./cmd/rotari`, `./internal/launcher`, and
+    `./internal/archtest`, and darwin vet for `./internal/launcher`.
+  - `TestLaunchWrapperRunsBeforeConfiguration` passed, and failed with the
+    dispatch removed.
+  - `go test -short ./cmd/rotari` failed only in the two jsdom tests
+    (`TestWebRunViewDrawsMatrixGrid`, `TestWebRunViewClampsLongCells`)
+    because this host has Node v12.
+  - pre-commit passed on the changed files.
+- **Remaining:** Phase 3: `--allow-exec` with mandatory token, Host/Origin
+  checks, `config --launchers`/`--list`, the Web API and Artifacts UI for
+  command mode, the unavailable-state explanations, and the server-wide
+  launch list.
