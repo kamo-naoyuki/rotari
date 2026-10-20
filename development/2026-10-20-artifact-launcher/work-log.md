@@ -442,3 +442,47 @@ Commits:
   behaviors (capability and token, request guards, registered-only
   starts, artifact selection, lifecycle, proxy), conformance rows through
   the binary and the Web API, and the contract-status table.
+
+## Phase 5: contract WEB-13 to WEB-17 and conformance
+
+Commit: `3ba65525` (2026-10-20 21:57:23 +0900).
+
+- **Change:** `contracts/05-web-assets-and-static-export.md` gained the
+  "Launching commands on artifacts" section, with rules WEB-13 to WEB-17:
+  - **WEB-13:** the opt-in and token;
+  - **WEB-14:** the Host and Origin guards;
+  - **WEB-15:** only registered commands from the trusted global file
+    start, against an artifact resolved as WEB-6 resolves it, and never see
+    the token;
+  - **WEB-16:** reuse, list, log, stop, and cleanup after SIGKILL of
+    `rotari web`;
+  - **WEB-17:** service readiness and the proxy.
+
+  The rows in the `contracts/README.md` status table are all "conformance".
+
+  `conformance/05-web/launch_test.go` checks each rule through the built
+  binary and the Web API, using fixture data that tells cases apart: a file
+  and a directory artifact, a declared artifact absent from the host, two
+  instances with separate PIDs, and a foreign listener on a service's port.
+  `conformance/support` gained `HTTPDo`, which sends headers and sets Host,
+  and `05-web`'s `TestMain` lets the test binary act as the launched HTTP
+  service.
+- **Reason:** Phase 5 of the plan. AGENTS.md asks for conformance rows for
+  behavior visible through the binary or the Web API, with the status table
+  matching the `covers` calls.
+- **Plan impact:** All phases are done; the plan's status points to the
+  contract and conformance tests.
+- **Validation:**
+  - **New tests:** the five new conformance tests passed, and so did
+    `go test ./conformance/...` (all contract groups and the status-table
+    check) and `./internal/doclinks`.
+  - **Mutation checks through the binary:**
+    - Removing the `WithExecGuard` wiring failed three
+      `TestWebLaunchGuardsRequests` cases.
+    - Passing the unfiltered environment to launches made
+      `TestWebLaunchRunsOnlyRegisteredCommands` print the token.
+  - **Full `scripts/check.sh`:** go vet, typecheck, `go test`, and
+    `go test -race` all passed, with Go 1.25.8 and Node 22.23.3.
+  - pre-commit passed on the changed files.
+- **Remaining:** none for this plan. The load-dependent failures seen in
+  other suites during the launcher work are recorded in `ISSUES.md`.
