@@ -470,10 +470,20 @@ Yes. The `python/` package is a thin subprocess wrapper around the `rotari` exec
 ### Does closing/stopping `rotari web` stop my jobs?
 
 No. The Web UI is a separate process and closing it does not affect runs.
+It does stop the commands it launched on artifacts with `--allow-exec`, even
+when it is killed.
 
 ### Can I start a run from the Web UI?
 
 No. The Web UI controls existing runs and edits queues; execution starts through `rotari run`.
+
+### Can I run a script or viewer on an artifact from the Web UI?
+
+Yes, if you register it. Commands in your global `launchers.toml` appear under
+**Launch with…** in a job's Artifacts when `rotari web --allow-exec` is
+running; the browser cannot send any other command. See
+[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts).
+Commands that serve HTTP, such as TensorBoard, are not supported yet.
 
 ### What does the Job activity link show?
 

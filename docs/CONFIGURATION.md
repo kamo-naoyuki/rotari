@@ -198,6 +198,65 @@ rotari config --notifications
 file. For the event settings, fields, and Slack/Teams/Discord setup, see
 [Notifications](NOTIFICATIONS.md).
 
+## Launcher commands
+
+`launchers.toml` registers the commands that `rotari web --allow-exec` can run
+against a job's artifacts from the Web UI (see
+[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
+Rotari reads it **only from the global config directory**
+(`$XDG_CONFIG_HOME/rotari/launchers.toml`, by default
+`~/.config/rotari/launchers.toml`), never from a workspace, basedir, or project,
+and only when `rotari web --allow-exec` starts; edits take effect after a
+restart. Generate a commented template with:
+
+```sh
+rotari config --launchers
+```
+
+It is written with mode `0600` in a `0700` directory. Rotari refuses the file,
+and `rotari web --allow-exec` does not start, unless no other user can change
+it: the file and every directory above it, following symlinks, must be owned
+by you or root and not writable by group or others (a sticky directory such as
+`/tmp` is allowed). The error names the offending path and the `chmod` that
+fixes it. A missing file only means no command is registered; any unknown key,
+duplicate name, or setting that does not apply to an entry's mode is an error.
+`rotari config --list` shows the file when it exists.
+
+Each `[[launcher]]` entry registers one command:
+
+```toml
+[[launcher]]
+name = "Line count"                     # shown in Launch with; unique
+command = 'wc -l "$ROTARI_LAUNCHER_ARTIFACT"'
+targets = ["file"]                      # "file", "directory", or both
+mode = "command"                        # "command" runs and exits; "service" serves HTTP
+cwd = "target"                          # "target" (default), "parent", or an absolute directory
+stop_grace = "5s"                       # SIGTERM to SIGKILL on Stop (default 5s)
+```
+
+`command` is shell source run with `/bin/sh -c` (not Bash and not a login
+shell) with empty standard input, in the Web server's environment, as the user
+running `rotari web`. Rotari never inserts paths into the command text; it sets
+these variables, which the command should quote:
+
+| Variable | Value |
+| --- | --- |
+| `ROTARI_LAUNCHER_ARTIFACT` | absolute path of the selected file or directory |
+| `ROTARI_LAUNCHER_CWD` | the working directory chosen by `cwd` |
+| `ROTARI_LAUNCHER_PORT` | service mode: the port to listen on |
+| `ROTARI_LAUNCHER_BASE_PATH` | service mode: the URL path prefix to serve under |
+
+`cwd = "target"` is the selected directory, or a selected file's directory.
+Launched commands also get `127.0.0.1,localhost,::1` added to `NO_PROXY` and
+`no_proxy`, so loopback traffic never goes through an HTTP proxy, and do not
+receive `ROTARI_WEB_AUTH_TOKEN`. To use a tool from a particular environment,
+say so in the command, for example
+`conda run --no-capture-output -n ENV tensorboard ...`.
+
+Service mode (`mode = "service"`, with `ready_path` and `ready_timeout`), which
+the template's TensorBoard entry uses, is not available yet: launching such an
+entry fails with an explanation.
+
 ## Shell completion
 
 Completion scripts are available for Bash, Zsh, and Fish:

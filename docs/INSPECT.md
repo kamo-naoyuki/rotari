@@ -362,6 +362,47 @@ contents by default; `--static-artifact-contents` copies previewable files
 who can access the Web UI or an export with copied contents may be able to read
 those files; see [Web UI security](OPERATIONS.md#security-model) before sharing.
 
+### Launching commands on artifacts
+
+The live Web UI can run commands you registered yourself against an artifact,
+for example a plotting script on a file or a viewer on a directory. It is off
+by default. To turn it on:
+
+1. Register commands in the global launcher file; `rotari config --launchers`
+   writes a commented template (see
+   [Launcher commands](CONFIGURATION.md#launcher-commands)).
+2. Start `rotari web --allow-exec`. Launching requires a token on every
+   listener, including `127.0.0.1`, because other users on a shared host can
+   connect to loopback ports: unless `ROTARI_WEB_AUTH_TOKEN` (or
+   `--auth-token`) is set, the server generates one and prints it. Sign in with
+   user name `rotari` and the token as the password. Set
+   `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
+
+In a job's Artifacts, open an entry or a file or directory inside it, and
+choose **Launch with…** in its title line. The list offers only the registered
+commands that accept a file or a directory, whichever is open; without any,
+the Web UI says why and how to change that (launching disabled, read-only
+server, no registered commands, none for this kind of target, or a static
+export). Choosing a command shows what will run before anything does: the
+command text, the absolute target, the working directory, the user and host
+it runs as, and the job and attempt it came from. **Launch** starts it. The
+browser never sends command text: it names a registered command and an
+artifact, which the server resolves as it does for previews, so only
+recorded candidates and their children under the allowed roots can be
+targets, and they must exist on the Web server's host.
+
+Starting the same command on the same target again while it runs reuses that
+launch and offers **Start another instance**. **Launches** in the top bar
+lists this server's launches, newest first, with their state, exit status,
+and output (the server keeps at least the most recent 8 MiB of each, and the
+view shows the last 1 MiB), and stops a running one: SIGTERM
+to its whole process group, then SIGKILL after its `stop_grace`. Closing the
+page does not stop a launch; stopping or killing `rotari web` does, even with
+SIGKILL. A command that moves itself out of its process group (for example by
+daemonizing) is not stopped. At most 16 launches run at once, and the 50 most
+recent finished ones are listed. Launches are not runs: they do not appear in
+a project's history and do not lock it.
+
 ### Interrupted runs
 
 If a runner exits before finalizing its run, `show` reports the interrupted run

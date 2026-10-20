@@ -382,6 +382,25 @@ provides HTTP authentication, not encryption.
   `--static-artifact-contents`, which copies the files into the export: anyone
   who can read the export, such as a published site, can then read them.
   The command reports how many files and bytes it copied.
+- **Launching (`rotari web --allow-exec`):** off by default. It lets anyone
+  who can sign in run the commands registered in your global
+  `launchers.toml`, as you, against the job artifacts the Web UI may serve
+  (see [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
+  The browser and API only name a registered command and an artifact; command
+  text, working directories, and modes come only from that file, which rotari
+  refuses unless no other user can write or replace it. The listed artifact
+  roots limit what can be selected, not what a command does: a command has all
+  your file permissions, and a path can change between the check and the
+  command opening it. With launching on, `rotari web` always requires a token,
+  even on `127.0.0.1`, since other users of a shared host can reach loopback
+  ports; accepts only `localhost`, `127.0.0.1`, `[::1]`, a specific `--host`,
+  and `--allowed-host` names as the `Host` header, against DNS rebinding;
+  and rejects a POST from another origin, or one without `Origin` unless it
+  authenticates with `X-Rotari-Token` or a bearer token, which a browser never
+  adds by itself. Launched commands get neither the Web token nor stdin.
+  Their output stays in a private `0700` directory under `$TMPDIR` until the
+  Web server stops; a later `rotari web --allow-exec` removes directories that
+  a killed server left behind.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other

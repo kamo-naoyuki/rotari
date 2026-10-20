@@ -112,6 +112,17 @@ flowchart LR
    Expanding another basedir reads only its project directory names. Static
    export remains a complete snapshot. Its control endpoints (`/api/copy`,
    `/api/cancel-job`, ...) call the same internal operations as the CLI.
+   With `--allow-exec`, it also starts the commands registered in the global
+   `launchers.toml` through one `internal/launcher` manager
+   ([cmd/rotari/web_launch.go](../cmd/rotari/web_launch.go) builds it;
+   [internal/webui/launches.go](../internal/webui/launches.go) serves the
+   API). Each launch runs under its own `rotari __launch` wrapper process,
+   which holds the read end of a pipe only the Web server can write: when the
+   Web server exits, even by SIGKILL, every wrapper stops its command's
+   process group. Launches are not runs: they take no project lock and write
+   nothing under a basedir; their output lives in a private
+   `$TMPDIR/rotari-web-launches-*` directory removed at shutdown, or by the
+   next Web server if this one was killed.
 - **Jobs and wrappers.** Local jobs are child processes of the supervisor.
   Scheduler jobs run elsewhere through a generated wrapper script that writes
   the attempt's `status.json`, which the supervisor polls.
@@ -327,7 +338,7 @@ are checked against this graph by
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages; the completion message the client prints is built in `cmd/rotari` from the run's files. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
-| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `assets/` |
+| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, the auth wrapper, and the launch API and its Host/Origin guard. CLI metadata, environment definitions, the config template, and the launcher manager come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `launches.go`, `launch_guard.go`, `assets/` |
 | [internal/launcher](../internal/launcher/) | Commands a user registered in `launchers.toml` and runs against an artifact from the Web UI: the file's schema and the StrictModes-style check that no other user can change it, the manager of one Web server's launches (start, reuse, stop, limits, rotating output), the `rotari __launch` wrapper that stops a launch's process group when the Web process exits for any reason, and the check that a service port belongs to the launch. Knows nothing of jobs, runs, or HTTP. | `manager.go` (`Manager`), `registry.go` (`LoadRegistry`), `wrapper.go` (`RunWrapper`), `listener.go` (`VerifyListener`) |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs or a whole project (`DeleteProject`), and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
@@ -420,6 +431,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Reading results | `show.go`, `show_artifacts.go`, `jobs.go`, `diff.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
+| `web --allow-exec` (launcher file, manager, token, allowed hosts) and `config --launchers` | `web_launch.go` |
 | Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |
 | Failures by cause, the completion message that `run` and `wait` print (`formatRunCompletion`), and the location options of printed next-step commands (`hintLocation`) | `failure_groups.go`, `run_completion.go`, `hint_location.go` |
 

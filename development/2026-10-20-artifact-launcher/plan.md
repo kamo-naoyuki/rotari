@@ -1,8 +1,8 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Phases 1 and 2 done; Phase 3 next. See
-[Phase 1 results](#phase-1-results).
+Status: Phases 1 to 3 done; Phase 4 (services and TensorBoard) next. See
+[Phase 1 results](#phase-1-results) and [Phase 3 notes](#phase-3-notes).
 
 ## Goal
 
@@ -488,6 +488,30 @@ Decisions:
   specific non-loopback address. Any other name, such as one served through
   an HTTPS reverse proxy, needs a new repeatable `--allowed-host NAME`
   option, added in Phase 3. A mutation's `Origin` must match its `Host`.
+
+## Phase 3 notes
+
+Decisions made while implementing the command-mode Web feature:
+
+- `--allow-exec` and `--allowed-host` are command-line only, so a config file
+  (possibly on shared storage) or an environment variable cannot turn
+  execution on. Both are rejected with `--static-dir` (WEB-3), and
+  `--allowed-host` without `--allow-exec`.
+- Launched commands do not inherit `ROTARI_WEB_AUTH_TOKEN`.
+- `GET /api/launch-preview` resolves exactly what a start would run
+  (shared `launchStart`), so the confirmation dialog shows the server's
+  cwd rather than recomputing the rule in the browser. A target kind the
+  command does not accept is a 400 there and at start.
+- `/api/launch-log?from=end` returns the last page; the Launches view shows
+  the last 1 MiB.
+- The Launches button sits in the top bar and is shown only when launching
+  is available; Launch with sits in each preview's title line.
+- A manager holds an flock on its runtime directory, and a new manager
+  removes this user's unlocked `rotari-web-launches-*` directories older than
+  a minute, which a SIGKILLed Web server leaves behind (found in the manual
+  end-to-end check).
+- The user guides document command mode and say that service mode is not
+  available yet; Phase 4 replaces that note.
 
 ## Acceptance and validation
 
