@@ -54,6 +54,19 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const buttons = [...view.querySelectorAll('.artifact-table .artifact-open')].map(button => button.textContent);
   if (buttons.some(text => text.includes('secret.txt'))) fail('outside entry is openable');
   if (buttons.length !== 10) fail('buttons', buttons);
+  // Each row has Download for a file it can open and Launch with for a file
+  // or directory it can open; other rows have empty action cells.
+  const listingHeaders = [...view.querySelectorAll('.artifact-table thead th')].map(cell => cell.textContent);
+  if (JSON.stringify(listingHeaders) !== '["Type","Path","Found in","Download","Launch"]') fail('listing headers', listingHeaders);
+  const rowActions = (name) => {
+    const row = [...rows].find(row => row.children[1].textContent.endsWith(name));
+    return [!!row.querySelector('.artifact-download'), !!row.querySelector('.artifact-launch-button')];
+  };
+  for (const [name, want] of [['plot.png', '[true,true]'], ['many', '[false,true]'], ['secret.txt', '[false,false]'], ['gone.csv', '[false,false]']]) {
+    if (JSON.stringify(rowActions(name)) !== want) fail('row actions of ' + name, rowActions(name));
+  }
+  const plotDownload = [...rows].find(row => row.children[1].textContent === 'plot.png').querySelector('.artifact-download');
+  if (!plotDownload.getAttribute('href').includes('download=1') || !plotDownload.hasAttribute('download')) fail('row download link', plotDownload.outerHTML);
 
   const preview = document.getElementById('artifact-preview');
   let scrolls = 0;
@@ -95,6 +108,13 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   await window.openArtifact(entries['many'], '', 'directory');
   let children = view.querySelectorAll('.artifact-preview tbody tr');
   if (children.length !== 200) fail('directory page', children.length);
+  const childHeaders = [...view.querySelectorAll('.artifact-preview thead th')].map(cell => cell.textContent);
+  if (JSON.stringify(childHeaders) !== '["Type","Name","Size","Modified","Download","Launch"]') fail('directory headers', childHeaders);
+  // Directories come first; a directory child launches but does not download.
+  const fileChild = [...children].find(row => row.children[0].textContent === 'file');
+  const dirChild = [...children].find(row => row.children[0].textContent === 'directory');
+  if (!fileChild.querySelector('.artifact-download') || !fileChild.querySelector('.artifact-launch-button')) fail('file child actions', fileChild.innerHTML);
+  if (dirChild.querySelector('.artifact-download') || !dirChild.querySelector('.artifact-launch-button')) fail('directory child actions', dirChild.innerHTML);
   const more = [...view.querySelectorAll('.artifact-preview button')].find(button => button.textContent === 'More');
   const beforeMore = scrolls;
   more.click();

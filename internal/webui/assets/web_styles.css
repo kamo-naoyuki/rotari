@@ -1629,6 +1629,14 @@ pre,
 .artifact-preview {
   margin-top: 1rem;
 }
+/* The name, Download, and Launch with in a preview's title line. */
+.artifact-preview-title .artifact-download,
+.artifact-preview-title .artifact-launch-button {
+  margin-left: 1rem;
+}
+.artifact-action {
+  white-space: nowrap;
+}
 .artifact-image {
   max-width: 100%;
   height: auto;

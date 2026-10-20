@@ -64,6 +64,19 @@ func TestWebLaunchInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
 
+  // Launch with in a listing row opens its panel as a row below it; the
+  // same button closes it.
+  const listingRow = [...document.querySelectorAll('.artifact-table tbody tr')].find(row => row.children[1].textContent === 'data.csv');
+  listingRow.querySelector('.artifact-launch-button').click();
+  await wait(300);
+  const panelRow = listingRow.nextElementSibling;
+  if (!panelRow || !panelRow.classList.contains('artifact-launch-row') || !panelRow.querySelector('#artifact-launch-panel')) fail('row panel', panelRow && panelRow.outerHTML);
+  if (panelRow.firstElementChild.colSpan !== listingRow.children.length) fail('row panel span', panelRow.firstElementChild.colSpan);
+  if (JSON.stringify(choices()) !== '["Cat","Sleep","Viewer"]') fail('row choices', choices());
+  listingRow.querySelector('.artifact-launch-button').click();
+  await wait(100);
+  if (document.querySelector('.artifact-launch-row') || document.getElementById('artifact-launch-panel')) fail('row panel did not close');
+
   // A file offers only commands that accept files.
   await window.openArtifact(entries['data.csv'], '', 'file');
   await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');

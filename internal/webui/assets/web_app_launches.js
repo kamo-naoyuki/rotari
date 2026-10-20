@@ -46,7 +46,7 @@ function artifactLaunchButton(index, child, type) {
     jsArg(child) +
     "," +
     jsArg(type) +
-    ')">Launch with…</button>'
+    ',this)">Launch with…</button>'
   );
 }
 
@@ -54,19 +54,46 @@ function artifactLaunchPanel() {
   return document.getElementById("artifact-launch-panel");
 }
 
+// closeArtifactLaunch removes the panel, and the table row that holds it
+// when it was opened from a row.
 function closeArtifactLaunch() {
-  artifactLaunchPanel()?.remove();
+  const panel = artifactLaunchPanel();
+  if (!panel) return;
+  (panel.closest(".artifact-launch-row") || panel).remove();
 }
 
-// toggleArtifactLaunch lists the registered commands that accept the open
-// artifact, or explains why there are none.
-async function toggleArtifactLaunch(index, child, type) {
-  if (artifactLaunchPanel()) return closeArtifactLaunch();
+// toggleArtifactLaunch lists the registered commands that accept an
+// artifact, or explains why there are none. Opened from a table row, the
+// panel is a row below it; otherwise it follows the preview's title line.
+// The same button closes it; another one moves it.
+async function toggleArtifactLaunch(index, child, type, button) {
+  const key = index + "/" + (child || "");
+  const open = artifactLaunchPanel();
+  closeArtifactLaunch();
+  if (
+    open &&
+    open.dataset.key === key &&
+    open.dataset.row === String(!!button?.closest("tr"))
+  )
+    return;
   const panel = document.createElement("div");
   panel.id = "artifact-launch-panel";
   panel.className = "artifact-launch-panel";
+  panel.dataset.key = key;
   panel.innerHTML = '<p class="meta">Loading...</p>';
-  artifactPreview().querySelector(".artifact-preview-title").after(panel);
+  const row = button && button.closest("tr");
+  panel.dataset.row = String(!!row);
+  if (row) {
+    const holder = document.createElement("tr");
+    holder.className = "artifact-launch-row";
+    const cell = document.createElement("td");
+    cell.colSpan = row.children.length;
+    cell.append(panel);
+    holder.append(cell);
+    row.after(holder);
+  } else {
+    artifactPreview().querySelector(".artifact-preview-title").after(panel);
+  }
   const availability = await loadLauncherAvailability();
   if (!availability.available) {
     panel.innerHTML = launchExplanation(availability.reason, availability.hint);

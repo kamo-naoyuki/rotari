@@ -378,8 +378,9 @@ by default. To turn it on:
    user name `rotari` and the token as the password. Set
    `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
 
-In a job's Artifacts, open an entry or a file or directory inside it, and
-choose **Launch with…** in its title line. The list offers only the registered
+In a job's Artifacts, choose **Launch with…** in the row of an entry, or of a
+file or directory inside an opened directory; an opened file or directory has
+it in its title line too. Each row also has **Download** for a file. The list offers only the registered
 commands that accept a file or a directory, whichever is open; without any,
 the Web UI says why and how to change that (launching disabled, read-only
 server, no registered commands, none for this kind of target, or a static

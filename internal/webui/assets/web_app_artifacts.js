@@ -112,6 +112,8 @@ function renderArtifactListing() {
   const listing = selectedArtifacts.listing;
   const entries = listing.entries;
   const previewable = listing.previewable || [];
+  // Download and Launch with need the live server or copied contents.
+  const actions = !!listing.previewable;
   const rows = entries
     .map((entry, index) => {
       const path = previewable[index]
@@ -132,7 +134,11 @@ function renderArtifactListing() {
         path +
         "</td><td>" +
         esc(entry.origin) +
-        "</td></tr>"
+        "</td>" +
+        (actions
+          ? artifactActionCells(index, "", previewable[index] ? entry.type : "")
+          : "") +
+        "</tr>"
       );
     })
     .join("");
@@ -152,7 +158,9 @@ function renderArtifactListing() {
       ? '<p class="meta">Relative to ' + esc(listing.working_directory) + "</p>"
       : "") +
     hint +
-    '<table class="runs artifact-table"><thead><tr><th>Type</th><th>Path</th><th>Found in</th></tr></thead><tbody>' +
+    '<table class="runs artifact-table"><thead><tr><th>Type</th><th>Path</th><th>Found in</th>' +
+    (actions ? "<th>Download</th><th>Launch</th>" : "") +
+    "</tr></thead><tbody>" +
     rows +
     "</tbody></table>" +
     (notes
@@ -220,6 +228,19 @@ async function openArtifact(index, child, type) {
     // placeholder. Only opening an entry moves the view, not loading a page.
     artifactPreview().scrollIntoView({ block: "start", inline: "nearest" });
   }
+}
+// artifactActionCells are a row's Download and Launch cells: a file can be
+// downloaded, and a file or a directory launched with. Other types, and
+// rows that cannot be opened (type ""), get empty cells.
+function artifactActionCells(index, child, type) {
+  const launchable = type === "file" || type === "directory";
+  return (
+    '<td class="artifact-action">' +
+    (type === "file" ? artifactDownloadLink(index, child) : "") +
+    '</td><td class="artifact-action">' +
+    (launchable ? artifactLaunchButton(index, child, type) : "") +
+    "</td>"
+  );
 }
 // artifactHeader is a preview's title line: the name, a file's download
 // link, and Launch with.
@@ -491,7 +512,9 @@ async function loadArtifactDirectory(index, child, offset) {
         esc(entry.type === "file" ? formatBytes(entry.size || 0) : "") +
         "</td><td>" +
         esc(entry.modified || "") +
-        "</td></tr>"
+        "</td>" +
+        artifactActionCells(index, path, entry.type === "other" ? "" : type) +
+        "</tr>"
       );
     })
     .join("");
@@ -508,7 +531,7 @@ async function loadArtifactDirectory(index, child, offset) {
           : ""),
     ) +
     "</p>" +
-    '<table class="runs"><thead><tr><th>Type</th><th>Name</th><th>Size</th><th>Modified</th></tr></thead><tbody>' +
+    '<table class="runs"><thead><tr><th>Type</th><th>Name</th><th>Size</th><th>Modified</th><th>Download</th><th>Launch</th></tr></thead><tbody>' +
     rows +
     "</tbody></table>" +
     (end < page.total
