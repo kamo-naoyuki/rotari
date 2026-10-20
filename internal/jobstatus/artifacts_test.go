@@ -112,3 +112,27 @@ func TestListArtifactsObservesEachPath(t *testing.T) {
 		t.Fatalf("listing without a record = %+v", missing)
 	}
 }
+
+func TestListArtifactsObservesWorkingDirectory(t *testing.T) {
+	runsDir := t.TempDir()
+	work := t.TempDir()
+	const runID = "20260101-000000-aaaaaaaa"
+	for jobID, test := range map[string]struct{ workingDirectory, want string }{
+		"present": {work, ArtifactDirectory},
+		"gone":    {filepath.Join(work, "gone"), ArtifactMissing},
+		"file":    {filepath.Join(work, "f"), ArtifactFile},
+		"none":    {"", ""},
+	} {
+		writeFile(t, filepath.Join(work, "f"), "x")
+		attemptDir := filepath.Join(runsDir, runID, jobID, "attempts", state.MakeAttemptID(runID, jobID, 0))
+		data, err := json.Marshal(artifact.Record{Version: 1, WorkingDirectory: test.workingDirectory})
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(attemptDir, state.ArtifactsFileName), string(data))
+		listing := ListArtifacts(testStore(), runsDir, model.JobOrigin{RunID: runID, JobID: jobID})
+		if listing.WorkingDirectoryType != test.want {
+			t.Errorf("%s: working directory type = %q, want %q", jobID, listing.WorkingDirectoryType, test.want)
+		}
+	}
+}

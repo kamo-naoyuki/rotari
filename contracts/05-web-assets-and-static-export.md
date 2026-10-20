@@ -623,7 +623,8 @@ and the view in `showArtifacts` in
 
 **WEB-6** The live server previews and downloads an artifact candidate's
 content only when (a) the request names an entry of the attempt's recorded
-listing by index, optionally with a clean relative child path inside a listed
+listing by index, or its recorded absolute working directory as entry `wd`,
+optionally with a clean relative child path inside a listed
 directory, never a free path; (b) the path is under an
 `rotari web --artifact-root DIR`, or, when no other user could have chosen
 the listing's paths, under the job's recorded working directory or the
@@ -636,7 +637,12 @@ writable by group or others (permission bits only; an ACL is not seen):
 whoever can write those can make a job record any working directory and
 path. Otherwise `/api/artifacts` adds `roots_note`, which says why only
 `--artifact-root` is served, and the Web UI shows it.
-`/api/artifacts` adds `previewable` per entry; a refused request is 403, a
+`/api/artifacts` adds `previewable` per entry, and
+`working_directory_previewable` for the working directory, which the view
+lists first as `.` (type from `working_directory_type`, which the CLI's
+listing JSON carries too) and which is not a candidate: it is served under
+the same roots, so not for an untrusted record without `--artifact-root`;
+a refused request is 403, a
 missing file 404. Images (png, jpg, jpeg, gif, svg), audio (wav, mp3, flac,
 ogg, oga, opus, m4a), and video (mp4, webm, mov) are served inline, with
 range requests so media can seek, and every other file, or any file with

@@ -165,8 +165,12 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 		return serveJSON(t, handler, http.MethodPost, "/api/launch", body)
 	}
 	request := func(name, entry, child string) string {
+		var index any = f.entries[entry]
+		if entry == artifactWorkingDirectoryEntry {
+			index = entry
+		}
 		value, _ := json.Marshal(map[string]any{"project_name": "default", "run_id": f.runID, "job_id": "job-1",
-			"entry": f.entries[entry], "child": child, "name": name})
+			"entry": index, "child": child, "name": name})
 		return string(value)
 	}
 	waitLaunch := func(id string) launcher.Launch {
@@ -207,6 +211,19 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 		t.Fatalf("file launch = %+v, output %q", file, logText(file.ID))
 	}
 
+	// The working directory, and a file in it, launch as a listed
+	// directory and its child do.
+	workingDirectory := decodeBody[launcher.Launch](t, start(request("Count", artifactWorkingDirectoryEntry, "")))
+	waitLaunch(workingDirectory.ID)
+	if workingDirectory.Target != f.work || workingDirectory.Kind != launcher.TargetDirectory {
+		t.Fatalf("working directory launch = %+v", workingDirectory)
+	}
+	inWorkingDirectory := decodeBody[launcher.Launch](t, start(request("Cat", artifactWorkingDirectoryEntry, "data.csv")))
+	waitLaunch(inWorkingDirectory.ID)
+	if inWorkingDirectory.Target != filepath.Join(f.work, "data.csv") || logText(inWorkingDirectory.ID) != "a,b\n1,2\n" {
+		t.Fatalf("launch of a file in the working directory = %+v, output %q", inWorkingDirectory, logText(inWorkingDirectory.ID))
+	}
+
 	// A live launch is reused; Stop ends it.
 	first := decodeBody[launcher.Launch](t, start(request("Sleep", "data.csv", "")))
 	again := decodeBody[launcher.Launch](t, start(request("Sleep", "data.csv", "")))
@@ -227,6 +244,7 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 		"cwd":               {`{"name":"Cat","entry":2,"cwd":"/"}`, http.StatusBadRequest, "come only from the launcher file"},
 		"unknown command":   {request("Nope", "data.csv", ""), http.StatusBadRequest, `no command named "Nope"`},
 		"wrong kind":        {request("Cat", "many", ""), http.StatusBadRequest, "does not accept a directory"},
+		"other entry name":  {`{"name":"Cat","entry":"WD"}`, http.StatusBadRequest, `entry must be an index of the listing or "wd"`},
 		"missing entry":     {`{"name":"Cat","project_name":"default","run_id":"` + f.runID + `","job_id":"job-1"}`, http.StatusBadRequest, "entry must name"},
 		"missing on host":   {request("Cat", "gone.csv", ""), http.StatusBadRequest, "does not exist on this host"},
 		"outside roots":     {request("Cat", "secret.txt", ""), http.StatusBadRequest, "outside the allowed roots"},

@@ -47,9 +47,12 @@ type ArtifactListing struct {
 	Version  int  `json:"version,omitempty"`
 	// WorkingDirectory is the directory relative references were resolved
 	// on, when the record names it.
-	WorkingDirectory string                `json:"working_directory,omitempty"`
-	Entries          []ArtifactEntry       `json:"entries,omitempty"`
-	Diagnostics      []artifact.Diagnostic `json:"diagnostics,omitempty"`
+	WorkingDirectory string `json:"working_directory,omitempty"`
+	// WorkingDirectoryType is what the viewing host finds at an absolute
+	// WorkingDirectory now, as Type is for an entry.
+	WorkingDirectoryType string                `json:"working_directory_type,omitempty"`
+	Entries              []ArtifactEntry       `json:"entries,omitempty"`
+	Diagnostics          []artifact.Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // ArtifactEntry is one candidate with what the viewing host finds at its
@@ -75,6 +78,9 @@ func ListArtifacts(store state.Store, runsDir string, origin model.JobOrigin) Ar
 		return ArtifactListing{}
 	}
 	listing := ArtifactListing{Recorded: true, Version: record.Version, WorkingDirectory: record.WorkingDirectory, Diagnostics: record.Diagnostics}
+	if filepath.IsAbs(record.WorkingDirectory) {
+		listing.WorkingDirectoryType = observeArtifact(artifact.Candidate{Path: record.WorkingDirectory, Basis: artifact.BasisAbsolute})
+	}
 	for _, candidate := range record.Candidates {
 		listing.Entries = append(listing.Entries, ArtifactEntry{
 			Path: candidate.Path, DisplayPath: displayArtifactPath(record.WorkingDirectory, candidate.Path),

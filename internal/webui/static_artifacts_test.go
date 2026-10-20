@@ -123,11 +123,16 @@ func TestStaticArtifactContentsRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previewable := collector.collect("default", f.runID, "job-1", "", webArtifactListing{ArtifactListing: listing})
+	collected := webArtifactListing{ArtifactListing: listing}
+	collector.collect("default", f.runID, "job-1", "", &collected)
+	previewable := collected.Previewable
 	for name, want := range map[string]bool{"plot.png": true, "many": true, "secret.txt": false, "link.csv": false, "gone.csv": false, "rel.csv": false} {
 		if previewable[f.entries[name]] != want {
 			t.Errorf("%s previewable = %v, want %v", name, previewable[f.entries[name]], want)
 		}
+	}
+	if _, ok := collector.data.Pages[staticArtifactEntryKey("default", f.runID, "job-1", "", artifactWorkingDirectoryEntry)+"directory"]; !collected.WorkingDirectoryPreviewable || !ok {
+		t.Errorf("working directory previewable = %v, first page embedded = %v", collected.WorkingDirectoryPreviewable, ok)
 	}
 
 	large := filepath.Join(f.work, "large.bin")

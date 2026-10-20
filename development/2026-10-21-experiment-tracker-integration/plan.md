@@ -1,7 +1,11 @@
 # Plan: Use rotari with experiment trackers
 
 Created: 2026-10-21
-Status: Proposed; no implementation changes
+Status: In progress. Phase 1 (URI rule) and Phase 2 (working-directory entry,
+derived by the Web server; the CLI listing JSON gains `working_directory_type`
+but `show --artifacts` text is unchanged) are implemented; the Phase 2
+browser tests could not be run on the Node 12 development host. Phases 3 and
+4 remain.
 
 ## Goal
 

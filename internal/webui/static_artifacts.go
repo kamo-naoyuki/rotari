@@ -40,8 +40,8 @@ type staticArtifactMeta struct {
 
 // staticArtifactEntryKey identifies one entry of an attempt's listing,
 // matching staticArtifactEntryKey in web_static_bootstrap.js.
-func staticArtifactEntryKey(projectName, runID, jobID, attemptID string, entry int) string {
-	return staticArtifactsKey(projectName, runID, jobID, attemptID) + "/" + strconv.Itoa(entry) + "/"
+func staticArtifactEntryKey(projectName, runID, jobID, attemptID, entry string) string {
+	return staticArtifactsKey(projectName, runID, jobID, attemptID) + "/" + entry + "/"
 }
 
 // staticArtifactCollector gathers artifact contents for a static export
@@ -63,19 +63,21 @@ func newStaticArtifactCollector(s site, baseDir string) *staticArtifactCollector
 		data: staticArtifactData{Pages: map[string]json.RawMessage{}, Files: map[string]string{}, Meta: map[string]staticArtifactMeta{}}}
 }
 
-// collect embeds what previews of one attempt's listing need and returns
-// which entries the export can preview.
-func (c *staticArtifactCollector) collect(projectName, runID, jobID, attemptID string, listing webArtifactListing) []bool {
-	previewable := make([]bool, len(listing.Entries))
-	for index := range listing.Entries {
-		query := url.Values{"project_name": {projectName}, "run_id": {runID}, "job_id": {jobID}, "attempt_id": {attemptID}, "entry": {strconv.Itoa(index)}}
+// collect embeds what previews of one attempt's listing need and marks
+// which entries, and whether its working directory, the export can preview.
+func (c *staticArtifactCollector) collect(projectName, runID, jobID, attemptID string, listing *webArtifactListing) {
+	collect := func(entry string) bool {
+		query := url.Values{"project_name": {projectName}, "run_id": {runID}, "job_id": {jobID}, "attempt_id": {attemptID}, "entry": {entry}}
 		served, err := c.site.resolveArtifact(c.baseDir, query)
-		if err != nil {
-			continue
-		}
-		previewable[index] = c.collectEntry(staticArtifactEntryKey(projectName, runID, jobID, attemptID, index), served)
+		return err == nil && c.collectEntry(staticArtifactEntryKey(projectName, runID, jobID, attemptID, entry), served)
 	}
-	return previewable
+	listing.Previewable = make([]bool, len(listing.Entries))
+	for index := range listing.Entries {
+		listing.Previewable[index] = collect(strconv.Itoa(index))
+	}
+	if filepath.IsAbs(listing.WorkingDirectory) {
+		listing.WorkingDirectoryPreviewable = collect(artifactWorkingDirectoryEntry)
+	}
 }
 
 func (c *staticArtifactCollector) collectEntry(key string, served servedArtifact) bool {

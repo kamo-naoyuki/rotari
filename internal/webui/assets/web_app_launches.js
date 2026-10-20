@@ -49,7 +49,7 @@ function launchExplanation(reason, hint) {
 function artifactLaunchButton(index, child, type) {
   return (
     '<button type="button" class="artifact-launch-button" onclick="toggleArtifactLaunch(' +
-    index +
+    jsArg(index) +
     "," +
     jsArg(child) +
     "," +
@@ -103,7 +103,7 @@ async function toggleArtifactLaunch(index, child, type, button) {
     artifactPreview().querySelector(".artifact-preview-title").after(panel);
   }
   const kind = type === "directory" ? "directory" : "file";
-  const target = child || selectedArtifacts.listing.entries[index].path;
+  const target = child || artifactEntry(index).path;
   const availability = await loadLauncherAvailability(
     kind,
     target.slice(target.lastIndexOf("/") + 1),
@@ -130,7 +130,7 @@ async function toggleArtifactLaunch(index, child, type, button) {
             esc(command.name) +
             "</button>"
           : '<button type="button" onclick="previewArtifactLaunch(' +
-            index +
+            jsArg(index) +
             "," +
             jsArg(child) +
             "," +
@@ -205,7 +205,7 @@ async function previewArtifactLaunch(index, child, name) {
     esc(body.shell + " -c " + body.command) +
     "</pre></dd></dl>" +
     '<div class="launch-choices"><button type="button" class="launch-confirm" onclick="startArtifactLaunch(' +
-    index +
+    jsArg(index) +
     "," +
     jsArg(child) +
     "," +
@@ -257,7 +257,7 @@ async function startArtifactLaunch(index, child, name, newInstance) {
       launchOpenLink(body) +
       show(body.id) +
       '<button type="button" onclick="startArtifactLaunch(' +
-      index +
+      jsArg(index) +
       "," +
       jsArg(child) +
       "," +

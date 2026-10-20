@@ -53,7 +53,12 @@ func TestWebShowsArtifactCandidates(t *testing.T) {
 	if previewable, ok := fromWeb["previewable"].([]any); !ok || len(previewable) != 2 || previewable[0] != true || previewable[1] != false {
 		t.Fatalf("previewable = %v", fromWeb["previewable"])
 	}
+	// So does whether the working directory is served as entry "wd".
+	if fromWeb["working_directory_previewable"] != true || fromWeb["working_directory_type"] != "directory" {
+		t.Fatalf("working directory = %v (%v)", fromWeb["working_directory_type"], fromWeb["working_directory_previewable"])
+	}
 	delete(fromWeb, "previewable")
+	delete(fromWeb, "working_directory_previewable")
 	if !reflect.DeepEqual(any(fromWeb), fromCLI) {
 		t.Fatalf("Web and CLI listings differ:\nweb %s\ncli %s", response.Body, shown.Jobs[0].Artifacts)
 	}
@@ -147,6 +152,23 @@ func TestWebPreviewsArtifactsUnderAllowedRoots(t *testing.T) {
 	}
 	if r := get(base, "/api/artifact-file", "d", url.Values{"child": {"x.txt"}, "download": {"1"}}); r.Status != 200 || r.Body != "a\n" {
 		t.Fatalf("child download = (%d, %q)", r.Status, r.Body)
+	}
+	// The working directory is entry "wd": browsable, with its children served.
+	wd := func(route string, extra url.Values) support.HTTPResult {
+		query := url.Values{"project_name": {"pv"}, "run_id": {shown.RunID}, "job_id": {jobID}, "entry": {"wd"}}
+		for key, values := range extra {
+			query[key] = values
+		}
+		return e.HTTPGet(base + route + "?" + query.Encode())
+	}
+	if r := wd("/api/artifact-directory", nil); r.Status != 200 || !strings.Contains(r.Body, `"name":"plot.png"`) || !strings.Contains(r.Body, `"name":"d","type":"directory"`) {
+		t.Fatalf("working directory page = (%d, %s)", r.Status, r.Body)
+	}
+	if r := wd("/api/artifact-file", url.Values{"child": {"d/x.txt"}, "download": {"1"}}); r.Status != 200 || r.Body != "a\n" {
+		t.Fatalf("working directory child = (%d, %q)", r.Status, r.Body)
+	}
+	if r := wd("/api/artifact-file", url.Values{"child": {"link.txt"}, "download": {"1"}}); r.Status == 200 {
+		t.Fatalf("a symlink out of the working directory was served: %s", r.Body)
 	}
 
 	extended := e.StartWeb("--artifact-root", outside)
@@ -288,6 +310,13 @@ func TestWebServesArtifactsOnlyFromTrustedRecords(t *testing.T) {
 		if r := file(base, path); r.Status != 403 {
 			t.Fatalf("untrusted project served %s: (%d, %s)", path, r.Status, r.Body)
 		}
+	}
+	untrustedWD := url.Values{"entry": {"wd"}, "child": {"work.txt"}}
+	for key, value := range query {
+		untrustedWD[key] = value
+	}
+	if r := e.HTTPGet(base + "/api/artifact-file?" + untrustedWD.Encode()); r.Status != 403 {
+		t.Fatalf("untrusted project served its working directory: (%d, %s)", r.Status, r.Body)
 	}
 	withRoot := e.StartWeb("--artifact-root", filepath.Join(e.Root, "outputs"))
 	read(withRoot)

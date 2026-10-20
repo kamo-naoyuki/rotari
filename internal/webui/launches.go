@@ -179,14 +179,36 @@ func (s site) launchesUnavailable(writer http.ResponseWriter) bool {
 // do, and a registered command by name. Nothing else is accepted: unknown
 // fields such as command text or a working directory are rejected.
 type webLaunchRequest struct {
-	ProjectName string `json:"project_name"`
-	RunID       string `json:"run_id"`
-	JobID       string `json:"job_id"`
-	AttemptID   string `json:"attempt_id"`
-	Entry       *int   `json:"entry"`
-	Child       string `json:"child"`
-	Name        string `json:"name"`
-	NewInstance bool   `json:"new_instance"`
+	ProjectName string         `json:"project_name"`
+	RunID       string         `json:"run_id"`
+	JobID       string         `json:"job_id"`
+	AttemptID   string         `json:"attempt_id"`
+	Entry       webLaunchEntry `json:"entry"`
+	Child       string         `json:"child"`
+	Name        string         `json:"name"`
+	NewInstance bool           `json:"new_instance"`
+}
+
+// webLaunchEntry is a launch request's entry: an index of the listing, or
+// artifactWorkingDirectoryEntry, kept as the content requests' entry
+// parameter so both resolve through resolveArtifact. "" means absent.
+type webLaunchEntry string
+
+func (entry *webLaunchEntry) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	var index int
+	if err := json.Unmarshal(data, &index); err == nil {
+		*entry = webLaunchEntry(strconv.Itoa(index))
+		return nil
+	}
+	var name string
+	if err := json.Unmarshal(data, &name); err != nil || name != artifactWorkingDirectoryEntry {
+		return fmt.Errorf("entry must be an index of the listing or %q", artifactWorkingDirectoryEntry)
+	}
+	*entry = webLaunchEntry(name)
+	return nil
 }
 
 // decodeLaunchJSON decodes a launch request body strictly.
@@ -297,12 +319,12 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	if reason := command.Unavailable(); reason != "" {
 		return launcher.StartRequest{}, fmt.Errorf("cannot launch %q: %s; install it, or register a command that names its path in %s", command.Name, reason, s.Launches.Registry.Path)
 	}
-	if request.Entry == nil {
+	if request.Entry == "" {
 		return launcher.StartRequest{}, errors.New("entry must name an artifact candidate of the attempt")
 	}
 	query := url.Values{
 		"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
-		"attempt_id": {request.AttemptID}, "entry": {strconv.Itoa(*request.Entry)}, "child": {request.Child},
+		"attempt_id": {request.AttemptID}, "entry": {string(request.Entry)}, "child": {request.Child},
 	}
 	served, err := s.resolveArtifact(baseDir, query)
 	if err != nil {
@@ -361,12 +383,7 @@ type webLaunchPreview struct {
 
 func (s site) previewLaunch(writer http.ResponseWriter, baseDir string, query url.Values) {
 	request := webLaunchRequest{ProjectName: query.Get("project_name"), RunID: query.Get("run_id"), JobID: query.Get("job_id"),
-		AttemptID: query.Get("attempt_id"), Child: query.Get("child"), Name: query.Get("name")}
-	if value := query.Get("entry"); value != "" {
-		if entry, err := strconv.Atoi(value); err == nil {
-			request.Entry = &entry
-		}
-	}
+		AttemptID: query.Get("attempt_id"), Entry: webLaunchEntry(query.Get("entry")), Child: query.Get("child"), Name: query.Get("name")}
 	start, err := s.launchStart(baseDir, request)
 	if err != nil {
 		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})

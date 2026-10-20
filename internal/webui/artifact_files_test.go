@@ -125,6 +125,54 @@ func TestArtifactPreviewableFlags(t *testing.T) {
 	}
 }
 
+// TestArtifactWorkingDirectoryEntry checks the working directory, entry
+// "wd", against the same rules as a listed directory: served under the
+// roots, with its children, and refused when another user could have
+// chosen it.
+func TestArtifactWorkingDirectoryEntry(t *testing.T) {
+	f := newArtifactFixture(t)
+	write(t, filepath.Join(f.work, "mlflow.db"), "SQLite format 3\x00")
+	options := testOptions(f.baseDir, false)
+	wd := url.Values{"entry": {artifactWorkingDirectoryEntry}}
+
+	listing := artifactsListing(t, f, options)
+	if !listing.WorkingDirectoryPreviewable || listing.WorkingDirectoryType != "directory" {
+		t.Fatalf("working directory previewable = %v, type %q", listing.WorkingDirectoryPreviewable, listing.WorkingDirectoryType)
+	}
+	page := f.get(t, options, "/api/artifact-directory", "", wd)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `"name":"mlflow.db"`) {
+		t.Fatalf("working directory page = %d %s", page.Code, page.Body.String())
+	}
+	child := f.get(t, options, "/api/artifact-file", "", url.Values{"entry": {artifactWorkingDirectoryEntry}, "child": {"mlflow.db"}})
+	if child.Code != http.StatusOK || !strings.HasPrefix(child.Body.String(), "SQLite format 3") {
+		t.Fatalf("child of the working directory = %d %q", child.Code, child.Body.String())
+	}
+	if escape := f.get(t, options, "/api/artifact-file", "", url.Values{"entry": {artifactWorkingDirectoryEntry}, "child": {"../x"}}); escape.Code != http.StatusBadRequest {
+		t.Fatalf("child leaving the working directory = %d", escape.Code)
+	}
+	if other := f.get(t, options, "/api/artifact-file", "", url.Values{"entry": {"WD"}}); other.Code != http.StatusBadRequest {
+		t.Fatalf("an entry name other than wd = %d", other.Code)
+	}
+
+	paths, err := stateinternal.ResolveProjectPaths(f.baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(paths.ProjectDir, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	if listing := artifactsListing(t, f, options); listing.WorkingDirectoryPreviewable {
+		t.Fatal("an untrusted working directory is previewable")
+	}
+	if refused := f.get(t, options, "/api/artifact-directory", "", wd); refused.Code != http.StatusForbidden {
+		t.Fatalf("untrusted working directory = %d %s", refused.Code, refused.Body.String())
+	}
+	options.ArtifactRoots = []string{f.work}
+	if allowed := f.get(t, options, "/api/artifact-directory", "", wd); allowed.Code != http.StatusOK {
+		t.Fatalf("untrusted working directory under --artifact-root = %d %s", allowed.Code, allowed.Body.String())
+	}
+}
+
 func TestArtifactFileServing(t *testing.T) {
 	f := newArtifactFixture(t)
 	options := testOptions(f.baseDir, false)

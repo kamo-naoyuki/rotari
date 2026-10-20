@@ -46,6 +46,10 @@ var artifactInlineTypes = map[string]string{
 type webArtifactListing struct {
 	jobstatus.ArtifactListing
 	Previewable []bool `json:"previewable,omitempty"`
+	// WorkingDirectoryPreviewable reports whether the working directory is
+	// served as entry "wd", to be browsed and launched with like a listed
+	// directory.
+	WorkingDirectoryPreviewable bool `json:"working_directory_previewable,omitempty"`
 	// RootsNote explains why only --artifact-root is served, when another
 	// user could have chosen the listing's paths.
 	RootsNote string `json:"roots_note,omitempty"`
@@ -91,14 +95,45 @@ func artifactRootOf(path string, roots []string) (string, string, bool) {
 	return "", "", false
 }
 
-func (s site) previewable(listing jobstatus.ArtifactListing, roots []string) []bool {
-	previewable := make([]bool, len(listing.Entries))
+// webArtifactListingOf adds to a listing what the live server serves of it.
+func (s site) webArtifactListingOf(listing jobstatus.ArtifactListing, baseDir, projectName, runID string) webArtifactListing {
+	roots, note := s.artifactRoots(listing, baseDir, projectName, runID)
+	view := webArtifactListing{ArtifactListing: listing, Previewable: make([]bool, len(listing.Entries)), RootsNote: note}
 	for index, entry := range listing.Entries {
-		_, _, inside := artifactRootOf(entry.Path, roots)
-		previewable[index] = inside && entry.Basis != artifact.BasisUnresolved &&
-			(entry.Type == jobstatus.ArtifactFile || entry.Type == jobstatus.ArtifactDirectory)
+		view.Previewable[index] = servable(entry, roots)
 	}
-	return previewable
+	if entry, err := listingEntry(listing, artifactWorkingDirectoryEntry); err == nil {
+		view.WorkingDirectoryPreviewable = servable(entry, roots)
+	}
+	return view
+}
+
+func servable(entry jobstatus.ArtifactEntry, roots []string) bool {
+	_, _, inside := artifactRootOf(entry.Path, roots)
+	return inside && entry.Basis != artifact.BasisUnresolved &&
+		(entry.Type == jobstatus.ArtifactFile || entry.Type == jobstatus.ArtifactDirectory)
+}
+
+// artifactWorkingDirectoryEntry names the listing's working directory where
+// a content or launch request takes an entry index. It is not a candidate:
+// it holds what a job writes without naming it, such as a tracker's
+// default store, and is served under the same roots as the entries.
+const artifactWorkingDirectoryEntry = "wd"
+
+// listingEntry returns the entry a request names: an index of the listing,
+// or its absolute working directory as artifactWorkingDirectoryEntry.
+func listingEntry(listing jobstatus.ArtifactListing, name string) (jobstatus.ArtifactEntry, error) {
+	if name == artifactWorkingDirectoryEntry {
+		if !filepath.IsAbs(listing.WorkingDirectory) {
+			return jobstatus.ArtifactEntry{}, fmt.Errorf("the attempt recorded no working directory")
+		}
+		return jobstatus.ArtifactEntry{Path: listing.WorkingDirectory, DisplayPath: ".", Basis: artifact.BasisAbsolute, Type: listing.WorkingDirectoryType}, nil
+	}
+	index, err := strconv.Atoi(name)
+	if err != nil || index < 0 || index >= len(listing.Entries) {
+		return jobstatus.ArtifactEntry{}, fmt.Errorf("entry must name an artifact candidate of the attempt, or %s for its working directory", artifactWorkingDirectoryEntry)
+	}
+	return listing.Entries[index], nil
 }
 
 // servedArtifact is an entry, or a child of a listed directory, that the
@@ -126,19 +161,19 @@ func (served servedArtifact) open() (*os.File, error) {
 var errNotServed = errors.New("not served")
 
 // resolveArtifact finds what a content request names: an entry of the
-// attempt's recorded listing, by index, and optionally a child path inside a
-// listed directory. There is no path parameter, so only recorded candidates
-// and their children can be requested, and only under an allowed root.
+// attempt's recorded listing, by index, or its recorded working directory,
+// and optionally a child path inside a listed directory. There is no path
+// parameter, so only recorded paths and their children can be requested,
+// and only under an allowed root.
 func (s site) resolveArtifact(baseDir string, query url.Values) (servedArtifact, error) {
 	listing, err := webArtifacts(s.Store, baseDir, query.Get("project_name"), query.Get("run_id"), query.Get("job_id"), query.Get("attempt_id"))
 	if err != nil {
 		return servedArtifact{}, err
 	}
-	index, err := strconv.Atoi(query.Get("entry"))
-	if err != nil || index < 0 || index >= len(listing.Entries) {
-		return servedArtifact{}, fmt.Errorf("entry must name an artifact candidate of the attempt")
+	entry, err := listingEntry(listing, query.Get("entry"))
+	if err != nil {
+		return servedArtifact{}, err
 	}
-	entry := listing.Entries[index]
 	roots, note := s.artifactRoots(listing, baseDir, query.Get("project_name"), query.Get("run_id"))
 	root, relative, inside := artifactRootOf(entry.Path, roots)
 	if entry.Basis == artifact.BasisUnresolved || !inside {

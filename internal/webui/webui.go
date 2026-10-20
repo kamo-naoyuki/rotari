@@ -681,8 +681,7 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		roots, note := s.artifactRoots(listing, baseDir, projectName, runID)
-		writeWebJSON(writer, webArtifactListing{ArtifactListing: listing, Previewable: s.previewable(listing, roots), RootsNote: note})
+		writeWebJSON(writer, s.webArtifactListingOf(listing, baseDir, projectName, runID))
 	})
 	s.registerLaunchRoutes(mux, baseDir)
 	s.registerLauncherConfigRoutes(mux)
@@ -1775,7 +1774,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 					if listing, listErr := webArtifacts(s.Store, baseDir, queue.QueueName, run.RunID, job.ID, attemptID); listErr == nil {
 						entry := webArtifactListing{ArtifactListing: listing}
 						if contents != nil {
-							entry.Previewable = contents.collect(queue.QueueName, run.RunID, job.ID, attemptID, entry)
+							contents.collect(queue.QueueName, run.RunID, job.ID, attemptID, &entry)
 						}
 						artifacts[staticArtifactsKey(queue.QueueName, run.RunID, job.ID, attemptID)] = entry
 					}

@@ -358,7 +358,11 @@ attempt shown by Log. Files under the job's working directory, or under the
 directory holding its basedir (for example the experiment directory around
 `.rotari-state`), can be previewed in supported formats (including images,
 audio/video, NumPy arrays, CSV/TSV, and text) or downloaded; directories show
-their immediate contents. Other paths are listed but not opened unless allowed
+their immediate contents. The listing's first row, `.`, is the job's working
+directory itself (it is not a candidate). It holds what a job writes without
+naming it, such as the default `mlflow.db` or Aim repository, so you can
+browse it and launch a viewer on it; it is served under the same roots as the
+entries. Other paths are listed but not opened unless allowed
 by `rotari web --artifact-root DIR`. When another user can write the project's
 state (a group-writable shared basedir, or one you do not own), that user could
 have chosen the job's working directory and paths, so only `--artifact-root`
@@ -387,7 +391,8 @@ by default. To turn it on:
    user name `rotari` and the token as the password. Set
    `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
 
-In a job's Artifacts, choose **Launch with…** in the row of an entry, or of a
+In a job's Artifacts, choose **Launch with…** in the row of an entry (including
+the working directory row `.`), or of a
 file or directory inside an opened directory; an opened file or directory has
 it in its title line too. Each row also has **Download** for a file. The list offers only the registered
 commands that accept a file or a directory, whichever is open; without any,
@@ -401,7 +406,8 @@ it runs as, and the job and attempt it came from. **Launch** starts it. The
 browser never sends command text: it names a registered command and an
 artifact, which the server resolves as it does for previews, so only
 recorded candidates and their children under the allowed roots can be
-targets, and they must exist on the Web server's host.
+targets, and they must exist on the Web server's host. The working directory
+row is the only other target.
 
 A service (such as TensorBoard) shows **Open** once it answers; it opens in a
 new tab through the Web UI's own port. Starting the same command on the same

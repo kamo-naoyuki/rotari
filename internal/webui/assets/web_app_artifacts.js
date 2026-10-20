@@ -114,11 +114,29 @@ function renderArtifactListing() {
   const previewable = listing.previewable || [];
   // Download and Launch with need the live server or copied contents.
   const actions = !!listing.previewable;
-  const rows = entries
-    .map((entry, index) => {
-      const path = previewable[index]
+  // The working directory is listed first, apart from the candidates: it
+  // holds what a job writes without naming it, such as a tracker's store.
+  const rowEntries = entries.map((entry, index) => ({
+    entry,
+    index,
+    open: previewable[index],
+  }));
+  if (listing.working_directory_type) {
+    rowEntries.unshift({
+      entry: {
+        type: listing.working_directory_type,
+        display_path: ".",
+        origin: "working directory",
+      },
+      index: WORKING_DIRECTORY_ENTRY,
+      open: listing.working_directory_previewable,
+    });
+  }
+  const rows = rowEntries
+    .map(({ entry, index, open }) => {
+      const path = open
         ? '<button type="button" class="artifact-open" onclick="openArtifact(' +
-          index +
+          jsArg(index) +
           "," +
           jsArg("") +
           "," +
@@ -136,7 +154,7 @@ function renderArtifactListing() {
         esc(entry.origin) +
         "</td>" +
         (actions
-          ? artifactActionCells(index, "", previewable[index] ? entry.type : "")
+          ? artifactActionCells(index, "", open ? entry.type : "")
           : "") +
         "</tr>"
       );
@@ -207,13 +225,23 @@ function artifactURL(path, index, child, extra) {
   }
   return appURL(artifactPath(path, index, child, extra));
 }
+// WORKING_DIRECTORY_ENTRY names the listing's working directory where an
+// entry index is taken; matches artifactWorkingDirectoryEntry in
+// internal/webui/artifact_files.go.
+const WORKING_DIRECTORY_ENTRY = "wd";
+function artifactEntry(index) {
+  const listing = selectedArtifacts.listing;
+  return index === WORKING_DIRECTORY_ENTRY
+    ? { path: listing.working_directory, display_path: "." }
+    : listing.entries[index];
+}
 function artifactExtension(index, child) {
-  const name = child || selectedArtifacts.listing.entries[index].path;
+  const name = child || artifactEntry(index).path;
   const dot = name.lastIndexOf(".");
   return dot > name.lastIndexOf("/") ? name.slice(dot + 1).toLowerCase() : "";
 }
 function artifactTitle(index, child) {
-  const entry = selectedArtifacts.listing.entries[index];
+  const entry = artifactEntry(index);
   return entry.display_path + (child ? "/" + child : "");
 }
 function artifactDownloadLink(index, child) {
@@ -501,7 +529,7 @@ async function loadArtifactDirectory(index, child, offset) {
         entry.type === "other"
           ? esc(entry.name)
           : '<button type="button" class="artifact-open" onclick="openArtifact(' +
-            index +
+            jsArg(index) +
             "," +
             jsArg(path) +
             "," +
