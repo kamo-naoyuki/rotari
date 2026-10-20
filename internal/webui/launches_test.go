@@ -275,3 +275,37 @@ func TestStaticExportExplainsLaunching(t *testing.T) {
 		t.Fatalf("static bootstrap does not answer /api/launchers:\n%s", bootstrap)
 	}
 }
+
+func TestLaunchLogFromEnd(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir, launchCommand("Seq", `seq 1000`, launcher.TargetFile))
+	handler := Handler(options)
+	started := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch",
+		`{"project_name":"default","run_id":"`+f.runID+`","job_id":"job-1","entry":`+fmt.Sprint(f.entries["data.csv"])+`,"name":"Seq"}`))
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		launch, err := options.Launches.Manager.Get(started.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if launch.State != launcher.StateRunning {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("launch did not end")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// seq 1 1000 writes 3893 bytes; the last 9 are "999\n1000\n".
+	tail := decodeBody[webLaunchLog](t, serveJSON(t, handler, http.MethodGet, "/api/launch-log?id="+started.ID+"&from=end&limit=9", ""))
+	if tail.Text != "999\n1000\n" || tail.Offset != 3884 || tail.Next != 3893 || tail.Total != 3893 {
+		t.Fatalf("tail = %+v", tail)
+	}
+	head := decodeBody[webLaunchLog](t, serveJSON(t, handler, http.MethodGet, "/api/launch-log?id="+started.ID+"&limit=4", ""))
+	if head.Text != "1\n2\n" || head.Offset != 0 {
+		t.Fatalf("head = %+v", head)
+	}
+	if bad := serveJSON(t, handler, http.MethodGet, "/api/launch-log?id="+started.ID+"&from=end&offset=3", ""); bad.Code != http.StatusBadRequest {
+		t.Fatalf("from=end with offset = %d", bad.Code)
+	}
+}

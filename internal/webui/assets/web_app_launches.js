@@ -303,12 +303,16 @@ async function renderLaunches() {
     try {
       const response = await fetch(
         "/api/launch-log?" +
-          new URLSearchParams({ id: selectedLaunchID, limit: String(1 << 20) }),
+          new URLSearchParams({
+            id: selectedLaunchID,
+            from: "end",
+            limit: String(1 << 20),
+          }),
       );
       const page = await response.json();
       log = response.ok
-        ? (page.dropped
-            ? '<p class="meta">Earlier output was dropped; the most recent output follows.</p>'
+        ? (page.offset > 0
+            ? '<p class="meta">Earlier output is not shown; the most recent output follows.</p>'
             : "") +
           '<pre class="log launch-log">' +
           esc(page.text || "(no output)") +

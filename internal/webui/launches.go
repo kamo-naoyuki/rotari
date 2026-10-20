@@ -405,6 +405,19 @@ func (s site) serveLaunchLog(writer http.ResponseWriter, query url.Values) {
 		}
 		limit = parsed
 	}
+	// from=end reads the last page instead, for a view that follows output.
+	if query.Get("from") == "end" {
+		if query.Get("offset") != "" {
+			writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: "offset cannot be combined with from=end"})
+			return
+		}
+		total, err := s.Launches.Manager.ReadLog(query.Get("id"), 0, 1)
+		if err != nil {
+			writeLaunchError(writer, launchErrorStatus(err), webLaunchError{Error: err.Error()})
+			return
+		}
+		offset = max(0, total.Total-int64(limit))
+	}
 	chunk, err := s.Launches.Manager.ReadLog(query.Get("id"), offset, limit)
 	if err != nil {
 		writeLaunchError(writer, launchErrorStatus(err), webLaunchError{Error: err.Error()})
