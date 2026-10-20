@@ -685,6 +685,7 @@ func (s site) baseHandler() http.Handler {
 		writeWebJSON(writer, webArtifactListing{ArtifactListing: listing, Previewable: s.previewable(listing, roots), RootsNote: note})
 	})
 	s.registerLaunchRoutes(mux, baseDir)
+	s.registerLauncherConfigRoutes(mux)
 	for path, serve := range map[string]func(string, http.ResponseWriter, *http.Request){
 		"/api/artifact-file": s.serveArtifactFile, "/api/artifact-text": s.serveArtifactText, "/api/artifact-directory": s.serveArtifactDirectory,
 		"/api/artifact-array": s.serveArtifactArray,

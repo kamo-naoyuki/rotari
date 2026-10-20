@@ -217,7 +217,11 @@ restart. Generate a commented template with:
 rotari config --launchers
 ```
 
-It is written with mode `0600` in a `0700` directory. Rotari refuses the file,
+The Web UI's Settings menu does the same with **Generate launcher config**,
+and **Launcher config** shows the file, why `rotari web --allow-exec` would
+refuse it, and the commands a restart would load, including whether each one's
+program is installed. Neither edits the file's commands; edit it in a text
+editor. It is written with mode `0600` in a `0700` directory. Rotari refuses the file,
 and `rotari web --allow-exec` does not start, unless no other user can change
 it: the file and every directory above it, following symlinks, must be owned
 by you or root and not writable by group or others (a sticky directory such as

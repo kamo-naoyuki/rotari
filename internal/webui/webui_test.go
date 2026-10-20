@@ -726,7 +726,7 @@ setTimeout(() => {
 	const toolbarNames = [...toolbar.children].map(item => item.className || item.id);
 	if (JSON.stringify(toolbarNames) !== JSON.stringify(['notify-toggle', 'launches-button', 'refresh-button', 'settings-menu'])) process.exit(38);
 	const settingsNames = [...settingsActions.children].map(button => button.className || button.id);
-	if (JSON.stringify(settingsNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button'])) process.exit(39);
+	if (JSON.stringify(settingsNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button', 'launcher-config-button', 'launcher-generate-config-button'])) process.exit(39);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
 	const fields = ['project', 'attempt_id', 'command'];
 	const webhookEditor = dom.window.notificationChannelEditor('webhook', channelSettings, fields);

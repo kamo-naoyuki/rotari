@@ -515,3 +515,60 @@ func TestLaunchUnavailableCommand(t *testing.T) {
 		t.Fatalf("an unavailable command started: %+v", launches)
 	}
 }
+
+func TestLauncherConfigViewAndGenerate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config", "rotari", launcher.FileName)
+	options := testOptions(t.TempDir(), true)
+	options.LauncherFile = path
+	handler := Handler(options)
+	view := func() webLauncherConfig {
+		t.Helper()
+		return decodeBody[webLauncherConfig](t, serveJSON(t, handler, http.MethodGet, "/api/launcher-config", ""))
+	}
+
+	// No file: only the built-in TensorBoard would be registered.
+	got := view()
+	if got.Path != path || got.Exists || got.Enabled || got.Error != "" || len(got.Commands) != 1 || !got.Commands[0].Builtin {
+		t.Fatalf("missing file view = %+v", got)
+	}
+
+	generated := serveJSON(t, handler, http.MethodPost, "/api/generate-launcher-config", "")
+	if generated.Code != http.StatusOK || !strings.Contains(generated.Body.String(), path) {
+		t.Fatalf("generate = %d %s", generated.Code, generated.Body.String())
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("generated file = %v, %v; want mode 0600", info, err)
+	}
+	got = view()
+	if !got.Exists || got.Content != string(launcher.Template()) || got.Error != "" || len(got.Commands) != 1 {
+		t.Fatalf("generated file view = %+v", got)
+	}
+	if again := serveJSON(t, handler, http.MethodPost, "/api/generate-launcher-config", ""); again.Code != http.StatusConflict {
+		t.Fatalf("second generate = %d %s; want 409 and the file kept", again.Code, again.Body.String())
+	}
+
+	// A file rotari web --allow-exec would refuse is shown with the reason.
+	if err := os.WriteFile(path, []byte("[[launcher]]\nname = \"Plot\"\ncommand = \"plot\"\ntargets = [\"file\"]\nmode = \"command\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got = view()
+	if len(got.Commands) != 2 || got.Commands[1].Name != "Plot" || got.Commands[1].Unavailable != "plot was not found on PATH" {
+		t.Fatalf("file view = %+v", got)
+	}
+	if err := os.Chmod(path, 0o664); err != nil {
+		t.Fatal(err)
+	}
+	if got = view(); !strings.Contains(got.Error, "writable by group or others") || !strings.Contains(got.Content, `name = "Plot"`) {
+		t.Fatalf("untrusted file view = %+v", got)
+	}
+
+	readOnly := testOptions(t.TempDir(), false)
+	readOnly.LauncherFile = filepath.Join(t.TempDir(), launcher.FileName)
+	if refused := serveJSON(t, Handler(readOnly), http.MethodPost, "/api/generate-launcher-config", ""); refused.Code != http.StatusForbidden {
+		t.Fatalf("generate on a read-only server = %d", refused.Code)
+	}
+	if _, err := os.Stat(readOnly.LauncherFile); err == nil {
+		t.Fatal("a read-only server wrote the launcher file")
+	}
+}

@@ -155,19 +155,11 @@ func writeLauncherTemplate(fs *flag.FlagSet, list, notifications bool, format, o
 		printError("launcher configuration output must use the .toml extension")
 		return 1
 	}
-	if _, err := os.Lstat(output); err == nil {
+	if err := launcher.WriteTemplate(output); errors.Is(err, launcher.ErrTemplateExists) {
 		printErrorf("refusing to overwrite existing launcher file %s", output)
 		return 1
-	} else if !errors.Is(err, os.ErrNotExist) {
-		printErrorf("failed to inspect launcher file %s: %v", output, err)
-		return 1
-	}
-	if err := os.MkdirAll(filepath.Dir(output), 0o700); err != nil {
-		printErrorf("failed to create directory for %s: %v", output, err)
-		return 1
-	}
-	if err := os.WriteFile(output, launcher.Template(), 0o600); err != nil {
-		printErrorf("failed to write launcher file %s: %v", output, err)
+	} else if err != nil {
+		printErrorf("failed to %v", err)
 		return 1
 	}
 	absolute, _ := filepath.Abs(output)

@@ -1336,7 +1336,7 @@ async function showNotificationConfig() {
 function addConfigButton() {
   document
     .querySelectorAll(
-      ".config-button,.notification-config-button,.generate-config-button,.notification-generate-config-button",
+      ".config-button,.notification-config-button,.generate-config-button,.notification-generate-config-button,.launcher-config-button,.launcher-generate-config-button",
     )
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
@@ -1360,6 +1360,7 @@ function addConfigButton() {
       : "No notification config snapshot";
     notificationButton.onclick = () => showConfig(true);
     toolbar.append(notificationButton);
+    addLauncherConfigButtons(toolbar);
     return;
   }
   const generateConfigButton = document.createElement("button");
@@ -1383,6 +1384,7 @@ function addConfigButton() {
     generateNotificationButton.onclick = showGenerateNotificationConfig;
     toolbar.append(generateNotificationButton);
   }
+  addLauncherConfigButtons(toolbar);
 }
 function openRequestedConfigAction() {
   const url = new URL(window.location.href);

@@ -767,6 +767,19 @@ after it ends the route answers 503, and 404 for an unknown ID. Covered by
 `TestWebLaunchServesServices` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
+**WEB-18** The live server shows the global launcher file whether or not
+launching is enabled: `GET /api/launcher-config` returns its path, whether it
+exists, its text, why `rotari web --allow-exec` would refuse it, and the
+commands a restarted server would load (built-ins included, each with
+`builtin` and `unavailable`). `POST /api/generate-launcher-config` writes the
+same template as `rotari config --launchers` there, mode `0600`, answers 409
+without changing an existing file, and 403 on a read-only server. The Web UI
+writes no other launcher file content. The Settings menu's Launcher config
+and Generate launcher config use them
+([internal/webui/launcher_config.go](../internal/webui/launcher_config.go)).
+Covered by `TestWebShowsAndGeneratesLauncherConfig` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.

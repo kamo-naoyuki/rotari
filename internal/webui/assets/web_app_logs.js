@@ -403,10 +403,12 @@ function openOutputModal(compact) {
     generatingConfig ||
     view === "artifacts" ||
     view === "launches" ||
+    view === "launcher-config" ||
     renderedReport;
   document.getElementById("modal-markdown").hidden = !renderedReport;
   document.getElementById("artifact-view").hidden = view !== "artifacts";
-  document.getElementById("launch-view").hidden = view !== "launches";
+  document.getElementById("launch-view").hidden =
+    view !== "launches" && view !== "launcher-config";
   ensureModalOutput().classList.toggle(
     "log-error",
     view === "log" && !!selectedLog && !!selectedLog.error,

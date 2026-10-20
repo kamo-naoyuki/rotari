@@ -462,3 +462,110 @@ async function stopLaunch(id) {
   }
   renderLaunches();
 }
+
+// addLauncherConfigButtons adds Launcher config and Generate launcher config
+// to the Settings menu. The launcher file is the server's global one, so
+// they appear on every page of the live server; a static export has none.
+function addLauncherConfigButtons(toolbar) {
+  if (typeof rewriteStaticLinks === "function") return;
+  const view = document.createElement("button");
+  view.className = "launcher-config-button";
+  view.textContent = "Launcher config";
+  view.title = "View launchers.toml and the commands it registers";
+  view.onclick = () => showLauncherConfig();
+  const generate = document.createElement("button");
+  generate.className = "launcher-generate-config-button";
+  generate.textContent = "Generate launcher config";
+  generate.title = "Write a launchers.toml template if there is none";
+  generate.onclick = () => generateLauncherConfig();
+  toolbar.append(view, generate);
+}
+
+// showLauncherConfig shows the launcher file as it is on disk, why rotari
+// web --allow-exec would refuse it, and the commands it registers.
+async function showLauncherConfig(message) {
+  const modal = document.getElementById("output-modal");
+  modal.dataset.view = "launcher-config";
+  modal.querySelector("strong").textContent = "Launcher config";
+  if (followTimer) clearInterval(followTimer);
+  followTimer = null;
+  selectedLog = null;
+  selectedOutput = "";
+  openOutputModal(false);
+  const view = document.getElementById("launch-view");
+  view.innerHTML = '<p class="meta">Loading...</p>';
+  let config;
+  try {
+    const response = await fetch("/api/launcher-config", { cache: "no-store" });
+    if (!response.ok) throw new Error(await response.text());
+    config = await response.json();
+  } catch (error) {
+    view.innerHTML = launchExplanation(
+      "Cannot read the launcher config: " + error.message,
+    );
+    return;
+  }
+  const commands = (config.commands || [])
+    .map(
+      (command) =>
+        "<tr><td>" +
+        esc(command.name) +
+        "</td><td>" +
+        esc((command.targets || []).join(", ")) +
+        "</td><td>" +
+        esc(command.mode) +
+        "</td><td>" +
+        esc(
+          [
+            command.builtin ? "built in" : "",
+            command.unavailable ? "unavailable: " + command.unavailable : "",
+          ]
+            .filter(Boolean)
+            .join("; "),
+        ) +
+        '</td><td><pre class="launch-command">' +
+        esc(command.command) +
+        "</pre></td></tr>",
+    )
+    .join("");
+  view.innerHTML =
+    (message ? '<p class="launch-reason">' + esc(message) + "</p>" : "") +
+    '<p class="meta">' +
+    esc(config.path) +
+    (config.exists ? "" : " (does not exist)") +
+    "</p>" +
+    (config.error ? launchExplanation(config.error) : "") +
+    '<p class="meta">' +
+    esc(
+      config.enabled
+        ? "This server launches commands; it read this file at startup, so restart it to apply edits."
+        : "This server does not launch commands; start rotari web --allow-exec to use them.",
+    ) +
+    "</p>" +
+    (commands
+      ? '<table class="runs launch-table"><thead><tr><th>Command</th><th>Targets</th><th>Mode</th><th>Notes</th><th>Runs</th></tr></thead><tbody>' +
+        commands +
+        "</tbody></table>"
+      : "") +
+    (config.exists
+      ? '<pre class="log launcher-config-text">' +
+        esc(config.content) +
+        "</pre>"
+      : '<div class="launch-choices"><button type="button" onclick="generateLauncherConfig()">Generate launcher config</button></div>');
+}
+
+// generateLauncherConfig writes the template where the server reads the
+// launcher file, never replacing one, and shows the result.
+async function generateLauncherConfig() {
+  const response = await fetch("/api/generate-launcher-config", {
+    method: "POST",
+  });
+  const text = await response.text();
+  let message = text.trim();
+  if (response.ok) {
+    try {
+      message = JSON.parse(text).message;
+    } catch (_) {}
+  }
+  await showLauncherConfig(message);
+}

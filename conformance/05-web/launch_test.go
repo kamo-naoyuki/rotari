@@ -529,3 +529,63 @@ func TestWebLaunchServesServices(t *testing.T) {
 		t.Fatalf("proxy of the failed service = (%d, %s)", got.Status, got.Body)
 	}
 }
+
+func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
+	covers(t, "WEB-18")
+	e := support.NewEnv(t)
+	path := filepath.Join(e.Root, "config", "rotari", "launchers.toml")
+	base := e.StartWeb()
+	type view struct {
+		Path     string `json:"path"`
+		Exists   bool   `json:"exists"`
+		Content  string `json:"content"`
+		Error    string `json:"error"`
+		Enabled  bool   `json:"enabled"`
+		Commands []struct {
+			Name    string `json:"name"`
+			Builtin bool   `json:"builtin"`
+		} `json:"commands"`
+	}
+	read := func() view {
+		t.Helper()
+		var got view
+		if err := json.Unmarshal([]byte(e.HTTPGet(base+"/api/launcher-config").Body), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	// Launching is off; the file is still shown, with the built-in command.
+	if got := read(); got.Path != path || got.Exists || got.Enabled || len(got.Commands) != 1 || got.Commands[0].Name != "TensorBoard" || !got.Commands[0].Builtin {
+		t.Fatalf("view without a file = %+v", got)
+	}
+	if generated := e.HTTPPostJSON(base+"/api/generate-launcher-config", map[string]any{}); generated.Status != http.StatusOK {
+		t.Fatalf("generate = (%d, %s)", generated.Status, generated.Body)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("generated file = %v, %v; want mode 0600", info, err)
+	}
+	cli := support.NewEnv(t)
+	cli.MustRotari("config", "--launchers")
+	template, err := os.ReadFile(filepath.Join(cli.Root, "config", "rotari", "launchers.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Exists || got.Content != string(template) || got.Error != "" {
+		t.Fatalf("view of the generated file = %+v, want the config --launchers template", got)
+	}
+	if err := os.WriteFile(path, []byte("# mine\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if again := e.HTTPPostJSON(base+"/api/generate-launcher-config", map[string]any{}); again.Status != http.StatusConflict {
+		t.Fatalf("generate over a file = (%d, %s)", again.Status, again.Body)
+	}
+	if data, _ := os.ReadFile(path); string(data) != "# mine\n" {
+		t.Fatalf("generate replaced the file: %q", data)
+	}
+	readOnly := support.NewEnv(t)
+	readOnlyBase := readOnly.StartWeb("--allow-control=false")
+	if refused := readOnly.HTTPPostJSON(readOnlyBase+"/api/generate-launcher-config", map[string]any{}); refused.Status != http.StatusForbidden {
+		t.Fatalf("generate on a read-only server = (%d, %s)", refused.Status, refused.Body)
+	}
+}

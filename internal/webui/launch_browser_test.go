@@ -192,3 +192,26 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   if (!panelText().includes('Missing: rotari-surely-missing-tool was not found on PATH')) fail('missing reason', panelText());
 `)
 }
+
+func TestWebLauncherConfigInBrowser(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	f := newArtifactFixture(t)
+	options := testOptions(f.baseDir, true)
+	options.LauncherFile = filepath.Join(t.TempDir(), "config", "rotari", launcher.FileName)
+	runLaunchBrowserScript(t, options, f, `
+  const settings = [...document.querySelectorAll('#settings-actions button')].map(button => button.textContent);
+  if (!settings.includes('Launcher config') || !settings.includes('Generate launcher config')) fail('settings buttons', settings);
+  await window.showLauncherConfig();
+  const view = document.getElementById('launch-view');
+  if (view.hidden || !document.getElementById('modal-log').hidden) fail('launcher config view toggling');
+  if (!view.textContent.includes('(does not exist)') || !view.textContent.includes('TensorBoard') || !view.textContent.includes('built in') ||
+      !view.textContent.includes('start rotari web --allow-exec')) fail('missing file view', view.textContent);
+  await window.generateLauncherConfig();
+  if (!view.textContent.includes('launcher config generated') || view.textContent.includes('(does not exist)') ||
+      !view.querySelector('.launcher-config-text').textContent.includes('# TensorBoard is built in')) fail('generated view', view.textContent);
+  await window.generateLauncherConfig();
+  if (!view.textContent.includes('launcher file already exists')) fail('second generate', view.textContent);
+`)
+}

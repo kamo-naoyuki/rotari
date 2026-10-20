@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -343,4 +344,28 @@ func Template() []byte {
 # targets = ["file"]
 # mode = "command"
 `)
+}
+
+// ErrTemplateExists is returned by WriteTemplate when the file exists.
+var ErrTemplateExists = errors.New("launcher file already exists")
+
+// WriteTemplate creates the launcher file at path with Template's contents,
+// private (0600, in a directory created 0700) so it passes OpenTrustedFile.
+// It never replaces an existing file.
+func WriteTemplate(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create directory for %s: %w", path, err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("%w: %s", ErrTemplateExists, path)
+	}
+	if err != nil {
+		return fmt.Errorf("write launcher file %s: %w", path, err)
+	}
+	if _, err := file.Write(Template()); err != nil {
+		file.Close()
+		return fmt.Errorf("write launcher file %s: %w", path, err)
+	}
+	return file.Close()
 }
