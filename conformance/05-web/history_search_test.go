@@ -10,7 +10,13 @@ import (
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
-func TestMain(m *testing.M) { os.Exit(support.Run(m)) }
+func TestMain(m *testing.M) {
+	// A launched service started by TestWebLaunchServesServices.
+	if os.Getenv(launchServiceRole) == "1" {
+		os.Exit(serveLaunchService())
+	}
+	os.Exit(support.Run(m))
+}
 
 func covers(t *testing.T, _ ...string) { t.Helper() }
 

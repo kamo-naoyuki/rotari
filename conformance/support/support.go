@@ -401,6 +401,36 @@ func (e *Env) HTTPPostJSON(url string, body any) HTTPResult {
 	return HTTPResult{Status: response.StatusCode, Body: string(result)}
 }
 
+// HTTPDo sends one request with headers; a "Host" header sets the request's
+// Host. body, when not empty, is sent as JSON.
+func (e *Env) HTTPDo(method, url string, headers map[string]string, body string) HTTPResult {
+	e.T.Helper()
+	request, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	for name, value := range headers {
+		if name == "Host" {
+			request.Host = value
+			continue
+		}
+		request.Header.Set(name, value)
+	}
+	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer response.Body.Close()
+	result, err := io.ReadAll(response.Body)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	return HTTPResult{Status: response.StatusCode, Body: string(result)}
+}
+
 func (e *Env) StartRun(project string, count int, async bool, runArgs ...string) ActiveRun {
 	e.T.Helper()
 	run := ActiveRun{Project: project}

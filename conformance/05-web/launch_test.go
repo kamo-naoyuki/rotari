@@ -1,0 +1,519 @@
+package web
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
+)
+
+const launchToken = "conformance-token"
+
+// launchServiceRole makes this test binary act as a launched HTTP service;
+// TestMain dispatches it before building rotari.
+const launchServiceRole = "ROTARI_CONFORMANCE_LAUNCH_SERVICE"
+
+// serveLaunchService answers under $ROTARI_LAUNCHER_BASE_PATH with what it
+// received, on 127.0.0.1:$ROTARI_LAUNCHER_PORT.
+func serveLaunchService() int {
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", os.Getenv("ROTARI_LAUNCHER_PORT")))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	base := os.Getenv("ROTARI_LAUNCHER_BASE_PATH")
+	_ = http.Serve(listener, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.HasPrefix(request.URL.Path, base+"/") {
+			http.NotFound(writer, request)
+			return
+		}
+		fmt.Fprintf(writer, "path=%s query=%s auth=%q token=%q", request.URL.Path, request.URL.RawQuery,
+			request.Header.Get("Authorization"), request.Header.Get("X-Rotari-Token"))
+	}))
+	return 0
+}
+
+// launchFixture is a finished job whose working directory holds data/n.txt,
+// declared as the artifact "data", plus "gone.txt", which does not exist.
+type launchFixture struct {
+	e       *support.Env
+	runID   string
+	jobID   string
+	entries map[string]int
+}
+
+func newLaunchFixture(t *testing.T) launchFixture {
+	t.Helper()
+	e := support.NewEnv(t)
+	e.Setenv("ROTARI_WEB_AUTH_TOKEN", launchToken)
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "launch", "--artifact", "data", "--artifact", "gone.txt",
+		"--", "sh", "-c", "mkdir -p data && printf '1\\n2\\n3\\n' > data/n.txt"))
+	e.MustRotari("run", "-p", "launch", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "launch", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	f := launchFixture{e: e, runID: shown.RunID, jobID: jobID, entries: map[string]int{}}
+	var listing struct {
+		Entries []struct {
+			DisplayPath string `json:"display_path"`
+		} `json:"entries"`
+	}
+	base := e.StartWeb()
+	if err := json.Unmarshal([]byte(api(e, http.MethodGet, base+"/api/artifacts?"+url.Values{"project_name": {"launch"}, "run_id": {f.runID}, "job_id": {jobID}}.Encode(), "").Body), &listing); err != nil {
+		t.Fatal(err)
+	}
+	for index, entry := range listing.Entries {
+		f.entries[entry.DisplayPath] = index
+	}
+	if _, ok := f.entries["data"]; !ok {
+		t.Fatalf("artifact listing lacks data: %+v", listing)
+	}
+	return f
+}
+
+// writeLaunchers writes the global launcher file, private as rotari wants.
+func writeLaunchers(t *testing.T, e *support.Env, content string) string {
+	t.Helper()
+	dir := filepath.Join(e.Root, "config", "rotari")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "launchers.toml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func launcherEntry(name, command, targets, mode string) string {
+	return fmt.Sprintf("[[launcher]]\nname = %q\ncommand = '''%s'''\ntargets = [%s]\nmode = %q\nstop_grace = \"1s\"\n\n", name, command, targets, mode)
+}
+
+func (f launchFixture) request(name, entry, child string, extra map[string]any) string {
+	body := map[string]any{"project_name": "launch", "run_id": f.runID, "job_id": f.jobID, "entry": f.entries[entry], "child": child, "name": name}
+	for key, value := range extra {
+		body[key] = value
+	}
+	data, _ := json.Marshal(body)
+	return string(data)
+}
+
+func api(e *support.Env, method, address, body string) support.HTTPResult {
+	return e.HTTPDo(method, address, map[string]string{"X-Rotari-Token": launchToken}, body)
+}
+
+type launchRecord struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	ExitCode *int   `json:"exit_code"`
+	Signal   string `json:"signal"`
+	Error    string `json:"error"`
+	Reused   bool   `json:"reused"`
+	BasePath string `json:"base_path"`
+}
+
+func decodeLaunch(t *testing.T, result support.HTTPResult) launchRecord {
+	t.Helper()
+	var launch launchRecord
+	if err := json.Unmarshal([]byte(result.Body), &launch); err != nil || launch.ID == "" {
+		t.Fatalf("not a launch: (%d, %s)", result.Status, result.Body)
+	}
+	return launch
+}
+
+func listLaunches(t *testing.T, e *support.Env, base string) []launchRecord {
+	t.Helper()
+	var listed struct {
+		Launches []launchRecord `json:"launches"`
+	}
+	result := api(e, http.MethodGet, base+"/api/launches", "")
+	if err := json.Unmarshal([]byte(result.Body), &listed); err != nil {
+		t.Fatalf("/api/launches = (%d, %s)", result.Status, result.Body)
+	}
+	return listed.Launches
+}
+
+func waitLaunch(t *testing.T, e *support.Env, base, id string, done func(launchRecord) bool) launchRecord {
+	t.Helper()
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, launch := range listLaunches(t, e, base) {
+			if launch.ID == id && done(launch) {
+				return launch
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("launch %s did not reach the expected state: %+v", id, listLaunches(t, e, base))
+	return launchRecord{}
+}
+
+func ended(launch launchRecord) bool {
+	return launch.State != "starting" && launch.State != "running" && launch.State != "stopping"
+}
+
+func launchOutput(t *testing.T, e *support.Env, base, id string) string {
+	t.Helper()
+	var page struct {
+		Text string `json:"text"`
+	}
+	result := api(e, http.MethodGet, base+"/api/launch-log?id="+id, "")
+	if err := json.Unmarshal([]byte(result.Body), &page); err != nil {
+		t.Fatalf("/api/launch-log = (%d, %s)", result.Status, result.Body)
+	}
+	return page.Text
+}
+
+var listeningPattern = regexp.MustCompile(`rotari web listening at (http://\S+)`)
+
+// startWebProcess starts rotari web and returns its address, process, and
+// what it printed on stderr before listening.
+func startWebProcess(t *testing.T, e *support.Env, args ...string) (string, *exec.Cmd, string) {
+	t.Helper()
+	cmd := e.Command(append([]string{"web", "--port", "0"}, args...)...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	errors := make(chan string, 1)
+	go func() {
+		var text strings.Builder
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			text.WriteString(scanner.Text() + "\n")
+			if strings.HasPrefix(scanner.Text(), "Launching is enabled") {
+				break
+			}
+		}
+		errors <- text.String()
+	}()
+	found := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if match := listeningPattern.FindStringSubmatch(scanner.Text()); match != nil {
+				found <- match[1]
+				return
+			}
+		}
+	}()
+	select {
+	case address := <-found:
+		return address, cmd, <-errors
+	case <-time.After(20 * time.Second):
+		t.Fatal("rotari web did not report its address")
+		return "", nil, ""
+	}
+}
+
+func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
+	covers(t, "WEB-13")
+	f := newLaunchFixture(t)
+	e := f.e
+	writeLaunchers(t, e, launcherEntry("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, `"file"`, "command"))
+
+	// Off by default: the server explains how to turn it on, and refuses.
+	base := e.StartWeb()
+	var availability struct {
+		Available bool   `json:"available"`
+		Reason    string `json:"reason"`
+		Hint      string `json:"hint"`
+	}
+	if err := json.Unmarshal([]byte(api(e, http.MethodGet, base+"/api/launchers", "").Body), &availability); err != nil {
+		t.Fatal(err)
+	}
+	if availability.Available || !strings.Contains(availability.Hint, "rotari web --allow-exec") {
+		t.Fatalf("availability without --allow-exec = %+v", availability)
+	}
+	rejected := api(e, http.MethodPost, base+"/api/launch", f.request("Cat", "data", "n.txt", nil))
+	if rejected.Status != http.StatusForbidden || !strings.Contains(rejected.Body, "rotari web --allow-exec") {
+		t.Fatalf("launch without --allow-exec = (%d, %s)", rejected.Status, rejected.Body)
+	}
+
+	for args, want := range map[string]string{
+		"--allow-exec --allow-control=false": "--allow-exec requires job control",
+		"--allowed-host gpu01":               "--allowed-host only applies with --allow-exec",
+	} {
+		result := e.Rotari(append([]string{"web"}, strings.Fields(args)...)...)
+		if result.Code != 1 || !strings.Contains(result.Stderr, want) {
+			t.Fatalf("web %s = %s", args, result)
+		}
+	}
+
+	// With it and no configured token, one is generated, printed, and required.
+	base, _, printed := startWebProcess(t, e.Without("ROTARI_WEB_AUTH_TOKEN"), "--allow-exec")
+	match := regexp.MustCompile(`(?m)^  ([0-9a-f]{32,})$`).FindStringSubmatch(printed)
+	if match == nil || !strings.Contains(printed, `user name "rotari"`) {
+		t.Fatalf("no generated token in:\n%s", printed)
+	}
+	if got := e.HTTPGet(base + "/api/launchers"); got.Status != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated request = %d, want 401", got.Status)
+	}
+	got := e.HTTPDo(http.MethodGet, base+"/api/launchers", map[string]string{"Authorization": "Bearer " + match[1]}, "")
+	if got.Status != http.StatusOK || !strings.Contains(got.Body, `"available":true`) {
+		t.Fatalf("authenticated request = (%d, %s)", got.Status, got.Body)
+	}
+}
+
+func TestWebLaunchGuardsRequests(t *testing.T) {
+	covers(t, "WEB-14")
+	e := support.NewEnv(t)
+	e.Setenv("ROTARI_WEB_AUTH_TOKEN", launchToken)
+	base, _, _ := startWebProcess(t, e, "--allow-exec", "--allowed-host", "gpu01.example")
+	stop := `{"id":"0000000000000000"}`
+	for name, test := range map[string]struct {
+		method  string
+		headers map[string]string
+		want    int
+	}{
+		"rebinding host":        {http.MethodGet, map[string]string{"Host": "attacker.example:8787", "X-Rotari-Token": launchToken}, http.StatusMisdirectedRequest},
+		"localhost other port":  {http.MethodGet, map[string]string{"Host": "localhost:1", "X-Rotari-Token": launchToken}, http.StatusOK},
+		"allowed host":          {http.MethodGet, map[string]string{"Host": "GPU01.example:8787", "X-Rotari-Token": launchToken}, http.StatusOK},
+		"cross-origin post":     {http.MethodPost, map[string]string{"Origin": "http://attacker.example", "X-Rotari-Token": launchToken}, http.StatusForbidden},
+		"same-origin post":      {http.MethodPost, map[string]string{"Origin": base, "Authorization": "Basic " + basicAuth()}, http.StatusNotFound},
+		"basic auth, no origin": {http.MethodPost, map[string]string{"Authorization": "Basic " + basicAuth()}, http.StatusForbidden},
+		"token, no origin":      {http.MethodPost, map[string]string{"X-Rotari-Token": launchToken}, http.StatusNotFound},
+		"bearer, no origin":     {http.MethodPost, map[string]string{"Authorization": "Bearer " + launchToken}, http.StatusNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			target, body := base+"/api/launchers", ""
+			if test.method == http.MethodPost {
+				target, body = base+"/api/launch-stop", stop
+			}
+			// 404 means the request passed the guard and reached the API,
+			// which does not know the launch.
+			if got := e.HTTPDo(test.method, target, test.headers, body); got.Status != test.want {
+				t.Fatalf("%s = (%d, %s), want %d", name, got.Status, got.Body, test.want)
+			}
+		})
+	}
+}
+
+func basicAuth() string {
+	return "cm90YXJpOmNvbmZvcm1hbmNlLXRva2Vu" // rotari:conformance-token
+}
+
+func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
+	covers(t, "WEB-15")
+	f := newLaunchFixture(t)
+	e := f.e
+	path := writeLaunchers(t, e,
+		launcherEntry("List", `ls "$ROTARI_LAUNCHER_ARTIFACT"; echo "cwd=$ROTARI_LAUNCHER_CWD token=${ROTARI_WEB_AUTH_TOKEN-unset}"; cat; echo end`, `"directory"`, "command")+
+			launcherEntry("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, `"file"`, "command"))
+	// A launcher file anywhere else is never read.
+	if err := os.WriteFile(filepath.Join(e.Base, "launchers.toml"), []byte(launcherEntry("Basedir", "true", `"file"`, "command")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if listed := e.MustRotari("config", "--list").Stdout; !strings.Contains(listed, path) {
+		t.Fatalf("config --list lacks %s:\n%s", path, listed)
+	}
+	base, _, _ := startWebProcess(t, e, "--allow-exec")
+	var availability struct {
+		Commands []struct {
+			Name string `json:"name"`
+		} `json:"commands"`
+	}
+	if err := json.Unmarshal([]byte(api(e, http.MethodGet, base+"/api/launchers", "").Body), &availability); err != nil {
+		t.Fatal(err)
+	}
+	if len(availability.Commands) != 2 || availability.Commands[0].Name != "List" || availability.Commands[1].Name != "Cat" {
+		t.Fatalf("registered commands = %+v", availability.Commands)
+	}
+
+	list := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("List", "data", "", nil)))
+	waitLaunch(t, e, base, list.ID, ended)
+	data := filepath.Join(e.Root, "data")
+	if got := launchOutput(t, e, base, list.ID); got != "n.txt\ncwd="+data+" token=unset\nend\n" {
+		t.Fatalf("List printed %q", got)
+	}
+	cat := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Cat", "data", "n.txt", nil)))
+	if done := waitLaunch(t, e, base, cat.ID, ended); done.ExitCode == nil || *done.ExitCode != 0 || launchOutput(t, e, base, cat.ID) != "1\n2\n3\n" {
+		t.Fatalf("Cat = %+v, output %q", done, launchOutput(t, e, base, cat.ID))
+	}
+
+	before := len(listLaunches(t, e, base))
+	for name, body := range map[string]string{
+		"command text":    f.request("Cat", "data", "n.txt", map[string]any{"command": "touch pwned"}),
+		"working dir":     f.request("Cat", "data", "n.txt", map[string]any{"cwd": "/"}),
+		"unknown command": f.request("Basedir", "data", "n.txt", nil),
+		"wrong kind":      f.request("Cat", "data", "", nil),
+		"absent target":   f.request("Cat", "gone.txt", "", nil),
+		"escaping child":  f.request("Cat", "data", "../data/n.txt", nil),
+	} {
+		if got := api(e, http.MethodPost, base+"/api/launch", body); got.Status != http.StatusBadRequest {
+			t.Errorf("%s: (%d, %s), want 400", name, got.Status, got.Body)
+		}
+	}
+	if after := len(listLaunches(t, e, base)); after != before {
+		t.Fatalf("rejected requests started launches: %d -> %d", before, after)
+	}
+	if _, err := os.Stat(filepath.Join(data, "pwned")); err == nil {
+		t.Fatal("request text was executed")
+	}
+
+	// An untrusted launcher file stops the server from starting.
+	if err := os.Chmod(path, 0o664); err != nil {
+		t.Fatal(err)
+	}
+	if result := e.Rotari("web", "--allow-exec", "--port", "0"); result.Code != 1 || !strings.Contains(result.Stderr, "writable by group or others") {
+		t.Fatalf("web with an untrusted launcher file = %s", result)
+	}
+
+	// config --launchers writes a private template there.
+	fresh := support.NewEnv(t)
+	fresh.MustRotari("config", "--launchers")
+	info, err := os.Stat(filepath.Join(fresh.Root, "config", "rotari", "launchers.toml"))
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("template = %v, %v; want mode 0600", info, err)
+	}
+}
+
+func TestWebLaunchLifecycle(t *testing.T) {
+	covers(t, "WEB-16")
+	f := newLaunchFixture(t)
+	e := f.e
+	writeLaunchers(t, e, launcherEntry("Hold", `sleep 300 & echo $! >> "$ROTARI_LAUNCHER_CWD/hold.pids"; wait`, `"directory"`, "command"))
+	base, web, _ := startWebProcess(t, e, "--allow-exec")
+	first := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Hold", "data", "", nil)))
+	again := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Hold", "data", "", nil)))
+	if again.ID != first.ID || !again.Reused {
+		t.Fatalf("repeated start = %+v, want reuse of %s", again, first.ID)
+	}
+	second := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Hold", "data", "", map[string]any{"new_instance": true})))
+	if second.ID == first.ID || second.Reused {
+		t.Fatalf("another instance = %+v", second)
+	}
+	pidsFile := filepath.Join(e.Root, "data", "hold.pids")
+	pids := waitPIDs(t, pidsFile, 2)
+
+	stopped := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch-stop", `{"id":"`+first.ID+`"}`))
+	if stopped.State != "stopped" || stopped.Signal != "terminated" {
+		t.Fatalf("stop = %+v", stopped)
+	}
+	// One of the two sleeps ended with its group; the other is still live.
+	waitUntil(t, "one sleep to end", func() bool { return processGone(pids[0]) != processGone(pids[1]) })
+	if listed := listLaunches(t, e, base); len(listed) != 2 {
+		t.Fatalf("launches = %+v", listed)
+	}
+
+	// Killing the Web server, which runs none of its shutdown, ends the rest.
+	if err := web.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, "every sleep to end after SIGKILL of rotari web", func() bool { return processGone(pids[0]) && processGone(pids[1]) })
+}
+
+func waitPIDs(t *testing.T, path string, count int) []int {
+	t.Helper()
+	var pids []int
+	waitUntil(t, "the launched commands to start", func() bool {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return false
+		}
+		pids = nil
+		for _, field := range strings.Fields(string(data)) {
+			if pid, err := strconv.Atoi(field); err == nil {
+				pids = append(pids, pid)
+			}
+		}
+		return len(pids) == count && strings.HasSuffix(string(data), "\n")
+	})
+	return pids
+}
+
+func processGone(pid int) bool {
+	return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
+}
+
+func waitUntil(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for !done() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestWebLaunchServesServices(t *testing.T) {
+	covers(t, "WEB-17")
+	f := newLaunchFixture(t)
+	e := f.e
+	e.Setenv("ROTARI_CONFORMANCE_BIN", os.Args[0])
+	portFile := filepath.Join(e.Root, "port")
+	writeLaunchers(t, e,
+		launcherEntry("Viewer", launchServiceRole+`=1 exec "$ROTARI_CONFORMANCE_BIN"`, `"directory"`, "service")+
+			launcherEntry("Squatted", `echo "$ROTARI_LAUNCHER_PORT" > `+portFile+`; sleep 300`, `"file"`, "service"))
+	base, _, _ := startWebProcess(t, e, "--allow-exec")
+
+	viewer := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Viewer", "data", "", nil)))
+	if viewer.State != "starting" || viewer.BasePath != "/_launch/"+viewer.ID {
+		t.Fatalf("service start = %+v", viewer)
+	}
+	ready := waitLaunch(t, e, base, viewer.ID, func(launch launchRecord) bool { return launch.State != "starting" })
+	if ready.State != "running" {
+		t.Fatalf("service = %+v", ready)
+	}
+	proxied := api(e, http.MethodGet, base+viewer.BasePath+"/data/runs?run=a%20b", "")
+	want := `path=` + viewer.BasePath + `/data/runs query=run=a%20b auth="" token=""`
+	if proxied.Status != http.StatusOK || proxied.Body != want {
+		t.Fatalf("proxied = (%d, %s), want %s", proxied.Status, proxied.Body, want)
+	}
+	if unknown := api(e, http.MethodGet, base+"/_launch/0000000000000000/", ""); unknown.Status != http.StatusNotFound {
+		t.Fatalf("unknown launch = %d", unknown.Status)
+	}
+	api(e, http.MethodPost, base+"/api/launch-stop", `{"id":"`+viewer.ID+`"}`)
+	if after := api(e, http.MethodGet, base+viewer.BasePath+"/", ""); after.Status != http.StatusServiceUnavailable {
+		t.Fatalf("proxy after stop = %d", after.Status)
+	}
+
+	// A process outside the launch on its port never makes it ready.
+	squatted := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("Squatted", "data", "n.txt", nil)))
+	var port int
+	waitUntil(t, "the service's port", func() bool {
+		data, err := os.ReadFile(portFile)
+		port, _ = strconv.Atoi(strings.TrimSpace(string(data)))
+		return err == nil && port > 0
+	})
+	foreign, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer foreign.Close()
+	go http.Serve(foreign, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { fmt.Fprint(writer, "foreign") }))
+	failed := waitLaunch(t, e, base, squatted.ID, ended)
+	if failed.State != "failed" || !strings.Contains(failed.Error, "another process listens on") {
+		t.Fatalf("squatted service = %+v", failed)
+	}
+	if got := api(e, http.MethodGet, base+squatted.BasePath+"/", ""); got.Status != http.StatusServiceUnavailable || strings.Contains(got.Body, "foreign") {
+		t.Fatalf("proxy of the failed service = (%d, %s)", got.Status, got.Body)
+	}
+}

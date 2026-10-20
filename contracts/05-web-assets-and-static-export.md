@@ -681,6 +681,75 @@ covered by `TestRunReportReadsCarriedJobLogs` in
 `TestRunReportReadsCarriedJobLogsFromTheirOrigin` in
 [internal/report/record_test.go](../internal/report/record_test.go).
 
+## Launching commands on artifacts
+
+`rotari web --allow-exec` runs the commands a user registered in
+`launchers.toml` against job artifacts. The user guide is
+[Launching commands on artifacts](../docs/INSPECT.md#launching-commands-on-artifacts),
+the file format [Launcher commands](../docs/CONFIGURATION.md#launcher-commands),
+and the design [the artifact launcher plan](../development/2026-10-20-artifact-launcher/plan.md).
+The manager is [internal/launcher](../internal/launcher/), the Web side
+[internal/webui/launches.go](../internal/webui/launches.go),
+[launch_guard.go](../internal/webui/launch_guard.go), and
+[launch_proxy.go](../internal/webui/launch_proxy.go), and the CLI side
+[cmd/rotari/web_launch.go](../cmd/rotari/web_launch.go).
+
+**WEB-13** Launching is off unless `rotari web` gets `--allow-exec` on the
+command line; no config file or environment variable enables it. It is
+rejected with `--allow-control=false`, `--allowed-host` is rejected without
+it, and both are rejected with `--static-dir` (WEB-3). With it, every route
+requires the Web token, on loopback listeners too: without
+`--auth-token` or `ROTARI_WEB_AUTH_TOKEN`, the server generates one and
+prints it on stderr. Without it, `GET /api/launchers` reports launching
+unavailable with the server's reason and enabling hint, and the launch API
+answers 403 with the same text. Covered by `TestWebLaunchRequiresOptInAndToken`
+in [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
+**WEB-14** While launching is enabled, a request whose `Host` is not
+`localhost`, `127.0.0.1`, `[::1]` (any port), a specific `--host`, or an
+`--allowed-host` name gets 421, and a request other than `GET` or `HEAD` gets
+403 unless its `Origin` equals its own scheme and host, or it has no `Origin`
+and authenticates with `X-Rotari-Token` or `Authorization: Bearer`. Basic
+authentication alone, which a browser resends by itself, does not exempt a
+request without `Origin`. Covered by `TestWebLaunchGuardsRequests` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
+**WEB-15** Only commands in the global config directory's `launchers.toml`
+(`$XDG_CONFIG_HOME/rotari/launchers.toml`) can run; a copy in a basedir,
+project, or workspace is never read. `rotari web --allow-exec` refuses to
+start when that file, a directory above it, or a symlink on the way is owned
+by another user or writable by group or others, or when the file is invalid;
+`rotari config --launchers` writes a template there with mode `0600` and
+`config --list` lists it. `POST /api/launch` accepts only a registered
+command's name, an artifact named as WEB-6 names one (entry index and
+optional child under an allowed root), and whether to start another
+instance; any other field is rejected and nothing starts, as are an unknown
+name, a command that does not accept the artifact's kind, and an artifact
+that does not exist on the Web host. The command runs with `/bin/sh -c`,
+empty stdin, `ROTARI_LAUNCHER_ARTIFACT` and `ROTARI_LAUNCHER_CWD` set, and
+without `ROTARI_WEB_AUTH_TOKEN`. Covered by
+`TestWebLaunchRunsOnlyRegisteredCommands` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
+**WEB-16** A start while the same command runs on the same target and
+working directory returns that launch, marked reused, unless another instance
+is requested. `GET /api/launches` lists launches with their state and exit
+status, `GET /api/launch-log` pages their output, and `POST /api/launch-stop`
+ends a launch's whole process group. Stopping or killing `rotari web`, even
+with SIGKILL, ends every launch's process group. Covered by
+`TestWebLaunchLifecycle` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
+**WEB-17** A service launch (`mode = "service"`) is `starting` until the
+process listening on `127.0.0.1:$ROTARI_LAUNCHER_PORT` belongs to the launch
+and its readiness path under `$ROTARI_LAUNCHER_BASE_PATH` answers 2xx or 3xx;
+a process outside the launch on that port fails it. Only then does
+`/_launch/ID/...` forward requests to it, with path and query unchanged and
+without the `Authorization` and `X-Rotari-Token` headers; before then and
+after it ends the route answers 503, and 404 for an unknown ID. Covered by
+`TestWebLaunchServesServices` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.

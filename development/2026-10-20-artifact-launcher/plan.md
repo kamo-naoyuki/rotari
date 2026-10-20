@@ -1,9 +1,12 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Phases 1 to 4 done; Phase 5 (contract IDs and conformance rows)
-next. See [Phase 1 results](#phase-1-results),
-[Phase 3 notes](#phase-3-notes), and [Phase 4 notes](#phase-4-notes).
+Status: Done. All five phases are implemented; the behavior is contract
+WEB-13 to WEB-17 in
+[contracts/05-web-assets-and-static-export.md](../../contracts/05-web-assets-and-static-export.md#launching-commands-on-artifacts),
+checked by [conformance/05-web/launch_test.go](../../conformance/05-web/launch_test.go).
+See [Phase 1 results](#phase-1-results), [Phase 3 notes](#phase-3-notes),
+and [Phase 4 notes](#phase-4-notes).
 
 ## Goal
 
