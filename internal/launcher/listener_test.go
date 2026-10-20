@@ -93,10 +93,19 @@ func TestVerifyListenerRejectsMissingListener(t *testing.T) {
 	t.Parallel()
 	lifetime := newTestLifetime(t)
 	process := startTest(t, lifetime, testSpec("sleep 300", outputFile(t)))
-	err := VerifyListener(allocate(t), process.PGID())
-	if err == nil || !strings.Contains(err.Error(), "no process in the launch listens") {
-		t.Fatalf("VerifyListener() = %v, want a missing listener error", err)
+	// A parallel test can start listening on a port this one just found
+	// free; that is a foreign listener, so try another port.
+	for range 5 {
+		err := VerifyListener(allocate(t), process.PGID())
+		if err != nil && strings.Contains(err.Error(), "another process listens on") {
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), "no process in the launch listens") {
+			t.Fatalf("VerifyListener() = %v, want a missing listener error", err)
+		}
+		return
 	}
+	t.Fatal("every allocated port was taken by another listener")
 }
 
 func TestParseLsofListeners(t *testing.T) {
