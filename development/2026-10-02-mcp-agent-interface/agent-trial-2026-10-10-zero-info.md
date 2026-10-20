@@ -202,3 +202,74 @@ completed them.
   search of the state directory.
 
 What remains is recorded in [ISSUES.md](../ISSUES.md).
+
+## Fourth run, 2026-10-20
+
+New agents got the same three tasks on fresh fixtures built at `93863df6`,
+from a clean worktree. Since the third run, rotari had gained run and attempt
+notes (`0c6eb957`), and the guide now asks agents to leave them and to gather
+a run's results into its concluding note as a Markdown table (`d79c77a3`).
+`wait` without a selector now follows only the current shell's runs
+(`11b67bc5`). The `claude` CLI was version 2.1.296. All three agents completed
+their tasks.
+
+| | s1 | s2 | s3 |
+| --- | --- | --- | --- |
+| third run | 9 calls, 13 KB | 18 calls, 35 KB | 12 calls, 24 KB |
+| fourth run | 12 calls, 28 KB | 18 calls, 39 KB | 14 calls, 24 KB |
+| failed calls | 1 (`wait`, the run's result) | 1, plus `wait` | 1, plus `wait` |
+| wall time | 38 s | 95 s | 62 s |
+
+- All three agents left notes without being told to. s1 and s2 each put a
+  results table in the run note and the cause of a failure in an attempt
+  note. s3 noted why it cancelled `frame[5]`. `lineage RUN` showed the notes
+  before the counts.
+- s1 ran a 3×3 `--matrix`, `check`, `run --async --note`, and `wait`, and
+  read the accuracies with `show -r RUN --logs --tail 3`. It did not search
+  the state directory.
+- s2 again tried `change -j` with an array task first. The error named the
+  array job and its 12 tasks, and the next call worked. It retried only
+  `train[12]` with `--dry-run` and then `--if-revision`. Both evals reran as
+  dependents, and the agent explained why.
+- s3 cancelled the frame with `cancel -p render -j ATTEMPT --wait`, which now
+  works with a job selection. It ended by pointing to the `retry:` line from
+  `wait`, `retry -p render --filter-failure-kind cancelled --dry-run`, which
+  previews `frame[5]` and `encode`.
+
+Output size rose for s1 and s2, for two reasons:
+
+- `rotari --help` and `rotari guide` take 12 KB, against 10 KB in the second
+  run, because the guide's rule about notes added about 2 KB.
+- Command help is now the largest single cost. s1 read `add --help` and
+  `run --help` (9.7 KB) before adding anything. s2 read `change --help` and
+  `retry --help` (10.4 KB), as in the second and third runs.
+
+### Findings
+
+1. **A failure that matches no rule has no example line.** s1's group read
+   `1 error (exit 1): train-LR0.1-SEED2` with `show:` and `retry:` lines but
+   no `e.g.` line, although the job's last line was
+   `RuntimeError: loss became NaN`. `runlineage.classifyFailure` takes the
+   evidence of a plain error from `result.Error`, which is empty for a job
+   that only exited nonzero. The agent needed `show -j ATTEMPT` to learn the
+   cause. Proposal: use the last line of the job's error output as the
+   evidence when no rule matched. Recorded in ISSUES.md.
+2. **The "Job failed" progress block does not name the job.** `wait` printed
+   `Name: train-LR0.1-SEED3` for a running job, but its "Job failed" block
+   for `train-LR0.1-SEED2` gave only the job ID, attempt ID, and command
+   (`supervisor.runObserver`). For a matrix, every member has the same
+   command, so the block does not say which member failed. Recorded in
+   ISSUES.md.
+3. **The s3 fixture cannot test quiet time.** M8 asks that the first `jobs`
+   or `show` single out `frame[5]` by its quiet time. The agent arrived 25 s
+   after the run started, when frames 3 to 8 all read `35s, quiet 34s`,
+   because every frame prints once and then sleeps. The agent again chose
+   `frame[5]` from its command text and log line. To test quiet time, the
+   healthy frames should print every few seconds, and the agent should
+   start a few minutes after the run, as its task says.
+4. **Smaller points:**
+   - s3 tried `rotari status` first. The error listed the subcommands, and
+     the next call was `rotari guide`.
+   - `show -r` and `show -j` still print the absolute `Base directory`,
+     `Queue`, `Directory`, and `Output directory` paths, about 500 bytes per
+     call in these fixtures.
