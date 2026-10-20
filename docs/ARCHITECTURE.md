@@ -200,7 +200,8 @@ flowchart TB
   bugreport --> web
   bugreport --> executor
   bugreport --> config
-  bugreport --> state   cmd --> mcpadapter
+  bugreport --> state
+  cmd --> mcpadapter
    mcpadapter --> report
    mcpadapter --> resolve
    mcpadapter --> runview
