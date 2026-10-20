@@ -402,9 +402,11 @@ function openOutputModal(compact) {
     editingNotificationConfig ||
     generatingConfig ||
     view === "artifacts" ||
+    view === "launches" ||
     renderedReport;
   document.getElementById("modal-markdown").hidden = !renderedReport;
   document.getElementById("artifact-view").hidden = view !== "artifacts";
+  document.getElementById("launch-view").hidden = view !== "launches";
   ensureModalOutput().classList.toggle(
     "log-error",
     view === "log" && !!selectedLog && !!selectedLog.error,

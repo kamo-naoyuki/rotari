@@ -2,6 +2,7 @@ package webui
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -184,7 +185,7 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 		"command text":      {`{"name":"Cat","entry":2,"command":"rm -rf ~"}`, http.StatusBadRequest, `unknown field "command"`},
 		"cwd":               {`{"name":"Cat","entry":2,"cwd":"/"}`, http.StatusBadRequest, "come only from the launcher file"},
 		"unknown command":   {request("Nope", "data.csv", ""), http.StatusBadRequest, `no command named "Nope"`},
-		"wrong kind":        {request("Cat", "many", ""), http.StatusUnprocessableEntity, "does not accept a directory"},
+		"wrong kind":        {request("Cat", "many", ""), http.StatusBadRequest, "does not accept a directory"},
 		"missing entry":     {`{"name":"Cat","project_name":"default","run_id":"` + f.runID + `","job_id":"job-1"}`, http.StatusBadRequest, "entry must name"},
 		"missing on host":   {request("Cat", "gone.csv", ""), http.StatusBadRequest, "does not exist on this host"},
 		"outside roots":     {request("Cat", "secret.txt", ""), http.StatusBadRequest, "outside the allowed roots"},
@@ -204,6 +205,22 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 				t.Fatal("a rejected request started or recorded a launch")
 			}
 		})
+	}
+
+	// A preview shows what a start would run and starts nothing.
+	before := len(decodeBody[struct{ Launches []launcher.Launch }](t, serveJSON(t, handler, http.MethodGet, "/api/launches", "")).Launches)
+	preview := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=job-1&entry="+fmt.Sprint(f.entries["many"])+"&child=f007.txt&name=Cat", "")
+	shown := decodeBody[webLaunchPreview](t, preview)
+	if preview.Code != http.StatusOK || shown.Target != filepath.Join(f.work, "many", "f007.txt") || shown.Kind != launcher.TargetFile ||
+		shown.CWD != filepath.Join(f.work, "many") || shown.Command != `cat "$ROTARI_LAUNCHER_ARTIFACT"` || shown.Shell != launcher.Shell ||
+		shown.User == "" || shown.Labels["job"] != "job-1" {
+		t.Fatalf("preview = %d %s", preview.Code, preview.Body.String())
+	}
+	if after := len(decodeBody[struct{ Launches []launcher.Launch }](t, serveJSON(t, handler, http.MethodGet, "/api/launches", "")).Launches); after != before {
+		t.Fatal("a preview started a launch")
+	}
+	if bad := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=job-1&entry="+fmt.Sprint(f.entries["many"])+"&name=Cat", ""); bad.Code != http.StatusBadRequest {
+		t.Fatalf("preview of a directory for a file command = %d", bad.Code)
 	}
 
 	if got := serveJSON(t, handler, http.MethodGet, "/api/launch-log?id=unknown", ""); got.Code != http.StatusNotFound {

@@ -76,6 +76,14 @@
               Enable notifications
             </button>
             <button
+              id="launches-button"
+              type="button"
+              onclick="showLaunches()"
+              hidden
+            >
+              Launches
+            </button>
+            <button
               id="refresh-button"
               type="button"
               onclick="refreshWithBasedirs()"
@@ -191,6 +199,7 @@
               <pre id="modal-log" class="log"></pre>
               <div id="modal-markdown" class="markdown-view" hidden></div>
               <div id="artifact-view" class="artifact-view" hidden></div>
+              <div id="launch-view" class="launch-view" hidden></div>
               <div id="config-editor" class="config-editor" hidden>
                 <textarea aria-label="Config contents"></textarea>
                 <button type="button">Save config</button>

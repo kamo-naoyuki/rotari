@@ -197,6 +197,16 @@ func (s site) registerLaunchRoutes(mux *http.ServeMux, baseDir string) {
 		}
 		s.startLaunch(writer, baseDir, launch)
 	})
+	mux.HandleFunc("/api/launch-preview", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		if s.launchesUnavailable(writer) {
+			return
+		}
+		s.previewLaunch(writer, baseDir, request.URL.Query())
+	})
 	mux.HandleFunc("/api/launches", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)
@@ -241,16 +251,17 @@ func (s site) registerLaunchRoutes(mux *http.ServeMux, baseDir string) {
 	})
 }
 
-func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request webLaunchRequest) {
+// launchStart resolves a launch request into what the manager starts:
+// the registered command, and the artifact resolved like the previews
+// resolve it. Preview and start share it, so the dialog shows exactly what
+// a start would run.
+func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.StartRequest, error) {
 	command, ok := s.Launches.Registry.Lookup(request.Name)
 	if !ok {
-		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{
-			Error: fmt.Sprintf("no command named %q is registered in %s", request.Name, s.Launches.Registry.Path)})
-		return
+		return launcher.StartRequest{}, fmt.Errorf("no command named %q is registered in %s", request.Name, s.Launches.Registry.Path)
 	}
 	if request.Entry == nil {
-		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: "entry must name an artifact candidate of the attempt"})
-		return
+		return launcher.StartRequest{}, errors.New("entry must name an artifact candidate of the attempt")
 	}
 	query := url.Values{
 		"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
@@ -258,22 +269,31 @@ func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request we
 	}
 	served, err := s.resolveArtifact(baseDir, query)
 	if err != nil {
-		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
-		return
+		return launcher.StartRequest{}, err
 	}
-	target := filepath.Join(served.root, served.relative)
 	kind, err := artifactKind(served)
 	if err != nil {
-		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
-		return
+		return launcher.StartRequest{}, err
+	}
+	if !command.Accepts(kind) {
+		return launcher.StartRequest{}, fmt.Errorf("launcher %q does not accept a %s", command.Name, kind)
 	}
 	labels := map[string]string{"basedir": baseDir, "project": request.ProjectName, "run": request.RunID, "job": request.JobID}
 	if request.AttemptID != "" {
 		labels["attempt"] = request.AttemptID
 	}
-	launch, err := s.Launches.Manager.Start(launcher.StartRequest{
-		Command: command, Target: target, Kind: kind, Labels: labels, NewInstance: request.NewInstance,
-	})
+	return launcher.StartRequest{
+		Command: command, Target: filepath.Join(served.root, served.relative), Kind: kind, Labels: labels, NewInstance: request.NewInstance,
+	}, nil
+}
+
+func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request webLaunchRequest) {
+	start, err := s.launchStart(baseDir, request)
+	if err != nil {
+		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
+		return
+	}
+	launch, err := s.Launches.Manager.Start(start)
 	if err != nil {
 		body := webLaunchError{Error: err.Error()}
 		if launch.ID != "" {
@@ -283,6 +303,41 @@ func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request we
 		return
 	}
 	writeWebJSON(writer, launch)
+}
+
+// webLaunchPreview is what the confirmation dialog shows before a start.
+type webLaunchPreview struct {
+	Name    string              `json:"name"`
+	Command string              `json:"command"`
+	Shell   string              `json:"shell"`
+	Mode    launcher.Mode       `json:"mode"`
+	Target  string              `json:"target"`
+	Kind    launcher.TargetKind `json:"kind"`
+	CWD     string              `json:"cwd"`
+	Host    string              `json:"host"`
+	User    string              `json:"user"`
+	Labels  map[string]string   `json:"labels"`
+}
+
+func (s site) previewLaunch(writer http.ResponseWriter, baseDir string, query url.Values) {
+	request := webLaunchRequest{ProjectName: query.Get("project_name"), RunID: query.Get("run_id"), JobID: query.Get("job_id"),
+		AttemptID: query.Get("attempt_id"), Child: query.Get("child"), Name: query.Get("name")}
+	if value := query.Get("entry"); value != "" {
+		if entry, err := strconv.Atoi(value); err == nil {
+			request.Entry = &entry
+		}
+	}
+	start, err := s.launchStart(baseDir, request)
+	if err != nil {
+		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
+		return
+	}
+	availability := s.launchAvailability()
+	writeWebJSON(writer, webLaunchPreview{
+		Name: start.Command.Name, Command: start.Command.Command, Shell: launcher.Shell, Mode: start.Command.Mode,
+		Target: start.Target, Kind: start.Kind, CWD: start.Command.WorkingDirectory(start.Target, start.Kind),
+		Host: availability.Host, User: availability.User, Labels: start.Labels,
+	})
 }
 
 // artifactKind reports whether the resolved artifact is a file or a

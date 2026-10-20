@@ -1,0 +1,142 @@
+package webui
+
+import (
+	"encoding/json"
+	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/launcher"
+)
+
+// runLaunchBrowserScript runs script in jsdom against a server and fails the
+// test with its output when it exits non-zero.
+func runLaunchBrowserScript(t *testing.T, options Options, f artifactFixture, script string) {
+	t.Helper()
+	server := httptest.NewServer(Handler(options))
+	defer server.Close()
+	entries, _ := json.Marshal(f.entries)
+	command := exec.Command("node", "-e", `
+const { JSDOM, VirtualConsole } = require('jsdom');
+const base = process.argv[1];
+const runID = process.argv[2];
+const entries = JSON.parse(process.argv[3]);
+const work = process.argv[4];
+const fail = (code, detail) => { console.error(code, detail || ''); process.exit(1); };
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+(async () => {
+  const html = await (await fetch(base + '/')).text();
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', url: base + '/', virtualConsole: new VirtualConsole(),
+    beforeParse(window) {
+      // Same-origin POSTs carry Origin in a browser; the exec guard is not
+      // installed here, so none is needed.
+      window.fetch = (input, init) => fetch(new URL(String(input), base), init);
+      window.setInterval = () => 1;
+    },
+  });
+  const window = dom.window;
+  const document = window.document;
+  await wait(300);
+  const panelText = () => document.getElementById('artifact-launch-panel')?.textContent || '';
+  const choices = () => [...document.querySelectorAll('#artifact-launch-panel .launch-choices button')].map(button => button.textContent);
+`+script+`
+})().catch(error => fail('exception', error.stack));
+`, server.URL, f.runID, string(entries), f.work)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("browser check failed: %v\n%s", err, output)
+	}
+}
+
+func TestWebLaunchInBrowser(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir,
+		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),
+		launchCommand("Count", `ls "$ROTARI_LAUNCHER_ARTIFACT" | wc -l`, launcher.TargetDirectory),
+		launchCommand("Sleep", `sleep 300`, launcher.TargetFile, launcher.TargetDirectory))
+	runLaunchBrowserScript(t, options, f, `
+  if (document.getElementById('launches-button').hidden) fail('Launches button hidden while launching is available');
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+
+  // A file offers only commands that accept files.
+  await window.openArtifact(entries['data.csv'], '', 'file');
+  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+  if (JSON.stringify(choices()) !== '["Cat","Sleep"]') fail('file choices', choices());
+
+  // The confirmation shows what the server would run, and nothing has run.
+  await window.previewArtifactLaunch(entries['data.csv'], '', 'Cat');
+  const details = panelText();
+  for (const want of ['Cat', work + '/data.csv (file)', 'Working directory' + work, '/bin/sh -c cat "$ROTARI_LAUNCHER_ARTIFACT"', 'job job-1']) {
+    if (!details.includes(want)) fail('confirmation lacks ' + want, details);
+  }
+  let launches = (await (await fetch(base + '/api/launches')).json()).launches;
+  if (launches.length !== 0) fail('preview started a launch', launches);
+
+  await window.startArtifactLaunch(entries['data.csv'], '', 'Cat', false);
+  if (!panelText().includes('Started Cat.')) fail('start message', panelText());
+  launches = (await (await fetch(base + '/api/launches')).json()).launches;
+  if (launches.length !== 1 || launches[0].name !== 'Cat') fail('launch list', launches);
+  const catID = launches[0].id;
+  await wait(500);
+
+  // The Launches view lists it with its output.
+  await window.showLaunches(catID);
+  const view = document.getElementById('launch-view');
+  if (view.hidden || !document.getElementById('modal-log').hidden || !document.getElementById('artifact-view').hidden) fail('launches view toggling');
+  if (!view.textContent.includes('Cat') || !view.textContent.includes('exited (exit 0)')) fail('launches row', view.textContent);
+  if (view.querySelector('.launch-log').textContent !== 'a,b\n1,2\n') fail('launch output', view.querySelector('.launch-log').textContent);
+
+  // A directory child offers directory commands; a repeated start reuses
+  // the live launch and offers another instance; Stop ends it.
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+  await window.openArtifact(entries['many'], '', 'directory');
+  await window.toggleArtifactLaunch(entries['many'], '', 'directory');
+  if (JSON.stringify(choices()) !== '["Count","Sleep"]') fail('directory choices', choices());
+  await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
+  await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
+  if (!panelText().includes('already running') || !choices().includes('Start another instance')) fail('reuse', panelText());
+  launches = (await (await fetch(base + '/api/launches')).json()).launches;
+  const sleep = launches.find(launch => launch.name === 'Sleep');
+  await window.showLaunches(sleep.id);
+  const stop = [...view.querySelectorAll('button')].find(button => button.textContent === 'Stop');
+  if (!stop) fail('no Stop button for a running launch', view.textContent);
+  await window.stopLaunch(sleep.id);
+  await wait(300);
+  await window.renderLaunches();
+  if (!view.textContent.includes('stopped (terminated)')) fail('stopped state', view.textContent);
+`)
+}
+
+func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	f := newArtifactFixture(t)
+	disabled := testOptions(f.baseDir, true)
+	disabled.LauncherFile = filepath.Join("/cfg", "rotari", launcher.FileName)
+	runLaunchBrowserScript(t, disabled, f, `
+  if (!document.getElementById('launches-button').hidden) fail('Launches button shown while launching is disabled');
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+  await window.openArtifact(entries['data.csv'], '', 'file');
+  if (!document.querySelector('.artifact-launch-button')) fail('no Launch with button');
+  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+  for (const want of ['Launching is disabled on this server.', 'rotari web --allow-exec', '/cfg/rotari/launchers.toml', 'rotari config --launchers']) {
+    if (!panelText().includes(want)) fail('explanation lacks ' + want, panelText());
+  }
+`)
+	directoryOnly := launchOptions(t, f.baseDir, launchCommand("TensorBoard", "tb", launcher.TargetDirectory))
+	runLaunchBrowserScript(t, directoryOnly, f, `
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+  await window.openArtifact(entries['data.csv'], '', 'file');
+  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+  if (!panelText().includes('No registered command accepts a file') || !panelText().includes('TensorBoard (directory)')) fail('unmatched explanation', panelText());
+`)
+}

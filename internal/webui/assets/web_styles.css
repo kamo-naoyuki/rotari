@@ -1652,6 +1652,60 @@ pre,
   max-height: 12rem;
   overflow: auto;
 }
+/* Launch with: the commands for an artifact, the confirmation, and the
+   Launches view (web_app_launches.js). */
+.artifact-launch-panel {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.launch-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.launch-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+}
+.launch-details dt {
+  color: var(--muted);
+}
+.launch-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.launch-command {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+}
+.launch-reason {
+  margin: 0 0 0.5rem;
+}
+.launch-view {
+  overflow: auto;
+  max-height: 75vh;
+  padding: 0.5rem;
+}
+.launch-table td {
+  overflow-wrap: anywhere;
+}
+.launch-table tr.selected {
+  background: var(--highlight);
+}
+.launch-log {
+  max-height: 40vh;
+  overflow: auto;
+}
 
 /* A table's row actions, first in each row (actionsCell in web_app_core.js). */
 .runs th.actions,

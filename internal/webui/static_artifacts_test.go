@@ -88,6 +88,11 @@ setTimeout(async () => {
 
     await window.openArtifact(entries['data.csv'], '', 'file');
     if ([...preview().querySelectorAll('tbody td')].map(cell => cell.textContent).join() !== '1,2') fail('table');
+    // A static export cannot launch, and says so in the server's words.
+    await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+    const launch = window.document.getElementById('artifact-launch-panel')?.textContent || '';
+    if (!launch.includes('Launching is unavailable in a static export.') || !launch.includes('rotari web --allow-exec')) fail('static launch explanation', launch);
+    if (!window.document.getElementById('launches-button').hidden) fail('Launches button shown in a static export');
 
     await window.openArtifact(entries['weights.npy'], '', 'file');
     if (preview().querySelector('.artifact-values').textContent !== '[1, 2, 3]') fail('array');

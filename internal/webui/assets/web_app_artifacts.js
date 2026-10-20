@@ -221,14 +221,21 @@ async function openArtifact(index, child, type) {
     artifactPreview().scrollIntoView({ block: "start", inline: "nearest" });
   }
 }
-async function renderArtifactPreview(index, child, type) {
-  const extension = artifactExtension(index, child);
-  const header =
+// artifactHeader is a preview's title line: the name, a file's download
+// link, and Launch with.
+function artifactHeader(index, child, type) {
+  return (
     '<p class="artifact-preview-title"><strong>' +
     esc(artifactTitle(index, child)) +
     "</strong> " +
     (type === "directory" ? "" : artifactDownloadLink(index, child)) +
-    "</p>";
+    artifactLaunchButton(index, child, type) +
+    "</p>"
+  );
+}
+async function renderArtifactPreview(index, child, type) {
+  const extension = artifactExtension(index, child);
+  const header = artifactHeader(index, child, type);
   const preview = artifactPreview();
   preview.innerHTML = header + '<p class="meta">Loading...</p>';
   preview.dataset.index = String(index);
@@ -362,11 +369,7 @@ async function moreArtifactText() {
         : "";
   const pre = '<pre class="log artifact-text">' + esc(state.text) + "</pre>";
   artifactPreview().innerHTML =
-    '<p class="artifact-preview-title"><strong>' +
-    esc(artifactTitle(state.index, state.child)) +
-    "</strong> " +
-    artifactDownloadLink(state.index, state.child) +
-    "</p>" +
+    artifactHeader(state.index, state.child, "file") +
     (state.from === "end" ? more + pre : pre + more);
 }
 // loadArtifactTable shows a CSV or TSV file as a table of the rows loaded so
@@ -404,11 +407,7 @@ async function moreArtifactTable() {
   const cells = (row, tag) =>
     row.map((cell) => "<" + tag + ">" + esc(cell) + "</" + tag + ">").join("");
   artifactPreview().innerHTML =
-    '<p class="artifact-preview-title"><strong>' +
-    esc(artifactTitle(state.index, state.child)) +
-    "</strong> " +
-    artifactDownloadLink(state.index, state.child) +
-    "</p>" +
+    artifactHeader(state.index, state.child, "file") +
     '<div class="artifact-table-scroll"><table class="runs"><thead><tr>' +
     cells(head || [], "th") +
     "</tr></thead><tbody>" +
@@ -498,9 +497,7 @@ async function loadArtifactDirectory(index, child, offset) {
     .join("");
   const end = page.offset + page.entries.length;
   artifactPreview().innerHTML =
-    '<p class="artifact-preview-title"><strong>' +
-    esc(artifactTitle(index, child)) +
-    "</strong></p>" +
+    artifactHeader(index, child, "directory") +
     '<p class="meta">' +
     esc(
       (page.total

@@ -247,6 +247,7 @@ render = function () {
   focusHistorySearchJob();
 };
 initOrbitGame();
+loadLauncherAvailability();
 window.addEventListener("popstate", () => refresh(true));
 refresh(true);
 setInterval(() => refresh(false), 2000);

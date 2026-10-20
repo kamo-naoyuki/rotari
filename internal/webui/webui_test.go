@@ -724,7 +724,7 @@ setTimeout(() => {
 	if (notificationConfigButtons[0].parentElement !== settingsActions || generateNotificationConfigButton.parentElement !== settingsActions) process.exit(37);
 	const toolbar = dom.window.document.querySelector('.topbar .toolbar');
 	const toolbarNames = [...toolbar.children].map(item => item.className || item.id);
-	if (JSON.stringify(toolbarNames) !== JSON.stringify(['notify-toggle', 'refresh-button', 'settings-menu'])) process.exit(38);
+	if (JSON.stringify(toolbarNames) !== JSON.stringify(['notify-toggle', 'launches-button', 'refresh-button', 'settings-menu'])) process.exit(38);
 	const settingsNames = [...settingsActions.children].map(button => button.className || button.id);
 	if (JSON.stringify(settingsNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button'])) process.exit(39);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
@@ -1844,6 +1844,7 @@ func TestStylesAndScriptsTakeColoursFromTokens(t *testing.T) {
 		"web_app_logs.js":          webAppLogsJS,
 		"web_app_markdown.js":      webAppMarkdownJS,
 		"web_app_artifacts.js":     webAppArtifactsJS,
+		"web_app_launches.js":      webAppLaunchesJS,
 		"web_app_tables.js":        webAppTablesJS,
 		"web_app_charts.js":        webAppChartsJS,
 		"web_app_matrix.js":        webAppMatrixJS,
