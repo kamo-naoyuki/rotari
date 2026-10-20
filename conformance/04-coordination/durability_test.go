@@ -35,9 +35,12 @@ func TestRecoveryLeavesJobsRunning(t *testing.T) {
 	covers(t, "DUR-6")
 	e := support.NewEnv(t)
 	jobID := e.OrphanRun("p", "sleep 3; exit 7")
-	e.MustRotari("unlock", "p")
+	result := e.Rotari("unlock", "p")
+	if result.Code != 1 || !strings.Contains(result.Stderr, "execution_active") || !strings.Contains(result.Stdout, "execution=active") {
+		t.Fatalf("unlock with a live execution: %s", result)
+	}
 	if alive := support.JobProcesses(t, e.Root, jobID); alive != 1 {
-		t.Fatalf("recovery stopped job: %d processes", alive)
+		t.Fatalf("refused recovery stopped job: %d processes", alive)
 	}
 	e.JobExitStatus("p", jobID)
 }

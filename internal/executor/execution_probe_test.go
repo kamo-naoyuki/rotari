@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -182,6 +184,91 @@ func TestSchedulerExecutionEvidence(t *testing.T) {
 				t.Fatalf("queue/accounting conflict was hidden: %+v", got)
 			}
 		})
+	}
+}
+
+func TestSSHExecutionProbeUsesPrivateTokenAndBoundedQuery(t *testing.T) {
+	dir := t.TempDir()
+	token := "0123456789abcdef0123456789abcdef"
+	if err := testStore().WriteJSON(filepath.Join(dir, "job.json"), executionMetadata{
+		Executor: "ssh", Host: "builder@example.test", SSHOptions: []string{"-p", "2222"}, RemoteToken: token,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	probe := NewExecutionProber(testStore(), context.Background())
+	probe.runInput = func(_ context.Context, command []string, input []byte) ([]byte, error) {
+		if strings.Join(command, " ") != "-o BatchMode=yes -o LogLevel=ERROR -p 2222 -- builder@example.test sh -s" {
+			t.Fatalf("SSH probe command = %v", command)
+		}
+		if !strings.Contains(string(input), token) {
+			t.Fatal("SSH probe script omitted the private token")
+		}
+		return []byte("ROTARI_EXECUTION:active\n"), nil
+	}
+	got := probe.Assess(dir, "ssh")
+	if got.State != "active" || got.Source != "ssh_remote_token" || got.NativeID != "" || !strings.Contains(got.Scope, "builder@example.test") {
+		t.Fatalf("SSH execution assessment = %+v", got)
+	}
+	for _, output := range []string{
+		"ROTARI_EXECUTION:stopped\n",
+		"ROTARI_EXECUTION:unknown\n",
+		"banner\nROTARI_EXECUTION:stopped\n",
+		"ROTARI_EXECUTION:active\nROTARI_EXECUTION:stopped\n",
+	} {
+		state, _, reason := parseSSHExecutionProbe([]byte(output))
+		if output == "ROTARI_EXECUTION:stopped\n" && state != "stopped" {
+			t.Fatalf("stopped output state=%s", state)
+		}
+		if output != "ROTARI_EXECUTION:stopped\n" && state == "stopped" {
+			t.Fatalf("ambiguous output was trusted: %q (%s)", output, reason)
+		}
+	}
+}
+
+func TestSSHExecutionProbeClassifiesRemoteProcessGroup(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	token := "0123456789abcdef0123456789abcdef"
+	stateDir := filepath.Join(runtimeDir, "rotari-"+strconv.Itoa(os.Getuid()), token)
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	process := exec.Command("sleep", "30")
+	process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := process.Start(); err != nil {
+		t.Fatal(err)
+	}
+	processFile := filepath.Join(stateDir, "process")
+	if err := os.WriteFile(processFile, []byte(strconv.Itoa(process.Process.Pid)+" "+state.ProcessStart(process.Process.Pid)+"\n"), 0o600); err != nil {
+		_ = process.Process.Kill()
+		_ = process.Wait()
+		t.Fatal(err)
+	}
+	run := func() string {
+		command := exec.Command("sh", "-s")
+		command.Stdin = strings.NewReader(sshExecutionProbeScript(token))
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("remote probe script: %v: %s", err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	if got := run(); got != "ROTARI_EXECUTION:active" {
+		_ = process.Process.Kill()
+		_ = process.Wait()
+		t.Fatalf("live remote group = %q", got)
+	}
+	if err := syscall.Kill(-process.Process.Pid, syscall.SIGKILL); err != nil {
+		_ = process.Process.Kill()
+		_ = process.Wait()
+		t.Fatal(err)
+	}
+	_ = process.Wait()
+	if err := os.WriteFile(filepath.Join(stateDir, "finished"), []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := run(); got != "ROTARI_EXECUTION:stopped" {
+		t.Fatalf("finished remote group = %q", got)
 	}
 }
 

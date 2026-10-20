@@ -271,8 +271,10 @@ walltime options such as Slurm `--time`.
 
 ## Supervisor failure
 
-The supervisor is not restarted after a crash. Inspect the run, confirm its
-jobs have stopped, then unlock and retry unfinished work:
+The supervisor is not restarted after a crash. Inspect the run and preview
+recovery; rotari checks the coordinator and managed local, scheduler, and SSH
+execution evidence. Confirm any unknown work has stopped, then unlock and
+retry unfinished work:
 
 ```sh
 rotari show -r RUN_ID
@@ -286,7 +288,10 @@ may have since stopped, and client state becomes `unknown` when the supervisor
 cannot be verified; these are best-effort file-backed observations, not live
 executor checks.
 
-The interrupted run's jobs are not put back in the queue. `reset` only clears
+Verified active executions block `unlock`; unknown evidence needs
+`--assume-stopped` after independent confirmation. SSH descendants that leave
+their managed process group are outside the probe's scope. The interrupted
+run's jobs are not put back in the queue. `reset` only clears
 the next queue, and `unlock` refuses while the supervisor is still alive on
 this host; cancel that run instead.
 

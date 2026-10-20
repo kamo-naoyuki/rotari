@@ -1,9 +1,14 @@
 package project
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
@@ -16,6 +21,155 @@ type ExecutionAssessment struct {
 	Active     int                       `json:"active"`
 	Unknown    int                       `json:"unknown"`
 	Executions []model.RecoveryExecution `json:"executions"`
+}
+
+const (
+	recoveryEvidenceFileLimit    = 16 << 20
+	recoveryEvidenceByteLimit    = 64 << 20
+	recoveryEvidenceEntryLimit   = 100000
+	recoveryObservationFreshness = 30 * time.Second
+)
+
+var recoveryEvidenceFiles = map[string]bool{
+	"commands.json": true, "summary.json": true, "carried.json": true,
+	"context.json": true, "job.json": true, "command.json": true,
+	"status": true, "status.json": true, "scheduler_status.json": true,
+	"pid": true, "cancelled": true, "submitted_at": true, "finished_at": true,
+	state.RunClientStatusFileName: true,
+}
+
+// recoveryRevision binds an unlock preview to the queue/meta revision and
+// the run files that define execution identity and recorded outcomes.
+func recoveryRevision(paths state.ProjectPaths, runID string) (string, error) {
+	revision, err := Revision(paths)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.New()
+	hash.Write([]byte(revision))
+	total := 0
+	if err := hashRecoveryFile(hash, paths.LockFile, &total); err != nil {
+		return "", err
+	}
+	runIDs, err := recoveryRunIDs(paths, runID)
+	if err != nil {
+		return "", err
+	}
+	entries := 0
+	for _, id := range runIDs {
+		runDir, err := state.SafeJoin(paths.RunsDir, id)
+		if err != nil {
+			return "", err
+		}
+		_, _ = hash.Write([]byte("run:" + id + "\n"))
+		if _, err := os.Lstat(runDir); errors.Is(err, os.ErrNotExist) {
+			_, _ = hash.Write([]byte("missing-dir:" + filepath.ToSlash(runDir) + "\n"))
+			continue
+		} else if err != nil {
+			return "", fmt.Errorf("fingerprint execution evidence: %w", err)
+		}
+		err = filepath.WalkDir(runDir, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			entries++
+			if entries > recoveryEvidenceEntryLimit {
+				return fmt.Errorf("recovery evidence exceeds the %d-entry limit", recoveryEvidenceEntryLimit)
+			}
+			rel, err := filepath.Rel(runDir, path)
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				_, _ = hash.Write([]byte("dir:" + filepath.ToSlash(rel) + "\n"))
+				return nil
+			}
+			if !recoveryEvidenceFiles[entry.Name()] {
+				return nil
+			}
+			return hashRecoveryFile(hash, path, &total)
+		})
+		if err != nil {
+			return "", fmt.Errorf("fingerprint execution evidence: %w", err)
+		}
+	}
+	return hex.EncodeToString(hash.Sum(nil))[:16], nil
+}
+
+func recoveryRunIDs(paths state.ProjectPaths, runID string) ([]string, error) {
+	runIDs := []string{runID}
+	seen := map[string]bool{runID: true}
+	for i := 0; i < len(runIDs); i++ {
+		runDir, err := state.SafeJoin(paths.RunsDir, runIDs[i])
+		if err != nil {
+			return nil, err
+		}
+		files, err := state.LoadRunSnapshot(runDir)
+		if err != nil {
+			return nil, err
+		}
+		if files.CommandsErr != nil {
+			continue
+		}
+		for _, job := range model.QueueToJobs(files.Commands.Commands) {
+			origin := repairJobOrigin(files.Commands, job)
+			if origin == nil {
+				continue
+			}
+			if !state.IsValidPathElement(origin.RunID) {
+				return nil, fmt.Errorf("invalid carried origin run ID %q", origin.RunID)
+			}
+			if !seen[origin.RunID] {
+				seen[origin.RunID] = true
+				runIDs = append(runIDs, origin.RunID)
+			}
+		}
+	}
+	sort.Strings(runIDs)
+	return runIDs, nil
+}
+
+func hashRecoveryFile(hash interface{ Write([]byte) (int, error) }, path string, total *int) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		_, _ = hash.Write([]byte("missing:" + filepath.ToSlash(path) + "\n"))
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if len(data) > recoveryEvidenceFileLimit {
+		return fmt.Errorf("%s exceeds the %d-byte recovery evidence limit", path, recoveryEvidenceFileLimit)
+	}
+	*total += len(data)
+	if *total > recoveryEvidenceByteLimit {
+		return fmt.Errorf("recovery evidence exceeds the %d-byte limit", recoveryEvidenceByteLimit)
+	}
+	_, _ = hash.Write([]byte("file:" + filepath.ToSlash(path) + "\n"))
+	_, _ = hash.Write([]byte(fmt.Sprintf("%d\n", len(data))))
+	_, _ = hash.Write(data)
+	return nil
+}
+
+func expireStaleExecutionEvidence(executions []model.RecoveryExecution, now time.Time) {
+	const staleReason = "execution observation is missing or older than 30 seconds and cannot authorize recovery"
+	for i := range executions {
+		observed, err := time.Parse(time.RFC3339Nano, executions[i].ObservedAt)
+		if err == nil && now.Sub(observed) <= recoveryObservationFreshness && !observed.After(now) {
+			continue
+		}
+		if executions[i].State == "active" {
+			executions[i].PossiblyActive = true
+		}
+		executions[i].State = "unknown"
+		executions[i].Conflict = executions[i].Conflict || executions[i].RecordedTerminal
+		if !strings.Contains(executions[i].Reason, staleReason) {
+			if executions[i].Reason != "" {
+				executions[i].Reason += "; "
+			}
+			executions[i].Reason += staleReason
+		}
+	}
 }
 
 // AssessExecutions reads all relevant attempts, not only attempts that already

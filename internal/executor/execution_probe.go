@@ -31,13 +31,14 @@ type ExecutionProber struct {
 	store     state.Store
 	ctx       context.Context
 	run       func(context.Context, []string) ([]byte, error)
+	runInput  func(context.Context, []string, []byte) ([]byte, error)
 	sgeRead   bool
 	sgeOutput []byte
 	sgeErr    error
 }
 
 func NewExecutionProber(store state.Store, ctx context.Context) *ExecutionProber {
-	return &ExecutionProber{store: store, ctx: ctx, run: runExecutionQuery}
+	return &ExecutionProber{store: store, ctx: ctx, run: runExecutionQuery, runInput: runExecutionQueryInput}
 }
 
 // Assess never treats an outcome file as proof of termination. Missing launch
@@ -64,6 +65,8 @@ func (probe *ExecutionProber) Assess(dir, backend string) model.RecoveryExecutio
 	switch backend {
 	case "local":
 		result = probe.local(dir, result)
+	case "ssh":
+		result = probe.ssh(dir, result)
 	case "slurm", "pbs", "sge", "lsf":
 		result = probe.scheduler(dir, result)
 	default:
@@ -118,11 +121,38 @@ func localGroupEvidence(recordedStart, currentStart string, err error) (string, 
 }
 
 type executionMetadata struct {
-	Executor string `json:"executor"`
-	SlurmID  string `json:"slurm_job_id"`
-	PBSID    string `json:"pbs_job_id"`
-	SGEID    string `json:"sge_job_id"`
-	LSFID    string `json:"lsf_job_id"`
+	Executor    string   `json:"executor"`
+	Host        string   `json:"host"`
+	SSHOptions  []string `json:"ssh_options"`
+	RemoteToken string   `json:"remote_token"`
+	SlurmID     string   `json:"slurm_job_id"`
+	PBSID       string   `json:"pbs_job_id"`
+	SGEID       string   `json:"sge_job_id"`
+	LSFID       string   `json:"lsf_job_id"`
+}
+
+func (probe *ExecutionProber) ssh(dir string, result model.RecoveryExecution) model.RecoveryExecution {
+	result.Source = "ssh_remote_token"
+	var metadata executionMetadata
+	if err := probe.store.ReadJSON(filepath.Join(dir, "job.json"), &metadata); err != nil {
+		result.Reason = "cannot read SSH launch identity: " + err.Error()
+		return result
+	}
+	if metadata.Executor != "ssh" || metadata.Host == "" || !validSSHRemoteToken(metadata.RemoteToken) {
+		result.Reason = "SSH host or remote execution token is missing or invalid"
+		return result
+	}
+	result.Scope = "remote process group on " + metadata.Host + " identified by its private token; descendants that leave the group are outside this scope"
+	command := append([]string{"-o", "BatchMode=yes", "-o", "LogLevel=ERROR"}, metadata.SSHOptions...)
+	command = append(command, "--", metadata.Host, "sh", "-s")
+	output, err := probe.queryInput(command, []byte(sshExecutionProbeScript(metadata.RemoteToken)), false)
+	if err != nil {
+		result.Reason = "bounded remote SSH execution query failed: " + err.Error()
+		return result
+	}
+	state, possiblyActive, reason := parseSSHExecutionProbe(output)
+	result.State, result.PossiblyActive, result.Reason = state, possiblyActive, reason
+	return result
 }
 
 func (probe *ExecutionProber) scheduler(dir string, result model.RecoveryExecution) model.RecoveryExecution {
@@ -222,7 +252,81 @@ func validNativeIdentity(backend, id string) bool {
 	return ok && pattern.MatchString(id)
 }
 
+func sshExecutionProbeScript(token string) string {
+	return `#!/bin/sh
+set -eu
+runtime_base=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}
+state_root="$runtime_base/rotari-$(id -u)"
+state_dir="$state_root/` + token + `"
+unknown() { printf 'ROTARI_EXECUTION:unknown\n'; }
+if [ ! -d "$state_root" ] || [ -L "$state_root" ] ||
+   [ "$(stat -c %u "$state_root" 2>/dev/null)" != "$(id -u)" ] ||
+   [ "$(stat -c %a "$state_root" 2>/dev/null)" != "700" ]; then
+	unknown
+	exit 0
+fi
+[ -r /proc/self/stat ] || { unknown; exit 0; }
+if [ ! -d "$state_dir" ]; then
+	unknown
+	exit 0
+fi
+[ ! -L "$state_dir" ] || { unknown; exit 0; }
+if [ ! -f "$state_dir/process" ] || [ -L "$state_dir/process" ]; then
+	unknown
+	exit 0
+fi
+read remote_pid recorded_start extra < "$state_dir/process" || { unknown; exit 0; }
+case "$remote_pid:$recorded_start" in
+	*[!0-9:]*|:*|*:) unknown; exit 0 ;;
+esac
+[ -z "${extra:-}" ] || { unknown; exit 0; }
+if process_stat=$(cat "/proc/$remote_pid/stat" 2>/dev/null); then
+	process_fields=${process_stat##*) }
+	set -- $process_fields
+	if [ "$#" -ge 20 ]; then
+		remote_state=$1
+		remote_pgid=$3
+		shift 19
+		remote_start=$1
+		if [ "$remote_pgid" = "$remote_pid" ] && [ "$remote_start" = "$recorded_start" ] && [ "$remote_state" != Z ] && [ "$remote_state" != X ]; then
+			printf 'ROTARI_EXECUTION:active\n'
+			exit 0
+		fi
+	fi
+fi
+process_groups=$(ps -eo pgid=,stat= 2>/dev/null) || { unknown; exit 0; }
+if printf '%s\n' "$process_groups" | awk -v pgid="$remote_pid" '$1 == pgid && $2 !~ /^[ZX]/ { found=1 } END { exit !found }'; then
+	unknown
+	exit 0
+fi
+if [ -f "$state_dir/finished" ] && [ ! -L "$state_dir/finished" ]; then
+	printf 'ROTARI_EXECUTION:stopped\n'
+else
+	unknown
+fi
+`
+}
+
+func parseSSHExecutionProbe(output []byte) (state string, possiblyActive bool, reason string) {
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 1 {
+		switch strings.TrimSpace(lines[0]) {
+		case "ROTARI_EXECUTION:active":
+			return "active", false, "remote token query verified the recorded process identity and its process group is active"
+		case "ROTARI_EXECUTION:stopped":
+			return "stopped", false, "remote token query verified completion and found no active process in the recorded process group"
+		case "ROTARI_EXECUTION:unknown":
+			return "unknown", false, "remote token query could not verify process-group termination"
+		}
+	}
+	return "unknown", possiblyActive, "remote token query returned missing, malformed or ambiguous evidence"
+}
+
 func (probe *ExecutionProber) query(command []string, sge bool) ([]byte, error) {
+	return probe.queryInput(command, nil, sge)
+}
+
+func (probe *ExecutionProber) queryInput(command []string, input []byte, sge bool) ([]byte, error) {
 	if sge && probe.sgeRead {
 		return probe.sgeOutput, probe.sgeErr
 	}
@@ -237,7 +341,11 @@ func (probe *ExecutionProber) query(command []string, sge bool) ([]byte, error) 
 		case <-probe.ctx.Done():
 			err = probe.ctx.Err()
 		case <-timer.C:
-			output, err = probe.run(probe.ctx, command)
+			if input == nil {
+				output, err = probe.run(probe.ctx, command)
+			} else {
+				output, err = probe.runInput(probe.ctx, command, input)
+			}
 		}
 		timer.Stop()
 		if probe.ctx.Err() != nil {
@@ -268,12 +376,19 @@ func (output *probeOutput) Write(data []byte) (int, error) {
 }
 
 func runExecutionQuery(parent context.Context, command []string) ([]byte, error) {
+	return runExecutionQueryInput(parent, command, nil)
+}
+
+func runExecutionQueryInput(parent context.Context, command []string, input []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 200 * time.Millisecond
+	if input != nil {
+		cmd.Stdin = strings.NewReader(string(input))
+	}
 	output := &probeOutput{}
 	cmd.Stdout, cmd.Stderr = output, output
 	err := cmd.Run()

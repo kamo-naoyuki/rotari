@@ -499,9 +499,10 @@ func TestMCPUnlockRecoversAnInterruptedRun(t *testing.T) {
 	var preview struct {
 		InterruptedRunID string `json:"interrupted_run_id"`
 		JobsMayBeRunning bool   `json:"jobs_may_be_running"`
+		ExecutionChecked bool   `json:"execution_checked"`
 		Revision         string `json:"revision"`
 	}
-	if message := session.call("rotari_preview_unlock", target, &preview); message != "" || preview.InterruptedRunID != run.RunID || !preview.JobsMayBeRunning || preview.Revision == "" {
+	if message := session.call("rotari_preview_unlock", target, &preview); message != "" || preview.InterruptedRunID != run.RunID || preview.JobsMayBeRunning || !preview.ExecutionChecked || preview.Revision == "" {
 		t.Fatalf("unlock preview: %q %+v", message, preview)
 	}
 	if state := e.CheckState("live"); state != "interrupted" {

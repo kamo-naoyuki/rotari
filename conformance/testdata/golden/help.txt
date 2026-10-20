@@ -15,7 +15,7 @@ Commands:
   resume      resume suspended jobs
   delete      delete saved run history
   gc          find and remove orphan run registry entries
-  unlock      remove a confirmed stale run lock
+  unlock      recover an interrupted run after assessing its coordinator and managed executions
   change      change queued jobs, or with --run-id the jobs of that run, which replace the queue first; a command after the options replaces the jobs' command
   export      export the current queue or saved runs as a workflow manifest
   import      validate and replace a queue from a workflow manifest

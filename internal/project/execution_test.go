@@ -5,12 +5,32 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+func TestExpireStaleExecutionEvidenceIsIdempotent(t *testing.T) {
+	now := time.Now().UTC()
+	executions := []model.RecoveryExecution{{
+		State: "active", RecordedTerminal: true, ObservedAt: now.Add(-recoveryObservationFreshness - time.Second).Format(time.RFC3339Nano),
+		Reason: "process group is active",
+	}}
+	expireStaleExecutionEvidence(executions, now)
+	expireStaleExecutionEvidence(executions, now)
+
+	execution := executions[0]
+	if execution.State != "unknown" || !execution.PossiblyActive || !execution.Conflict {
+		t.Fatalf("stale active evidence was not conservatively downgraded: %+v", execution)
+	}
+	if strings.Count(execution.Reason, "execution observation is missing or older than 30 seconds") != 1 {
+		t.Fatalf("stale observation reason was duplicated: %q", execution.Reason)
+	}
+}
 
 func TestRepairExecutionEvidencePolicy(t *testing.T) {
 	process := exec.Command("sleep", "30")
@@ -112,6 +132,41 @@ func TestExecutionInventoryIncludesPartialAndEarlierAttempts(t *testing.T) {
 	assessment, err := AssessExecutions(paths, repairRunID)
 	if err != nil || len(assessment.Executions) != 3 || assessment.Unknown != 3 {
 		t.Fatalf("inventory=%+v %v", assessment, err)
+	}
+}
+
+func TestRecoveryRevisionIncludesCarriedOriginEvidence(t *testing.T) {
+	paths := repairFixture(t)
+	runDir := filepath.Join(paths.RunsDir, repairRunID)
+	sourceRunID := "20261015-020229-00000000"
+	origin := &model.JobOrigin{RunID: sourceRunID, JobID: "training"}
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "training", Command: []string{"true"}, Origin: origin},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	sourceDir := filepath.Join(paths.RunsDir, sourceRunID)
+	for path, value := range map[string]any{
+		filepath.Join(sourceDir, "commands.json"):        model.Queue{Commands: []model.QueuedCommand{{ID: "training", Command: []string{"true"}}}},
+		filepath.Join(sourceDir, "training", "job.json"): map[string]any{"executor": "local", "pid": 100},
+	} {
+		if err := state.WriteJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before, err := recoveryRevision(paths, repairRunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(sourceDir, "training", "job.json"), map[string]any{"executor": "local", "pid": 101}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := recoveryRevision(paths, repairRunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before == after {
+		t.Fatal("preview revision omitted execution evidence behind a carried origin")
 	}
 }
 

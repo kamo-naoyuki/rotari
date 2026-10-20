@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -56,7 +57,7 @@ func TestUnlockCoordinatorPolicy(t *testing.T) {
 					}
 					before := unlockFiles(t, paths)
 					preview, err := Unlock(paths, "", Guard{DryRun: true}, attest)
-					allowed := test.state == CoordinatorStopped || (test.state == CoordinatorUnknown && attest)
+					allowed := attest && test.state != CoordinatorLive
 					if err != nil || preview.Allowed != allowed || preview.Coordinator.State != test.state || preview.Applied || preview.ExecutionChecked {
 						t.Fatalf("preview = %+v, %v; want allowed=%t state=%s", preview, err, allowed, test.state)
 					}
@@ -136,8 +137,78 @@ func TestUnlockReassessesCoordinatorAtApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := Unlock(paths, "", Guard{IfRevision: preview.Revision}, true)
-	if !errors.Is(err, ErrRunAlive) || result.Allowed {
-		t.Fatalf("apply = %+v, %v", result, err)
+	if !errors.Is(err, ErrRevisionChanged) || result.Allowed {
+		t.Fatalf("changed coordinator identity was not tied to the preview: %+v, %v", result, err)
+	}
+	preview, err = Unlock(paths, "", Guard{DryRun: true}, true)
+	if err != nil || preview.Allowed || preview.RefusalCode != "coordinator_live" {
+		t.Fatalf("fresh live preview = %+v, %v", preview, err)
+	}
+	if _, err := Unlock(paths, "", Guard{IfRevision: preview.Revision}, true); !errors.Is(err, ErrRunAlive) {
+		t.Fatalf("fresh live apply = %v", err)
+	}
+}
+
+func TestUnlockProbesOutsideStateLockAndRejectsChangedExecutionIdentity(t *testing.T) {
+	paths := repairFixture(t)
+	stoppedRepairCoordinator(t, paths)
+	runDir := filepath.Join(paths.RunsDir, repairRunID)
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "training", Command: []string{"true"}, Executor: "slurm"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(runDir, "training")
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "training", Command: []string{"true"}, Executor: "slurm"}); err != nil {
+		t.Fatal(err)
+	}
+	jobPath := filepath.Join(jobDir, "job.json")
+	if err := state.WriteJSON(jobPath, map[string]any{"executor": "slurm", "slurm_job_id": "42"}); err != nil {
+		t.Fatal(err)
+	}
+	binDir := t.TempDir()
+	started, unblock := filepath.Join(t.TempDir(), "started"), filepath.Join(t.TempDir(), "unblock")
+	squeue := filepath.Join(binDir, "squeue")
+	if err := os.WriteFile(squeue, []byte(fmt.Sprintf("#!/bin/sh\n: > %q\nwhile [ ! -e %q ]; do sleep 0.01; done\nprintf '42|RUNNING\\n'\n", started, unblock)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	done := make(chan error, 1)
+	go func() {
+		_, err := Unlock(paths, "", Guard{DryRun: true}, true)
+		done <- err
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(started); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = os.WriteFile(unblock, nil, 0o600)
+			t.Fatal("scheduler query did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	release, ok, err := state.TryAcquireStateReadLock(paths.StateLockFile)
+	if err != nil {
+		_ = os.WriteFile(unblock, nil, 0o600)
+		t.Fatal(err)
+	}
+	if !ok {
+		_ = os.WriteFile(unblock, nil, 0o600)
+		<-done
+		t.Fatal("execution probe held the project state lock")
+	}
+	release()
+	if err := state.WriteJSON(jobPath, map[string]any{"executor": "slurm", "slurm_job_id": "43"}); err != nil {
+		_ = os.WriteFile(unblock, nil, 0o600)
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unblock, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, ErrRevisionChanged) {
+		t.Fatalf("changed execution identity was not rejected: %v", err)
 	}
 }
 
@@ -249,7 +320,7 @@ func TestUnlockByProjectState(t *testing.T) {
 			if _, err := Unlock(paths, test.runID, Guard{IfRevision: "stale"}, true); test.want != "" && !errors.Is(err, ErrRevisionChanged) {
 				t.Fatalf("stale revision error = %v", err)
 			}
-			result, err := Unlock(paths, test.runID, Guard{IfRevision: before}, true)
+			result, err := Unlock(paths, test.runID, Guard{IfRevision: preview.Revision}, true)
 			if err != nil || result.RunID != test.want {
 				t.Fatalf("Unlock = %+v, %v; want run %q", result, err, test.want)
 			}

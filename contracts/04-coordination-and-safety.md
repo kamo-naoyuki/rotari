@@ -227,6 +227,9 @@ A project is in one of three states, derived from `running.lock` and
   requires explicit `--assume-stopped` (SAFE-13), including remote and legacy
   records; a lock's PID alone is not positive-live identity evidence.
   Ownership is assessed afresh under the state lock for every apply.
+  Execution assessment runs outside the state lock; apply reacquires it and
+  rejects a changed queue, metadata, coordinator, or execution-evidence
+  revision, requiring a fresh preview.
   Successful recovery records authorization evidence in the existing run
   context without changing coordinator identity, queue or recorded results.
   Without `--run-id`, `unlock` of an idle project with no lock, or a project
@@ -249,11 +252,13 @@ A project is in one of three states, derived from `running.lock` and
   appears to be running. Implemented in `scanInterruptedRunJobs` in
   [internal/project/inspect.go](../internal/project/inspect.go) over
   `state.LatestAttemptDirs`; checked by
-  `TestUnlockWarnsAboutRunningJobs` and `TestMCPUnlockRecoversAnInterruptedRun`.
-  CLI dry-run and MCP preview also report coordinator ownership, permission
-  and refusal codes through shared `project.Unlock`. Finalization additionally
-  reports execution evidence under SAFE-16. Ordinary release still leaves
-  execution termination unchecked (`execution_checked: false`).
+  `TestUnlockRefusesLiveExecutions` and `TestMCPUnlockRecoversAnInterruptedRun`.
+  CLI dry-run and MCP preview also report coordinator ownership, permission,
+  execution evidence, and refusal codes through shared `project.Unlock`.
+  Both finalization and ordinary release check execution evidence under
+  SAFE-16; active always refuses, unknown requires attestation, and
+  `execution_checked` is true only for a nonempty inventory with scoped
+  active/stopped classifications.
   `TestUnlockOwnershipAndDryRun` in
   [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
   checks CLI/MCP parity and nonmutation.
@@ -331,13 +336,21 @@ A project is in one of three states, derived from `running.lock` and
   and missing accounting are unknown. SGE's whole-queue XML is fetched once
   per assessment, including its pending-job section. Queries use the current
   scheduler environment and cannot inspect compute-node process groups.
-  SSH verification is unsupported and explicitly unknown in this phase.
-  For finalization, active execution refuses with `execution_active` even
-  with attestation; unknown refuses with `execution_unknown` unless attested;
-  all stopped units need no execution attestation. Coordinator safeguards
-  still apply. `execution_checked` is true only for a nonempty complete
-  finalization inventory whose units all have active/stopped evidence, not
-  a synonym for stopped or allowed. Ordinary release remains unchecked.
+  SSH attempts persist a private remote token. A bounded SSH query verifies
+  the remote process identity and process group through `/proc` and the
+  process-group table; absent state, unavailable process-table evidence and
+  failed queries remain unknown. Descendants that leave the group are outside
+  scope. Remote token state is
+  retained for 30 days and pruned on a later SSH wrapper only when the
+  recorded process group is absent; active or unverifiable groups are kept.
+  For both finalization and ordinary release, active execution refuses with
+  `execution_active` even with attestation; unknown refuses with
+  `execution_unknown` unless attested; all stopped units need no execution
+  attestation. Coordinator safeguards still apply. `execution_checked` is
+  true only for a nonempty inventory whose units all have active/stopped
+  evidence within scope, not a synonym for stopped or allowed. Execution
+  probes run outside the state lock, then revalidate queue/meta and relevant
+  run evidence under the lock before applying.
   Probes never signal, submit, rewrite results or infer successful outcomes.
   Implemented in
   [internal/executor/execution_probe.go](../internal/executor/execution_probe.go)

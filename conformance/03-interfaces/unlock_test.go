@@ -36,106 +36,131 @@ type unlockAssessment struct {
 func TestUnlockExecutionEvidenceOverridesTerminalOutcome(t *testing.T) {
 	covers(t, "SAFE-16", "SAFE-14", "CLI-21")
 	for _, transport := range []string{"CLI", "MCP"} {
-		t.Run(transport, func(t *testing.T) {
-			e := support.NewEnv(t)
-			e.MustRotari("add", "-p", "live-execution", "--", "true")
-			e.MustRotari("run", "-p", "live-execution", "--quiet")
-			projectDir := filepath.Join(e.Base, "projects", "live-execution")
-			metaPath := filepath.Join(projectDir, "meta.json")
-			meta := readUnlockJSON(t, metaPath)
-			runDir := filepath.Join(projectDir, "runs", meta["last_run_id"].(string))
-			summary := readUnlockJSON(t, filepath.Join(runDir, "summary.json"))
-			result := summary["results"].([]any)[0].(map[string]any)
-			attemptDir := filepath.Join(runDir, result["id"].(string), "attempts", result["attempt_id"].(string))
-			process := exec.Command("sleep", "30")
-			process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-			if err := process.Start(); err != nil {
-				t.Fatal(err)
+		for _, incomplete := range []bool{false, true} {
+			name := transport + "/complete"
+			if incomplete {
+				name = transport + "/incomplete"
 			}
-			defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
-			execution := support.ProcessIdentity(t, process.Process.Pid)
-			writeUnlockJSON(t, filepath.Join(attemptDir, "job.json"), map[string]any{
-				"executor": "local", "host": execution.Host, "pid": execution.PID, "pid_namespace": execution.PIDNamespace, "process_start": execution.ProcessStart,
+			t.Run(name, func(t *testing.T) {
+				e := support.NewEnv(t)
+				e.MustRotari("add", "-p", "live-execution", "--", "true")
+				e.MustRotari("run", "-p", "live-execution", "--quiet")
+				projectDir := filepath.Join(e.Base, "projects", "live-execution")
+				metaPath := filepath.Join(projectDir, "meta.json")
+				meta := readUnlockJSON(t, metaPath)
+				runDir := filepath.Join(projectDir, "runs", meta["last_run_id"].(string))
+				summary := readUnlockJSON(t, filepath.Join(runDir, "summary.json"))
+				result := summary["results"].([]any)[0].(map[string]any)
+				if incomplete {
+					summary["results"] = []any{}
+					writeUnlockJSON(t, filepath.Join(runDir, "summary.json"), summary)
+				}
+				attemptDir := filepath.Join(runDir, result["id"].(string), "attempts", result["attempt_id"].(string))
+				if incomplete {
+					for _, name := range []string{"status", "status.json"} {
+						if err := os.Remove(filepath.Join(attemptDir, name)); err != nil && !os.IsNotExist(err) {
+							t.Fatal(err)
+						}
+					}
+				}
+				process := exec.Command("sleep", "30")
+				process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+				if err := process.Start(); err != nil {
+					t.Fatal(err)
+				}
+				defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
+				execution := support.ProcessIdentity(t, process.Process.Pid)
+				writeUnlockJSON(t, filepath.Join(attemptDir, "job.json"), map[string]any{
+					"executor": "local", "host": execution.Host, "pid": execution.PID, "pid_namespace": execution.PIDNamespace, "process_start": execution.ProcessStart,
+				})
+				contextPath := filepath.Join(runDir, "context.json")
+				context := readUnlockJSON(t, contextPath)
+				coordinator := support.CurrentCoordinator(t)
+				coordinator.PID = 1 << 30
+				context["coordinator"] = coordinator
+				writeUnlockJSON(t, contextPath, context)
+				meta["phase"] = "running"
+				writeUnlockJSON(t, metaPath, meta)
+				before := support.SavePairTree(t, projectDir)
+				var info struct {
+					Runs []struct {
+						Executions struct {
+							Active int              `json:"active"`
+							Units  []map[string]any `json:"executions"`
+						} `json:"execution_assessment"`
+					} `json:"active_runs"`
+				}
+				if err := json.Unmarshal([]byte(e.MustRotari("info", "-p", "live-execution", "--json").Stdout), &info); err != nil {
+					t.Fatal(err)
+				}
+				if len(info.Runs) != 1 || info.Runs[0].Executions.Active != 1 || len(info.Runs[0].Executions.Units) != 1 {
+					t.Fatalf("info lost execution assessment: %+v", info)
+				}
+				conflict := info.Runs[0].Executions.Units[0]["conflict"]
+				if (!incomplete && conflict != true) || (incomplete && conflict == true) {
+					t.Fatalf("info lost terminal/live conflict: %+v", info)
+				}
+				var session *mcpSession
+				target := map[string]any{"project": "live-execution"}
+				if transport == "MCP" {
+					session = startMCP(t, e)
+					target["basedir_ref"] = baseDirRef(t, session, "live-execution")
+				}
+				for _, attest := range []bool{false, true} {
+					var preview unlockAssessment
+					if transport == "CLI" {
+						args := []string{"unlock", "-p", "live-execution", "--dry-run", "--json"}
+						if attest {
+							args = append(args, "--assume-stopped")
+						}
+						if err := json.Unmarshal([]byte(e.MustRotari(args...).Stdout), &preview); err != nil {
+							t.Fatal(err)
+						}
+						args = []string{"unlock", "-p", "live-execution", "--json"}
+						if attest {
+							args = append(args, "--assume-stopped")
+						}
+						applied := e.Rotari(args...)
+						if applied.Code != 1 || !strings.Contains(applied.Stderr, "execution_active") {
+							t.Fatalf("live apply=%s", applied)
+						}
+					} else {
+						delete(target, "if_revision")
+						target["assume_stopped"] = attest
+						if message := session.call("rotari_preview_unlock", target, &preview); message != "" {
+							t.Fatal(message)
+						}
+						target["if_revision"] = preview.Revision
+						var refused struct {
+							IsError bool             `json:"isError"`
+							Output  unlockAssessment `json:"structuredContent"`
+						}
+						if err := json.Unmarshal(session.request("tools/call", map[string]any{"name": "rotari_unlock", "arguments": target}), &refused); err != nil {
+							t.Fatal(err)
+						}
+						if !refused.IsError || refused.Output.RefusalCode != "execution_active" {
+							t.Fatalf("live MCP apply=%+v", refused)
+						}
+					}
+					if len(preview.Repair.Executions) != 1 || preview.Allowed || preview.RefusalCode != "execution_active" || !preview.ExecutionChecked {
+						t.Fatalf("live preview=%+v", preview)
+					}
+					conflict := preview.Repair.Executions[0]["conflict"]
+					if (!incomplete && conflict != true) || (incomplete && conflict == true) {
+						t.Fatalf("unexpected terminal conflict: %+v", preview)
+					}
+					if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
+						t.Fatal("live refusal mutated state")
+					}
+				}
 			})
-			contextPath := filepath.Join(runDir, "context.json")
-			context := readUnlockJSON(t, contextPath)
-			coordinator := support.CurrentCoordinator(t)
-			coordinator.PID = 1 << 30
-			context["coordinator"] = coordinator
-			writeUnlockJSON(t, contextPath, context)
-			meta["phase"] = "running"
-			writeUnlockJSON(t, metaPath, meta)
-			before := support.SavePairTree(t, projectDir)
-			var info struct {
-				Runs []struct {
-					Executions struct {
-						Active int              `json:"active"`
-						Units  []map[string]any `json:"executions"`
-					} `json:"execution_assessment"`
-				} `json:"active_runs"`
-			}
-			if err := json.Unmarshal([]byte(e.MustRotari("info", "-p", "live-execution", "--json").Stdout), &info); err != nil {
-				t.Fatal(err)
-			}
-			if len(info.Runs) != 1 || info.Runs[0].Executions.Active != 1 || info.Runs[0].Executions.Units[0]["conflict"] != true {
-				t.Fatalf("info lost terminal/live conflict: %+v", info)
-			}
-			var session *mcpSession
-			target := map[string]any{"project": "live-execution"}
-			if transport == "MCP" {
-				session = startMCP(t, e)
-				target["basedir_ref"] = baseDirRef(t, session, "live-execution")
-			}
-			for _, attest := range []bool{false, true} {
-				var preview unlockAssessment
-				if transport == "CLI" {
-					args := []string{"unlock", "-p", "live-execution", "--dry-run", "--json"}
-					if attest {
-						args = append(args, "--assume-stopped")
-					}
-					if err := json.Unmarshal([]byte(e.MustRotari(args...).Stdout), &preview); err != nil {
-						t.Fatal(err)
-					}
-					args = []string{"unlock", "-p", "live-execution", "--json"}
-					if attest {
-						args = append(args, "--assume-stopped")
-					}
-					applied := e.Rotari(args...)
-					if applied.Code != 1 || !strings.Contains(applied.Stderr, "execution_active") {
-						t.Fatalf("live apply=%s", applied)
-					}
-				} else {
-					delete(target, "if_revision")
-					target["assume_stopped"] = attest
-					if message := session.call("rotari_preview_unlock", target, &preview); message != "" {
-						t.Fatal(message)
-					}
-					target["if_revision"] = preview.Revision
-					var refused struct {
-						IsError bool             `json:"isError"`
-						Output  unlockAssessment `json:"structuredContent"`
-					}
-					if err := json.Unmarshal(session.request("tools/call", map[string]any{"name": "rotari_unlock", "arguments": target}), &refused); err != nil {
-						t.Fatal(err)
-					}
-					if !refused.IsError || refused.Output.RefusalCode != "execution_active" {
-						t.Fatalf("live MCP apply=%+v", refused)
-					}
-				}
-				if preview.Allowed || preview.RefusalCode != "execution_active" || !preview.ExecutionChecked || preview.Repair.Executions[0]["conflict"] != true {
-					t.Fatalf("live preview=%+v", preview)
-				}
-				if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
-					t.Fatal("live refusal mutated state")
-				}
-			}
-		})
+		}
 	}
 }
 
 func TestUnlockFinalizationRepair(t *testing.T) {
 	covers(t, "SAFE-15", "SAFE-16", "SAFE-4", "SAFE-7", "RES-7")
-	for _, variant := range []string{"plain", "legacy", "array", "carried-array", "matrix", "incomplete", "duplicate"} {
+	for _, variant := range []string{"plain", "legacy", "array", "carried-array", "matrix", "incomplete", "incomplete-legacy", "duplicate"} {
 		for _, transport := range []string{"CLI", "MCP"} {
 			t.Run(variant+"/"+transport, func(t *testing.T) {
 				e := support.NewEnv(t)
@@ -190,9 +215,22 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 					writeUnlockJSON(t, filepath.Join(runDir, "carried.json"), map[string]any{"run_id": runID, "results": summary["results"]})
 					meta["last_run_id"] = runID
 				}
-				if variant == "incomplete" {
+				if variant == "incomplete" || variant == "incomplete-legacy" {
 					summary["results"] = []any{}
 					writeUnlockJSON(t, summaryPath, summary)
+				}
+				if variant == "incomplete-legacy" {
+					if err := filepath.WalkDir(runDir, func(path string, entry os.DirEntry, err error) error {
+						if err != nil {
+							return err
+						}
+						if !entry.IsDir() && entry.Name() == "job.json" {
+							return os.Remove(path)
+						}
+						return nil
+					}); err != nil {
+						t.Fatal(err)
+					}
 				}
 				if variant == "duplicate" {
 					results := summary["results"].([]any)
@@ -224,9 +262,9 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 				} else if message := session.call("rotari_preview_unlock", target, &preview); message != "" {
 					t.Fatal(message)
 				}
-				complete := variant != "incomplete" && variant != "duplicate"
-				unknown := variant == "legacy"
-				if preview.Repair.Complete != complete || preview.ExecutionChecked != (complete && !unknown) || preview.Applied || preview.Allowed == unknown {
+				complete := variant != "incomplete" && variant != "incomplete-legacy" && variant != "duplicate"
+				unknown := variant == "legacy" || variant == "incomplete-legacy"
+				if preview.Repair.Complete != complete || preview.ExecutionChecked != !unknown || preview.Applied || preview.Allowed == unknown {
 					t.Fatalf("preview=%+v", preview)
 				}
 				if complete && (preview.Action != "finalize" || len(preview.Repair.Executions) == 0) {
@@ -386,7 +424,7 @@ func TestUnlockOwnershipAndDryRun(t *testing.T) {
 					}
 					for path, value := range map[string]any{
 						filepath.Join(runDir, "context.json"):  context,
-						filepath.Join(runDir, "commands.json"): map[string]any{"commands": []any{}},
+						filepath.Join(runDir, "commands.json"): map[string]any{"commands": []any{map[string]any{"id": "training", "command": []string{"true"}, "executor": "local"}}},
 						filepath.Join(projectDir, "meta.json"): map[string]any{"phase": "running", "last_run_id": filepath.Base(runDir)},
 					} {
 						data, err := json.Marshal(value)
@@ -397,6 +435,15 @@ func TestUnlockOwnershipAndDryRun(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
+					jobDir := filepath.Join(runDir, "training")
+					if err := os.MkdirAll(jobDir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					writeUnlockJSON(t, filepath.Join(jobDir, "command.json"), map[string]any{"id": "training", "command": []string{"true"}, "executor": "local"})
+					writeUnlockJSON(t, filepath.Join(jobDir, "job.json"), map[string]any{
+						"executor": "local", "host": host, "pid": 1 << 30,
+						"pid_namespace": identity.PIDNamespace, "process_start": "1",
+					})
 					var session *mcpSession
 					target := map[string]any{"project": "demo", "assume_stopped": attest}
 					if transport == "MCP" {
@@ -418,7 +465,7 @@ func TestUnlockOwnershipAndDryRun(t *testing.T) {
 						t.Fatal(message)
 					}
 					allowed := test.want == "stopped" || (test.want == "unknown" && attest)
-					if preview.Allowed != allowed || preview.Applied || preview.ExecutionChecked || preview.Coordinator.State != test.want || preview.Revision == "" {
+					if preview.Allowed != allowed || preview.Applied || !preview.ExecutionChecked || preview.Coordinator.State != test.want || preview.Revision == "" {
 						t.Fatalf("preview = %+v, want allowed=%t state=%s", preview, allowed, test.want)
 					}
 					if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
@@ -449,7 +496,7 @@ func TestUnlockOwnershipAndDryRun(t *testing.T) {
 							message += content.Text
 						}
 					}
-					if failed == allowed || applied.Allowed != allowed || applied.Applied != allowed || applied.ExecutionChecked {
+					if failed == allowed || applied.Allowed != allowed || applied.Applied != allowed || !applied.ExecutionChecked {
 						t.Fatalf("apply = %+v failed=%t message=%s", applied, failed, message)
 					}
 					if !allowed {

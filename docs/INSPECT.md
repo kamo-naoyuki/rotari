@@ -389,8 +389,11 @@ Use `retry` or result filters when the interrupted run contains completed jobs.
 `rotari reset` clears only the queue for the next run, even while a run is
 active or interrupted; it does not recover the run. If the project does not
 exist yet, `reset` initializes an empty project, so it can safely start a
-batch-building script. Use `unlock` only after confirming interrupted jobs
-have stopped.
+batch-building script. `unlock --dry-run --json` assesses coordinator and managed-execution evidence
+before either finalization or release. Active evidence always blocks; unknown
+evidence requires `--assume-stopped` after independent confirmation. Use
+`unlock` only after confirming unknown or unchecked interrupted work has
+stopped.
 
 ## Run lineage
 

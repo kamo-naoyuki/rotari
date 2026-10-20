@@ -28,7 +28,8 @@ Unreadable or malformed context is reported as an error.
 The record's `management_finished_at` marks successful completion of run
 management, not process death. It never overrides a live-process observation.
 This assessment also gates `unlock`, including when the lock is absent.
-It does not check whether jobs stopped or automatically recover a run.
+Recovery also assesses managed execution evidence before finalization or
+ordinary release; it never stops jobs or automatically recovers a run.
 
 Run rows count jobs with a recorded final result and carried results as
 `finished`; a failed attempt waiting for retry is not final yet.
@@ -167,17 +168,21 @@ inventory), and recorded-job warnings. A successful preview exits zero even when
 `allowed` is false; automation must inspect that field. Applying a refused
 recovery exits nonzero, retaining the JSON evidence on stdout and diagnostics
 on stderr. Applying always reassesses ownership under the state lock; a
-preview is not authorization to bypass a later live observation.
+preview is not authorization to bypass a later live observation. Execution
+probes run outside the state lock; before applying, rotari reacquires the lock
+and checks that the queue, metadata, coordinator, and execution evidence still
+match the preview revision.
 
-Finalization repair now checks local process groups and scheduler executions
-as described below. Ordinary `release` still does **not** check execution
-termination. `execution_checked` is true only for a nonempty finalization
-inventory whose units all have verified `active` or `stopped` evidence within
-their stated scope: it does not mean stopped or allowed. Unknown evidence and
-ordinary release report false. Independently confirm unknown or unchecked
-jobs, wrappers and managed descendants stopped before recovery or rerunning.
+Both finalization repair and ordinary `release` check local process groups,
+scheduler executions, and SSH remote process groups as described below.
+`execution_checked` is true only for a nonempty inventory whose units all
+have verified `active` or `stopped` evidence within their stated scope: it
+does not mean stopped or allowed. Unknown evidence reports false. Active
+execution always blocks recovery; unknown evidence requires explicit
+`--assume-stopped`. Independently confirm unknown or unchecked jobs, wrappers
+and managed descendants stopped before recovery or rerunning.
 `--assume-stopped` attests to stopped work rather than proving it; it does not
-kill jobs, restart monitoring, or resubmit anything.
+override verified activity, kill jobs, restart monitoring, or resubmit anything.
 
 After that independent confirmation, an unknown-owner recovery is explicit:
 
@@ -238,7 +243,7 @@ freeze the evidence.
 
 `rotari info --json` exposes the same assessment at
 `active_runs[].execution_assessment`, independently of the recorded job
-outcome counts. Text includes each unit's reason. Finalization preview uses
+outcome counts. Text includes each unit's reason. Recovery preview uses
 `repair.executions`; each unit includes run/job/attempt identity, backend,
 state, evidence source, observation time, native identity when available,
 scope, `recorded_terminal` and possibly-live/conflict indicators. A saved
@@ -273,13 +278,19 @@ environment, not a stored cluster connection. Use the original scheduler
 environment; they cannot audit compute-node descendants or fence a remote
 host. Each command has a five-second timeout and 64 KiB output limit; the
 batch has a thirty-second budget including the existing query rate gate.
-Budget exhaustion is unknown. SSH probing is not implemented yet and
-explicitly reports unknown.
+Budget exhaustion is unknown.
 
-This phase uses these probes for finalization, not ordinary release. Apply
-rereads and probes under the project state lock, so scheduler latency may
-hold that lock up to the assessment budget. Snapshot/probe/revalidation
-outside that lock and SSH token verification belong to the next phase.
+New SSH attempts persist a private random token in their attempt metadata.
+The remote wrapper stores the process-group identity and a completion marker
+in an owner-only directory under the remote user's runtime directory. Recovery
+queries that token over SSH and checks `/proc` plus the process-group table;
+missing token state or failed/ambiguous remote process queries remain
+unknown. Remote state is retained for 30 days and pruned only by a later SSH
+wrapper when the matching process group is absent; active or unverifiable
+groups are retained. Descendants that leave the recorded group, for example
+with `setsid`, are outside the probe's scope. The remote runtime directory may
+also be cleared by the host, which safely degrades the evidence to unknown.
+
 No check kills, resubmits or restarts anything, and Web UI unlock remains
 unavailable.
 
@@ -300,9 +311,9 @@ See the [wrapper](../internal/executor/wrapper.go),
 [SSH wait](../internal/executor/ssh.go),
 [scheduler wait](../internal/executor/scheduler_shared.go), and
 [recovery tests](../internal/project/repair_test.go).
-No scheduler, SSH or process-group termination probes are added in this
-phase. `execution_checked` remains false. This is attested repair, not
-executor verification.
+Read-only process-group, scheduler, and SSH probes add scoped evidence; their
+limitations are described above. A terminal record remains distinct from
+execution verification.
 
 `projectrun.Finish` still removes its own lock on a finalization failure.
 Keeping it would misleadingly retain a running lock after the supervisor

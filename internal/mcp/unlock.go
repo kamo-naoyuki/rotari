@@ -10,20 +10,20 @@ type UnlockInput struct {
 	BaseDirRef    string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
 	Project       string `json:"project" jsonschema:"project name"`
 	RunID         string `json:"run_id,omitempty" jsonschema:"the interrupted run to recover; by default the one the project's lock or metadata names"`
-	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that unverifiable coordinator and managed executions stopped; required for unknown finalization execution evidence; never overrides verified live ownership or execution"`
+	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that unverifiable coordinator and managed executions stopped; required for unknown execution evidence; never overrides verified live ownership or execution"`
 }
 
 type ApplyUnlockInput struct {
 	UnlockInput
-	IfRevision string `json:"if_revision" jsonschema:"revision from rotari_preview_unlock; the unlock applies only if the project is still at it. Confirm first that the run's jobs have stopped"`
+	IfRevision string `json:"if_revision" jsonschema:"revision from rotari_preview_unlock; the unlock applies only if the project and execution evidence are still at it. Confirm first that the coordinator and all managed executions have stopped"`
 }
 
 type UnlockOutput struct {
-	ExecutionChecked bool                          `json:"execution_checked" jsonschema:"true only for finalization with a nonempty inventory whose executions all have active/stopped probe evidence within their stated scope; true does not imply stopped or recovery allowed; ordinary release and unknown evidence remain false"`
+	ExecutionChecked bool                          `json:"execution_checked" jsonschema:"true only for a nonempty inventory whose executions all have active/stopped probe evidence within their stated scope; true does not imply stopped or recovery allowed; unknown evidence remains false"`
 	Project          string                        `json:"project"`
 	InterruptedRunID string                        `json:"interrupted_run_id,omitempty" jsonschema:"the interrupted run the unlock recovers; empty when the project has none and nothing changes"`
 	InterruptedRun   string                        `json:"interrupted_run,omitempty" jsonschema:"what the interrupted run's jobs last reported"`
-	JobsMayBeRunning bool                          `json:"jobs_may_be_running,omitempty" jsonschema:"some jobs of the interrupted run appear to still be running; confirm they stopped before recovering"`
+	JobsMayBeRunning bool                          `json:"jobs_may_be_running,omitempty" jsonschema:"some jobs of the interrupted run are active or unknown and may still be running; confirm they stopped before recovering"`
 	Revision         string                        `json:"revision" jsonschema:"for a preview, the revision to pass to rotari_unlock; after an unlock, the new revision"`
 	Coordinator      project.CoordinatorAssessment `json:"coordinator"`
 	Allowed          bool                          `json:"allowed"`

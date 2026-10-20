@@ -89,13 +89,14 @@ Refused applies are tool errors retaining structured `allowed: false` and
 `refusal_code` (`coordinator_live`, `coordinator_unknown`, `execution_active`,
 or `execution_unknown`) with inspection
 guidance naming the recorded host and namespace.
-Finalization preview and apply share local/scheduler execution probes.
-`execution_checked` is true only for a nonempty finalization inventory with
-all units classified active/stopped, within their documented scope; true
-does not imply stopped or allowed. Unknown evidence and ordinary release
-remain false. Confirm independently that unknown or unchecked work stopped
-before applying, and do not enable
-attestation blindly in existing automation. See the
+Preview and apply assess managed executions for both finalization and release,
+using bounded local, scheduler, and SSH probes within their documented scope.
+`execution_checked` is true only for a nonempty inventory with all units
+classified active/stopped; true does not imply stopped or allowed. Unknown
+evidence remains false. Active executions block recovery even with
+`assume_stopped`; unknown evidence requires explicit attestation. Confirm
+independently that unknown or unchecked work stopped before applying, and do
+not enable attestation blindly in existing automation. See the
 [migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration).
 Preview/apply also share `action` (`finalize` or `release`) and `repair`
 (`complete`, `reason`, `executions`). A complete matching summary repairs

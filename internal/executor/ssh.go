@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -53,6 +54,8 @@ var sshProcesses = struct {
 	sync.Mutex
 	commands map[int]sshProcess
 }{commands: make(map[int]sshProcess)}
+
+const sshRemoteStateRetention = 30 * 24 * time.Hour
 
 func (SSH) Name() string { return "ssh" }
 
@@ -297,7 +300,7 @@ read_start_time() {
 	shift 19
 	printf '%s\n' "$1"
 }
-` + strings.Join(exports, "\n") + "\n" + changeDirectory + remoteJobCommand + ` &
+` + sshRemoteStateCleanupScript(sshRemoteStateRetention) + strings.Join(exports, "\n") + "\n" + changeDirectory + remoteJobCommand + ` &
 remote_pid=$!
 if remote_start=$(read_start_time "$remote_pid"); then
 	printf '%s %s\n' "$remote_pid" "$remote_start" > "$state_dir/process.tmp" && mv "$state_dir/process.tmp" "$state_dir/process"
@@ -310,10 +313,55 @@ if [ -f "$state_dir/timed_out" ]; then
 	echo "rotari: job ` + TimeoutMessage(model.TimeoutSeconds(timeout)) + `" >&2
 	exit_code=` + fmt.Sprint(TimeoutExitCode) + `
 fi
-rm -rf "$state_dir"
+printf '%s\n' "$exit_code" > "$state_dir/finished.tmp" && mv "$state_dir/finished.tmp" "$state_dir/finished"
 exit "$exit_code"
 `
 	return script
+}
+
+func sshRemoteStateCleanupScript(retention time.Duration) string {
+	return `cleanup_old_state() {
+		[ -r /proc/self/stat ] || return
+		now=$(date +%s) || return
+	cutoff=$((now - ` + strconv.FormatInt(int64(retention.Seconds()), 10) + `))
+	for candidate in "$state_root"/*; do
+		[ -d "$candidate" ] && [ ! -L "$candidate" ] || continue
+		token=${candidate##*/}
+		[ "${#token}" -eq 32 ] || continue
+		case "$token" in *[!0-9a-f]*) continue ;; esac
+		[ "$candidate" != "$state_dir" ] || continue
+		owner=$(stat -c %u "$candidate" 2>/dev/null) || continue
+		mode=$(stat -c %a "$candidate" 2>/dev/null) || continue
+		[ "$owner" = "$(id -u)" ] && [ "$mode" = "700" ] || continue
+		modified=$(stat -c %Y "$candidate" 2>/dev/null) || continue
+		case "$modified" in *[!0-9]*) continue ;; esac
+		[ "$modified" -le "$cutoff" ] || continue
+		[ -f "$candidate/process" ] && [ ! -L "$candidate/process" ] || continue
+		read remote_pid recorded_start extra < "$candidate/process" || continue
+		case "$remote_pid:$recorded_start" in *[!0-9:]*|:*|*:) continue ;; esac
+		[ -z "${extra:-}" ] || continue
+		if process_stat=$(cat "/proc/$remote_pid/stat" 2>/dev/null); then
+			process_fields=${process_stat##*) }
+			set -- $process_fields
+			if [ "$#" -ge 20 ]; then
+				remote_state=$1
+				remote_pgid=$3
+				shift 19
+				remote_start=$1
+				if [ "$remote_pgid" = "$remote_pid" ] && [ "$remote_start" = "$recorded_start" ] && [ "$remote_state" != Z ] && [ "$remote_state" != X ]; then
+					continue
+				fi
+			fi
+		fi
+		process_groups=$(ps -eo pgid=,stat= 2>/dev/null) || continue
+		if printf '%s\n' "$process_groups" | awk -v pgid="$remote_pid" '$1 == pgid && $2 !~ /^[ZX]/ { found=1 } END { exit !found }'; then
+			continue
+		fi
+		rm -rf "$candidate"
+	done
+}
+cleanup_old_state
+`
 }
 
 // sshTimeoutWatchdog stops the remote command's process group, which setsid

@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -126,8 +128,70 @@ exit "$status"
 	if result.ExitCode != 0 {
 		t.Fatalf("result = %#v", result)
 	}
-	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
-		t.Fatalf("remote process state remains after cancellation: %v", err)
+	if _, err := os.Stat(stateFile); err != nil {
+		t.Fatalf("remote process identity was not retained for termination assessment: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(stateFile), "finished")); err != nil {
+		t.Fatalf("remote completion marker was not retained: %v", err)
+	}
+}
+
+func TestSSHWrapperPrunesOldStoppedRemoteState(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	stateRoot := filepath.Join(runtimeDir, "rotari-"+fmt.Sprint(os.Getuid()))
+	if err := os.Mkdir(stateRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	oldToken := "0123456789abcdef0123456789abcdef"
+	oldDir := filepath.Join(stateRoot, oldToken)
+	if err := os.Mkdir(oldDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldDir, "process"), []byte("1073741824 1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-sshRemoteStateRetention - time.Minute)
+	if err := os.Chtimes(oldDir, old, old); err != nil {
+		t.Fatal(err)
+	}
+	active := exec.Command("sleep", "30")
+	active.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := active.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = active.Process.Kill()
+		_ = active.Wait()
+	}()
+	activeToken := "fedcba9876543210fedcba9876543210"
+	activeDir := filepath.Join(stateRoot, activeToken)
+	if err := os.Mkdir(activeDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(activeDir, "process"), []byte(fmt.Sprintf("%d %s\n", active.Process.Pid, state.ProcessStart(active.Process.Pid))), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(activeDir, old, old); err != nil {
+		t.Fatal(err)
+	}
+	newToken := "abcdef0123456789abcdef0123456789"
+	script := sshWrapperScript([]string{"true"}, nil, "", newToken, "")
+	cmd := exec.Command("sh", "-c", script)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("SSH wrapper failed: %v: %s", err, output)
+	}
+	if _, err := os.Stat(oldDir); !os.IsNotExist(err) {
+		t.Fatalf("old stopped state remains: %v", err)
+	}
+	if _, err := os.Stat(activeDir); err != nil {
+		t.Fatalf("old active state was pruned: %v", err)
+	}
+	newDir := filepath.Join(stateRoot, newToken)
+	for _, name := range []string{"process", "finished"} {
+		if _, err := os.Stat(filepath.Join(newDir, name)); err != nil {
+			t.Fatalf("new execution evidence %s missing: %v", name, err)
+		}
 	}
 }
 

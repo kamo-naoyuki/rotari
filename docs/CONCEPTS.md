@@ -21,8 +21,10 @@ that has started:
   active run.
 - While a project is `interrupted`, the run remains the primary recovery
   target, and the queue can still be edited or reset independently. After
-  confirming its jobs have stopped, use `unlock`; its failed and unfinished
-  jobs are rerun from the run with `rotari retry --run-id RUN_ID`.
+  previewing `unlock --dry-run`, recover only after confirming unknown work
+  stopped; verified active execution blocks recovery. Unknown evidence needs
+  explicit `--assume-stopped`. Failed and unfinished jobs are rerun from the
+  run with `rotari retry --run-id RUN_ID`.
 
 ```text
 <basedir>/projects/<project>/

@@ -207,7 +207,7 @@ Usage: `rotari gc [MASTERDIR]`
 
 ### `rotari unlock`
 
-remove a confirmed stale run lock
+recover an interrupted run after assessing its coordinator and managed executions
 
 Usage: `rotari unlock [PROJECT]`
 
@@ -216,8 +216,8 @@ Usage: `rotari unlock [PROJECT]`
 | `--config` | `FILE` | `CLI only` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | verify the run ID recorded in the stale lock |
-| `--assume-stopped` | `` | `CLI only` | explicitly attest that unverifiable coordinator and managed executions stopped; required for unknown finalization execution evidence; never overrides verified live ownership or execution |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | select the interrupted run to recover and verify it against project state |
+| `--assume-stopped` | `` | `CLI only` | explicitly attest that unverifiable coordinator and managed executions stopped; required for unknown execution evidence; never overrides verified live ownership or execution |
 | `--dry-run` | `` | `CLI only` | assess recovery without changing state |
 | `--json` | `` | `CLI only` | print recovery assessment and refusal codes as JSON |
 

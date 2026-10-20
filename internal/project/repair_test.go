@@ -227,11 +227,12 @@ func TestUnlockRepairInventory(t *testing.T) {
 				test.change(t, paths, &summary)
 			}
 			repairWrite(t, filepath.Join(paths.RunsDir, repairRunID, "summary.json"), summary)
-			preview, err := Unlock(paths, "", Guard{DryRun: true}, false)
+			attestPreview := !test.complete || test.executions == 0
+			preview, err := Unlock(paths, "", Guard{DryRun: true}, attestPreview)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if preview.Repair.Complete != test.complete || len(preview.Repair.Executions) != test.executions || !strings.Contains(preview.Repair.Reason, test.reason) {
+			if preview.Repair.Complete != test.complete || (test.complete && len(preview.Repair.Executions) != test.executions) || (!test.complete && len(preview.Repair.Executions) == 0) || !strings.Contains(preview.Repair.Reason, test.reason) {
 				t.Fatalf("assessment=%+v", preview)
 			}
 			if test.complete && test.executions > 0 {
@@ -368,8 +369,8 @@ func TestUnlockRepairCleanupRetryAndReassessment(t *testing.T) {
 	summary.Results = nil
 	repairWrite(t, filepath.Join(paths.RunsDir, repairRunID, "summary.json"), summary)
 	result, err := Unlock(paths, "", Guard{IfRevision: preview.Revision}, true)
-	if err != nil || result.Action != "release" || result.Repair.Complete {
-		t.Fatalf("apply trusted stale preview: %+v %v", result, err)
+	if !errors.Is(err, ErrRevisionChanged) || result.Applied {
+		t.Fatalf("apply accepted stale execution inventory: %+v %v", result, err)
 	}
 }
 

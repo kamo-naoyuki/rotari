@@ -457,7 +457,8 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'show the current Rot
                           'name': 'dry-run'}],
                'name': 'gc',
                'positional': '[MASTERDIR]'},
-              {'description': 'remove a confirmed stale run lock',
+              {'description': 'recover an interrupted run after assessing its '
+                              'coordinator and managed executions',
                'flags': [{'command_line_only': True,
                           'description': 'config file to use',
                           'name': 'config',
@@ -472,7 +473,8 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'show the current Rot
                           'name': 'project-name',
                           'short': 'p',
                           'value_name': 'NAME'},
-                         {'description': 'verify the run ID recorded in the stale lock',
+                         {'description': 'select the interrupted run to recover and '
+                                         'verify it against project state',
                           'environment': 'ROTARI_RUN_ID',
                           'name': 'run-id',
                           'short': 'r',
@@ -480,9 +482,9 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'show the current Rot
                          {'command_line_only': True,
                           'description': 'explicitly attest that unverifiable '
                                          'coordinator and managed executions stopped; '
-                                         'required for unknown finalization execution '
-                                         'evidence; never overrides verified live '
-                                         'ownership or execution',
+                                         'required for unknown execution evidence; '
+                                         'never overrides verified live ownership or '
+                                         'execution',
                           'name': 'assume-stopped'},
                          {'command_line_only': True,
                           'description': 'assess recovery without changing state',

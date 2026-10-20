@@ -717,9 +717,9 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// TestUnlockWarnsAboutRunningJobs stops only the supervisor of a run, so its
-// job keeps running, and checks that unlock warns the operator before recovery.
-func TestUnlockWarnsAboutRunningJobs(t *testing.T) {
+// TestUnlockRefusesLiveExecutions stops only the supervisor, leaving the job
+// live; unlock must report active evidence and keep the run interrupted.
+func TestUnlockRefusesLiveExecutions(t *testing.T) {
 	covers(t, "SAFE-7")
 	e := support.NewEnv(t)
 	e.StartRun("live", 1, true)
@@ -734,8 +734,14 @@ func TestUnlockWarnsAboutRunningJobs(t *testing.T) {
 	if state := e.CheckState("live"); state != "interrupted" {
 		t.Fatalf("reset changed interrupted state to %q", state)
 	}
-	if r := e.Rotari("unlock", "live"); r.Code != 0 || !strings.Contains(r.Stderr, "1 of 1 job(s) appear to still be running") || !strings.Contains(r.Stderr, "make sure they have stopped") {
-		t.Fatalf("unlock with a running job: %s", r)
+	if r := e.Rotari("unlock", "live"); r.Code != 1 || !strings.Contains(r.Stderr, "execution_active") || !strings.Contains(r.Stdout, "execution=active") {
+		t.Fatalf("unlock with a live execution: %s", r)
+	}
+	if alive := support.JobProcesses(t, e.Root, ""); alive != 1 {
+		t.Fatalf("refused unlock stopped job: %d processes", alive)
+	}
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("refused unlock changed state to %q", state)
 	}
 }
 

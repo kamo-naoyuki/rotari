@@ -68,9 +68,11 @@ flowchart LR
   completion after finalization and lock cleanup, without treating that
   marker as process death. `project.AssessCoordinator` owns the read-only
   live/stopped/unknown assessment used by `info`, including when the run lock
-  has disappeared. `project.Unlock` reuses it under the state lock to gate
-  recovery: live refuses, unknown requires explicit attestation, and stopped
-  permits recovery. CLI dry-run and MCP preview return the same policy
+  has disappeared.   `project.Unlock` reuses it to gate recovery: live refuses, unknown requires
+  explicit attestation, and stopped permits recovery. Execution probes run
+  outside the state lock; unlock then reacquires it and compares a recovery
+  fingerprint covering queue/meta and relevant run evidence before applying.
+  CLI dry-run and MCP preview return the same policy
   evidence without mutation; CLI, MCP and Python expose the attestation.
   Recovery authorization is recorded in the existing run context, without
   changing the coordinator record. `project`'s `repair.go` validates summary
@@ -84,16 +86,18 @@ flowchart LR
   domain rule to which run planning delegates; pinned and unpinned origins
   keep their respective attempt semantics. `project.AssessExecutions` reuses
   the repair inventory's job/attempt/origin traversal for read-only `info`.
-  Executor-owned `ExecutionProber` classifies local groups and fresh scheduler
-  queue/accounting observations using backend parsers. Local attempts
+  Executor-owned `ExecutionProber` classifies local groups, fresh scheduler
+  queue/accounting observations using backend parsers, and SSH remote groups
+  through a private per-attempt token. Local attempts
   durably publish host/PID namespace/start identity in `job.json`; incomplete
   publication stays unknown. Probes are bounded and rate-limited, with
   per-assessment SGE whole-queue caching. Verified active evidence blocks
-  finalization even with attestation and terminal outcomes; stopped evidence
-  allows repair without execution attestation. Unknown/unsupported evidence
-  remains explicit. Process-group and scheduler scopes are not machine-wide
-  audits. Ordinary release remains unchecked; SSH probing and moving the
-  probe outside the state lock with snapshot revalidation are next-phase work.
+  recovery even with attestation and terminal outcomes; stopped evidence
+  removes execution attestation. Unknown/unsupported evidence remains
+  explicit. Process-group and scheduler scopes are not machine-wide audits.
+  SSH state is retained for 30 days and safely pruned only when no matching
+  process group remains. Both finalization and ordinary release use the
+  execution assessment; stale snapshots are rejected after lock reacquisition.
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
    It lists registered basedirs and lightweight project/run metadata, checks
    project locks across the selected basedir, and loads a project's queue and
