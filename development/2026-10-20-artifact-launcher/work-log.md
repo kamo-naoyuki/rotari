@@ -519,3 +519,53 @@ Commit: `edc591ec` (2026-10-21 04:12:01 +0900).
   - Not checked in a real browser (none on this host); the layout is
     checked through jsdom's DOM only.
 - **Remaining:** None.
+
+## Follow-up: artifacts beside the basedir, only from trusted records
+
+Commit: `a414bbdc` (2026-10-21 04:45:55 +0900).
+
+- **Change:**
+  - `internal/webui/artifact_trust.go` adds `artifactRecordsTrust`.
+    A listing is trusted when the basedir, `projects`, the project,
+    `queue.json`, `meta.json`, `runs`, and the run directory are each
+    owned by the Web server's user or root and are not group/other
+    writable (permission bits only).
+  - It also adds `basedirParentRoot`: the directory holding the basedir,
+    never `/`.
+  - `artifactRoots` now serves, for trusted listings, the working
+    directory, the basedir's parent, and `--artifact-root`; for untrusted
+    ones, only `--artifact-root`. The reason goes in `/api/artifacts`
+    `roots_note`, and the Artifacts view shows it.
+  - Previews, downloads, Launch with, and static-export copies all follow
+    this through `resolveArtifact`.
+  - Contracts: WEB-6 states the roots and the trust rule; WEB-7 refers to
+    them; the status row lists the new conformance test.
+  - `docs/INSPECT.md` and `docs/OPERATIONS.md` explain both rules.
+- **Reason:** One `rotari web` usually watches many basedirs, and outputs
+  beside a `.rotari-state` directory were not served without listing every
+  directory in `--artifact-root`. Discussing this with the user
+  established that the server reads files as its own user, whoever views
+  the page. Whoever can write a project's state can make a job record any
+  working directory and path. So the working directory was as exposed as
+  a new parent root would be, and both now depend on that state being
+  writable only by this user.
+- **Plan impact:** Changes WEB-6 and WEB-7 beyond the launcher plan;
+  Launch with targets follow automatically (WEB-15). A basedir owned by
+  another user, previously served from its jobs' working directories, now
+  serves only `--artifact-root`.
+- **Validation:**
+  - New tests:
+    - `TestBasedirParentRoot`.
+    - `TestArtifactRootsFollowRecordTrust`: a file beside the basedir is
+      served; a group-writable project is refused with its note but
+      allowed under `--artifact-root`; a writable run directory is
+      detected.
+    - Conformance `TestWebServesArtifactsOnlyFromTrustedRecords`, through
+      the binary.
+  - The artifact fixture's basedir moved into its own directory, so its
+    parent does not hold the fixture's "outside" directory.
+  - Mutation check: forcing trust made the untrusted-listing assertion
+    fail.
+  - Full `scripts/check.sh` (vet, typecheck, `go test`, `go test -race`)
+    passed with Go 1.25.8 and Node 22.23.3.
+- **Remaining:** None.
