@@ -677,3 +677,63 @@ Commits:
     service's loopback port is reachable by other local users without the
     rotari token; that matters for any write-capable service such as
     Jupyter.
+
+## Follow-up: built-in Jupyter Lab, MLflow, Aim, Streamlit, and launch tokens
+
+Commit: `a55f27f5` (2026-10-21 05:42:27 +0900).
+
+- **Change:**
+  - **Built-in services:** `BuiltinCommands` adds Jupyter Lab
+    (directories), MLflow (a directory named `mlruns`, file store with
+    `MLFLOW_ALLOW_FILE_STORE=true`), MLflow (SQLite) (a file named
+    `mlflow.db`), Aim (directories), and Streamlit (`*.py` files, with
+    `--global.developmentMode false`).
+  - **Launch tokens:**
+    - Each service launch gets `ROTARI_LAUNCHER_TOKEN`.
+    - New `proxy_headers` (service only, with reserved and malformed
+      headers rejected) make the proxy and the readiness probe present it,
+      with `$ROTARI_LAUNCHER_TOKEN` resolved. `ServiceUpstream` now
+      returns an `Upstream` with those headers.
+    - Snapshots never carry the token.
+    - Jupyter Lab's login token is the launch token.
+  - **Patterns:** a new `patterns` setting limits a command to matching
+    target names. `/api/launchers?kind=&name=` lists only the commands
+    that accept a target, so the UI no longer filters by kind, and a start
+    refuses a non-matching name.
+  - **WebSocket guard:** `WithExecGuard` treats WebSocket handshakes like
+    mutations (same Origin required).
+  - **Docs:** the template, contracts WEB-14/15/17, `CONFIGURATION.md`
+    (built-in services table, tokens), `INSPECT.md`, `FAQ.md`, and
+    `OPERATIONS.md` (loopback exposure of services that cannot require a
+    token) are updated.
+- **Reason:** The user asked for a token mechanism and for MLflow, Aim,
+  Jupyter Lab, and Streamlit as built-ins. Jupyter runs code, so its
+  loopback port must refuse anyone without the proxy's token.
+- **Plan impact:** Extends WEB-14, WEB-15, and WEB-17. MLflow is limited to
+  the names it uses because it creates an experiment, or tables, in
+  whatever it opens. Aim on a directory without a repository prompts, gets
+  no input, and exits without writing.
+- **Validation:**
+  - **Real tools:** MLflow 3.17.1, Aim, JupyterLab 4, and Streamlit 1.65.0
+    were installed with pip into scratch directories, behind wrappers, and
+    TensorBoard 2.21.0 as before. `TestBuiltinServicesThroughProxy` (run
+    when `ROTARI_TEST_LAUNCHER_TOOLS` is set) passed for all six
+    built-ins. That covers page and API responses through the proxy,
+    Jupyter's 403 without the token on its own port, and 101 for Jupyter's
+    kernel channels and Streamlit's stream WebSockets.
+  - **Unit and integration tests:**
+    - New: `TestBuiltinCommands`, `TestCommandPatternsAndHeaders`,
+      `TestServiceTokenAndProxyHeaders`, `TestLaunchAvailabilityForATarget`,
+      `TestLaunchProxyAddsServiceHeaders`, and the WebSocket cases of
+      `TestExecGuard`.
+    - Extended conformance: the WEB-14 WebSocket case, the WEB-15
+      built-ins list, and WEB-17 `proxy_headers` presenting the launch
+      token through the binary.
+  - **Full check:** `scripts/check.sh` (vet, typecheck, `go test`,
+    `go test -race`) passed.
+- **Remaining:**
+  - Clicking through each tool in a real browser was not done.
+  - Built-ins whose program is missing show disabled, which may be noisy
+    where none is installed.
+  - Tracker integration (finding default stores) is planned in
+    [development/2026-10-21-experiment-tracker-integration](../2026-10-21-experiment-tracker-integration/plan.md).
