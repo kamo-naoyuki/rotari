@@ -489,7 +489,7 @@ Commit: `3ba65525` (2026-10-20 21:57:23 +0900).
 
 ## Follow-up: Download and Launch with in artifact rows
 
-Commit: `edc591ec` (2026-10-21 04:12:01 +0900).
+Commit: `e0f90caa` (2026-10-21 04:12:01 +0900).
 
 - **Change:** `web_app_artifacts.js` adds Download and Launch columns to the
   Artifacts listing and to an opened directory's children
@@ -522,7 +522,7 @@ Commit: `edc591ec` (2026-10-21 04:12:01 +0900).
 
 ## Follow-up: artifacts beside the basedir, only from trusted records
 
-Commit: `a414bbdc` (2026-10-21 04:45:55 +0900).
+Commit: `05dd3ae3` (2026-10-21 04:45:55 +0900).
 
 - **Change:**
   - `internal/webui/artifact_trust.go` adds `artifactRecordsTrust`.
@@ -568,4 +568,62 @@ Commit: `a414bbdc` (2026-10-21 04:45:55 +0900).
     fail.
   - Full `scripts/check.sh` (vet, typecheck, `go test`, `go test -race`)
     passed with Go 1.25.8 and Node 22.23.3.
+- **Remaining:** None.
+
+## Follow-up: built-in TensorBoard and unavailable commands
+
+Commits:
+
+- `befdc676` (2026-10-21 05:08:17 +0900): flaky test fix.
+- `22a0fde5` (2026-10-21 05:08:17 +0900): built-in TensorBoard and unavailable commands.
+
+- **Change:**
+  - **Built-in TensorBoard (`internal/launcher/registry.go`):**
+    - `BuiltinCommands` provides TensorBoard: the command the template
+      used to carry, directory targets, service mode. `LoadRegistry` adds
+      it unless the file has an entry with that name.
+    - The template now registers nothing; its TensorBoard replacement and
+      a file command are commented examples, checked by
+      `TestTemplateExamples`.
+  - **Unavailable commands:**
+    - `executable.go` adds `Command.Executable`, the first program of the
+      command parsed with `mvdan.cc/sh`, skipping assignments, builtins,
+      expansions, and relative or `~` paths. It also adds
+      `Command.Unavailable`, which reports a program missing from PATH or
+      a non-executable absolute path.
+    - `/api/launchers` returns `builtin` and `unavailable` per command.
+      `launchStart` (preview and start) refuses an unavailable command.
+    - The UI shows such a command disabled, with the reason.
+  - **Startup:** lists each command, marked built in or unavailable.
+  - **Docs and contract:** WEB-15, `CONFIGURATION.md`, `INSPECT.md`,
+    `FAQ.md`, and `OPERATIONS.md` are updated. The plan's "no built-in
+    commands" non-goal is marked reversed.
+  - **Flaky test:** `TestVerifyListenerRejectsMissingListener` now tries
+    another port when a parallel test's listener takes the allocated one.
+- **Reason:** The user asked for TensorBoard to be registered by default, and
+  for commands whose program is missing to stay visible but disabled.
+- **Plan impact:** Reverses the non-goal "built-in commands". A file entry
+  named TensorBoard still replaces it, so environments with TensorBoard
+  elsewhere keep working.
+- **History note:**
+  - A jj operation at 2026-10-21 04:03 detached git HEAD and moved `main`
+    to the PR #10 merge `d71b83ed`. The six commits from `e0f90caa` to
+    `22a0fde5` were made with git on the detached HEAD.
+  - At the user's request, they were rebased onto `main` with
+    `jj rebase`, and `main` was moved to `22a0fde5`. The commit IDs in
+    this log are the rebased ones.
+  - Three working-copy snapshots that jj had left as children were
+    abandoned; their trees equalled the final commits.
+- **Validation:**
+  - New tests (`TestBuiltinTensorBoard`, `TestTemplateExamples`,
+    `TestLoadRegistryReplacesBuiltins`, `TestCommandExecutable`,
+    `TestCommandUnavailable`, `TestLaunchUnavailableCommand`), the
+    browser check of the disabled button, and the extended conformance
+    `TestWebLaunchRunsOnlyRegisteredCommands` passed.
+  - `go test -race ./internal/launcher` passed three times.
+  - The full `scripts/check.sh` passed vet, typecheck, and `go test`. The
+    race step failed only `conformance/03-interfaces`
+    `TestUnlockFinalizationRepair/array/MCP` (`server.pid` missing), which
+    passed three times under `-race` in isolation and does not involve the
+    launcher; it is recorded in `ISSUES.md`.
 - **Remaining:** None.
