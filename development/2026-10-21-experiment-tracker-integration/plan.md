@@ -1,11 +1,12 @@
 # Plan: Use rotari with experiment trackers
 
 Created: 2026-10-21
-Status: Phases 1-3 implemented. Phase 2's Go conformance tests pass, but its
-browser tests could not be run on the Node 12 development host. Phase 3 adds
-the tracker guide and updates the comparison. Phase 4 remains unverified:
-MLflow and Aim are not installed in the current environment, so their
-end-to-end default-store launches could not be exercised here.
+Status: Phases 1-4 implemented. End-to-end checks on 2026-10-21 with MLflow
+3.17.1 and Aim 3.29.1 confirmed both default stores, the local SQLite URI
+case, and launches from the Web Artifacts view. The MLflow tag example in the
+guide also ran and its tags were read back. The Phase 2 browser tests remain
+unverified because the development host has Node 12, which cannot run the
+installed jsdom; the focused Go conformance tests pass.
 
 ## Goal
 
@@ -129,11 +130,16 @@ tool comparison.
    decision above first.
 3. **Guide and comparison.** User guide section; cross-links from
    `docs/TOOL_COMPARISON.md`.
-4. **End-to-end check.** With MLflow and Aim installed in a scratch
-   environment, verify that a job writing to each default location, and one
-   that sets `MLFLOW_TRACKING_URI` to a `sqlite:` URI, can be opened from
-   Artifacts through the built-in services. Not yet run: neither tracker is
-   installed in the current environment.
+4. **End-to-end check.** With MLflow 3.17.1 and Aim 3.29.1 in a scratch
+   environment, a rotari job wrote MLflow's default `mlflow.db` and Aim's
+   `.aim` repository in its working directory. The Web Artifacts API exposed
+   the working-directory entry; MLflow (SQLite) and Aim both launched from
+   it and returned HTTP 200. A second job set
+   `MLFLOW_TRACKING_URI=sqlite:///runs/mlflow.db`; discovery recorded
+   `runs/mlflow.db`, and MLflow (SQLite) launched from that candidate. Its
+   experiments API returned the default experiment. The guide's MLflow tag
+   example ran and all three `ROTARI_*` tags were read back. The checks used
+   only scratch basedirs and stores.
 
 ## Acceptance
 
