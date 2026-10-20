@@ -179,3 +179,94 @@ Git date: 2026-10-20 13:56:48 +0900
   or resubmitting work, and a Web unlock action are not implemented.
   `execution_checked` remains false. Next is Phase 3's read-only executor
   assessment; Phase 4 tightens ordinary release against execution evidence.
+
+## Phase 3: executor-owned read-only execution assessment
+
+Commit: `83e9782d`
+
+Git date: 2026-10-20 15:04:47 +0900
+
+- **Change:** Add bounded local, Slurm, PBS, SGE and LSF execution probes in
+  the executor package. Share the complete attempt/carried-origin inventory
+  and probe results between `project.AssessExecutions`, `info` and complete
+  finalization repair. Expose stopped/active/unknown counts and per-unit
+  source, native identity, observation time, scope, possible activity and
+  recorded-outcome conflicts. Keep existing outcome counts separate.
+  CLI, MCP and Python use the same project recovery decision. Add SAFE-16,
+  update related contracts and coverage links, and document the interfaces
+  and limitations.
+- **Local identity reason:** Publish host and PID namespace before launch
+  and PID/process-start identity after launch, in the existing `job.json`.
+  A prelaunch write failure prevents execution. A post-start write failure
+  is explicitly logged without discarding the live process handle; the
+  incomplete durable identity remains unknown to later inspection.
+  Matching host/namespace and a missing group establish stopped within the
+  recorded process-group scope. An existing group is active only with
+  matching leader identity; missing/reused leader identity, permission
+  failures and another host/namespace remain unknown rather than claiming
+  termination. Descendants that leave the group are outside this scope.
+- **Scheduler reason:** Reuse executor backend parsers instead of deciding
+  scheduler states in CLI/project callers. Validate native identity and exact
+  matching records. A fresh active queue or accounting record blocks repair;
+  stopped requires a successful classifiable non-active queue observation
+  plus matching terminal accounting. Missing jobs, expired accounting,
+  failed queries and ambiguous output remain unknown, never a success-shaped
+  absence. Preserve queue/accounting conflicts and query errors even when
+  positive activity wins. Include pending SGE XML entries and share its
+  whole-queue query across distinct native IDs, not cached per-job verdicts.
+  Do not treat LSF's history-only `bhist` fallback as verified accounting.
+- **Bounds:** Limit each query to five seconds, each assessment batch to
+  thirty seconds, and captured output to 64 KiB. Reuse the scheduler rate
+  gate with context-aware waits. Kill only the inspection helper's process
+  group on query cancellation and bound its pipe wait; never signal the
+  inspected execution. An exhausted budget remains explicit unknown.
+- **Recovery reason:** A saved terminal result and execution termination
+  are independent facts. Probe all relevant attempts, including earlier
+  attempts, incomplete launches, array/matrix members and carried origins.
+  Positive activity cannot be overridden by `--assume-stopped`. Unknown
+  execution still requires attestation; all-stopped evidence removes only
+  execution attestation, not the independent coordinator requirement.
+  `execution_checked` means a nonempty complete finalization inventory was
+  classified active/stopped within the stated scopes; it does not mean all
+  stopped or recovery allowed. Empty established-never-launched inventory
+  and ordinary release do not claim execution verification.
+- **Validation:** The motivating stopped-execution unit regression was
+  written first and failed because repair still required attestation.
+  Binary conformance also failed against pre-change `53f68884` because
+  `info` had no execution/live-conflict assessment; the temporary worktree
+  was removed. Local/scheduler evidence tables cover identity, namespace,
+  permissions, leader reuse, partial publication, malformed records,
+  native-ID ambiguity, accounting conflicts, limits and cancellation.
+  The SGE batch test uses three distinct IDs with pending, stopped and
+  running outcomes, asserting exactly one queue and one accounting query.
+  Shared project tests cover earlier active attempts and summary-only
+  conflicts. CLI/MCP conformance covers verified stopped plain, array,
+  carried-array and matrix repairs, unknown legacy identities, and live
+  conflicts refusing even with attestation without mutating recovery state.
+  All unlock flag pairs/samples/safety cases passed. Their comparator now
+  validates and normalizes only dynamic execution observation timestamps,
+  retaining other evidence comparisons.
+  Affected package tests, focused race tests, changed-file pre-commit,
+  `scripts/check.sh --short`, and the final frozen-source
+  `scripts/check.sh` passed, including vet, Web type checking and all normal
+  and race suites. All 67 Python tests passed against the final binary;
+  generated schema/reference checks passed.
+- **Validation observations:** An earlier full race check failed unchanged
+  `copy/job_ID` with a nonempty next queue; three isolated race repetitions
+  of it and `copy/stage_and_job_ID` passed. A later full normal check found
+  an empty retry source hint in the unchanged implicit-basedir fixture;
+  three isolated repetitions passed. Both are recorded separately in
+  [ISSUES.md](../ISSUES.md); their causes remain unconfirmed. The final full
+  rerun passed without weakening assertions or changing these fixtures.
+- **Isolation and boundary:** Commit only this phase's plan status/rationale
+  and generated attestation-description hunks; preserve the user's other
+  plan revisions and pending generated lifecycle-filter description.
+  Concurrent artifact-launcher documentation commits are not this work item.
+  No production run was unlocked and no dependencies were added. Scheduler
+  probes use the current scheduler command environment, not a persisted
+  authenticated cluster binding; fixture tests are not real-cluster
+  certification. Legacy job-control and attachment PID checks remain a
+  separate issue. Ordinary release, SSH token probing, and moving probes
+  outside the state lock with snapshot/revalidation remain Phase 4.
+  Automatic unlock, killing/resubmitting jobs and a Web unlock action remain
+  out of scope.
