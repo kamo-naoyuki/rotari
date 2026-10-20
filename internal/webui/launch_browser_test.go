@@ -82,7 +82,13 @@ func TestWebLaunchInBrowser(t *testing.T) {
   launches = (await (await fetch(base + '/api/launches')).json()).launches;
   if (launches.length !== 1 || launches[0].name !== 'Cat') fail('launch list', launches);
   const catID = launches[0].id;
-  await wait(500);
+  // Wait until it has ended; under the race detector the wrapper is slow.
+  for (let tries = 0; ; tries++) {
+    const cat = (await (await fetch(base + '/api/launches')).json()).launches.find(launch => launch.id === catID);
+    if (cat.state !== 'running') break;
+    if (tries > 200) fail('Cat did not end', cat);
+    await wait(50);
+  }
 
   // The Launches view lists it with its output.
   await window.showLaunches(catID);
