@@ -21,7 +21,7 @@ var pairInventory = map[string]struct {
 	fingerprint string
 }{
 	"init":       {0, "e3b0c44298fc1c14"},
-	"config":     {6, "cf7bcb9626d67065"},
+	"config":     {7, "b970e74a9afa4d65"},
 	"check":      {6, "bc250836712a03be"},
 	"info":       {5, "0c5bb2ced81140c9"},
 	"reset":      {6, "0f2241eed8e6f8d4"},
@@ -48,7 +48,7 @@ var pairInventory = map[string]struct {
 	"run":        {66, "94f05a64ef869384"},
 	"retry":      {66, "94f05a64ef869384"},
 	"server":     {3, "1bc5f18bd9dd276d"},
-	"web":        {10, "db8a2826bc39f7f8"},
+	"web":        {12, "c93d4fcc36a7a057"},
 	"mcp":        {2, "c90df8ffe2985354"},
 	"completion": {0, "e3b0c44298fc1c14"},
 	"schema":     {1, "02bd175f32972037"},

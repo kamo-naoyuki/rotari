@@ -78,6 +78,9 @@ func assertPairFileOutcome(t *testing.T, command string, flags []pairFlag, r pai
 	if r.process.Code == 1 && command == "config" && pairHasFlag(flags, "notifications") && pairHasFlag(flags, "format") && strings.TrimSpace(r.process.Stderr) == "notification configuration only supports TOML" {
 		return
 	}
+	if r.process.Code == 1 && command == "config" && pairHasFlag(flags, "launchers") && pairHasFlag(flags, "format") && strings.TrimSpace(r.process.Stderr) == "launcher configuration only supports TOML" {
+		return
+	}
 	if r.process.Code == 1 && command == "export" && pairHasFlag(flags, "template") && pairHasExportSource(flags) && strings.HasPrefix(r.process.Stderr, "usage: rotari export ") {
 		return
 	}
