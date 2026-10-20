@@ -68,7 +68,12 @@ flowchart LR
   completion after finalization and lock cleanup, without treating that
   marker as process death. `project.AssessCoordinator` owns the read-only
   live/stopped/unknown assessment used by `info`, including when the run lock
-  has disappeared. It does not decide job liveness or unlock permission.
+  has disappeared. `project.Unlock` reuses it under the state lock to gate
+  recovery: live refuses, unknown requires explicit attestation, and stopped
+  permits recovery. CLI dry-run and MCP preview return the same policy
+  evidence without mutation; CLI, MCP and Python expose the attestation.
+  Recovery authorization is recorded in the existing run context, without
+  changing the coordinator record. Execution termination is not checked yet.
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
    It lists registered basedirs and lightweight project/run metadata, checks
    project locks across the selected basedir, and loads a project's queue and

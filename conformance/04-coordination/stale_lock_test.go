@@ -115,7 +115,10 @@ func TestLockFromAnotherPIDNamespaceIsLocked(t *testing.T) {
 	if r := e.Rotari("run", "-p", "demo"); r.Code == 0 || !strings.Contains(r.Stderr, "is running") {
 		t.Errorf("run accepted: %s", r)
 	}
-	e.MustRotari("unlock", "demo")
+	if result := e.Rotari("unlock", "demo"); result.Code == 0 || !strings.Contains(result.Stderr, "coordinator_unknown") {
+		t.Fatalf("unverified ownership did not need attestation: %s", result)
+	}
+	e.MustRotari("unlock", "demo", "--assume-stopped")
 	if state := e.CheckState("demo"); state != "ready" {
 		t.Errorf("after unlock state %q, want ready", state)
 	}

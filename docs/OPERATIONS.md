@@ -27,8 +27,8 @@ Unreadable or malformed context is reported as an error.
 
 The record's `management_finished_at` marks successful completion of run
 management, not process death. It never overrides a live-process observation.
-This assessment does not check whether jobs stopped and does not change
-`unlock` behavior or automatically recover an interrupted run.
+This assessment also gates `unlock`, including when the lock is absent.
+It does not check whether jobs stopped or automatically recover a run.
 
 Run rows count jobs with a recorded final result and carried results as
 `finished`; a failed attempt waiting for retry is not final yet.
@@ -127,12 +127,76 @@ After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
 rotari show -p sweep
-rotari unlock -p sweep RUN_ID
+rotari unlock -p sweep --run-id RUN_ID --dry-run
+rotari unlock -p sweep --run-id RUN_ID
 ```
 
 `unlock` verifies the run ID, removes a matching lock, and returns the project
 to queue collection. Never use it while the run may still be executing, or a
 second run could start for the same queue.
+
+### Unlock ownership checks and automation migration
+
+`unlock` now checks the durable coordinator identity even without a run lock:
+
+- `live`: recovery is refused, including with `--assume-stopped`.
+- `stopped`: ownership permits recovery without an override.
+- `unknown`: recovery is refused unless you independently confirm that the
+  coordinator stopped and explicitly pass `--assume-stopped`. This includes
+  older runs without identity, other hosts/PID namespaces, missing process
+  start times, and inaccessible process evidence. A PID alone is not proof
+  that the recorded coordinator is alive.
+
+Refusals include the recorded host and PID namespace when available. Inspect
+from the original host **and the same PID namespace** if accessible; changing
+hosts alone may not make verification possible. Neither an absent lock nor a
+management-completion marker proves the coordinator stopped.
+
+First preview without changing metadata, locks, context, queue, or results:
+
+```sh
+rotari unlock -p sweep --run-id RUN_ID --dry-run --json
+```
+
+The JSON contains `allowed`, `applied`, `refusal_code`
+(`coordinator_live` or `coordinator_unknown`), `coordinator`
+(`state`, `reason`, `observed_at`, `identity`), `assume_stopped`, `revision`,
+and recorded-job warnings. A successful preview exits zero even when
+`allowed` is false; automation must inspect that field. Applying a refused
+recovery exits nonzero, retaining the JSON evidence on stdout and diagnostics
+on stderr. Applying always reassesses ownership under the state lock; a
+preview is not authorization to bypass a later live observation.
+
+**Job termination is not checked in this phase**, including when every job
+has a terminal record. Machine-readable output explicitly reports
+`execution_checked: false`. Independently confirm that jobs, wrappers and
+their managed descendants stopped before recovery or rerunning jobs.
+`--assume-stopped` attests to stopped work rather than proving it; it does not
+kill jobs, restart monitoring, or resubmit anything.
+
+After that independent confirmation, an unknown-owner recovery is explicit:
+
+```sh
+rotari unlock -p sweep --run-id RUN_ID --assume-stopped
+```
+
+Existing scripts that used plain `unlock` on older runs or remote locks must
+add this operator-confirmation step, not blindly append the flag. It is
+command-line-only: no configuration or environment variable silently enables
+it. Applied recovery records its authorization time, assessment, and attestation
+in the existing run context's `recovery` field, preserving coordinator identity
+and result history. The record describes authorization for the recovery attempt;
+an I/O failure later in recovery still returns an error.
+The queue stays intact, the project returns to collecting, and rerunning
+failed/unfinished jobs still requires `retry --run-id RUN_ID`.
+
+Python exposes the same options through
+`unlock(run_id=..., dry_run=True, json=True)` and
+`unlock(run_id=..., assume_stopped=True)`. MCP uses
+`rotari_preview_unlock` followed by `rotari_unlock` at the preview's
+`if_revision`, with `assume_stopped` supplied explicitly when needed.
+Refused MCP applies are tool errors with structured refusal evidence.
+There is no Web UI unlock action.
 
 On NFS every file a command opens, stats, or lists costs a round trip to the
 server, so read commands such as `jobs`, `runs`, `show`, `info`, and

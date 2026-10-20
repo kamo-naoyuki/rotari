@@ -389,16 +389,16 @@ An uncreated project is reported as empty (exit status 1); `check` does not crea
 
 ### What happens if runners on multiple hosts use the same project?
 
-It works when the shared filesystem correctly provides locking and atomic operations, but it is not a distributed lock service. After a host failure, confirm that jobs stopped before using `rotari unlock PROJECT`.
+It works when the shared filesystem correctly provides locking and atomic operations, but it is not a distributed lock service. After a host failure, confirm that the coordinator and jobs stopped, then preview with `rotari unlock PROJECT --dry-run`. Unknown coordinator ownership requires explicit `--assume-stopped`; verified live ownership cannot be overridden.
 
 ### A runner or supervisor process died mid-run — what do I do?
 
-Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. The run took its jobs from the queue when it started, so rerun its failed and unfinished jobs with `rotari retry --run-id RUN_ID`, which `unlock` prints. `unlock` refuses a run whose supervisor is still alive on this host, so it cannot start a second runner beside a live one; use `rotari cancel` for that.
+Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then preview with `rotari unlock PROJECT --dry-run`. `unlock` checks the durable coordinator identity even without a lock: a verified live supervisor always blocks recovery; unknown ownership (including older runs) needs explicit `--assume-stopped` after independent confirmation. Job termination is not verified yet, and a terminal job record is not proof every managed process stopped. The run took its jobs from the queue when it started, so rerun its failed and unfinished jobs with `rotari retry --run-id RUN_ID`, which `unlock` prints. Use `rotari cancel` to stop a live run, not `unlock`.
 Without `--run-id`, `unlock` of a project with no lock or a project not yet created succeeds without changing state.
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?
 
-A lock from another host, or from another PID namespace such as a sandbox or container, cannot be cleared by checking its PID. Confirm that the job stopped, then run `rotari unlock PROJECT` explicitly.
+A lock from another host, or from another PID namespace such as a sandbox or container, cannot be cleared by checking its PID. Inspect from the original host and the same PID namespace if accessible, or independently confirm that both the coordinator and jobs stopped, then run `rotari unlock PROJECT --assume-stopped`. Merely changing hosts may not restore visibility. See [the automation migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration).
 
 ## Client control and job cancellation
 

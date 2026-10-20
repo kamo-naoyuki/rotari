@@ -32,7 +32,7 @@ var pairInventory = map[string]struct {
 	"basedirs":   {1, "9c7ab83027410026"},
 	"projects":   {2, "264d74c73d80792f"},
 	"gc":         {3, "4f8007fd85e880d5"},
-	"unlock":     {4, "2d6ab0e22e6da38c"},
+	"unlock":     {7, "d81c735b2003da67"},
 	"note":       {3, "c5333bbec5b4f9bc"},
 	"change":     {40, "39d6e21a49c89e7d"},
 	"export":     {7, "36180bb4d09c2f4f"},

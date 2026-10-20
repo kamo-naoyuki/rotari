@@ -165,15 +165,24 @@ implementation imports. The staged rollout is tracked in the
   the three `note` pairs in both orders from the restored fixture, and checks
   that each invocation appends exactly its note. Notes carry the time they
   were added, so the orders are compared by note text, not byte for byte.
-- `TestCLIFlagPairUnlock` executes all six `unlock` pairs in both orders from
+- `TestCLIFlagPairUnlock` executes all 21 `unlock` pairs in both orders from
   an identical synthetic interrupted state. It uses a stale local lock for an
   already-finished fixture run, so no process or scheduler is running. Each
   successful recovery removes that lock, returns metadata to `collecting`,
-  retains the recorded last-run ID, and leaves queue and run history unchanged.
+  retains the recorded last-run ID, and leaves the queue and result history
+  unchanged while adding recovery evidence to the existing run context.
+  Dry runs must preserve the raw tree. JSON revisions are checked with
+  another nonmutating unlock preview (not `check`, which can remove stale
+  locks), then normalized for order comparison along with the observation
+  timestamp. Recovery authorization timestamps alone are normalized in
+  context; coordinator identity and all other content stay exact.
   The pair adapter therefore validates parser/order behavior and this recovery
   path. `TestCLIFlagPairUnlockSafety` also checks both orders of project/run
-  flags for live-local refusal using the test process's PID, existing sibling
-  run mismatch, remote-lock recovery, and recovery without a lock. These
+  flags for live-local refusal using the test process's full identity,
+  existing sibling run mismatch, unknown remote ownership refusal, and
+  recovery without a lock. `TestUnlockOwnershipAndDryRun` separately checks
+  explicit attestation and blocked preview/apply parity through CLI and MCP.
+  These
   synthetic cases do not start or signal a real coordinator.
 
 The fixture uses public `add`/`run`/`copy` commands. It contains successes,

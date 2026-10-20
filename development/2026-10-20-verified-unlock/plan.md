@@ -1,17 +1,36 @@
 # Plan: Verified Unlock of Interrupted Runs
 
 Created: 2026-10-20
-Status: Phase 1a implemented and validated. Phases 1b-4 not started.
+Status: Phases 1a and 1b implemented and validated. Phases 2-4 not started.
 
 Phase 1a stores coordinator identity in the existing run context rather than
 a separate run-directory filename, avoiding collisions with arbitrary job IDs.
 `info` exposes the shared read-only assessment independently of the run lock.
 The management completion marker is informational and never overrides process
-evidence. Unlock policy and job-liveness checks are unchanged.
-CLI-21 documents the added observational output; unlock contracts are unchanged.
+evidence. Phase 1a left unlock policy and job-liveness checks unchanged.
+CLI-21 documents its observational output; unlock contracts were unchanged then.
 Validation: targeted tests, changed-file pre-commit, short checks, and the full
 normal/race check passed. An initial unrelated cancellation timing failure and
 its isolated passing repetitions are recorded in [ISSUES.md](../ISSUES.md).
+
+Phase 1b selects `--assume-stopped` (`assume_stopped` in MCP/Python), not a
+blanket force switch: unknown ownership needs explicit operator attestation,
+while verified live ownership cannot be bypassed. The wording can also cover
+unknown execution evidence in later phases without weakening positive-live
+refusals. CLI `--dry-run`/`--json`, MCP preview/apply, and Python use the same
+policy result; preview is read-only and apply reassesses under the state lock.
+Refusals include codes and available host/namespace identity. Authorization
+evidence is saved in the existing context rather than reserving another path.
+This records attested recovery without calling it automatic verification.
+Job termination is explicitly unchecked (`execution_checked: false`); summary
+repair and executor probes remain later work. SAFE-4, COORD-3, SAFE-7,
+SAFE-13, SAFE-14 and the automation migration guide describe this boundary.
+Validation: targeted/package tests, changed-file pre-commit, short checks,
+67 Python tests with the real binary, generated schema/reference checks, and
+the isolated full normal/race check passed. The lockless-live regression
+fails on pre-change `d1d69523`. Unrelated jj-read and positional-selector
+intermittent failures are recorded in [ISSUES.md](../ISSUES.md); implementation
+history and rationale are in [work-log.md](work-log.md).
 
 ## Purpose
 

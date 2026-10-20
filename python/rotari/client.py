@@ -418,14 +418,32 @@ class Rotari:
         arguments = build_command_arguments("reset", {})
         return self.command(*arguments)
 
-    def unlock(self, *, run_id: str | None = None) -> CommandResult:
+    def unlock(
+        self,
+        *,
+        run_id: str | None = None,
+        assume_stopped: bool = False,
+        dry_run: bool = False,
+        json: bool = False,
+    ) -> CommandResult:
         """Recover an interrupted run, keeping the queue.
 
+        Unknown coordinator ownership requires explicit ``assume_stopped``.
+        ``dry_run`` reports permission and evidence without changing state;
+        ``json`` returns machine-readable stdout, including refusal codes.
         Confirm first that the run's jobs have stopped. Rerun its failed and
         unfinished jobs afterwards with ``retry(run_id=...)``.
         """
 
-        arguments = build_command_arguments("unlock", {"run_id": run_id})
+        arguments = build_command_arguments(
+            "unlock",
+            {
+                "run_id": run_id,
+                "assume_stopped": assume_stopped,
+                "dry_run": dry_run,
+                "json": json,
+            },
+        )
         return self.command(*arguments)
 
     def check(self, **options: object) -> dict[str, object]:

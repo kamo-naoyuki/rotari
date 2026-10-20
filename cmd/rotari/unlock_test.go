@@ -167,7 +167,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo"})
+	code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--assume-stopped"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdUnlock([]string{"--basedir", baseDir, "demo"}); code != 0 {
+	if code := cmdUnlock([]string{"--basedir", baseDir, "demo", "--assume-stopped"}); code != 0 {
 		t.Fatalf("cmdUnlock exit code = %d, want 0", code)
 	}
 	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
@@ -303,8 +303,34 @@ func TestCmdUnlockPointsLegacyPositionalRunIDToRunIDOption(t *testing.T) {
 	if code == 0 || !strings.Contains(output, "--run-id run-1") {
 		t.Fatalf("cmdUnlock legacy positional run ID exit code = %d, output %q; want an error naming --run-id run-1", code, output)
 	}
-	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"}); code != 0 {
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1", "--assume-stopped"}); code != 0 {
 		t.Fatalf("cmdUnlock --run-id exit code = %d, want 0", code)
+	}
+}
+
+func TestCmdUnlockRejectsLocklessLiveCoordinator(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "context.json"), model.RunContext{Coordinator: &model.RunCoordinator{
+		Host: host, PID: os.Getpid(), PIDNamespace: state.PIDNamespace(), ProcessStart: state.ProcessStart(os.Getpid()),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdUnlock([]string{"--basedir", paths.BaseDir, "--project-name", "demo"}); code == 0 {
+		t.Fatal("unlock recovered a run whose durable coordinator is alive without a run lock")
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil || meta.Phase != "running" {
+		t.Fatalf("metadata changed: %+v, %v", meta, err)
 	}
 }
 

@@ -656,6 +656,7 @@ type RunContext struct {
 	ConfigSnapshotPaths []string        `json:"config_snapshot_paths,omitempty"`
 	Hostname            string          `json:"hostname,omitempty"`
 	Coordinator         *RunCoordinator `json:"coordinator,omitempty"`
+	Recovery            *RunRecovery    `json:"recovery,omitempty"`
 	// LaunchOrigin is the process that ran the rotari command starting the
 	// run, such as a shell or script; wait without a selector follows the
 	// runs its own parent started. Runs started by the Web UI or MCP have
@@ -678,6 +679,14 @@ type RunCoordinator struct {
 	ProcessStart         string `json:"process_start,omitempty"`
 	RecordedAt           string `json:"recorded_at"`
 	ManagementFinishedAt string `json:"management_finished_at,omitempty"`
+}
+
+type RunRecovery struct {
+	At                string          `json:"at"`
+	AssumeStopped     bool            `json:"assume_stopped"`
+	CoordinatorState  string          `json:"coordinator_state"`
+	CoordinatorReason string          `json:"coordinator_reason"`
+	Coordinator       *RunCoordinator `json:"coordinator,omitempty"`
 }
 
 // LaunchOrigin identifies a process on a host. ProcessStart, when known,

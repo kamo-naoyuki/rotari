@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -22,23 +24,47 @@ var ErrNoInterruptedRun = errors.New("no matching interrupted run exists")
 type UnlockResult struct {
 	// RunID is the interrupted run recovered; empty when the project had none
 	// and Unlock changed nothing.
-	RunID string
+	RunID string `json:"run_id,omitempty"`
 	// Detail is what the run's jobs last reported, for a message.
-	Detail string
+	Detail string `json:"detail,omitempty"`
 	// JobsMayBeRunning reports that some of the run's jobs have not recorded
 	// a final status, so they may still be running.
-	JobsMayBeRunning bool
+	JobsMayBeRunning bool                  `json:"jobs_may_be_running"`
+	ExecutionChecked bool                  `json:"execution_checked"`
+	Coordinator      CoordinatorAssessment `json:"coordinator"`
+	Allowed          bool                  `json:"allowed"`
+	RefusalCode      string                `json:"refusal_code,omitempty"`
+	AssumeStopped    bool                  `json:"assume_stopped"`
+	Revision         string                `json:"revision"`
+	Applied          bool                  `json:"applied"`
 }
 
-// Unlock recovers the project's interrupted run under guard: it removes the
-// run's lock, unless the run's coordinator is alive on this host, and returns
-// the project to collecting. runID must name that run; when it is empty, the
-// run the lock or metadata names is recovered, and a project without one is
-// left unchanged. A lock from another host or PID namespace cannot be checked, so it is
-// removed on the caller's word that the run stopped. The queue is left as it
-// is: the run took its jobs when it started, and they are rerun from the run.
-// `rotari unlock` and the MCP unlock tools use it.
-func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, error) {
+type UnlockRefusedError struct{ Result UnlockResult }
+
+func (err *UnlockRefusedError) Error() string {
+	identity := err.Result.Coordinator.Identity
+	location := ""
+	if identity != nil {
+		location = fmt.Sprintf(" (host=%s pid=%d namespace=%s)", identity.Host, identity.PID, identity.PIDNamespace)
+	}
+	if err.Result.RefusalCode == "coordinator_live" {
+		return fmt.Sprintf("coordinator_live: run coordinator is running: %s%s", err.Result.Coordinator.Reason, location)
+	}
+	return fmt.Sprintf("coordinator_unknown: %s%s; inspect on the original host in the same PID namespace if accessible, or explicitly attest that the coordinator stopped with --assume-stopped; job termination is not verified", err.Result.Coordinator.Reason, location)
+}
+
+func (err *UnlockRefusedError) Unwrap() error {
+	if err.Result.RefusalCode == "coordinator_live" {
+		return ErrRunAlive
+	}
+	return nil
+}
+
+// Unlock recovers the interrupted run after assessing coordinator ownership.
+// Unknown ownership requires explicit attestation; live ownership always blocks.
+// Previews return refusal evidence without mutation. Job termination remains
+// the operator's responsibility. Queue contents and historical results are kept.
+func Unlock(paths state.ProjectPaths, runID string, guard Guard, assumeStopped bool) (UnlockResult, error) {
 	if runID != "" && !state.IsValidPathElement(runID) {
 		return UnlockResult{}, fmt.Errorf("invalid run ID %q", runID)
 	}
@@ -61,7 +87,7 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, 
 		if err != nil {
 			return UnlockResult{}, err
 		}
-		return UnlockResult{}, report(paths, guard, Outcome{Revision: revision})
+		return UnlockResult{Allowed: true, Revision: revision}, report(paths, guard, Outcome{Revision: revision})
 	}
 	if runID == "" {
 		if lockExists {
@@ -77,13 +103,6 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, 
 		if lock.RunID != runID {
 			return UnlockResult{}, fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
 		}
-		lockState, _, err := state.InspectLock(paths.LockFile)
-		if err != nil {
-			return UnlockResult{}, fmt.Errorf("failed to inspect run lock: %w", err)
-		}
-		if lockState == state.LockActive {
-			return UnlockResult{}, fmt.Errorf("%w: run %q of project %q", ErrRunAlive, runID, paths.ProjectName)
-		}
 	} else if (meta.Phase != "running" && meta.Phase != "cancelling") || meta.LastRunID != runID {
 		return UnlockResult{}, ErrNoInterruptedRun
 	}
@@ -92,9 +111,50 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, 
 		return UnlockResult{}, err
 	}
 	detail, stillRunning := InterruptedRunDetail(paths, runID)
-	result := UnlockResult{RunID: runID, Detail: strings.TrimPrefix(detail, ": "), JobsMayBeRunning: stillRunning}
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return UnlockResult{}, err
+	}
+	store := state.NewStore(state.DirectoryMode(), state.FileMode())
+	assessment, err := AssessCoordinator(store, runDir)
+	if err != nil {
+		return UnlockResult{}, err
+	}
+	if assessment.Identity == nil && lockExists {
+		assessment.Identity = &model.RunCoordinator{Host: lock.Host, PID: lock.PID, PIDNamespace: lock.PIDNamespace}
+	}
+	result := UnlockResult{RunID: runID, Detail: strings.TrimPrefix(detail, ": "), JobsMayBeRunning: stillRunning, Coordinator: assessment, AssumeStopped: assumeStopped, Revision: revision}
+	switch assessment.State {
+	case CoordinatorLive:
+		result.RefusalCode = "coordinator_live"
+	case CoordinatorUnknown:
+		if !assumeStopped {
+			result.RefusalCode = "coordinator_unknown"
+		}
+	}
+	result.Allowed = result.RefusalCode == ""
 	if guard.DryRun {
-		return result, report(paths, guard, Outcome{Revision: revision})
+		// A preview describes refusal without failing, so callers can inspect
+		// the same evidence and revision they will use for an explicit apply.
+		if guard.Report != nil {
+			guard.Report(Outcome{Revision: revision})
+		}
+		return result, nil
+	}
+	if !result.Allowed {
+		return result, &UnlockRefusedError{Result: result}
+	}
+	context, err := state.LoadContext(store, runDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return result, err
+	}
+	context.Recovery = &model.RunRecovery{
+		At: time.Now().UTC().Format(time.RFC3339Nano), AssumeStopped: assumeStopped,
+		CoordinatorState: string(assessment.State), CoordinatorReason: assessment.Reason,
+		Coordinator: assessment.Identity,
+	}
+	if err := state.SaveContext(store, runDir, context); err != nil {
+		return result, fmt.Errorf("record recovery evidence: %w", err)
 	}
 	if lockExists {
 		if err := os.Remove(paths.LockFile); err != nil {
@@ -103,6 +163,11 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard) (UnlockResult, 
 	}
 	if err := recoverInterrupted(paths); err != nil {
 		return UnlockResult{}, fmt.Errorf("failed to update metadata: %w", err)
+	}
+	result.Applied = true
+	result.Revision, err = Revision(paths)
+	if err != nil {
+		return result, err
 	}
 	return result, report(paths, guard, Outcome{Revision: revision})
 }

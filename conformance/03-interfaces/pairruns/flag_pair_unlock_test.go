@@ -102,15 +102,66 @@ func invokePairUnlock(t *testing.T, f pairMutationFixture, flags []pairFlag) pai
 	}
 	result := pairInvoke(t, f.E, args...)
 	assertPairUnlockRecovered(t, f, result, seed)
+	if pairHasFlag(flags, "json") {
+		var output map[string]any
+		if err := json.Unmarshal([]byte(result.Stdout), &output); err != nil {
+			t.Fatal(err)
+		}
+		verification := pairInvoke(t, f.E, "unlock", "--project-name", f.Project, "--dry-run", "--json")
+		var current struct {
+			Revision string `json:"revision"`
+		}
+		if err := json.Unmarshal([]byte(verification.Stdout), &current); err != nil {
+			t.Fatal(err)
+		}
+		if verification.Code != 0 || current.Revision == "" || output["revision"] != current.Revision {
+			t.Fatalf("incorrect revision: %s", result)
+		}
+		output["revision"] = "<verified-revision>"
+		coordinator := output["coordinator"].(map[string]any)
+		delete(coordinator, "observed_at")
+		data, err := json.Marshal(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result.Stdout = string(data)
+	}
 	result.Args = nil
-	return pairMutationResult{Process: result, State: f.Current.Observation(t)}
+	return pairMutationResult{Process: result, State: pairUnlockObservation(t, *f.Current)}
 }
 
 func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result support.Result, seed pairSavedTree) {
 	t.Helper()
-	if result.Code != 0 || !strings.Contains(result.Stdout, "recovered queue project="+f.Project+" run_id="+f.Run) {
+	dryRun, jsonOutput := false, false
+	for _, arg := range result.Args {
+		dryRun = dryRun || strings.HasPrefix(arg, "--dry-run")
+		jsonOutput = jsonOutput || strings.HasPrefix(arg, "--json")
+	}
+	recovered := strings.Contains(result.Stdout, "recovered queue project="+f.Project+" run_id="+f.Run)
+	if jsonOutput {
+		var output struct {
+			Allowed bool   `json:"allowed"`
+			Applied bool   `json:"applied"`
+			RunID   string `json:"run_id"`
+		}
+		if err := json.Unmarshal([]byte(result.Stdout), &output); err != nil {
+			t.Fatal(err)
+		}
+		recovered = output.Allowed && output.Applied == !dryRun && output.RunID == f.Run
+	} else if dryRun {
+		recovered = strings.Contains(result.Stdout, "allowed=true") && strings.Contains(result.Stdout, "run_id="+f.Run)
+	}
+	if result.Code != 0 || !recovered {
 		assertPairOutcome(t, result)
 		t.Fatalf("unlock did not recover the seeded interrupted run: %s", result)
+	}
+	if dryRun {
+		after := savePairTree(t, f.E.Root)
+		if !reflect.DeepEqual(seed.Raw(), after.Raw()) {
+			t.Fatal("unlock preview changed state")
+		}
+		*f.Current = after
+		return
 	}
 	projectDir := filepath.Join(f.E.Base, "projects", f.Project)
 	if _, err := os.Stat(filepath.Join(projectDir, "running.lock")); !os.IsNotExist(err) {
@@ -153,7 +204,23 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 		t.Fatalf("unlock changed metadata beyond phase/updated_at: got %v, want %v", actualMeta, seededMeta)
 	}
 
-	before, after := seed.Observation(t), savePairTree(t, f.E.Root).Observation(t)
+	afterTree := savePairTree(t, f.E.Root)
+	contextPath, err := filepath.Rel(f.E.Root, filepath.Join(projectDir, "runs", f.Run, "context.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedContext, savedContext := pairUnlockContext(t, seed, contextPath), pairUnlockContext(t, afterTree, contextPath)
+	recovery, ok := savedContext["recovery"].(map[string]any)
+	if !ok || recovery["at"] == "" || recovery["coordinator_state"] != "stopped" {
+		t.Fatalf("missing recovery evidence: %v", savedContext)
+	}
+	delete(savedContext, "recovery")
+	if !reflect.DeepEqual(seedContext, savedContext) {
+		t.Fatalf("unlock changed run context beyond recovery evidence: %v", savedContext)
+	}
+	before, after := seed.Observation(t), afterTree.Observation(t)
+	delete(before, contextPath)
+	delete(after, contextPath)
 	lockRelative, err := filepath.Rel(f.E.Root, filepath.Join(f.E.Base, "projects", f.Project, "running.lock"))
 	if err != nil {
 		t.Fatal(err)
@@ -162,11 +229,46 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 	delete(after, metaRelative)
 	delete(before, metaRelative)
 	if !reflect.DeepEqual(before, after) {
-		t.Fatalf("unlock changed project state other than its stale lock and recovery metadata")
+		t.Fatalf("unlock changed project state beyond its lock, metadata and recovery evidence")
 	}
+
 	*f.Current = savePairTree(t, f.E.Root)
 }
 
+func pairUnlockContext(t *testing.T, tree pairSavedTree, path string) map[string]any {
+	t.Helper()
+	for _, file := range tree {
+		if file.Path == path {
+			var context map[string]any
+			if err := json.Unmarshal(file.Data, &context); err != nil {
+				t.Fatal(err)
+			}
+			return context
+		}
+	}
+	t.Fatalf("missing run context %s", path)
+	return nil
+}
+
+func pairUnlockObservation(t *testing.T, tree pairSavedTree) map[string]string {
+	t.Helper()
+	normalized := append(pairSavedTree(nil), tree...)
+	for index, file := range normalized {
+		if filepath.Base(file.Path) != "context.json" || file.Dir {
+			continue
+		}
+		context := pairUnlockContext(t, normalized, file.Path)
+		if recovery, ok := context["recovery"].(map[string]any); ok {
+			recovery["at"] = "<recovery-time>"
+			data, err := json.Marshal(context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			normalized[index].Data = data
+		}
+	}
+	return normalized.Observation(t)
+}
 func TestCLIFlagPairUnlockSafety(t *testing.T) {
 	covers(t, "SAFE-4")
 	f := newPairMutationFixture(t)
@@ -189,13 +291,15 @@ func TestCLIFlagPairUnlockSafety(t *testing.T) {
 
 func assertPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string, result support.Result, seed, after pairSavedTree) {
 	t.Helper()
-	if mode != "live-local" && mode != "wrong-run" {
+	if mode != "live-local" && mode != "wrong-run" && mode != "remote" {
 		assertPairUnlockRecovered(t, f, result, seed)
 		return
 	}
 	message := "is running"
 	if mode == "wrong-run" {
 		message = "run lock belongs to"
+	} else if mode == "remote" {
+		message = "coordinator_unknown"
 	}
 	if result.Code != 1 || !strings.Contains(result.Stderr, message) || !reflect.DeepEqual(seed.Raw(), after.Raw()) {
 		t.Fatalf("unsafe unlock was not rejected without mutation: %s", result)
@@ -222,6 +326,27 @@ func seedPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string) (pai
 		runID = f.SecondRun // Existing sibling run; resolution must reach the lock check.
 	case "remote":
 		lock["host"] = lock["host"].(string) + "-pair-remote"
+	}
+	contextPath := filepath.Join(f.E.Base, "projects", f.Project, "runs", f.Run, "context.json")
+	if mode == "live-local" || mode == "remote" {
+		contextData, err := os.ReadFile(contextPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var context map[string]any
+		if err := json.Unmarshal(contextData, &context); err != nil {
+			t.Fatal(err)
+		}
+		identity := support.CurrentCoordinator(t)
+		identity.Host = lock["host"].(string)
+		context["coordinator"] = identity
+		contextData, err = json.Marshal(context)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(contextPath, contextData, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	data, err = json.Marshal(lock)
 	if err != nil {

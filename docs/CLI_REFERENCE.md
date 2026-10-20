@@ -217,6 +217,9 @@ Usage: `rotari unlock [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | verify the run ID recorded in the stale lock |
+| `--assume-stopped` | `` | `CLI only` | explicitly attest that an unverifiable coordinator stopped; never overrides a live coordinator |
+| `--dry-run` | `` | `CLI only` | assess recovery without changing state |
+| `--json` | `` | `CLI only` | print recovery assessment and refusal codes as JSON |
 
 ### `rotari change`
 

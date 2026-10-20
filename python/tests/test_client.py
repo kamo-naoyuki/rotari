@@ -1,5 +1,6 @@
 import inspect
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -215,6 +216,91 @@ def test_unlock_builds_location_aware_argv():
         "--run-id",
         "run-1",
     ]
+
+
+def test_unlock_projects_ownership_attestation_and_preview():
+    with patch("subprocess.run", return_value=completed('{"allowed": false}')) as run:
+        result = Rotari("rotari", basedir="state", project="demo").unlock(
+            run_id="run-1", assume_stopped=True, dry_run=True, json=True
+        )
+
+    assert run.call_args.args[0] == [
+        "rotari",
+        "unlock",
+        "--basedir",
+        "state",
+        "--project-name",
+        "demo",
+        "--run-id",
+        "run-1",
+        "--assume-stopped",
+        "--dry-run",
+        "--json",
+    ]
+    assert result.stdout == '{"allowed": false}'
+
+
+def test_unlock_refusal_preserves_machine_readable_evidence():
+    output = '{"allowed": false, "refusal_code": "coordinator_unknown"}'
+    with patch(
+        "subprocess.run",
+        return_value=completed(output, stderr="coordinator_unknown", returncode=1),
+    ):
+        with pytest.raises(RotariError) as error:
+            Rotari("rotari", basedir="state", project="demo").unlock(json=True)
+
+    assert error.value.result.returncode == 1
+    assert error.value.result.stdout == output
+
+
+def test_unlock_real_cli_ownership_and_preview(tmp_path):
+    binary = os.environ.get("ROTARI_TEST_BINARY")
+    if binary is None:
+        pytest.skip("ROTARI_TEST_BINARY is not set")
+    client = Rotari(
+        binary,
+        basedir=tmp_path / "state",
+        project="demo",
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "HOME": str(tmp_path),
+            "XDG_CONFIG_HOME": str(tmp_path / "config"),
+            "XDG_STATE_HOME": str(tmp_path / "xdg-state"),
+            "ROTARI_MASTERDIR": str(tmp_path / "master"),
+            "ROTARI_QUIET": "true",
+        },
+    )
+    client.add(["true"])
+    project = tmp_path / "state" / "projects" / "demo"
+    run_id = "20261020-120000-00000000"
+    run = project / "runs" / run_id
+    run.mkdir(parents=True)
+    (run / "context.json").write_text("{}")
+    (run / "commands.json").write_text('{"commands": []}')
+    (project / "meta.json").write_text(
+        json.dumps({"phase": "running", "last_run_id": run_id})
+    )
+    queue = (project / "queue.json").read_bytes()
+
+    preview = client.unlock(dry_run=True, json=True).json()
+    assert preview["allowed"] is False
+    assert preview["refusal_code"] == "coordinator_unknown"
+    assert preview["execution_checked"] is False
+    assert (run / "context.json").read_text() == "{}"
+    with pytest.raises(RotariError) as error:
+        client.unlock(json=True)
+    assert error.value.result.json()["refusal_code"] == "coordinator_unknown"
+
+    applied = client.unlock(assume_stopped=True, json=True).json()
+    assert applied["allowed"] is True
+    assert applied["applied"] is True
+    assert applied["execution_checked"] is False
+    assert (project / "queue.json").read_bytes() == queue
+    assert (
+        json.loads((run / "context.json").read_text())["recovery"]["assume_stopped"]
+        is True
+    )
 
 
 def test_run_builds_options_from_schema():

@@ -21,6 +21,34 @@ import (
 
 var binary string
 
+type CoordinatorProcess struct {
+	Host         string `json:"host"`
+	PID          int    `json:"pid"`
+	PIDNamespace string `json:"pid_namespace"`
+	ProcessStart string `json:"process_start"`
+}
+
+func CurrentCoordinator(t *testing.T) CoordinatorProcess {
+	t.Helper()
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace, err := os.Readlink("/proc/self/ns/pid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := strings.Fields(string(data)[strings.LastIndexByte(string(data), ')')+1:])
+	if len(fields) < 20 {
+		t.Fatalf("incomplete process stat: %s", data)
+	}
+	return CoordinatorProcess{Host: host, PID: os.Getpid(), PIDNamespace: namespace, ProcessStart: fields[19]}
+}
+
 const (
 	flagJSON      = "--json"
 	flagJobName   = "--job-name"

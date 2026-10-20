@@ -48,7 +48,7 @@ details = job.show(run=run)
 | `run(**options)` / `retry(**options)` | Start a run (or retry selected work) and return a `Run`. `run_id=...` builds from that saved run without changing the next queue. Pass `async_=True` to return after starting it. |
 | `check(**options)` | Return a JSON readiness dict even when the project is not runnable. |
 | `reset()` | Clear queued work for the next run without changing an active or interrupted run. |
-| `unlock(run_id=None)` | Recover an interrupted run, keeping the queue; then `retry(run_id=...)` reruns its failed and unfinished jobs. Confirm first that its jobs have stopped. |
+| `unlock(run_id=None, assume_stopped=False, dry_run=False, json=False)` | Preview or recover an interrupted run, keeping the queue. Unknown coordinator ownership needs explicit `assume_stopped`; verified live ownership always blocks. Job termination is not checked. With `json=True`, inspect `allowed` in stdout even if the preview succeeds; refused applies raise the normal command error. Then `retry(run_id=...)` reruns failed and unfinished jobs. See the [migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration). |
 | `export(as_dict=True, **options)` / `import_(manifest, **options)` | Exchange workflow manifests as dictionaries; without `as_dict=True`, `export()` returns `CommandResult`. |
 | `command(*args)` | Invoke another CLI subcommand and return `CommandResult`. |
 

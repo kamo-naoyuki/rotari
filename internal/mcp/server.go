@@ -150,14 +150,14 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_unlock",
-		Description: "Preview recovering a project's interrupted run, as rotari unlock does: which run it would recover, what that run's jobs last reported, whether some may still be running, and the project revision. The queue is left as it is. Changes nothing.",
+		Description: "Preview recovering an interrupted run, as rotari unlock --dry-run does: coordinator identity and ownership, allowed/refusal_code, recorded job status and the project revision. Unknown ownership needs assume_stopped; verified live ownership cannot be overridden. Execution termination is not checked. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input UnlockInput) (UnlockOutput, error) {
 		return writes.unlock(input, project.Guard{DryRun: true})
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_unlock",
-		Description: "Recover a project's interrupted run, as rotari unlock does, only if the project is still at the revision rotari_preview_unlock returned: remove its stale lock and return the project to idle, keeping the next queue. A run whose coordinator is alive on the server's host is refused. Confirm first that the run's jobs have stopped. Then rotari_preview_run and rotari_start_run with retry and run_id set to the recovered run rerun its failed and unfinished jobs without replacing next-queue jobs.",
+		Description: "Recover an interrupted run only at the preview's revision, reassessing coordinator ownership before applying. Unknown ownership requires assume_stopped; verified live ownership is always refused, even without a run lock. Leaves the queue intact. Execution termination is not checked: independently confirm jobs stopped. Then use rotari_preview_run and rotari_start_run with retry and run_id.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
 	}, func(_ context.Context, input ApplyUnlockInput) (UnlockOutput, error) {
 		return writes.applyUnlock(input)
@@ -194,6 +194,14 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 func addTool[In, Out any](server *mcpsdk.Server, masterDir string, tool *mcpsdk.Tool, handle func(context.Context, In) (Out, error)) {
 	mcpsdk.AddTool(server, tool, func(ctx context.Context, _ *mcpsdk.CallToolRequest, input In) (*mcpsdk.CallToolResult, Out, error) {
 		output, err := handle(ctx, input)
+		var refusal *project.UnlockRefusedError
+		if errors.As(err, &refusal) {
+			return &mcpsdk.CallToolResult{
+				IsError:           true,
+				Content:           []mcpsdk.Content{&mcpsdk.TextContent{Text: hideStateDirs(masterDir, err).Error()}},
+				StructuredContent: output,
+			}, output, nil
+		}
 		return nil, output, hideStateDirs(masterDir, err)
 	})
 }

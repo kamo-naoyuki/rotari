@@ -116,11 +116,14 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
 - **COORD-3** A run lock from another host counts as running: `check`
   reports the project `locked`, and the commands of SAFE-2 are rejected. Its
   coordinator cannot be checked, so the lock stays until the operator
-  confirms that the run stopped and uses `unlock` (SAFE-4). The same holds
+  confirms that the coordinator and jobs stopped and uses
+  `unlock --assume-stopped` when ownership is unknown (SAFE-4, SAFE-13). The same holds
   for a lock written in another PID namespace on this host, which the lock
   records as `pid_namespace`: a sandbox or container cannot see the
   coordinator's PID. A lock without `pid_namespace`, from an earlier rotari,
-  is checked by its PID. Covered with COORD-2 by
+  is checked by its PID by lock readers; that alone is not verified live
+  ownership for recovery. `unlock` uses the durable identity and requires
+  attestation when it cannot verify ownership. Covered with COORD-2 by
   `TestLockFromAnotherPIDNamespaceIsLocked` in
   [conformance/04-coordination/stale_lock_test.go](../conformance/04-coordination/stale_lock_test.go).
   This is coordination, not distributed locking: it cannot fence a host
@@ -217,9 +220,13 @@ A project is in one of three states, derived from `running.lock` and
   unlock tools share `project.Unlock` in
   [internal/project/unlock.go](../internal/project/unlock.go), covered by
   `TestUnlockByProjectState`. A `--run-id` must name that run. It
-  refuses a run whose coordinator is alive on this host. A lock from another
-  host, whose coordinator cannot be checked, is never removed automatically;
-  `unlock` removes it once the operator has confirmed that the run stopped.
+  refuses a run whose durable coordinator identity is verified alive,
+  including without a lock and even with an override. Unknown ownership
+  requires explicit `--assume-stopped` (SAFE-13), including remote and legacy
+  records; a lock's PID alone is not positive-live identity evidence.
+  Ownership is assessed afresh under the state lock for every apply.
+  Successful recovery records authorization evidence in the existing run
+  context without changing coordinator identity, queue or recorded results.
   Without `--run-id`, `unlock` of an idle project with no lock, or a project
   that does not exist, succeeds as a no-op and does not modify or create state.
   `TestCLIFlagPairUnlock` and `TestCLIFlagPairUnlockSafety` in
@@ -241,6 +248,38 @@ A project is in one of three states, derived from `running.lock` and
   [internal/project/inspect.go](../internal/project/inspect.go) over
   `state.LatestAttemptDirs`; checked by
   `TestUnlockWarnsAboutRunningJobs` and `TestMCPUnlockRecoversAnInterruptedRun`.
+  CLI dry-run and MCP preview also report coordinator ownership, permission
+  and refusal codes through shared `project.Unlock`. This phase does not
+  verify execution termination; machine-readable preview/apply output says
+  `execution_checked: false`, even if every job has recorded a final status.
+  `TestUnlockOwnershipAndDryRun` in
+  [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
+  checks CLI/MCP parity and nonmutation.
+- **SAFE-13** Unknown coordinator ownership needs explicit attestation
+  (`--assume-stopped` on the CLI, `assume_stopped` in MCP and Python).
+  Verified live identity cannot be overridden. Refused applies return a
+  machine-readable `coordinator_live` or `coordinator_unknown` code and
+  inspection guidance naming the recorded host and PID namespace when
+  available; original-host access alone may not restore PID visibility.
+  Missing or insufficient identity, remote location and inaccessible
+  evidence are unknown, not verified live. Malformed/unreadable context
+  remains an error, not an overridable unknown. The operator must still
+  independently confirm job termination. No configuration/environment
+  variable enables the override. Shared policy is in
+  [internal/project/unlock.go](../internal/project/unlock.go), tested by
+  `TestUnlockCoordinatorPolicy`, `TestUnlockRejectsMalformedContext`, and
+  `TestUnlockReassessesCoordinatorAtApply` in
+  [internal/project/unlock_test.go](../internal/project/unlock_test.go).
+  `TestUnlockOwnershipAndDryRun` checks it through CLI and MCP.
+- **SAFE-14** `unlock --dry-run` and its Python projection expose the same
+  permission, ownership evidence and revision as MCP unlock preview without
+  changing project metadata, run locks, context, queue or results. A blocked
+  preview succeeds as an inspection with `allowed: false`; refused applies
+  fail (MCP `isError: true`) and retain structured refusal evidence. CLI JSON
+  is selected with `--json`. MCP apply still requires `if_revision`, but the
+  preview never bypasses a fresh ownership check. Checked by
+  `TestUnlockOwnershipAndDryRun`, and by flag-pair tests in
+  [conformance/03-interfaces/pairruns/flag_pair_unlock_test.go](../conformance/03-interfaces/pairruns/flag_pair_unlock_test.go).
 - **SAFE-8** While a project is running or interrupted, `add`, `copy`,
   `change`, `remove`, `import`, and `reset` edit the queue for the next run,
   since the run took its own jobs when it started (CORE-3). They leave the

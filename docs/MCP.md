@@ -75,14 +75,25 @@ with `rotari reset`. The removed `recover_interrupted` argument is rejected
 with a hint to use the unlock tools.
 
 To recover a run left interrupted without touching the queue, preview with
-`rotari_preview_unlock` (`basedir_ref`, `project`, optional `run_id`). It
-reports the interrupted run it would recover, what that run's jobs last
-reported and whether some may still be running, and the revision. Any next-run
-queue work is retained and remains separate.
+`rotari_preview_unlock` (`basedir_ref`, `project`, optional `run_id` and
+`assume_stopped`). It reports the interrupted run, `coordinator` assessment
+and identity, `allowed`, `refusal_code`, `applied: false`, recorded-job
+warnings, and the revision. A blocked preview is a successful inspection;
+inspect `allowed` before applying. Any next-run queue work is retained.
 `rotari_unlock` takes the same input and `if_revision`, removes the run's
 stale lock, and returns the project to idle with its queue kept, as
-`rotari unlock` does; a run whose supervisor is alive on the server's host is
-refused. Confirm first that the run's jobs have stopped. Then call
+`rotari unlock` does. Ownership is freshly assessed under the state lock,
+including without a run lock. Unknown ownership requires explicit
+`assume_stopped: true`; verified live ownership cannot be overridden.
+Refused applies are tool errors retaining structured `allowed: false` and
+`refusal_code` (`coordinator_live` or `coordinator_unknown`) with inspection
+guidance naming the recorded host and namespace.
+Both preview and apply report `execution_checked: false`: job termination
+is not verified, even when terminal records exist. Confirm independently
+that the coordinator and jobs stopped before applying, and do not enable
+attestation blindly in existing automation. See the
+[migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration).
+Then call
 `rotari_preview_run` and `rotari_start_run` with `retry` and `run_id` set to
 the recovered run to rerun its failed and unfinished jobs while keeping the
 next queue untouched.

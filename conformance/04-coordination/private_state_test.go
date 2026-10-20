@@ -132,6 +132,10 @@ func TestControlFromAnotherHost(t *testing.T) {
 	if r := e.Rotari("run", "-p", "live"); r.Code == 0 || !strings.Contains(r.Stderr, "is running") {
 		t.Errorf("run accepted: %s", r)
 	}
+	if r := e.Rotari("unlock", "live", "--assume-stopped"); r.Code == 0 || !strings.Contains(r.Stderr, "coordinator_live") {
+		t.Fatalf("changed lock host hid the live durable owner: %s", r)
+	}
+	support.KillStrays(t, e.Root)
 	e.MustRotari("unlock", "live")
 	if state := e.CheckState("live"); state != "empty" {
 		t.Errorf("after unlock state %q", state)

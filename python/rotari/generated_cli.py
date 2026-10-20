@@ -703,6 +703,24 @@ CLI_SCHEMA: dict[str, Any] = {
                     "short": "r",
                     "value_name": "ID",
                 },
+                {
+                    "command_line_only": True,
+                    "description": "explicitly attest that an unverifiable "
+                    "coordinator stopped; never overrides a live "
+                    "coordinator",
+                    "name": "assume-stopped",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "assess recovery without changing state",
+                    "name": "dry-run",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "print recovery assessment and refusal codes "
+                    "as JSON",
+                    "name": "json",
+                },
             ],
             "name": "unlock",
             "positional": "[PROJECT]",
