@@ -627,3 +627,53 @@ Commits:
     passed three times under `-race` in isolation and does not involve the
     launcher; it is recorded in `ISSUES.md`.
 - **Remaining:** None.
+
+## Follow-up: launcher config in the Web UI, and lsof by absolute path
+
+Commits:
+
+- `ad227934` (2026-10-21 05:21:20 +0900): launcher config in the Web UI.
+- `026271f0` (2026-10-21 05:29:17 +0900): lsof by absolute path.
+
+- **Change:**
+  - **Settings menu:** gains Launcher config and Generate launcher config.
+    - `GET /api/launcher-config` returns the global file's path, whether
+      it exists, its text, why `rotari web --allow-exec` would refuse it,
+      the commands a restart would load (built-ins included, with
+      `builtin` and `unavailable`), and whether this server launches.
+    - `POST /api/generate-launcher-config` writes the template. It needs
+      job control, never replaces a file (409), and is the only launcher
+      file content the Web UI writes.
+  - **Shared writer:** `launcher.WriteTemplate` is now used by both
+    `config --launchers` and the Web endpoint.
+  - **Contract:** WEB-18, with `TestWebShowsAndGeneratesLauncherConfig`.
+  - **macOS listener check:** now runs `/usr/sbin/lsof` rather than the
+    first `lsof` on PATH (SonarCloud go:S4036), and `docs/OPERATIONS.md`
+    names that path.
+- **Reason:**
+  - The user asked to view and generate the launcher config from the Web
+    UI, as for the other config files.
+  - SonarCloud flagged the PATH lookup. A substituted lsof could make a
+    foreign listener pass the ownership check.
+- **Plan impact:** None; viewing and generating keep the earlier decision
+  that the Web UI never writes command text.
+- **Validation:**
+  - New tests passed: `TestLauncherConfigViewAndGenerate`,
+    `TestWebLauncherConfigInBrowser`, and conformance
+    `TestWebShowsAndGeneratesLauncherConfig`. The Settings layout
+    assertion was updated for the two new buttons.
+  - Darwin vet and build passed; the lsof change was not run on macOS.
+  - The full `scripts/check.sh` failed only `go test`'s
+    `TestRunReportReadsCarriedJobLogs` ("already has a run starting or
+    running", added to that ISSUES entry). It passed three times in
+    isolation, with `./conformance/05-web` passing as a whole.
+  - Because the run stopped there, `go test -race` was run separately on
+    `./internal/launcher`, `./internal/webui`, `./cmd/rotari`, and
+    `./conformance/05-web`, and passed.
+- **Remaining:**
+  - Other open SonarCloud new-code issues, mostly cognitive complexity,
+    were not addressed.
+  - Built-in launchers beyond TensorBoard are under discussion. A
+    service's loopback port is reachable by other local users without the
+    rotari token; that matters for any write-capable service such as
+    Jupyter.
