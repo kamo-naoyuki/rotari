@@ -231,28 +231,19 @@ runtime files during cleanup. Exact bounds belong in implementation tests/docs.
 
 Keep the upstream bound to `127.0.0.1` and proxy through the existing Web
 listener. Allocate the upstream and proxy path on the server, never from a
-browser-provided host or URL. Handle port allocation/bind races explicitly;
-never mistake an unrelated listener for a successfully started service.
+browser-provided host or URL. Rotari picks the port (bind port 0 on loopback,
+read the assigned port, close it) because the proxy must know where to send
+requests and several services, such as TensorBoards for different
+directories, run at once; a port fixed in `launchers.toml` would allow only
+one instance per command.
 
-The race: rotari picks a free port and passes it to the command, but between
-picking it and the service binding it, another process, possibly another
-user's on a shared login node, can bind the same port. An HTTP probe that
-succeeds then reaches that process, and the proxy would send the user's
-browser to it. Before marking a service ready and on each proxy reconnect,
-confirm that the process listening on the port belongs to the launch's process
-group:
-
-- Linux: map the listening socket's inode from `/proc/net/tcp`/`tcp6` to a
-  process through `/proc/<pid>/fd`.
-- macOS: query the listening process with `lsof -nP -iTCP:PORT -sTCP:LISTEN
-  -Fp`, which macOS ships, or an equivalent `libproc` call if cgo is
-  acceptable.
-
-Both supported release platforms (Linux and macOS) get a real check through
-one platform-neutral `internal/launcher` function with per-OS implementations.
-If the check cannot run (for example, `lsof` is missing), the launch fails
-with that reason rather than skipping verification. A mismatch stops the
-launch's process group and reports that another process holds the port.
+Do not verify which process owns the port. If another process takes the port
+between allocation and the service binding it, the service normally fails to
+bind and exits. Mark a service ready only when the readiness probe succeeds
+and its process is still running afterwards, so that case becomes a startup
+failure with the service's log. Document the remaining window (a foreign
+server answering the probe before the service exits) as a known limitation,
+as it is when running a service by hand on a shared host.
 
 Preserve the allocated path prefix, query strings, streaming, and browser asset
 requests. Use a service-specific prefix setting for TensorBoard; do not attempt
@@ -326,7 +317,7 @@ responses.
 ## Implementation phases
 
 1. **Feasibility and lifecycle checkpoint.** Prove TensorBoard path-prefix
-   proxying over one forwarded port, readiness/port ownership, process-group
+   proxying over one forwarded port, readiness, process-group
    stop, and parent-death cleanup in isolated fixtures. Finalize runtime paths,
    resource bounds, the `launchers.toml` schema, and supported proxy
    authorities.
@@ -372,8 +363,8 @@ its required shutdown or access protections as a temporary default.
   invalid Host requests cannot start or stop commands.
 - Each unavailable state in the User flow table shows its explanation and
   enabling step in the UI, and the start API returns the same reason.
-- A port taken over by another process before the service binds it is
-  detected on Linux and macOS, stops the launch, and never becomes **Open**.
+- A service that exits because its port is already in use is reported as a
+  startup failure with its log and never becomes **Open**.
 - Proxy tests cover prefixes, redirects, assets, queries, streaming, upstream
   exit, token stripping, guessed/unknown IDs, and attempted arbitrary targets.
 - A real TensorBoard opens through only the rotari port and displays a known
