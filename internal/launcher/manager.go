@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,12 +39,18 @@ var (
 	ErrTooManyLaunches = errors.New("too many launches are running; stop one first")
 	// ErrUnknownLaunch is returned for an ID the manager does not know.
 	ErrUnknownLaunch = errors.New("unknown launch")
+	// ErrNotServing is returned by ServiceUpstream for a launch that is not
+	// a ready service.
+	ErrNotServing = errors.New("launch is not serving")
 )
 
 // State is a launch's lifecycle state.
 type State string
 
 const (
+	// StateStarting is a service that has not passed its readiness check.
+	StateStarting State = "starting"
+	// StateRunning is a running command, or a service that is ready.
 	StateRunning  State = "running"
 	StateStopping State = "stopping"
 	// StateExited means the command ended by itself; Result says how.
@@ -55,7 +62,9 @@ const (
 )
 
 // live reports whether a launch in this state still owns processes.
-func (state State) live() bool { return state == StateRunning || state == StateStopping }
+func (state State) live() bool {
+	return state == StateStarting || state == StateRunning || state == StateStopping
+}
 
 // ManagerConfig configures a Manager. Zero limits use the defaults.
 type ManagerConfig struct {
@@ -66,6 +75,10 @@ type ManagerConfig struct {
 	MaxLive         int
 	MaxEnded        int
 	LogSegmentBytes int64
+	// ServicePath returns the URL path a service launch is served under,
+	// which it receives as ROTARI_LAUNCHER_BASE_PATH. Without it, services
+	// cannot be launched.
+	ServicePath func(id string) string
 }
 
 // StartRequest asks for a registered command to run against a target.
@@ -82,21 +95,24 @@ type StartRequest struct {
 
 // Launch is a snapshot of one launch.
 type Launch struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Command    string            `json:"command"`
-	Mode       Mode              `json:"mode"`
-	Target     string            `json:"target"`
-	Kind       TargetKind        `json:"kind"`
-	CWD        string            `json:"cwd"`
-	Labels     map[string]string `json:"labels,omitempty"`
-	State      State             `json:"state"`
-	StartedAt  time.Time         `json:"started_at"`
-	EndedAt    *time.Time        `json:"ended_at,omitempty"`
-	ExitCode   *int              `json:"exit_code,omitempty"`
-	Signal     string            `json:"signal,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Reused     bool              `json:"reused,omitempty"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Command   string            `json:"command"`
+	Mode      Mode              `json:"mode"`
+	Target    string            `json:"target"`
+	Kind      TargetKind        `json:"kind"`
+	CWD       string            `json:"cwd"`
+	Labels    map[string]string `json:"labels,omitempty"`
+	State     State             `json:"state"`
+	StartedAt time.Time         `json:"started_at"`
+	EndedAt   *time.Time        `json:"ended_at,omitempty"`
+	ExitCode  *int              `json:"exit_code,omitempty"`
+	Signal    string            `json:"signal,omitempty"`
+	Error     string            `json:"error,omitempty"`
+	Reused    bool              `json:"reused,omitempty"`
+	// Port and BasePath are a service's upstream port and URL path.
+	Port       int    `json:"port,omitempty"`
+	BasePath   string `json:"base_path,omitempty"`
 	reuseKey   string
 	stopGrace  time.Duration
 	process    *Process
@@ -160,8 +176,8 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 // returned together with the error.
 func (manager *Manager) Start(request StartRequest) (Launch, error) {
 	command := request.Command
-	if command.Mode != ModeCommand {
-		return Launch{}, fmt.Errorf("launcher %q: mode %q is not supported yet", command.Name, command.Mode)
+	if command.Mode == ModeService && manager.config.ServicePath == nil {
+		return Launch{}, fmt.Errorf("launcher %q: this server cannot serve services", command.Name)
 	}
 	if !filepath.IsAbs(request.Target) {
 		return Launch{}, fmt.Errorf("target %q is not an absolute path", request.Target)
@@ -179,7 +195,7 @@ func (manager *Manager) Start(request StartRequest) (Launch, error) {
 	}
 	if !request.NewInstance {
 		for _, launch := range manager.launches {
-			if launch.reuseKey == reuseKey && launch.State == StateRunning {
+			if launch.reuseKey == reuseKey && (launch.State == StateRunning || launch.State == StateStarting) {
 				reused := launch.snapshot()
 				reused.Reused = true
 				return reused, nil
@@ -200,7 +216,13 @@ func (manager *Manager) Start(request StartRequest) (Launch, error) {
 		StartedAt: time.Now(), reuseKey: reuseKey, stopGrace: command.StopGrace,
 		logDir: filepath.Join(manager.dir, id), recorded: make(chan struct{}),
 	}
-	err = manager.spawn(launch)
+	if command.Mode == ModeService {
+		launch.BasePath = manager.config.ServicePath(id)
+	}
+	err = manager.prepare(launch)
+	if err == nil {
+		err = manager.spawn(launch)
+	}
 	manager.launches = append(manager.launches, launch)
 	if err != nil {
 		launch.fail(err)
@@ -208,12 +230,18 @@ func (manager *Manager) Start(request StartRequest) (Launch, error) {
 		manager.trimEnded()
 		return launch.snapshot(), err
 	}
-	launch.State = StateRunning
-	go manager.watch(launch)
+	if command.Mode == ModeService {
+		launch.State = StateStarting
+		go manager.serve(launch, command)
+	} else {
+		launch.State = StateRunning
+		go manager.watch(launch, nil)
+	}
 	return launch.snapshot(), nil
 }
 
-func (manager *Manager) spawn(launch *Launch) error {
+// prepare checks the launch's paths and creates its log.
+func (manager *Manager) prepare(launch *Launch) error {
 	if err := checkDirectory(launch.CWD); err != nil {
 		return fmt.Errorf("working directory: %w", err)
 	}
@@ -228,14 +256,29 @@ func (manager *Manager) spawn(launch *Launch) error {
 		return fmt.Errorf("create launch log: %w", err)
 	}
 	launch.log = log
-	launch.process, err = Start(manager.lifetime, Spec{
+	return nil
+}
+
+// spawn starts the launch's process; a service first gets a new port.
+func (manager *Manager) spawn(launch *Launch) error {
+	if launch.Mode == ModeService {
+		port, err := AllocatePort()
+		if err != nil {
+			return err
+		}
+		launch.Port = port
+	}
+	process, err := Start(manager.lifetime, Spec{
 		Wrapper: manager.config.Wrapper,
 		Command: launch.Command,
 		Dir:     launch.CWD,
 		Env:     launchEnvironment(manager.config.Env, launch),
-		Output:  log,
+		Output:  launch.log,
 		Grace:   launch.stopGrace,
 	})
+	if err == nil {
+		launch.process = process
+	}
 	return err
 }
 
@@ -274,7 +317,11 @@ func launchEnvironment(env []string, launch *Launch) []string {
 		}
 		result = append(result, name+"="+value)
 	}
-	return append(result, EnvArtifact+"="+launch.Target, EnvCWD+"="+launch.CWD)
+	result = append(result, EnvArtifact+"="+launch.Target, EnvCWD+"="+launch.CWD)
+	if launch.Mode == ModeService {
+		result = append(result, EnvPort+"="+strconv.Itoa(launch.Port), EnvBasePath+"="+launch.BasePath)
+	}
+	return result
 }
 
 func (launch *Launch) fail(err error) {
@@ -285,9 +332,13 @@ func (launch *Launch) fail(err error) {
 	}
 }
 
-// watch records how a launch ended.
-func (manager *Manager) watch(launch *Launch) {
-	result, err := launch.process.Wait()
+// watch records how a launch ended. A failure, when given and the launch
+// was not stopped, makes it StateFailed with that reason.
+func (manager *Manager) watch(launch *Launch, failure error) {
+	manager.mu.Lock()
+	process := launch.process
+	manager.mu.Unlock()
+	result, err := process.Wait()
 	launch.log.Close()
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
@@ -299,6 +350,8 @@ func (manager *Manager) watch(launch *Launch) {
 		launch.State, launch.Error = StateFailed, err.Error()
 	case launch.stopCalled:
 		launch.State = StateStopped
+	case failure != nil:
+		launch.State, launch.Error = StateFailed, failure.Error()
 	default:
 		launch.State = StateExited
 	}
@@ -397,7 +450,7 @@ func (manager *Manager) Stop(id string) (Launch, error) {
 		return Launch{}, err
 	}
 	process := launch.process
-	if launch.State == StateRunning {
+	if launch.State == StateRunning || launch.State == StateStarting {
 		launch.State, launch.stopCalled = StateStopping, true
 	}
 	live := launch.State.live()
@@ -417,20 +470,24 @@ func (manager *Manager) Close() error {
 	manager.closed = true
 	var live []*Launch
 	for _, launch := range manager.launches {
-		if launch.State == StateRunning {
+		if launch.State == StateRunning || launch.State == StateStarting {
 			launch.State, launch.stopCalled = StateStopping, true
 		}
 		if launch.State.live() {
 			live = append(live, launch)
 		}
 	}
+	processes := make([]*Process, len(live))
+	for i, launch := range live {
+		processes[i] = launch.process
+	}
 	manager.mu.Unlock()
 	var wg sync.WaitGroup
-	for _, launch := range live {
+	for i, launch := range live {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = launch.process.Stop()
+			_, _ = processes[i].Stop()
 			<-launch.recorded
 		}()
 	}

@@ -242,6 +242,7 @@ func (s site) handler() http.Handler {
 		clone.URL = &urlCopy // NOSONAR
 		child.baseHandler().ServeHTTP(writer, clone)
 	})
+	mux.HandleFunc(launchProxyPrefix, s.serveLaunchProxy)
 	mux.Handle("/", s.baseHandler())
 	return mux
 }

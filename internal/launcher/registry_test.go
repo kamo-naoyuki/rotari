@@ -91,6 +91,7 @@ func TestParseCommandsRejectsInvalidSettings(t *testing.T) {
 		"unclean cwd":         {"[[launcher]]\n" + valid + "cwd = \"/srv/../tools\"\n", "clean absolute"},
 		"ready in command":    {"[[launcher]]\n" + valid + "ready_path = \"/\"\n", "apply only to mode"},
 		"timeout in command":  {"[[launcher]]\n" + valid + "ready_timeout = \"5s\"\n", "apply only to mode"},
+		"spaced ready path":   {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nready_path = \"/a b\"\n", "no spaces"},
 		"relative ready path": {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nready_path = \"health\"\n", "must start with /"},
 		"bad duration":        {"[[launcher]]\n" + valid + "stop_grace = \"soon\"\n", `stop_grace "soon"`},
 		"zero duration":       {"[[launcher]]\n" + valid + "stop_grace = \"0s\"\n", "positive duration"},

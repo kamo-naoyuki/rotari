@@ -201,6 +201,7 @@ async function startArtifactLaunch(index, child, name, newInstance) {
           ".",
       ) +
       '</p><div class="launch-choices">' +
+      launchOpenLink(body) +
       show(body.id) +
       '<button type="button" onclick="startArtifactLaunch(' +
       index +
@@ -211,12 +212,69 @@ async function startArtifactLaunch(index, child, name, newInstance) {
       ',true)">Start another instance</button></div>';
     return;
   }
+  if (body.mode === "service") return followServiceStart(body.id, name);
   panel.innerHTML =
     '<p class="launch-reason">' +
     esc("Started " + name + ".") +
     '</p><div class="launch-choices">' +
     show(body.id) +
     "</div>";
+}
+
+// launchOpenLink opens a ready service through the server's proxy, in a new
+// tab. A service that is starting or has ended has no link.
+function launchOpenLink(launch) {
+  if (launch.mode !== "service" || launch.state !== "running") return "";
+  return (
+    '<a class="launch-open" href="' +
+    esc(launch.base_path + "/") +
+    '" target="_blank" rel="noopener">Open</a>'
+  );
+}
+
+// followServiceStart shows a starting service until it is ready, with its
+// Open link, or until it fails, with the server's reason.
+async function followServiceStart(id, name) {
+  const show =
+    '<button type="button" onclick="showLaunches(' +
+    jsArg(id) +
+    ')">Show in Launches</button>';
+  for (;;) {
+    const panel = artifactLaunchPanel();
+    if (!panel) return;
+    let launch;
+    try {
+      const response = await fetch("/api/launches");
+      launch = ((await response.json()).launches || []).find(
+        (item) => item.id === id,
+      );
+    } catch (error) {
+      panel.innerHTML = launchExplanation(
+        "Cannot follow " + name + ": " + error.message,
+      );
+      return;
+    }
+    if (!launch) return;
+    if (launch.state === "starting") {
+      panel.innerHTML =
+        '<p class="launch-reason">' +
+        esc("Starting " + name + "; waiting for it to answer...") +
+        '</p><div class="launch-choices">' +
+        show +
+        "</div>";
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      continue;
+    }
+    panel.innerHTML =
+      (launch.state === "running"
+        ? '<p class="launch-reason">' + esc(name + " is ready.") + "</p>"
+        : launchExplanation(name + " " + launchOutcome(launch))) +
+      '<div class="launch-choices">' +
+      launchOpenLink(launch) +
+      show +
+      "</div>";
+    return;
+  }
 }
 
 // showLaunches opens the server-wide list of launches, optionally with one
@@ -270,7 +328,10 @@ async function renderLaunches() {
   }
   const rows = launches
     .map((launch) => {
-      const live = launch.state === "running" || launch.state === "stopping";
+      const live =
+        launch.state === "starting" ||
+        launch.state === "running" ||
+        launch.state === "stopping";
       return (
         '<tr data-launch="' +
         esc(launch.id) +
@@ -284,7 +345,9 @@ async function renderLaunches() {
         esc(launchOutcome(launch)) +
         "</td><td>" +
         esc(formatDateTime(launch.started_at)) +
-        '</td><td><button type="button" onclick="showLaunchLog(' +
+        "</td><td>" +
+        launchOpenLink(launch) +
+        '<button type="button" onclick="showLaunchLog(' +
         jsArg(launch.id) +
         ')">Logs</button>' +
         (live

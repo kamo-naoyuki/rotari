@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +26,8 @@ func TestMain(m *testing.M) {
 		os.Exit(RunWrapper(os.Args[1:]))
 	case "web":
 		os.Exit(fakeWeb())
+	case "http":
+		os.Exit(serveHTTP())
 	case "listen":
 		os.Exit(listenAndWait(os.Getenv("ROTARI_TEST_LAUNCHER_HOST"), os.Getenv("ROTARI_TEST_LAUNCHER_PORT_FILE")))
 	}
@@ -309,4 +312,35 @@ func TestKilledOwnerStopsLaunches(t *testing.T) {
 	if !errors.Is(syscall.Kill(-pgid, 0), syscall.ESRCH) {
 		t.Fatalf("process group %d survived its Web process", pgid)
 	}
+}
+
+// serveHTTP stands in for a launched service: it listens on
+// ROTARI_TEST_LAUNCHER_HOST (default LoopbackHost) and ROTARI_LAUNCHER_PORT
+// and answers under ROTARI_LAUNCHER_BASE_PATH with
+// ROTARI_TEST_LAUNCHER_STATUS (default 200) and the path it was asked for.
+func serveHTTP() int {
+	host := os.Getenv("ROTARI_TEST_LAUNCHER_HOST")
+	if host == "" {
+		host = LoopbackHost
+	}
+	status := http.StatusOK
+	if value := os.Getenv("ROTARI_TEST_LAUNCHER_STATUS"); value != "" {
+		status, _ = strconv.Atoi(value)
+	}
+	base := os.Getenv(EnvBasePath)
+	listener, err := net.Listen("tcp", net.JoinHostPort(host, os.Getenv(EnvPort)))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.HasPrefix(request.URL.Path, base+"/") {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.WriteHeader(status)
+		fmt.Fprint(writer, "served "+request.URL.Path)
+	})
+	_ = http.Serve(listener, handler)
+	return 0
 }

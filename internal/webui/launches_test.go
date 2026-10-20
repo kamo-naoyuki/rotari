@@ -3,6 +3,8 @@ package webui
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,11 +19,46 @@ import (
 // launchWrapperEnv makes the test binary act as `rotari __launch`.
 const launchWrapperEnv = "ROTARI_TEST_WEBUI_LAUNCH_WRAPPER"
 
+// launchServiceEnv makes the test binary act as a launched HTTP service.
+const launchServiceEnv = "ROTARI_TEST_WEBUI_SERVICE"
+
 func TestMain(m *testing.M) {
+	// A service is started by the wrapper, so it inherits launchWrapperEnv
+	// too; check its own role first.
+	if os.Getenv(launchServiceEnv) == "1" {
+		os.Exit(serveTestService())
+	}
 	if os.Getenv(launchWrapperEnv) == "1" {
 		os.Exit(launcher.RunWrapper(os.Args[1:]))
 	}
 	os.Exit(m.Run())
+}
+
+// serveTestService answers under ROTARI_LAUNCHER_BASE_PATH with what it
+// received, so tests can see what the proxy forwarded.
+func serveTestService() int {
+	listener, err := net.Listen("tcp", net.JoinHostPort(launcher.LoopbackHost, os.Getenv(launcher.EnvPort)))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	base := os.Getenv(launcher.EnvBasePath)
+	_ = http.Serve(listener, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.HasPrefix(request.URL.Path, base+"/") {
+			http.NotFound(writer, request)
+			return
+		}
+		fmt.Fprintf(writer, "path=%s query=%s auth=%q token=%q host=%s",
+			request.URL.Path, request.URL.RawQuery, request.Header.Get("Authorization"), request.Header.Get("X-Rotari-Token"), request.Host)
+	}))
+	return 0
+}
+
+// serviceLaunchCommand runs the test binary as an HTTP service.
+func serviceLaunchCommand(name string) launcher.Command {
+	return launcher.Command{Name: name, Command: launchServiceEnv + `=1 exec "$ROTARI_TEST_WEBUI_BIN"`,
+		Targets: []launcher.TargetKind{launcher.TargetFile, launcher.TargetDirectory}, Mode: launcher.ModeService,
+		CWD: launcher.CWDTarget, ReadyPath: "/", ReadyTimeout: 30 * time.Second, StopGrace: time.Second}
 }
 
 // launchOptions enables launching with commands, run by the test binary as
@@ -29,8 +66,9 @@ func TestMain(m *testing.M) {
 func launchOptions(t *testing.T, baseDir string, commands ...launcher.Command) Options {
 	t.Helper()
 	manager, err := launcher.NewManager(launcher.ManagerConfig{
-		Wrapper: []string{os.Args[0]},
-		Env:     append(os.Environ(), launchWrapperEnv+"=1"),
+		Wrapper:     []string{os.Args[0]},
+		Env:         append(os.Environ(), launchWrapperEnv+"=1", "ROTARI_TEST_WEBUI_BIN="+os.Args[0]),
+		ServicePath: LaunchProxyPath,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -307,5 +345,149 @@ func TestLaunchLogFromEnd(t *testing.T) {
 	}
 	if bad := serveJSON(t, handler, http.MethodGet, "/api/launch-log?id="+started.ID+"&from=end&offset=3", ""); bad.Code != http.StatusBadRequest {
 		t.Fatalf("from=end with offset = %d", bad.Code)
+	}
+}
+
+func TestLaunchProxyServesReadyService(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir, serviceLaunchCommand("Viewer"))
+	handler := Handler(options)
+	started := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch",
+		`{"project_name":"default","run_id":"`+f.runID+`","job_id":"job-1","entry":`+fmt.Sprint(f.entries["many"])+`,"name":"Viewer"}`))
+	if started.State != launcher.StateStarting || started.BasePath != "/_launch/"+started.ID {
+		t.Fatalf("start = %+v", started)
+	}
+	proxied := func(target string, headers map[string]string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		for key, value := range headers {
+			request.Header.Set(key, value)
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		return recorder
+	}
+	// Not ready yet, or never: no content from the port.
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		launch, err := options.Launches.Manager.Get(started.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if launch.State == launcher.StateRunning {
+			break
+		}
+		if got := proxied(started.BasePath+"/", nil); got.Code != http.StatusServiceUnavailable {
+			t.Fatalf("proxy while %s = %d %q", launch.State, got.Code, got.Body.String())
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("service did not become ready: %+v", launch)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	got := proxied(started.BasePath+"/data/runs?run=a%20b&x=1", map[string]string{"Authorization": "Basic cm90YXJpOnNlY3JldA==", "X-Rotari-Token": "secret"})
+	want := fmt.Sprintf(`path=/_launch/%s/data/runs query=run=a%%20b&x=1 auth="" token="" host=127.0.0.1:%d`, started.ID, started.Port)
+	if got.Code != http.StatusOK || got.Body.String() != want {
+		t.Fatalf("proxied = %d %q\nwant %q", got.Code, got.Body.String(), want)
+	}
+	if redirect := proxied(started.BasePath+"?a=1", nil); redirect.Code != http.StatusTemporaryRedirect || redirect.Header().Get("Location") != started.BasePath+"/?a=1" {
+		t.Fatalf("prefix without slash = %d %q", redirect.Code, redirect.Header().Get("Location"))
+	}
+	if unknown := proxied("/_launch/0000000000000000/", nil); unknown.Code != http.StatusNotFound {
+		t.Fatalf("unknown launch = %d", unknown.Code)
+	}
+	// Under a basedir mount the proxy path does not exist: it belongs to
+	// the server.
+	if mounted := proxied("/_basedir/x"+started.BasePath+"/", nil); mounted.Code == http.StatusOK {
+		t.Fatal("the proxy answered under a basedir mount")
+	}
+
+	if _, err := options.Launches.Manager.Stop(started.ID); err != nil {
+		t.Fatal(err)
+	}
+	if after := proxied(started.BasePath+"/", nil); after.Code != http.StatusServiceUnavailable {
+		t.Fatalf("proxy after stop = %d %q", after.Code, after.Body.String())
+	}
+	disabled := Handler(testOptions(f.baseDir, true))
+	recorder := httptest.NewRecorder()
+	disabled.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, started.BasePath+"/", nil))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("proxy without --allow-exec = %d", recorder.Code)
+	}
+}
+
+// Each new upstream connection is checked: a transport for a process group
+// that does not own the port refuses to use it.
+func TestLaunchTransportChecksPortOwner(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go http.Serve(listener, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { fmt.Fprint(writer, "foreign") }))
+	port := listener.Addr().(*net.TCPAddr).Port
+	// This test process's own group is not a launch's.
+	client := &http.Client{Transport: newLaunchTransport(port, 1)}
+	response, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
+	if err == nil {
+		response.Body.Close()
+		t.Fatal("the transport used a port owned by another process group")
+	}
+	if !strings.Contains(err.Error(), "another process listens on") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+// TestLaunchProxyTensorBoard runs the template's TensorBoard entry through
+// the proxy, with the command from ROTARI_TEST_LAUNCHER_TENSORBOARD in
+// place of "tensorboard" (for example "conda run -n tb tensorboard"). It is
+// skipped without it; CI does not install TensorBoard.
+func TestLaunchProxyTensorBoard(t *testing.T) {
+	tensorBoard := os.Getenv("ROTARI_TEST_LAUNCHER_TENSORBOARD")
+	if tensorBoard == "" {
+		t.Skip("ROTARI_TEST_LAUNCHER_TENSORBOARD is not set")
+	}
+	commands, err := launcher.ParseCommands(launcher.Template())
+	if err != nil || len(commands) != 1 {
+		t.Fatalf("template = %v, %v", commands, err)
+	}
+	command := commands[0]
+	command.Command = strings.Replace(command.Command, "tensorboard ", tensorBoard+" ", 1)
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir, command)
+	handler := Handler(options)
+	started := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch",
+		`{"project_name":"default","run_id":"`+f.runID+`","job_id":"job-1","entry":`+fmt.Sprint(f.entries["many"])+`,"name":"TensorBoard"}`))
+	deadline := time.Now().Add(90 * time.Second)
+	for {
+		launch, err := options.Launches.Manager.Get(started.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if launch.State == launcher.StateRunning {
+			break
+		}
+		if launch.State != launcher.StateStarting || time.Now().After(deadline) {
+			chunk, _ := options.Launches.Manager.ReadLog(started.ID, 0, 1<<20)
+			t.Fatalf("TensorBoard = %+v\n%s", launch, chunk.Data)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	client := &http.Client{Transport: &http.Transport{Proxy: nil}}
+	for path, want := range map[string]string{
+		started.BasePath + "/":          "<",
+		started.BasePath + "/data/runs": "[]",
+	} {
+		response, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(response.Body)
+		response.Body.Close()
+		if response.StatusCode != http.StatusOK || !strings.HasPrefix(strings.TrimSpace(string(body)), want) {
+			t.Fatalf("GET %s = %d %.200q", path, response.StatusCode, body)
+		}
 	}
 }

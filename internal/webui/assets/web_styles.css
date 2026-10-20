@@ -1661,6 +1661,9 @@ pre,
   border-radius: 6px;
   background: var(--surface-sunken);
 }
+.launch-open {
+  margin-right: 0.5rem;
+}
 .launch-choices {
   display: flex;
   flex-wrap: wrap;

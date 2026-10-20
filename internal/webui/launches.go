@@ -21,6 +21,8 @@ import (
 type LaunchOptions struct {
 	Manager  *launcher.Manager
 	Registry launcher.Registry
+	// transports serves /_launch/ (launch_proxy.go).
+	transports launchTransports
 }
 
 // Bounds on one /api/launch-log page.

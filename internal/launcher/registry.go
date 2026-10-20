@@ -221,8 +221,8 @@ func (entry rawCommand) command() (Command, error) {
 	case ModeService:
 		command.ReadyPath, command.ReadyTimeout = DefaultReadyPath, DefaultReadyTimeout
 		if entry.ReadyPath != nil {
-			if !strings.HasPrefix(*entry.ReadyPath, "/") || strings.ContainsFunc(*entry.ReadyPath, unicode.IsControl) {
-				return Command{}, fmt.Errorf("ready_path %q must start with /", *entry.ReadyPath)
+			if !strings.HasPrefix(*entry.ReadyPath, "/") || strings.ContainsFunc(*entry.ReadyPath, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) }) {
+				return Command{}, fmt.Errorf("ready_path %q must start with / and contain no spaces", *entry.ReadyPath)
 			}
 			command.ReadyPath = *entry.ReadyPath
 		}

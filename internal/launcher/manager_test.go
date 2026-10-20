@@ -241,7 +241,7 @@ func TestManagerRecordsStartFailures(t *testing.T) {
 		"file cwd":       {StartRequest{Command: func() Command { c := testCommand("f", "true"); c.CWD = file; return c }(), Target: dir, Kind: TargetDirectory}, true, "not a directory"},
 		"relative":       {StartRequest{Command: testCommand("r", "true"), Target: "relative", Kind: TargetDirectory}, false, "absolute"},
 		"wrong kind":     {StartRequest{Command: func() Command { c := testCommand("d", "true"); c.Targets = []TargetKind{TargetDirectory}; return c }(), Target: file, Kind: TargetFile}, false, "does not accept a file"},
-		"service mode":   {StartRequest{Command: func() Command { c := testCommand("v", "true"); c.Mode = ModeService; return c }(), Target: dir, Kind: TargetDirectory}, false, "not supported yet"},
+		"service mode":   {StartRequest{Command: func() Command { c := testCommand("v", "true"); c.Mode = ModeService; return c }(), Target: dir, Kind: TargetDirectory}, false, "cannot serve services"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			before := len(manager.List())

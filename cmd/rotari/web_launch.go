@@ -43,8 +43,9 @@ func newWebLaunches() (*webui.LaunchOptions, error) {
 		return nil, fmt.Errorf("locate the rotari executable: %w", err)
 	}
 	manager, err := launcher.NewManager(launcher.ManagerConfig{
-		Wrapper: []string{executable, launcher.WrapperCommand},
-		Env:     launchBaseEnvironment(os.Environ()),
+		Wrapper:     []string{executable, launcher.WrapperCommand},
+		Env:         launchBaseEnvironment(os.Environ()),
+		ServicePath: webui.LaunchProxyPath,
 	})
 	if err != nil {
 		return nil, err

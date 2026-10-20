@@ -57,7 +57,8 @@ func TestWebLaunchInBrowser(t *testing.T) {
 	options := launchOptions(t, f.baseDir,
 		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),
 		launchCommand("Count", `ls "$ROTARI_LAUNCHER_ARTIFACT" | wc -l`, launcher.TargetDirectory),
-		launchCommand("Sleep", `sleep 300`, launcher.TargetFile, launcher.TargetDirectory))
+		launchCommand("Sleep", `sleep 300`, launcher.TargetFile, launcher.TargetDirectory),
+		serviceLaunchCommand("Viewer"))
 	runLaunchBrowserScript(t, options, f, `
   if (document.getElementById('launches-button').hidden) fail('Launches button hidden while launching is available');
   await window.showArtifacts('default', runID, 'job-1', '');
@@ -66,7 +67,7 @@ func TestWebLaunchInBrowser(t *testing.T) {
   // A file offers only commands that accept files.
   await window.openArtifact(entries['data.csv'], '', 'file');
   await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-  if (JSON.stringify(choices()) !== '["Cat","Sleep"]') fail('file choices', choices());
+  if (JSON.stringify(choices()) !== '["Cat","Sleep","Viewer"]') fail('file choices', choices());
 
   // The confirmation shows what the server would run, and nothing has run.
   await window.previewArtifactLaunch(entries['data.csv'], '', 'Cat');
@@ -103,7 +104,7 @@ func TestWebLaunchInBrowser(t *testing.T) {
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['many'], '', 'directory');
   await window.toggleArtifactLaunch(entries['many'], '', 'directory');
-  if (JSON.stringify(choices()) !== '["Count","Sleep"]') fail('directory choices', choices());
+  if (JSON.stringify(choices()) !== '["Count","Sleep","Viewer"]') fail('directory choices', choices());
   await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
   await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
   if (!panelText().includes('already running') || !choices().includes('Start another instance')) fail('reuse', panelText());
@@ -116,6 +117,21 @@ func TestWebLaunchInBrowser(t *testing.T) {
   await wait(300);
   await window.renderLaunches();
   if (!view.textContent.includes('stopped (terminated)')) fail('stopped state', view.textContent);
+
+  // A service is followed until it is ready, then opens through the
+  // server's proxy in a new tab.
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+  await window.openArtifact(entries['many'], '', 'directory');
+  await window.toggleArtifactLaunch(entries['many'], '', 'directory');
+  await window.startArtifactLaunch(entries['many'], '', 'Viewer', false);
+  if (!panelText().includes('Viewer is ready.')) fail('service readiness', panelText());
+  const open = document.querySelector('#artifact-launch-panel .launch-open');
+  if (!open || open.getAttribute('target') !== '_blank' || !/^\/_launch\/[0-9a-f]{16}\/$/.test(open.getAttribute('href'))) fail('Open link', open && open.outerHTML);
+  const served = await (await fetch(base + open.getAttribute('href') + 'page')).text();
+  if (!served.startsWith('path=' + open.getAttribute('href') + 'page')) fail('proxied page', served);
+  await window.showLaunches();
+  if (!view.querySelector('.launch-open')) fail('Open in Launches', view.innerHTML);
 `)
 }
 
