@@ -773,11 +773,23 @@ a process outside the launch on that port fails it. Each service launch gets
 its own `$ROTARI_LAUNCHER_TOKEN`, which never appears in an API response.
 Only after readiness does `/_launch/ID/...` forward requests to it, with path
 and query unchanged, without the browser's `Authorization` and
-`X-Rotari-Token` headers, and with the command's `proxy_headers` (the
-readiness probe sends them too), in which `$ROTARI_LAUNCHER_TOKEN` is the
+`X-Rotari-Token` headers or Rotari launch-session cookie, and with the
+command's `proxy_headers` (the readiness probe sends them too), in which
+`$ROTARI_LAUNCHER_TOKEN` is the
 launch's token, so a service can refuse anyone who reaches its port
 without the proxy; before then and
-after it ends the route answers 503, and 404 for an unknown ID. Covered by
+after it ends the route answers 503, and 404 for an unknown ID.
+An authenticated request under `/_launch/` establishes an HttpOnly,
+SameSite=Strict cookie scoped to that prefix (Secure over TLS), valid for 12
+hours and invalidated by a Web server restart. It authenticates only launch
+routes, including requests carrying the application's own Authorization
+header; all Host and Origin checks still apply. Other application cookies
+are forwarded unchanged. Implemented by
+[launch_auth.go](../internal/webui/launch_auth.go) and
+[launch_proxy.go](../internal/webui/launch_proxy.go), with session lifetime
+and guard checks in
+[launch_auth_test.go](../internal/webui/launch_auth_test.go).
+Covered by
 `TestWebLaunchServesServices` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 

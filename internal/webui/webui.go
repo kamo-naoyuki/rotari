@@ -2,6 +2,7 @@ package webui
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -144,7 +145,10 @@ type webDeleteProjectRequest struct {
 
 // WithAuthToken requires token from every request, as an X-Rotari-Token
 // header, a bearer token, or the Basic auth password of user "rotari".
+// Authenticated launch navigations also establish a scoped session cookie,
+// allowing applications to send their own Authorization headers.
 func WithAuthToken(next http.Handler, token string) http.Handler {
+	launchSession := launchAuth{key: []byte(rand.Text())}
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		provided := request.Header.Get("X-Rotari-Token")
 		if provided == "" {
@@ -159,11 +163,17 @@ func WithAuthToken(next http.Handler, token string) http.Handler {
 				provided = password
 			}
 		}
-		if len(provided) != len(token) || subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+		authenticated := len(provided) == len(token) && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
+		launchRequest := strings.HasPrefix(request.URL.Path, launchProxyPrefix)
+		sessionAuthenticated := launchRequest && launchSession.accepts(request, time.Now())
+		if !authenticated && !sessionAuthenticated {
 			writer.Header().Add("WWW-Authenticate", `Basic realm="rotari web"`)
 			writer.Header().Add("WWW-Authenticate", `Bearer realm="rotari web"`)
 			http.Error(writer, "authentication required", http.StatusUnauthorized)
 			return
+		}
+		if authenticated && launchRequest && !sessionAuthenticated {
+			http.SetCookie(writer, launchSession.cookie(request, time.Now()))
 		}
 		next.ServeHTTP(writer, request)
 	})

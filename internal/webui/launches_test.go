@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -844,5 +845,112 @@ func TestLaunchProxyAddsServiceHeaders(t *testing.T) {
 	if want := fmt.Sprintf("auth=%q", upstream.Headers["Authorization"]); recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), want) ||
 		strings.Contains(recorder.Body.String(), "Basic") {
 		t.Fatalf("proxied = %d %s, want %s", recorder.Code, recorder.Body.String(), want)
+	}
+}
+
+func TestJupyterAuthenticatedProxy(t *testing.T) {
+	if os.Getenv("ROTARI_TEST_LAUNCHER_TOOLS") == "" {
+		t.Skip("ROTARI_TEST_LAUNCHER_TOOLS is not set")
+	}
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir, launcher.BuiltinCommands()...)
+	handler := Handler(options)
+	started := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch",
+		`{"project_name":"default","run_id":"`+f.runID+`","job_id":"job-1","entry":`+fmt.Sprint(f.entries["many"])+`,"name":"Jupyter Lab"}`))
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		launch, err := options.Launches.Manager.Get(started.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if launch.State == launcher.StateRunning {
+			break
+		}
+		if launch.State != launcher.StateStarting || time.Now().After(deadline) {
+			t.Fatalf("Jupyter = %+v", launch)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	server := httptest.NewServer(WithAuthToken(WithExecGuard(handler, nil), "secret"))
+	defer server.Close()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	request, _ := http.NewRequest(http.MethodGet, server.URL+started.BasePath+"/lab", nil)
+	request.SetBasicAuth("rotari", "secret")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("Jupyter navigation = %d, %v", response.StatusCode, err)
+	}
+	_, config, ok := strings.Cut(string(page), `id="jupyter-config-data"`)
+	if !ok {
+		t.Fatal("Jupyter configuration missing")
+	}
+	_, config, _ = strings.Cut(config, ">")
+	config, _, _ = strings.Cut(config, "</script>")
+	var settings struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal([]byte(config), &settings); err != nil || settings.Token == "" {
+		t.Fatal("Jupyter configuration has no usable token")
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		path, body, want := "/api/contents", "", http.StatusOK
+		if method == http.MethodPost {
+			path, body, want = "/api/kernels", "{}", http.StatusCreated
+		}
+		request, _ := http.NewRequest(method, server.URL+started.BasePath+path, strings.NewReader(body))
+		request.Header.Set("Authorization", "token "+settings.Token)
+		request.Header.Set("Origin", server.URL)
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil || response.StatusCode != want {
+			t.Fatalf("authenticated Jupyter %s = %d, %v", path, response.StatusCode, err)
+		}
+		if method != http.MethodPost {
+			continue
+		}
+		var kernel struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(data, &kernel); err != nil || kernel.ID == "" {
+			t.Fatal("Jupyter kernel response has no ID")
+		}
+		target, _ := url.Parse(server.URL + started.BasePath + "/api/kernels/" + kernel.ID + "/channels")
+		conn, err := net.DialTimeout("tcp", target.Host, 10*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+		handshake, _ := http.NewRequest(http.MethodGet, target.String(), nil)
+		handshake.Header.Set("Authorization", "token "+settings.Token)
+		handshake.Header.Set("Origin", server.URL)
+		handshake.Header.Set("Upgrade", "websocket")
+		handshake.Header.Set("Connection", "Upgrade")
+		handshake.Header.Set("Sec-WebSocket-Version", "13")
+		handshake.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+		for _, cookie := range jar.Cookies(target) {
+			handshake.AddCookie(cookie)
+		}
+		if err := handshake.Write(conn); err != nil {
+			conn.Close()
+			t.Fatal(err)
+		}
+		line, err := bufio.NewReader(conn).ReadString('\n')
+		conn.Close()
+		if err != nil || !strings.Contains(line, "101") {
+			t.Fatalf("authenticated kernel websocket = %q, %v", line, err)
+		}
 	}
 }

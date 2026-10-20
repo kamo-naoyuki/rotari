@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/exec"
@@ -44,6 +46,9 @@ func serveLaunchService() int {
 		fmt.Fprintf(writer, "path=%s query=%s auth=%q token=%q launch-token-sent=%v", request.URL.Path, request.URL.RawQuery,
 			request.Header.Get("Authorization"), request.Header.Get("X-Rotari-Token"),
 			os.Getenv("ROTARI_LAUNCHER_TOKEN") != "" && request.Header.Get("X-Launch-Token") == os.Getenv("ROTARI_LAUNCHER_TOKEN"))
+		if cookie := request.Header.Get("Cookie"); cookie != "" {
+			fmt.Fprintf(writer, " cookie=%q", cookie)
+		}
 	}))
 	return 0
 }
@@ -507,6 +512,51 @@ func TestWebLaunchServesServices(t *testing.T) {
 	want := `path=` + viewer.BasePath + `/data/runs query=run=a%20b auth="" token="" launch-token-sent=true`
 	if proxied.Status != http.StatusOK || proxied.Body != want {
 		t.Fatalf("proxied = (%d, %s), want %s", proxied.Status, proxied.Body, want)
+	}
+	// A real browser navigates with Basic auth, then Jupyter supplies its
+	// own Authorization header on API requests. Neither credential leaks.
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	browser := &http.Client{Jar: jar, Timeout: 10 * time.Second}
+	address := base + viewer.BasePath + "/data/runs?run=a%20b"
+	request, err := http.NewRequest(http.MethodGet, address, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.SetBasicAuth("rotari", launchToken)
+	response, err := browser.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK || len(response.Cookies()) != 1 {
+		t.Fatalf("launch navigation = %d, cookies = %d", response.StatusCode, len(response.Cookies()))
+	}
+	parsed, err := url.Parse(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar.SetCookies(parsed, []*http.Cookie{{Name: "application", Value: "kept", Path: viewer.BasePath + "/"}})
+	for _, authorization := range []string{"token jupyter-secret", "Bearer application-secret", ""} {
+		request, err := http.NewRequest(http.MethodGet, address, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Authorization", authorization)
+		response, err := browser.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != http.StatusOK || string(body) != want+` cookie="application=kept"` {
+			t.Fatalf("service Authorization %q = (%d, %s)", authorization, response.StatusCode, body)
+		}
 	}
 	if unknown := api(e, http.MethodGet, base+"/_launch/0000000000000000/", ""); unknown.Status != http.StatusNotFound {
 		t.Fatalf("unknown launch = %d", unknown.Status)

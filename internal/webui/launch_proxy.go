@@ -123,6 +123,13 @@ func (s site) serveLaunchProxy(writer http.ResponseWriter, request *http.Request
 			out.SetURL(upstream)
 			out.Out.Header.Del("Authorization")
 			out.Out.Header.Del("X-Rotari-Token")
+			// Keep application cookies, but never forward the Web session.
+			out.Out.Header.Del("Cookie")
+			for _, cookie := range out.In.Cookies() {
+				if cookie.Name != launchAuthCookie {
+					out.Out.AddCookie(cookie)
+				}
+			}
 			// The service's own secret, which only this proxy presents.
 			for name, value := range upstreamService.Headers {
 				out.Out.Header.Set(name, value)

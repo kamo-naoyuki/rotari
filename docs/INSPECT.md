@@ -454,6 +454,13 @@ by default. To turn it on:
    user name `rotari` and the token as the password. Set
    `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
 
+Opening a service establishes an HttpOnly, same-site authentication cookie
+scoped to `/_launch/`, valid for 12 hours or until the Web server restarts.
+This lets JupyterLab send its own API authorization without replacing the
+Rotari Web login. You do not need to enter a Jupyter token. After expiration,
+reload the service page to authenticate again. The cookie is not forwarded
+to the service and does not authenticate other Rotari Web APIs.
+
 In a job's Artifacts, choose **Launch with…** in the row of an entry (including
 the working directory row `.`), or of a
 file or directory inside an opened directory; an opened file or directory has
