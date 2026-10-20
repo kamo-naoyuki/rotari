@@ -83,3 +83,23 @@ Commit: `e1459fc8` (2026-10-20 14:55:39 +0900).
 - **Validation:** Documentation only; no tests run.
 - **Remaining:** Decide loopback authentication for `--allow-exec`; then the
   plan phases.
+
+## Token required for launching on every listener
+
+Commit: `d34f6cc9` (2026-10-20 14:56:52 +0900).
+
+- **Change:** Access boundaries now require token authentication whenever
+  `--allow-exec` is set, on loopback listeners too. Without `--auth-token` or
+  `ROTARI_WEB_AUTH_TOKEN`, the server generates a random token and prints it
+  on stderr with sign-in instructions (Basic auth, user `rotari`). The plan
+  recommends `ROTARI_WEB_AUTH_TOKEN` for a stable token, since `--auth-token`
+  is visible through `ps`. Updated the disabled-launch hint and added an
+  acceptance item covering generation, rejection of unauthenticated requests
+  including the proxy, and not printing a configured token.
+- **Reason:** The user accepted mandatory tokens. On a shared login node
+  other users can reach `127.0.0.1`. Without a token they could start the
+  user's registered commands and view the services proxied from them.
+- **Plan impact:** Resolves the last open review item. Servers without
+  `--allow-exec` keep their current authentication behavior.
+- **Validation:** Documentation only; no tests run.
+- **Remaining:** Phase 1 of the plan.
