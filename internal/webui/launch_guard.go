@@ -16,10 +16,11 @@ var loopbackHostNames = []string{"localhost", "127.0.0.1", "::1"}
 // browser makes on behalf of another site:
 //
 //   - Host must be a loopback name or one of allowedHosts (DNS rebinding).
-//   - A request that is not GET or HEAD must carry an Origin equal to its own
-//     scheme and Host, or, without Origin, an X-Rotari-Token or bearer
-//     Authorization header, which a browser never adds by itself. A missing
-//     Origin is never taken as proof that the request is same-origin.
+//   - A request that is not GET or HEAD, and a WebSocket handshake, must
+//     carry an Origin equal to its own scheme and Host, or, without Origin,
+//     an X-Rotari-Token or bearer Authorization header, which a browser
+//     never adds by itself. A missing Origin is never taken as proof that
+//     the request is same-origin.
 //
 // Authentication itself is WithAuthToken's job.
 func WithExecGuard(next http.Handler, allowedHosts []string) http.Handler {
@@ -33,7 +34,9 @@ func WithExecGuard(next http.Handler, allowedHosts []string) http.Handler {
 			http.Error(writer, "Host "+request.Host+" is not allowed while launching is enabled; open the server as localhost, or restart rotari web with --allowed-host "+host, http.StatusMisdirectedRequest)
 			return
 		}
-		if request.Method != http.MethodGet && request.Method != http.MethodHead {
+		// A WebSocket handshake is a GET, but it opens a channel another
+		// site could drive, such as a launched notebook's kernel.
+		if (request.Method != http.MethodGet && request.Method != http.MethodHead) || isUpgrade(request) {
 			if message := crossOriginRejection(request); message != "" {
 				http.Error(writer, message, http.StatusForbidden)
 				return
@@ -41,6 +44,10 @@ func WithExecGuard(next http.Handler, allowedHosts []string) http.Handler {
 		}
 		next.ServeHTTP(writer, request)
 	})
+}
+
+func isUpgrade(request *http.Request) bool {
+	return request.Header.Get("Upgrade") != ""
 }
 
 // requestHostName is Host without its port, lowercased and unbracketed.

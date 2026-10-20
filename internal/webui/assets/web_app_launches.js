@@ -7,9 +7,17 @@ let launcherAvailability = null;
 let selectedLaunchID = "";
 let launchListTimer = null;
 
-async function loadLauncherAvailability() {
+// loadLauncherAvailability asks what this server can launch; with a kind
+// and a target's base name, the server lists only the commands that accept
+// that target.
+async function loadLauncherAvailability(kind, name) {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  if (name) params.set("name", name);
   try {
-    const response = await fetch("/api/launchers");
+    const response = await fetch(
+      "/api/launchers" + (params.size ? "?" + params : ""),
+    );
     launcherAvailability = response.ok
       ? await response.json()
       : {
@@ -94,15 +102,17 @@ async function toggleArtifactLaunch(index, child, type, button) {
   } else {
     artifactPreview().querySelector(".artifact-preview-title").after(panel);
   }
-  const availability = await loadLauncherAvailability();
+  const kind = type === "directory" ? "directory" : "file";
+  const target = child || selectedArtifacts.listing.entries[index].path;
+  const availability = await loadLauncherAvailability(
+    kind,
+    target.slice(target.lastIndexOf("/") + 1),
+  );
   if (!availability.available) {
     panel.innerHTML = launchExplanation(availability.reason, availability.hint);
     return;
   }
-  const kind = type === "directory" ? "directory" : "file";
-  const commands = (availability.commands || []).filter((command) =>
-    (command.targets || []).includes(kind),
-  );
+  const commands = availability.commands || [];
   if (!commands.length) {
     panel.innerHTML = launchExplanation((availability.unmatched || {})[kind]);
     return;

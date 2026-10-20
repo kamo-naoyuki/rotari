@@ -373,7 +373,8 @@ The live Web UI can run commands you registered yourself against an artifact,
 for example a plotting script on a file or a viewer on a directory. It is off
 by default. To turn it on:
 
-1. TensorBoard is available without registering anything. Register other
+1. TensorBoard, Jupyter Lab, MLflow, Aim, and Streamlit are built in (see
+   [Built-in services](CONFIGURATION.md#built-in-services)). Register other
    commands in the global launcher file; `rotari config --launchers` writes
    a commented template (see
    [Launcher commands](CONFIGURATION.md#launcher-commands)).

@@ -79,7 +79,7 @@ func (manager *Manager) serve(launch *Launch, command Command) {
 // or deadline passes.
 func (manager *Manager) awaitReady(launch *Launch, command Command, deadline time.Time) readiness {
 	manager.mu.Lock()
-	process, port, path := launch.process, launch.Port, launch.BasePath+command.ReadyPath
+	process, port, path, headers := launch.process, launch.Port, launch.BasePath+command.ReadyPath, launch.resolvedProxyHeaders()
 	manager.mu.Unlock()
 	address := net.JoinHostPort(LoopbackHost, strconv.Itoa(port))
 	listened := false
@@ -107,7 +107,7 @@ func (manager *Manager) awaitReady(launch *Launch, command Command, deadline tim
 			if err := VerifyListener(port, process.PGID()); err != nil {
 				return readiness{failure: err}
 			}
-			if probeHTTP(address, path) == nil {
+			if probeHTTP(address, path, headers) == nil {
 				return readiness{ready: true}
 			}
 		}
@@ -118,9 +118,10 @@ func (manager *Manager) awaitReady(launch *Launch, command Command, deadline tim
 	}
 }
 
-// probeHTTP sends one GET and accepts a 2xx or 3xx status. It speaks just
-// enough HTTP/1.1 for that, so this package needs no HTTP client.
-func probeHTTP(address, path string) error {
+// probeHTTP sends one GET, with the headers the proxy would add, and
+// accepts a 2xx or 3xx status. It speaks just enough HTTP/1.1 for that, so
+// this package needs no HTTP client.
+func probeHTTP(address, path string, headers map[string]string) error {
 	conn, err := net.DialTimeout("tcp", address, probeTimeout)
 	if err != nil {
 		return err
@@ -129,7 +130,13 @@ func probeHTTP(address, path string) error {
 	if err := conn.SetDeadline(time.Now().Add(probeTimeout)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: rotari-launcher\r\nConnection: close\r\n\r\n", path, address); err != nil {
+	var request strings.Builder
+	fmt.Fprintf(&request, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: rotari-launcher\r\nConnection: close\r\n", path, address)
+	for name, value := range headers {
+		fmt.Fprintf(&request, "%s: %s\r\n", name, value)
+	}
+	request.WriteString("\r\n")
+	if _, err := conn.Write([]byte(request.String())); err != nil {
 		return err
 	}
 	line, err := bufio.NewReader(conn).ReadString('\n')
@@ -147,18 +154,26 @@ func probeHTTP(address, path string) error {
 	return nil
 }
 
-// ServiceUpstream returns the port and process group of a ready service,
-// for a proxy that must check, per connection, that the port still
-// belongs to the launch (VerifyListener).
-func (manager *Manager) ServiceUpstream(id string) (port, pgid int, err error) {
+// Upstream is where a proxy sends a ready service's requests.
+type Upstream struct {
+	Port int
+	// PGID owns Port; a proxy checks it per connection (VerifyListener).
+	PGID int
+	// Headers are added to every forwarded request (Command.ProxyHeaders,
+	// with the launch's token resolved).
+	Headers map[string]string
+}
+
+// ServiceUpstream returns a ready service's upstream.
+func (manager *Manager) ServiceUpstream(id string) (Upstream, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	launch, err := manager.find(id)
 	if err != nil {
-		return 0, 0, err
+		return Upstream{}, err
 	}
 	if launch.Mode != ModeService || launch.State != StateRunning {
-		return 0, 0, fmt.Errorf("%w: %s is %s", ErrNotServing, launch.Name, launch.State)
+		return Upstream{}, fmt.Errorf("%w: %s is %s", ErrNotServing, launch.Name, launch.State)
 	}
-	return launch.Port, launch.process.PGID(), nil
+	return Upstream{Port: launch.Port, PGID: launch.process.PGID(), Headers: launch.resolvedProxyHeaders()}, nil
 }

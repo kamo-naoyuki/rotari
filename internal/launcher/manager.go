@@ -26,6 +26,10 @@ const (
 	EnvCWD      = "ROTARI_LAUNCHER_CWD"
 	EnvPort     = "ROTARI_LAUNCHER_PORT"
 	EnvBasePath = "ROTARI_LAUNCHER_BASE_PATH"
+	// EnvToken is a secret made for each service launch. A service that
+	// can require one should, with ProxyHeaders presenting it, so that
+	// other local users who reach its loopback port cannot use it.
+	EnvToken = "ROTARI_LAUNCHER_TOKEN"
 )
 
 // noProxyLoopback is added to NO_PROXY and no_proxy: loopback traffic never
@@ -111,14 +115,17 @@ type Launch struct {
 	Error     string            `json:"error,omitempty"`
 	Reused    bool              `json:"reused,omitempty"`
 	// Port and BasePath are a service's upstream port and URL path.
-	Port       int    `json:"port,omitempty"`
-	BasePath   string `json:"base_path,omitempty"`
-	reuseKey   string
-	stopGrace  time.Duration
-	process    *Process
-	log        *rotatingLog
-	logDir     string
-	stopCalled bool
+	Port     int    `json:"port,omitempty"`
+	BasePath string `json:"base_path,omitempty"`
+	reuseKey string
+	// token is EnvToken for a service; it never leaves the server.
+	token        string
+	proxyHeaders map[string]string
+	stopGrace    time.Duration
+	process      *Process
+	log          *rotatingLog
+	logDir       string
+	stopCalled   bool
 	// recorded is closed once watch has recorded how the launch ended.
 	recorded chan struct{}
 }
@@ -127,6 +134,7 @@ func (launch *Launch) snapshot() Launch {
 	copied := *launch
 	copied.Labels = cloneLabels(launch.Labels)
 	copied.process, copied.log = nil, nil
+	copied.token, copied.proxyHeaders = "", nil
 	return copied
 }
 
@@ -218,6 +226,10 @@ func (manager *Manager) Start(request StartRequest) (Launch, error) {
 	}
 	if command.Mode == ModeService {
 		launch.BasePath = manager.config.ServicePath(id)
+		if launch.token, err = newSecret(); err != nil {
+			return Launch{}, err
+		}
+		launch.proxyHeaders = command.ProxyHeaders
 	}
 	err = manager.prepare(launch)
 	if err == nil {
@@ -319,7 +331,7 @@ func launchEnvironment(env []string, launch *Launch) []string {
 	}
 	result = append(result, EnvArtifact+"="+launch.Target, EnvCWD+"="+launch.CWD)
 	if launch.Mode == ModeService {
-		result = append(result, EnvPort+"="+strconv.Itoa(launch.Port), EnvBasePath+"="+launch.BasePath)
+		result = append(result, EnvPort+"="+strconv.Itoa(launch.Port), EnvBasePath+"="+launch.BasePath, EnvToken+"="+launch.token)
 	}
 	return result
 }
@@ -495,6 +507,29 @@ func (manager *Manager) Close() error {
 	err := errors.Join(manager.lifetime.Close(), os.RemoveAll(manager.dir))
 	manager.lock.Close()
 	return err
+}
+
+// newSecret is a launch token.
+func newSecret() (string, error) {
+	var raw [24]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", fmt.Errorf("generate launch token: %w", err)
+	}
+	return hex.EncodeToString(raw[:]), nil
+}
+
+// resolvedProxyHeaders are the launch's ProxyHeaders with its token in
+// place of $ROTARI_LAUNCHER_TOKEN and ${ROTARI_LAUNCHER_TOKEN}.
+func (launch *Launch) resolvedProxyHeaders() map[string]string {
+	if len(launch.proxyHeaders) == 0 {
+		return nil
+	}
+	replacer := strings.NewReplacer("${"+EnvToken+"}", launch.token, "$"+EnvToken, launch.token)
+	headers := make(map[string]string, len(launch.proxyHeaders))
+	for name, value := range launch.proxyHeaders {
+		headers[name] = replacer.Replace(value)
+	}
+	return headers
 }
 
 func newLaunchID() (string, error) {

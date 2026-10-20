@@ -479,7 +479,8 @@ No. The Web UI controls existing runs and edits queues; execution starts through
 
 ### Can I run a script or viewer on an artifact from the Web UI?
 
-Yes. TensorBoard is built in, and commands you register in your global
+Yes. TensorBoard, Jupyter Lab, MLflow, Aim, and Streamlit are built in, and
+commands you register in your global
 `launchers.toml` appear too, under **Launch with…** in a job's Artifacts when
 `rotari web --allow-exec` is running; the browser cannot send any other
 command. A command whose program is not installed is shown disabled. See

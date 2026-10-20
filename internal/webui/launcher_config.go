@@ -56,7 +56,7 @@ func (s site) launcherConfig() (webLauncherConfig, error) {
 	}
 	for _, command := range registry.Commands {
 		view.Commands = append(view.Commands, webLaunchCommand{
-			Name: command.Name, Command: command.Command, Targets: command.Targets, Mode: command.Mode, CWD: command.CWD,
+			Name: command.Name, Command: command.Command, Targets: command.Targets, Patterns: command.Patterns, Mode: command.Mode, CWD: command.CWD,
 			Builtin: command.Builtin, Unavailable: command.Unavailable(),
 		})
 	}

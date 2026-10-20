@@ -58,7 +58,7 @@ func TestServiceBecomesReadyAndExposesItsUpstream(t *testing.T) {
 	if err != nil || launch.State != StateStarting || launch.BasePath != "/_launch/"+launch.ID || launch.Port == 0 {
 		t.Fatalf("Start() = %+v, %v", launch, err)
 	}
-	if _, _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
+	if _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
 		ready, _ := manager.Get(launch.ID)
 		if ready.State == StateStarting {
 			t.Fatalf("ServiceUpstream() while starting = %v, want ErrNotServing", err)
@@ -68,9 +68,10 @@ func TestServiceBecomesReadyAndExposesItsUpstream(t *testing.T) {
 	if ready.State != StateRunning {
 		t.Fatalf("service = %+v, want running", ready)
 	}
-	port, pgid, err := manager.ServiceUpstream(launch.ID)
-	if err != nil || port != launch.Port || pgid <= 1 {
-		t.Fatalf("ServiceUpstream() = %d, %d, %v", port, pgid, err)
+	upstream, err := manager.ServiceUpstream(launch.ID)
+	port, pgid := upstream.Port, upstream.PGID
+	if err != nil || port != launch.Port || pgid <= 1 || upstream.Headers != nil {
+		t.Fatalf("ServiceUpstream() = %+v, %v", upstream, err)
 	}
 	if err := VerifyListener(port, pgid); err != nil {
 		t.Fatal(err)
@@ -91,7 +92,7 @@ func TestServiceBecomesReadyAndExposesItsUpstream(t *testing.T) {
 	if stopped, err := manager.Stop(launch.ID); err != nil || stopped.State != StateStopped {
 		t.Fatalf("Stop() = %+v, %v", stopped, err)
 	}
-	if _, _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
+	if _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
 		t.Fatalf("ServiceUpstream() after Stop = %v", err)
 	}
 }
@@ -125,7 +126,7 @@ func TestServiceFailures(t *testing.T) {
 			if ended.State != StateFailed || !strings.Contains(ended.Error, test.want) {
 				t.Fatalf("service ended as %+v, want failed with %q", ended, test.want)
 			}
-			if _, _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
+			if _, err := manager.ServiceUpstream(launch.ID); !errors.Is(err, ErrNotServing) {
 				t.Fatalf("ServiceUpstream() of a failed service = %v", err)
 			}
 		})
@@ -204,5 +205,49 @@ func TestServiceNeedsAServicePath(t *testing.T) {
 	manager := newTestManager(t, ManagerConfig{})
 	if _, err := manager.Start(StartRequest{Command: serviceCommand("web", ""), Target: t.TempDir(), Kind: TargetDirectory}); err == nil || !strings.Contains(err.Error(), "cannot serve services") {
 		t.Fatalf("Start() without ServicePath = %v", err)
+	}
+}
+
+// A service that requires the launch token is ready only because the
+// probe presents it, and the upstream carries it for the proxy; each
+// launch has its own token.
+func TestServiceTokenAndProxyHeaders(t *testing.T) {
+	t.Parallel()
+	manager := newServiceManager(t)
+	command := serviceCommand("guarded", "ROTARI_TEST_LAUNCHER_REQUIRE_TOKEN=1")
+	command.ProxyHeaders = map[string]string{"Authorization": "token ${" + EnvToken + "}"}
+	tokens := map[string]bool{}
+	for range 2 {
+		launch, err := manager.Start(StartRequest{Command: command, Target: t.TempDir(), Kind: TargetDirectory})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ready := waitState(t, manager, launch.ID, notStarting); ready.State != StateRunning {
+			t.Fatalf("service requiring the token = %+v", ready)
+		}
+		upstream, err := manager.ServiceUpstream(launch.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		header := upstream.Headers["Authorization"]
+		if !strings.HasPrefix(header, "token ") || len(header) < len("token ")+32 || strings.Contains(header, "$") {
+			t.Fatalf("resolved header = %q", header)
+		}
+		tokens[header] = true
+		request, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s/", upstream.Port, launch.BasePath), nil)
+		client := &http.Client{Transport: &http.Transport{Proxy: nil}}
+		if response, err := client.Do(request); err != nil || response.StatusCode != http.StatusForbidden {
+			t.Fatalf("request without the token = %v, %v; want 403", response, err)
+		}
+		request.Header.Set("Authorization", header)
+		if response, err := client.Do(request); err != nil || response.StatusCode != http.StatusOK {
+			t.Fatalf("request with the token = %v, %v", response, err)
+		}
+		if snapshot, _ := manager.Get(launch.ID); snapshot.token != "" || snapshot.proxyHeaders != nil {
+			t.Fatal("a launch snapshot carries its token")
+		}
+	}
+	if len(tokens) != 2 {
+		t.Fatal("two launches shared a token")
 	}
 }

@@ -41,8 +41,9 @@ func serveLaunchService() int {
 			http.NotFound(writer, request)
 			return
 		}
-		fmt.Fprintf(writer, "path=%s query=%s auth=%q token=%q", request.URL.Path, request.URL.RawQuery,
-			request.Header.Get("Authorization"), request.Header.Get("X-Rotari-Token"))
+		fmt.Fprintf(writer, "path=%s query=%s auth=%q token=%q launch-token-sent=%v", request.URL.Path, request.URL.RawQuery,
+			request.Header.Get("Authorization"), request.Header.Get("X-Rotari-Token"),
+			os.Getenv("ROTARI_LAUNCHER_TOKEN") != "" && request.Header.Get("X-Launch-Token") == os.Getenv("ROTARI_LAUNCHER_TOKEN"))
 	}))
 	return 0
 }
@@ -300,6 +301,9 @@ func TestWebLaunchGuardsRequests(t *testing.T) {
 		"basic auth, no origin": {http.MethodPost, map[string]string{"Authorization": "Basic " + basicAuth()}, http.StatusForbidden},
 		"token, no origin":      {http.MethodPost, map[string]string{"X-Rotari-Token": launchToken}, http.StatusNotFound},
 		"bearer, no origin":     {http.MethodPost, map[string]string{"Authorization": "Bearer " + launchToken}, http.StatusNotFound},
+		// A WebSocket handshake is a GET that opens a channel, so it needs
+		// the same Origin as a mutation.
+		"cross-site websocket": {http.MethodGet, map[string]string{"Upgrade": "websocket", "Connection": "Upgrade", "Origin": "http://attacker.example", "X-Rotari-Token": launchToken}, http.StatusForbidden},
 	} {
 		t.Run(name, func(t *testing.T) {
 			target, body := base+"/api/launchers", ""
@@ -350,11 +354,13 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 	for _, command := range availability.Commands {
 		names = append(names, command.Name)
 	}
-	if strings.Join(names, ",") != "TensorBoard,List,Cat,Missing" || !availability.Commands[0].Builtin {
-		t.Fatalf("registered commands = %+v", availability.Commands)
+	builtins := "TensorBoard,Jupyter Lab,MLflow,MLflow (SQLite),Aim,Streamlit"
+	if strings.Join(names, ",") != builtins+",List,Cat,Missing" || !availability.Commands[0].Builtin {
+		t.Fatalf("registered commands = %v", names)
 	}
-	if availability.Commands[3].Unavailable != "rotari-conformance-missing-tool was not found on PATH" || availability.Commands[2].Unavailable != "" {
-		t.Fatalf("availability of Cat and Missing = %+v", availability.Commands[2:])
+	last := len(availability.Commands) - 1
+	if availability.Commands[last].Unavailable != "rotari-conformance-missing-tool was not found on PATH" || availability.Commands[last-1].Unavailable != "" {
+		t.Fatalf("availability of Cat and Missing = %+v", availability.Commands[last-1:])
 	}
 
 	list := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("List", "data", "", nil)))
@@ -483,6 +489,7 @@ func TestWebLaunchServesServices(t *testing.T) {
 	portFile := filepath.Join(e.Root, "port")
 	writeLaunchers(t, e,
 		launcherEntry("Viewer", launchServiceRole+`=1 exec "$ROTARI_CONFORMANCE_BIN"`, `"directory"`, "service")+
+			"proxy_headers = { X-Launch-Token = \"$ROTARI_LAUNCHER_TOKEN\" }\n\n"+
 			launcherEntry("Squatted", `echo "$ROTARI_LAUNCHER_PORT" > `+portFile+`; sleep 300`, `"file"`, "service"))
 	base, _, _ := startWebProcess(t, e, "--allow-exec")
 
@@ -495,7 +502,9 @@ func TestWebLaunchServesServices(t *testing.T) {
 		t.Fatalf("service = %+v", ready)
 	}
 	proxied := api(e, http.MethodGet, base+viewer.BasePath+"/data/runs?run=a%20b", "")
-	want := `path=` + viewer.BasePath + `/data/runs query=run=a%20b auth="" token=""`
+	// The browser's credentials are dropped; the launch's own token,
+	// configured in proxy_headers, is presented instead.
+	want := `path=` + viewer.BasePath + `/data/runs query=run=a%20b auth="" token="" launch-token-sent=true`
 	if proxied.Status != http.StatusOK || proxied.Body != want {
 		t.Fatalf("proxied = (%d, %s), want %s", proxied.Status, proxied.Body, want)
 	}
@@ -555,7 +564,7 @@ func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
 		return got
 	}
 	// Launching is off; the file is still shown, with the built-in command.
-	if got := read(); got.Path != path || got.Exists || got.Enabled || len(got.Commands) != 1 || got.Commands[0].Name != "TensorBoard" || !got.Commands[0].Builtin {
+	if got := read(); got.Path != path || got.Exists || got.Enabled || len(got.Commands) != 6 || got.Commands[0].Name != "TensorBoard" || !got.Commands[0].Builtin {
 		t.Fatalf("view without a file = %+v", got)
 	}
 	if generated := e.HTTPPostJSON(base+"/api/generate-launcher-config", map[string]any{}); generated.Status != http.StatusOK {

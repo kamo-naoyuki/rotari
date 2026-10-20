@@ -1,13 +1,16 @@
 package webui
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -290,6 +293,8 @@ func TestExecGuard(t *testing.T) {
 		"no origin, token":       {http.MethodPost, "localhost:8765", map[string]string{"X-Rotari-Token": "t"}, http.StatusNoContent},
 		"no origin, bearer":      {http.MethodPost, "localhost:8765", map[string]string{"Authorization": "Bearer t"}, http.StatusNoContent},
 		"get needs no origin":    {http.MethodGet, "localhost:8765", nil, http.StatusNoContent},
+		"cross-site websocket":   {http.MethodGet, "localhost:8765", map[string]string{"Upgrade": "websocket", "Origin": "http://attacker.example"}, http.StatusForbidden},
+		"same-origin websocket":  {http.MethodGet, "localhost:8765", map[string]string{"Upgrade": "websocket", "Origin": "http://localhost:8765"}, http.StatusNoContent},
 		"cross-origin rebinding": {http.MethodPost, "attacker.example", map[string]string{"Origin": "http://attacker.example"}, http.StatusMisdirectedRequest},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -528,7 +533,8 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 
 	// No file: only the built-in TensorBoard would be registered.
 	got := view()
-	if got.Path != path || got.Exists || got.Enabled || got.Error != "" || len(got.Commands) != 1 || !got.Commands[0].Builtin {
+	builtins := len(launcher.BuiltinCommands())
+	if got.Path != path || got.Exists || got.Enabled || got.Error != "" || len(got.Commands) != builtins || !got.Commands[0].Builtin {
 		t.Fatalf("missing file view = %+v", got)
 	}
 
@@ -541,7 +547,7 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 		t.Fatalf("generated file = %v, %v; want mode 0600", info, err)
 	}
 	got = view()
-	if !got.Exists || got.Content != string(launcher.Template()) || got.Error != "" || len(got.Commands) != 1 {
+	if !got.Exists || got.Content != string(launcher.Template()) || got.Error != "" || len(got.Commands) != builtins {
 		t.Fatalf("generated file view = %+v", got)
 	}
 	if again := serveJSON(t, handler, http.MethodPost, "/api/generate-launcher-config", ""); again.Code != http.StatusConflict {
@@ -553,7 +559,7 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = view()
-	if len(got.Commands) != 2 || got.Commands[1].Name != "Plot" || got.Commands[1].Unavailable != "plot was not found on PATH" {
+	if len(got.Commands) != builtins+1 || got.Commands[builtins].Name != "Plot" || got.Commands[builtins].Unavailable != "plot was not found on PATH" {
 		t.Fatalf("file view = %+v", got)
 	}
 	if err := os.Chmod(path, 0o664); err != nil {
@@ -570,5 +576,255 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 	}
 	if _, err := os.Stat(readOnly.LauncherFile); err == nil {
 		t.Fatal("a read-only server wrote the launcher file")
+	}
+}
+
+// TestBuiltinServicesThroughProxy runs every built-in service command, as
+// is, through the proxy. It needs the tools on PATH and runs only when
+// ROTARI_TEST_LAUNCHER_TOOLS is set; CI installs none of them.
+func TestBuiltinServicesThroughProxy(t *testing.T) {
+	if os.Getenv("ROTARI_TEST_LAUNCHER_TOOLS") == "" {
+		t.Skip("ROTARI_TEST_LAUNCHER_TOOLS is not set")
+	}
+	options := launchOptions(t, t.TempDir(), launcher.BuiltinCommands()...)
+	server := httptest.NewServer(Handler(options))
+	defer server.Close()
+	client := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 30 * time.Second}
+	get := func(path string, headers map[string]string) (int, string) {
+		request, err := http.NewRequest(http.MethodGet, path, nil)
+		if err != nil {
+			return 0, err.Error()
+		}
+		for name, value := range headers {
+			request.Header.Set(name, value)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return 0, err.Error()
+		}
+		defer response.Body.Close()
+		body, _ := io.ReadAll(response.Body)
+		return response.StatusCode, string(body)
+	}
+	// handshake opens a WebSocket through the proxy, as a page of the
+	// server's own origin would, and returns the response status line.
+	handshake := func(path string) string {
+		target, err := url.Parse(path)
+		if err != nil {
+			return err.Error()
+		}
+		conn, err := net.DialTimeout("tcp", target.Host, 10*time.Second)
+		if err != nil {
+			return err.Error()
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+		fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nOrigin: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
+			target.RequestURI(), target.Host, server.URL)
+		line, err := bufio.NewReader(conn).ReadString('\n')
+		if err != nil {
+			return err.Error()
+		}
+		return strings.TrimSpace(line)
+	}
+	commands := map[string]launcher.Command{}
+	for _, command := range launcher.BuiltinCommands() {
+		commands[command.Name] = command
+	}
+	work := t.TempDir()
+	write(t, filepath.Join(work, "app.py"), "import streamlit as st\nst.write('hello from rotari')\n")
+	for _, dir := range []string{"tb", "nb", "mlruns", "aimrepo"} {
+		if err := os.MkdirAll(filepath.Join(work, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, filepath.Join(work, "nb", "note.txt"), "x")
+	write(t, filepath.Join(work, "mlflow.db"), "")
+	if output, err := exec.Command("aim", "init", "--repo", filepath.Join(work, "aimrepo")).CombinedOutput(); err != nil {
+		t.Fatalf("aim init: %v\n%s", err, output)
+	}
+	for _, test := range []struct {
+		name   string
+		target string
+		kind   launcher.TargetKind
+		check  func(t *testing.T, base string, launch launcher.Launch)
+	}{
+		{"TensorBoard", "tb", launcher.TargetDirectory, func(t *testing.T, base string, _ launcher.Launch) {
+			if code, body := get(base+"/data/runs", nil); code != http.StatusOK || strings.TrimSpace(body) != "[]" {
+				t.Errorf("TensorBoard runs = %d %.200q", code, body)
+			}
+		}},
+		{"Jupyter Lab", "nb", launcher.TargetDirectory, func(t *testing.T, base string, launch launcher.Launch) {
+			if code, body := get(base+"/api/contents", nil); code != http.StatusOK || !strings.Contains(body, `"note.txt"`) {
+				t.Errorf("Jupyter contents through the proxy = %d %.300q", code, body)
+			}
+			if code, body := get(base+"/lab", nil); code != http.StatusOK || !strings.Contains(body, "<") {
+				t.Errorf("Jupyter Lab page = %d %.200q", code, body)
+			}
+			// A kernel starts, and its channels open as a WebSocket.
+			request, _ := http.NewRequest(http.MethodPost, base+"/api/kernels", strings.NewReader("{}"))
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var kernel struct {
+				ID string `json:"id"`
+			}
+			_ = json.NewDecoder(response.Body).Decode(&kernel)
+			response.Body.Close()
+			if response.StatusCode != http.StatusCreated || kernel.ID == "" {
+				t.Fatalf("Jupyter kernel start = %d %+v", response.StatusCode, kernel)
+			}
+			if line := handshake(base + "/api/kernels/" + kernel.ID + "/channels"); !strings.Contains(line, "101") {
+				t.Errorf("Jupyter kernel WebSocket = %q, want 101", line)
+			}
+			// Straight to its port, without the proxy's token, it refuses.
+			direct := fmt.Sprintf("http://127.0.0.1:%d%s/api/contents", launch.Port, launch.BasePath)
+			if code, _ := get(direct, nil); code != http.StatusForbidden && code != http.StatusUnauthorized {
+				t.Errorf("Jupyter without the token = %d, want 403", code)
+			}
+		}},
+		{"MLflow", "mlruns", launcher.TargetDirectory, func(t *testing.T, base string, _ launcher.Launch) {
+			if code, body := get(base+"/", nil); code != http.StatusOK || !strings.Contains(strings.ToLower(body), "mlflow") {
+				t.Errorf("MLflow page = %d %.200q", code, body)
+			}
+			// An empty tracking directory has no experiments: "{}".
+			if code, body := get(base+"/ajax-api/2.0/mlflow/experiments/search?max_results=10", nil); code != http.StatusOK || !strings.HasPrefix(body, "{") {
+				t.Errorf("MLflow API = %d %.300q", code, body)
+			}
+		}},
+		{"MLflow (SQLite)", "mlflow.db", launcher.TargetFile, func(t *testing.T, base string, _ launcher.Launch) {
+			if code, body := get(base+"/ajax-api/2.0/mlflow/experiments/search?max_results=10", nil); code != http.StatusOK || !strings.Contains(body, "experiments") {
+				t.Errorf("MLflow (SQLite) API = %d %.300q", code, body)
+			}
+		}},
+		{"Aim", "aimrepo", launcher.TargetDirectory, func(t *testing.T, base string, _ launcher.Launch) {
+			if code, body := get(base+"/", nil); code != http.StatusOK || !strings.Contains(body, "<") {
+				t.Errorf("Aim page = %d %.200q", code, body)
+			}
+			if code, body := get(base+"/api/projects/", nil); code != http.StatusOK {
+				t.Errorf("Aim API = %d %.300q", code, body)
+			}
+		}},
+		{"Streamlit", "app.py", launcher.TargetFile, func(t *testing.T, base string, _ launcher.Launch) {
+			if code, body := get(base+"/", nil); code != http.StatusOK || !strings.Contains(body, "<") {
+				t.Errorf("Streamlit page = %d %.200q", code, body)
+			}
+			if code, body := get(base+"/_stcore/health", nil); code != http.StatusOK || strings.TrimSpace(body) != "ok" {
+				t.Errorf("Streamlit health = %d %.200q", code, body)
+			}
+			if line := handshake(base + "/_stcore/stream"); !strings.Contains(line, "101") {
+				t.Errorf("Streamlit WebSocket = %q, want 101", line)
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			command := commands[test.name]
+			if reason := command.Unavailable(); reason != "" {
+				t.Fatalf("%s is unavailable: %s", test.name, reason)
+			}
+			launch, err := options.Launches.Manager.Start(launcher.StartRequest{Command: command, Target: filepath.Join(work, test.target), Kind: test.kind})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer options.Launches.Manager.Stop(launch.ID)
+			deadline := time.Now().Add(90 * time.Second)
+			for {
+				current, err := options.Launches.Manager.Get(launch.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if current.State == launcher.StateRunning {
+					launch = current
+					break
+				}
+				if current.State != launcher.StateStarting || time.Now().After(deadline) {
+					chunk, _ := options.Launches.Manager.ReadLog(launch.ID, 0, 1<<20)
+					t.Fatalf("%s = %+v\n%s", test.name, current, chunk.Data)
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+			test.check(t, server.URL+launch.BasePath, launch)
+		})
+	}
+}
+
+// With a kind and a name, /api/launchers lists only the commands that
+// accept that target, by kind and file name pattern, and a start checks
+// the pattern too.
+func TestLaunchAvailabilityForATarget(t *testing.T) {
+	f := newArtifactFixture(t)
+	app := launchCommand("App", "true", launcher.TargetFile)
+	app.Patterns = []string{"*.py"}
+	options := launchOptions(t, f.baseDir, app,
+		launchCommand("Cat", "true", launcher.TargetFile), launchCommand("Count", "true", launcher.TargetDirectory))
+	handler := Handler(options)
+	names := func(query string) (string, map[launcher.TargetKind]string) {
+		t.Helper()
+		got := decodeBody[launchAvailability](t, serveJSON(t, handler, http.MethodGet, "/api/launchers"+query, ""))
+		var list []string
+		for _, command := range got.Commands {
+			list = append(list, command.Name)
+		}
+		return strings.Join(list, ","), got.Unmatched
+	}
+	for query, want := range map[string]string{
+		"":                          "App,Cat,Count",
+		"?kind=file&name=train.py":  "App,Cat",
+		"?kind=file&name=data.csv":  "Cat",
+		"?kind=directory&name=many": "Count",
+		"?kind=file":                "App,Cat",
+	} {
+		if got, _ := names(query); got != want {
+			t.Errorf("/api/launchers%s = %s, want %s", query, got, want)
+		}
+	}
+	onlyApp := launchOptions(t, f.baseDir, app)
+	got := decodeBody[launchAvailability](t, serveJSON(t, Handler(onlyApp), http.MethodGet, "/api/launchers?kind=file&name=data.csv", ""))
+	if len(got.Commands) != 0 || got.Unmatched[launcher.TargetFile] != "No registered command accepts the file data.csv. Commands accept: App (file: *.py)." {
+		t.Fatalf("unmatched target = %+v", got)
+	}
+	if bad := serveJSON(t, handler, http.MethodGet, "/api/launchers?kind=socket", ""); bad.Code != http.StatusBadRequest {
+		t.Fatalf("unknown kind = %d", bad.Code)
+	}
+	body := `{"project_name":"default","run_id":"` + f.runID + `","job_id":"job-1","entry":` + fmt.Sprint(f.entries["data.csv"]) + `,"name":"App"}`
+	refused := serveJSON(t, handler, http.MethodPost, "/api/launch", body)
+	if got := decodeBody[webLaunchError](t, refused); refused.Code != http.StatusBadRequest || got.Error != `launcher "App" accepts only *.py, not data.csv` {
+		t.Fatalf("start of a non-matching file = %d %+v", refused.Code, got)
+	}
+}
+
+// The proxy presents a service's ProxyHeaders, with its token, in place of
+// whatever the browser sent.
+func TestLaunchProxyAddsServiceHeaders(t *testing.T) {
+	f := newArtifactFixture(t)
+	command := serviceLaunchCommand("Viewer")
+	command.ProxyHeaders = map[string]string{"Authorization": "token $" + launcher.EnvToken}
+	options := launchOptions(t, f.baseDir, command)
+	handler := Handler(options)
+	started := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch",
+		`{"project_name":"default","run_id":"`+f.runID+`","job_id":"job-1","entry":`+fmt.Sprint(f.entries["many"])+`,"name":"Viewer"}`))
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		launch, _ := options.Launches.Manager.Get(started.ID)
+		if launch.State == launcher.StateRunning {
+			break
+		}
+		if launch.State != launcher.StateStarting || time.Now().After(deadline) {
+			t.Fatalf("service = %+v", launch)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	upstream, err := options.Launches.Manager.ServiceUpstream(started.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, started.BasePath+"/x", nil)
+	request.Header.Set("Authorization", "Basic cm90YXJpOng=")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if want := fmt.Sprintf("auth=%q", upstream.Headers["Authorization"]); recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), want) ||
+		strings.Contains(recorder.Body.String(), "Basic") {
+		t.Fatalf("proxied = %d %s, want %s", recorder.Code, recorder.Body.String(), want)
 	}
 }

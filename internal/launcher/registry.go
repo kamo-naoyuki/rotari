@@ -69,21 +69,83 @@ type Command struct {
 	// Builtin marks a command rotari provides without a launcher file
 	// entry (BuiltinCommands).
 	Builtin bool
+	// Patterns, when set, limit the command to targets whose base name
+	// matches one of these filepath.Match patterns, such as "*.py".
+	Patterns []string
+	// ProxyHeaders are request headers the Web server's proxy adds when it
+	// forwards to the service, with $ROTARI_LAUNCHER_TOKEN replaced by the
+	// launch's token, so a service can require a secret that only the
+	// proxy presents. Service mode only.
+	ProxyHeaders map[string]string
 }
 
-// tensorBoardCommand is the TensorBoard invocation that works behind the
-// Web server's proxy; it was checked against TensorBoard 2.21.0.
-const tensorBoardCommand = `tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"`
+// Matches reports whether a target named name (its base name) fits the
+// command's patterns; a command without patterns accepts every name.
+func (command Command) Matches(name string) bool {
+	if len(command.Patterns) == 0 {
+		return true
+	}
+	for _, pattern := range command.Patterns {
+		if matched, _ := filepath.Match(pattern, name); matched {
+			return true
+		}
+	}
+	return false
+}
+
+// The built-in services' commands. Each listens only on 127.0.0.1 and
+// serves under ROTARI_LAUNCHER_BASE_PATH, so it works behind the Web
+// server's proxy; each was checked against the version named.
+const (
+	// TensorBoard 2.21.0.
+	tensorBoardCommand = `tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"`
+	// JupyterLab 4: the launch token is its login token, which only the
+	// proxy presents (jupyterProxyHeaders), so other local users who reach
+	// its port cannot run code. The proxy keeps cross-site requests out
+	// (WithExecGuard), so Jupyter's own Origin check, which would compare
+	// the browser's Origin with the proxy's upstream Host, is turned off.
+	jupyterCommand = `jupyter lab --no-browser --ip=127.0.0.1 --port="$ROTARI_LAUNCHER_PORT" --ServerApp.base_url="$ROTARI_LAUNCHER_BASE_PATH" --IdentityProvider.token="$ROTARI_LAUNCHER_TOKEN" --ServerApp.root_dir="$ROTARI_LAUNCHER_ARTIFACT" --ServerApp.allow_remote_access=True --ServerApp.allow_origin='*'`
+	// MLflow 3.17 on a file-store tracking directory (mlruns), which it
+	// serves only when MLFLOW_ALLOW_FILE_STORE is set.
+	mlflowCommand = `MLFLOW_ALLOW_FILE_STORE=true mlflow ui --backend-store-uri "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --static-prefix "$ROTARI_LAUNCHER_BASE_PATH" --workers 1`
+	// MLflow 3.17 on a SQLite tracking database (mlflow.db).
+	mlflowSQLiteCommand = `mlflow ui --backend-store-uri "sqlite:///$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --static-prefix "$ROTARI_LAUNCHER_BASE_PATH" --workers 1`
+	// Aim 3: the artifact is a directory holding an Aim repository (.aim).
+	aimCommand = `aim up --repo "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --base-path "$ROTARI_LAUNCHER_BASE_PATH"`
+	// Streamlit 1.65: the artifact is the app's .py file.
+	// Development mode, which Streamlit assumes when it is not installed in
+	// site-packages, would refuse --server.port.
+	streamlitCommand = `streamlit run "$ROTARI_LAUNCHER_ARTIFACT" --global.developmentMode false --server.address 127.0.0.1 --server.port "$ROTARI_LAUNCHER_PORT" --server.baseUrlPath "$ROTARI_LAUNCHER_BASE_PATH" --server.headless true --browser.gatherUsageStats false`
+)
 
 // BuiltinCommands are registered without a launcher file. An entry in the
-// file with the same name replaces one, for example to run TensorBoard
-// from a particular environment.
+// file with the same name replaces one, for example to run a tool from a
+// particular environment. A built-in whose program is not installed is
+// shown unavailable (Command.Unavailable).
 func BuiltinCommands() []Command {
-	return []Command{{
-		Name: "TensorBoard", Command: tensorBoardCommand, Targets: []TargetKind{TargetDirectory},
-		Mode: ModeService, CWD: CWDTarget, ReadyPath: DefaultReadyPath, ReadyTimeout: DefaultReadyTimeout,
-		StopGrace: DefaultStopGrace, Builtin: true,
-	}}
+	service := func(name, command string, targets []TargetKind, readyPath string) Command {
+		return Command{Name: name, Command: command, Targets: targets, Mode: ModeService, CWD: CWDTarget,
+			ReadyPath: readyPath, ReadyTimeout: DefaultReadyTimeout, StopGrace: DefaultStopGrace, Builtin: true}
+	}
+	directory := []TargetKind{TargetDirectory}
+	jupyter := service("Jupyter Lab", jupyterCommand, directory, "/api")
+	jupyter.ProxyHeaders = map[string]string{"Authorization": "token $" + EnvToken}
+	streamlit := service("Streamlit", streamlitCommand, []TargetKind{TargetFile}, "/_stcore/health")
+	streamlit.Patterns = []string{"*.py"}
+	// MLflow creates its default experiment, or its tables, in whatever it
+	// opens, so it is offered only for the names MLflow itself uses.
+	mlflow := service("MLflow", mlflowCommand, directory, "/health")
+	mlflow.Patterns = []string{"mlruns"}
+	mlflowSQLite := service("MLflow (SQLite)", mlflowSQLiteCommand, []TargetKind{TargetFile}, "/health")
+	mlflowSQLite.Patterns = []string{"mlflow.db"}
+	return []Command{
+		service("TensorBoard", tensorBoardCommand, directory, DefaultReadyPath),
+		jupyter,
+		mlflow,
+		mlflowSQLite,
+		service("Aim", aimCommand, directory, DefaultReadyPath),
+		streamlit,
+	}
 }
 
 // withBuiltins puts the built-in commands the file does not replace first,
@@ -182,6 +244,9 @@ type rawCommand struct {
 	ReadyPath    *string  `toml:"ready_path"`
 	ReadyTimeout *string  `toml:"ready_timeout"`
 	StopGrace    *string  `toml:"stop_grace"`
+	Patterns     []string `toml:"patterns"`
+	// ProxyHeaders is a table, so it decodes into a map.
+	ProxyHeaders map[string]string `toml:"proxy_headers"`
 }
 
 // ParseCommands parses and validates launcher file contents. Every
@@ -286,7 +351,46 @@ func (entry rawCommand) command() (Command, error) {
 		}
 		command.StopGrace = grace
 	}
+	for _, pattern := range entry.Patterns {
+		if _, err := filepath.Match(pattern, ""); err != nil || pattern == "" || strings.Contains(pattern, "/") {
+			return Command{}, fmt.Errorf("pattern %q must be a file name pattern such as \"*.py\"", pattern)
+		}
+		command.Patterns = append(command.Patterns, pattern)
+	}
+	if len(entry.ProxyHeaders) > 0 {
+		if command.Mode != ModeService {
+			return Command{}, fmt.Errorf("proxy_headers apply only to mode %q", ModeService)
+		}
+		command.ProxyHeaders = map[string]string{}
+		for name, value := range entry.ProxyHeaders {
+			if err := checkProxyHeader(name, value); err != nil {
+				return Command{}, err
+			}
+			command.ProxyHeaders[name] = value
+		}
+	}
 	return command, nil
+}
+
+// reservedProxyHeaders are request headers the proxy itself controls.
+var reservedProxyHeaders = map[string]bool{
+	"host": true, "connection": true, "content-length": true, "transfer-encoding": true, "upgrade": true,
+	"te": true, "trailer": true, "keep-alive": true, "proxy-connection": true, "x-rotari-token": true,
+}
+
+func checkProxyHeader(name, value string) error {
+	if name == "" || strings.ContainsFunc(name, func(r rune) bool {
+		return r <= ' ' || r >= 0x7f || strings.ContainsRune("()<>@,;:\\\"/[]?={}", r)
+	}) {
+		return fmt.Errorf("proxy_headers name %q is not a valid HTTP header name", name)
+	}
+	if reservedProxyHeaders[strings.ToLower(name)] {
+		return fmt.Errorf("proxy_headers cannot set %s", name)
+	}
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return fmt.Errorf("proxy_headers value for %s must be one line", name)
+	}
+	return nil
 }
 
 func positiveDuration(name, value string) (time.Duration, error) {
@@ -309,6 +413,7 @@ func Template() []byte {
 #   ROTARI_LAUNCHER_CWD        the working directory chosen by "cwd"
 #   ROTARI_LAUNCHER_PORT       service mode: the port to listen on
 #   ROTARI_LAUNCHER_BASE_PATH  service mode: the URL path prefix to serve under
+#   ROTARI_LAUNCHER_TOKEN      service mode: a secret made for this launch
 # Quote them ("$ROTARI_LAUNCHER_ARTIFACT"); paths can contain any character.
 #
 # Settings:
@@ -323,6 +428,20 @@ func Template() []byte {
 #                  the service is ready (default "/")
 #   ready_timeout  service only (default "60s")
 #   stop_grace     time between SIGTERM and SIGKILL on stop (default "5s")
+#   patterns       only targets whose name matches one of these, such as
+#                  ["*.py"] (default: any name)
+#   proxy_headers  service only: a table of headers rotari's proxy adds to
+#                  every request, in which $ROTARI_LAUNCHER_TOKEN stands for
+#                  the launch's token (for example, an Authorization header
+#                  of "token $ROTARI_LAUNCHER_TOKEN"). A service that requires
+#                  this token cannot be used by other users who connect to
+#                  its port directly.
+#
+# Built in, without an entry here: TensorBoard, Jupyter Lab (requires the
+# launch token), MLflow (a directory named mlruns), MLflow (SQLite) (a file
+# named mlflow.db), Aim, and Streamlit (*.py files). Each is shown disabled
+# while its program is not installed. An entry with the same name replaces
+# one.
 
 # TensorBoard is built in: rotari registers it without an entry here, as
 #   tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1

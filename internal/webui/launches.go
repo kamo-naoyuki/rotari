@@ -36,9 +36,11 @@ type webLaunchCommand struct {
 	Name    string                `json:"name"`
 	Command string                `json:"command"`
 	Targets []launcher.TargetKind `json:"targets"`
-	Mode    launcher.Mode         `json:"mode"`
-	CWD     string                `json:"cwd"`
-	Builtin bool                  `json:"builtin,omitempty"`
+	// Patterns limit the command to matching file names.
+	Patterns []string      `json:"patterns,omitempty"`
+	Mode     launcher.Mode `json:"mode"`
+	CWD      string        `json:"cwd"`
+	Builtin  bool          `json:"builtin,omitempty"`
 	// Unavailable says why the command cannot run on this host, such as
 	// its program missing from PATH; the UI shows it disabled.
 	Unavailable string `json:"unavailable,omitempty"`
@@ -63,7 +65,10 @@ type launchAvailability struct {
 	Shell string `json:"shell,omitempty"`
 }
 
-func (s site) launchAvailability() launchAvailability {
+// launchAvailability describes what this server can launch. With a kind,
+// and optionally a target's base name, it lists only the commands that
+// accept such a target, and explains when none does.
+func (s site) launchAvailability(kind launcher.TargetKind, name string) launchAvailability {
 	path := s.LauncherFile
 	if path == "" {
 		path = "the launcher file in rotari's global config directory"
@@ -86,21 +91,33 @@ func (s site) launchAvailability() launchAvailability {
 	availability := launchAvailability{Available: true, Path: s.Launches.Registry.Path, Shell: launcher.Shell}
 	byKind := map[launcher.TargetKind][]string{}
 	for _, command := range s.Launches.Registry.Commands {
+		if kind != "" && (!command.Accepts(kind) || (name != "" && !command.Matches(name))) {
+			continue
+		}
 		availability.Commands = append(availability.Commands, webLaunchCommand{
-			Name: command.Name, Command: command.Command, Targets: command.Targets, Mode: command.Mode, CWD: command.CWD,
-			Builtin: command.Builtin, Unavailable: command.Unavailable(),
+			Name: command.Name, Command: command.Command, Targets: command.Targets, Patterns: command.Patterns,
+			Mode: command.Mode, CWD: command.CWD, Builtin: command.Builtin, Unavailable: command.Unavailable(),
 		})
-		for _, kind := range command.Targets {
-			byKind[kind] = append(byKind[kind], command.Name)
+		for _, accepted := range command.Targets {
+			byKind[accepted] = append(byKind[accepted], command.Name)
 		}
 	}
-	for _, kind := range []launcher.TargetKind{launcher.TargetFile, launcher.TargetDirectory} {
-		if len(byKind[kind]) == 0 {
-			if availability.Unmatched == nil {
-				availability.Unmatched = map[launcher.TargetKind]string{}
-			}
-			availability.Unmatched[kind] = fmt.Sprintf("No registered command accepts a %s. Commands in %s accept: %s.", kind, s.Launches.Registry.Path, describeTargets(s.Launches.Registry.Commands))
+	kinds := []launcher.TargetKind{launcher.TargetFile, launcher.TargetDirectory}
+	if kind != "" {
+		kinds = []launcher.TargetKind{kind}
+	}
+	for _, unmatched := range kinds {
+		if len(byKind[unmatched]) > 0 {
+			continue
 		}
+		if availability.Unmatched == nil {
+			availability.Unmatched = map[launcher.TargetKind]string{}
+		}
+		what := "a " + string(unmatched)
+		if name != "" {
+			what = fmt.Sprintf("the %s %s", unmatched, name)
+		}
+		availability.Unmatched[unmatched] = fmt.Sprintf("No registered command accepts %s. Commands accept: %s.", what, describeTargets(s.Launches.Registry.Commands))
 	}
 	availability.Host, _ = os.Hostname()
 	if current, err := user.Current(); err == nil {
@@ -116,7 +133,11 @@ func describeTargets(commands []launcher.Command) string {
 		for _, kind := range command.Targets {
 			kinds = append(kinds, string(kind))
 		}
-		parts = append(parts, fmt.Sprintf("%s (%s)", command.Name, strings.Join(kinds, ", ")))
+		accepts := strings.Join(kinds, ", ")
+		if len(command.Patterns) > 0 {
+			accepts += ": " + strings.Join(command.Patterns, ", ")
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", command.Name, accepts))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -149,7 +170,7 @@ func (s site) launchesUnavailable(writer http.ResponseWriter) bool {
 	if s.AllowControl && s.Launches != nil {
 		return false
 	}
-	availability := s.launchAvailability()
+	availability := s.launchAvailability("", "")
 	writeLaunchError(writer, http.StatusForbidden, webLaunchError{Error: availability.Reason, Hint: availability.Hint})
 	return true
 }
@@ -187,7 +208,13 @@ func (s site) registerLaunchRoutes(mux *http.ServeMux, baseDir string) {
 			methodNotAllowed(writer)
 			return
 		}
-		writeWebJSON(writer, s.launchAvailability())
+		query := request.URL.Query()
+		kind := launcher.TargetKind(query.Get("kind"))
+		if kind != "" && kind != launcher.TargetFile && kind != launcher.TargetDirectory {
+			writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: "kind must be file or directory"})
+			return
+		}
+		writeWebJSON(writer, s.launchAvailability(kind, query.Get("name")))
 	})
 	mux.HandleFunc("/api/launch", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -288,6 +315,9 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	if !command.Accepts(kind) {
 		return launcher.StartRequest{}, fmt.Errorf("launcher %q does not accept a %s", command.Name, kind)
 	}
+	if name := filepath.Base(filepath.Join(served.root, served.relative)); !command.Matches(name) {
+		return launcher.StartRequest{}, fmt.Errorf("launcher %q accepts only %s, not %s", command.Name, strings.Join(command.Patterns, ", "), name)
+	}
 	labels := map[string]string{"basedir": baseDir, "project": request.ProjectName, "run": request.RunID, "job": request.JobID}
 	if request.AttemptID != "" {
 		labels["attempt"] = request.AttemptID
@@ -342,7 +372,7 @@ func (s site) previewLaunch(writer http.ResponseWriter, baseDir string, query ur
 		writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
 		return
 	}
-	availability := s.launchAvailability()
+	availability := s.launchAvailability("", "")
 	writeWebJSON(writer, webLaunchPreview{
 		Name: start.Command.Name, Command: start.Command.Command, Shell: launcher.Shell, Mode: start.Command.Mode,
 		Target: start.Target, Kind: start.Kind, CWD: start.Command.WorkingDirectory(start.Target, start.Kind),

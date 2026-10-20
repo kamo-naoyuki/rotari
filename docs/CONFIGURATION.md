@@ -200,12 +200,12 @@ file. For the event settings, fields, and Slack/Teams/Discord setup, see
 
 ## Launcher commands
 
-`rotari web --allow-exec` can run TensorBoard, which is built in, and the
-commands `launchers.toml` registers, against a job's artifacts from the Web
-UI (see
+`rotari web --allow-exec` can run the built-in services (TensorBoard, Jupyter
+Lab, MLflow, Aim, and Streamlit; see [Built-in services](#built-in-services))
+and the commands `launchers.toml` registers, against a job's artifacts from
+the Web UI (see
 [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
-The built-in TensorBoard command is the one shown under [Services](#services);
-an entry named `TensorBoard` in the file replaces it, for example to run
+An entry in the file with a built-in's name replaces it, for example to run
 TensorBoard from a particular environment.
 Rotari reads it **only from the global config directory**
 (`$XDG_CONFIG_HOME/rotari/launchers.toml`, by default
@@ -226,7 +226,7 @@ and `rotari web --allow-exec` does not start, unless no other user can change
 it: the file and every directory above it, following symlinks, must be owned
 by you or root and not writable by group or others (a sticky directory such as
 `/tmp` is allowed). The error names the offending path and the `chmod` that
-fixes it. A missing file only means that only TensorBoard is available; any
+fixes it. A missing file only means that only the built-in services are available; any
 unknown key, duplicate name, or setting that does not apply to an entry's mode
 is an error. `rotari config --list` shows the file when it exists.
 
@@ -261,6 +261,7 @@ these variables, which the command should quote:
 | `ROTARI_LAUNCHER_CWD` | the working directory chosen by `cwd` |
 | `ROTARI_LAUNCHER_PORT` | service mode: the port to listen on |
 | `ROTARI_LAUNCHER_BASE_PATH` | service mode: the URL path prefix to serve under |
+| `ROTARI_LAUNCHER_TOKEN` | service mode: a secret made for this launch (see [Tokens for services](#tokens-for-services)) |
 
 `cwd = "target"` is the selected directory, or a selected file's directory.
 Launched commands also get `127.0.0.1,localhost,::1` added to `NO_PROXY` and
@@ -295,6 +296,52 @@ the port first is never shown; that, a bind to another address, or no answer
 within `ready_timeout` fails the launch and stops it, with the reason and the
 service's output. A service that exits without ever listening, as when another
 process took its port, is restarted once on a new port.
+
+#### Built-in services
+
+These are registered without an entry in `launchers.toml`; each is shown
+disabled while its program is not on the Web server's `PATH`, and an entry with
+the same name replaces it:
+
+| Name | Offered for | Notes |
+| --- | --- | --- |
+| TensorBoard | directories | `tensorboard --logdir` on the directory |
+| Jupyter Lab | directories | rooted at the directory; requires the launch token (below) |
+| MLflow | directories named `mlruns` | file-store tracking data (`MLFLOW_ALLOW_FILE_STORE=true` is set for it) |
+| MLflow (SQLite) | files named `mlflow.db` | `sqlite:///` tracking database |
+| Aim | directories | an Aim repository (`aim init`); Aim refuses other directories |
+| Streamlit | `*.py` files | runs the app |
+
+MLflow is limited to those names because it creates its default experiment, or
+its tables, in whatever it opens. Each was checked through the proxy, including
+Jupyter's kernel and Streamlit's WebSocket connections: TensorBoard 2.21,
+JupyterLab 4, MLflow 3.17, Aim 3, and Streamlit 1.65.
+
+#### Tokens for services
+
+A service listens on a loopback port that other users of the same host can
+connect to directly, without rotari's token. Each service launch therefore
+gets a secret, `ROTARI_LAUNCHER_TOKEN`, and `proxy_headers` makes rotari's
+proxy present it on every request, so a service that requires it serves only
+through the proxy. The built-in Jupyter Lab, which runs code, uses it:
+
+```toml
+[[launcher]]
+name = "Jupyter Lab"
+command = '''jupyter lab --no-browser --ip=127.0.0.1 --port="$ROTARI_LAUNCHER_PORT" --ServerApp.base_url="$ROTARI_LAUNCHER_BASE_PATH" --IdentityProvider.token="$ROTARI_LAUNCHER_TOKEN" --ServerApp.root_dir="$ROTARI_LAUNCHER_ARTIFACT" --ServerApp.allow_remote_access=True --ServerApp.allow_origin='*''''
+targets = ["directory"]
+mode = "service"
+ready_path = "/api"
+proxy_headers = { Authorization = "token $ROTARI_LAUNCHER_TOKEN" }
+```
+
+The browser never sees the token, and the proxy drops the browser's own
+`Authorization` header. TensorBoard, MLflow, Aim, and Streamlit cannot require
+a token, so another user of the host who finds their port can read what they
+show; launch them only where that is acceptable.
+
+`patterns = ["*.py"]` limits any command to targets whose name matches one of
+the patterns.
 
 ## Shell completion
 

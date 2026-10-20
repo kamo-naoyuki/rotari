@@ -333,9 +333,17 @@ func serveHTTP() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	// With ROTARI_TEST_LAUNCHER_REQUIRE_TOKEN set, every request must
+	// present the launch token as an Authorization header.
+	requireToken := os.Getenv("ROTARI_TEST_LAUNCHER_REQUIRE_TOKEN") != ""
+	token := os.Getenv(EnvToken)
 	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if !strings.HasPrefix(request.URL.Path, base+"/") {
 			http.NotFound(writer, request)
+			return
+		}
+		if requireToken && (token == "" || request.Header.Get("Authorization") != "token "+token) {
+			http.Error(writer, "token required", http.StatusForbidden)
 			return
 		}
 		writer.WriteHeader(status)

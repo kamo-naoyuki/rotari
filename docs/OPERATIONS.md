@@ -387,7 +387,8 @@ provides HTTP authentication, not encryption.
   who can read the export, such as a published site, can then read them.
   The command reports how many files and bytes it copied.
 - **Launching (`rotari web --allow-exec`):** off by default. It lets anyone
-  who can sign in run the built-in TensorBoard command and the commands
+  who can sign in run the built-in services (TensorBoard, Jupyter Lab, MLflow,
+  Aim, Streamlit) and the commands
   registered in your global `launchers.toml`, as you, against the job artifacts the Web UI may serve
   (see [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
   The browser and API only name a registered command and an artifact; command
@@ -410,6 +411,14 @@ provides HTTP authentication, not encryption.
   connects only to the launch's own `127.0.0.1` port, and checks before each
   new connection that the listening process belongs to the launch (through
   `/proc` on Linux, `/usr/sbin/lsof` on macOS).
+  A launched service also listens on that loopback port, which other users
+  of the host can reach directly without rotari's token. A service that can
+  require a secret should use the launch's `ROTARI_LAUNCHER_TOKEN`, which the
+  proxy presents through `proxy_headers`; the built-in Jupyter Lab does, so
+  its kernels serve only through the proxy. TensorBoard, MLflow, Aim, and
+  Streamlit cannot, so another user who finds their port can read what they
+  show. WebSocket handshakes, which services such as Jupyter and Streamlit
+  use, need the same `Origin` as other mutating requests.
   Their output stays in a private `0700` directory under `$TMPDIR` until the
   Web server stops; a later `rotari web --allow-exec` removes directories that
   a killed server left behind.

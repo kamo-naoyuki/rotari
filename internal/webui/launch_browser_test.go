@@ -172,7 +172,7 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['data.csv'], '', 'file');
   await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-  if (!panelText().includes('No registered command accepts a file') || !panelText().includes('TensorBoard (directory)')) fail('unmatched explanation', panelText());
+  if (!panelText().includes('No registered command accepts the file data.csv') || !panelText().includes('TensorBoard (directory)')) fail('unmatched explanation', panelText());
 `)
 	missing := launchOptions(t, f.baseDir,
 		launchCommand("Missing", `rotari-surely-missing-tool "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),

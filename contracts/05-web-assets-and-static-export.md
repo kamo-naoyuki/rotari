@@ -719,21 +719,24 @@ in [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
 **WEB-14** While launching is enabled, a request whose `Host` is not
 `localhost`, `127.0.0.1`, `[::1]` (any port), a specific `--host`, or an
-`--allowed-host` name gets 421, and a request other than `GET` or `HEAD` gets
-403 unless its `Origin` equals its own scheme and host, or it has no `Origin`
+`--allowed-host` name gets 421, and a request other than `GET` or `HEAD`, or a
+WebSocket handshake, gets 403 unless its `Origin` equals its own scheme and host, or it has no `Origin`
 and authenticates with `X-Rotari-Token` or `Authorization: Bearer`. Basic
 authentication alone, which a browser resends by itself, does not exempt a
 request without `Origin`. Covered by `TestWebLaunchGuardsRequests` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
-**WEB-15** Only the built-in TensorBoard command and the commands in the
-global config directory's `launchers.toml`
-(`$XDG_CONFIG_HOME/rotari/launchers.toml`) can run; an entry there with a
-built-in's name replaces it, and a copy of the file in a basedir, project,
+**WEB-15** Only the built-in commands (TensorBoard, Jupyter Lab, MLflow, MLflow
+(SQLite), Aim, and Streamlit) and the commands in the global config
+directory's `launchers.toml` (`$XDG_CONFIG_HOME/rotari/launchers.toml`) can
+run; an entry there with a built-in's name replaces it, and a copy of the file in a basedir, project,
 or workspace is never read. `GET /api/launchers` marks a command
 `unavailable`, with the reason, when the first program it runs is not on the
 Web server's `PATH` (or an absolute path to it is not executable), and such a
-command neither previews nor starts. `rotari web --allow-exec` refuses to
+command neither previews nor starts. `GET /api/launchers?kind=K&name=N` lists
+only the commands that accept a target of kind K named N, including a
+command's file name `patterns`, and a start refuses a target its patterns do
+not match. `rotari web --allow-exec` refuses to
 start when that file, a directory above it, or a symlink on the way is owned
 by another user or writable by group or others, or when the file is invalid;
 `rotari config --launchers` writes a template there with mode `0600` and
@@ -760,9 +763,14 @@ with SIGKILL, ends every launch's process group. Covered by
 **WEB-17** A service launch (`mode = "service"`) is `starting` until the
 process listening on `127.0.0.1:$ROTARI_LAUNCHER_PORT` belongs to the launch
 and its readiness path under `$ROTARI_LAUNCHER_BASE_PATH` answers 2xx or 3xx;
-a process outside the launch on that port fails it. Only then does
-`/_launch/ID/...` forward requests to it, with path and query unchanged and
-without the `Authorization` and `X-Rotari-Token` headers; before then and
+a process outside the launch on that port fails it. Each service launch gets
+its own `$ROTARI_LAUNCHER_TOKEN`, which never appears in an API response.
+Only after readiness does `/_launch/ID/...` forward requests to it, with path
+and query unchanged, without the browser's `Authorization` and
+`X-Rotari-Token` headers, and with the command's `proxy_headers` (the
+readiness probe sends them too), in which `$ROTARI_LAUNCHER_TOKEN` is the
+launch's token, so a service can refuse anyone who reaches its port
+without the proxy; before then and
 after it ends the route answers 503, and 404 for an unknown ID. Covered by
 `TestWebLaunchServesServices` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).

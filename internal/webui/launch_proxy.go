@@ -107,7 +107,7 @@ func (s site) serveLaunchProxy(writer http.ResponseWriter, request *http.Request
 		http.Redirect(writer, request, target, http.StatusTemporaryRedirect)
 		return
 	}
-	port, pgid, err := s.Launches.Manager.ServiceUpstream(id)
+	upstreamService, err := s.Launches.Manager.ServiceUpstream(id)
 	if err != nil {
 		s.Launches.transports.drop(id)
 		status := http.StatusServiceUnavailable
@@ -117,14 +117,18 @@ func (s site) serveLaunchProxy(writer http.ResponseWriter, request *http.Request
 		http.Error(writer, err.Error(), status)
 		return
 	}
-	upstream := &url.URL{Scheme: "http", Host: net.JoinHostPort(launcher.LoopbackHost, strconv.Itoa(port))}
+	upstream := &url.URL{Scheme: "http", Host: net.JoinHostPort(launcher.LoopbackHost, strconv.Itoa(upstreamService.Port))}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(out *httputil.ProxyRequest) {
 			out.SetURL(upstream)
 			out.Out.Header.Del("Authorization")
 			out.Out.Header.Del("X-Rotari-Token")
+			// The service's own secret, which only this proxy presents.
+			for name, value := range upstreamService.Headers {
+				out.Out.Header.Set(name, value)
+			}
 		},
-		Transport:     s.Launches.transports.get(id, port, pgid),
+		Transport:     s.Launches.transports.get(id, upstreamService.Port, upstreamService.PGID),
 		FlushInterval: -1,
 		ErrorHandler: func(writer http.ResponseWriter, _ *http.Request, err error) {
 			http.Error(writer, "the launched service did not answer: "+err.Error(), http.StatusBadGateway)

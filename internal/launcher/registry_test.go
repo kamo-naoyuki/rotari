@@ -9,24 +9,58 @@ import (
 	"time"
 )
 
-func TestBuiltinTensorBoard(t *testing.T) {
+func TestBuiltinCommands(t *testing.T) {
 	t.Parallel()
+	want := map[string]struct {
+		executable string
+		targets    []TargetKind
+		patterns   []string
+		readyPath  string
+	}{
+		"TensorBoard":     {"tensorboard", []TargetKind{TargetDirectory}, nil, DefaultReadyPath},
+		"Jupyter Lab":     {"jupyter", []TargetKind{TargetDirectory}, nil, "/api"},
+		"MLflow":          {"mlflow", []TargetKind{TargetDirectory}, []string{"mlruns"}, "/health"},
+		"MLflow (SQLite)": {"mlflow", []TargetKind{TargetFile}, []string{"mlflow.db"}, "/health"},
+		"Aim":             {"aim", []TargetKind{TargetDirectory}, nil, DefaultReadyPath},
+		"Streamlit":       {"streamlit", []TargetKind{TargetFile}, []string{"*.py"}, "/_stcore/health"},
+	}
 	builtins := BuiltinCommands()
-	if len(builtins) != 1 {
+	if len(builtins) != len(want) {
 		t.Fatalf("built-in commands = %+v", builtins)
 	}
-	got := builtins[0]
-	if got.Name != "TensorBoard" || !got.Builtin || got.Mode != ModeService || !slices.Equal(got.Targets, []TargetKind{TargetDirectory}) ||
-		got.CWD != CWDTarget || got.ReadyPath != DefaultReadyPath || got.ReadyTimeout != DefaultReadyTimeout || got.StopGrace != DefaultStopGrace {
-		t.Fatalf("built-in TensorBoard = %+v", got)
-	}
-	for _, variable := range []string{EnvArtifact, EnvPort, EnvBasePath} {
-		if !strings.Contains(got.Command, `"$`+variable+`"`) {
-			t.Errorf("built-in command does not quote $%s: %s", variable, got.Command)
+	for _, got := range builtins {
+		expected, ok := want[got.Name]
+		if !ok {
+			t.Errorf("unexpected built-in %q", got.Name)
+			continue
+		}
+		if !got.Builtin || got.Mode != ModeService || got.CWD != CWDTarget || got.ReadyTimeout != DefaultReadyTimeout ||
+			got.StopGrace != DefaultStopGrace || !slices.Equal(got.Targets, expected.targets) ||
+			!slices.Equal(got.Patterns, expected.patterns) || got.ReadyPath != expected.readyPath {
+			t.Errorf("built-in %s = %+v", got.Name, got)
+		}
+		if got.Executable() != expected.executable {
+			t.Errorf("built-in %s executable = %q, want %q", got.Name, got.Executable(), expected.executable)
+		}
+		// Every built-in serves only on loopback, on its port, under its
+		// base path, and quotes what it is given.
+		for _, variable := range []string{EnvArtifact, EnvPort, EnvBasePath} {
+			if !strings.Contains(got.Command, `"$`+variable+`"`) && !strings.Contains(got.Command, `$`+variable+`"`) {
+				t.Errorf("built-in %s does not quote $%s: %s", got.Name, variable, got.Command)
+			}
+		}
+		if !strings.Contains(got.Command, "127.0.0.1") {
+			t.Errorf("built-in %s does not bind 127.0.0.1: %s", got.Name, got.Command)
 		}
 	}
-	if got.Executable() != "tensorboard" {
-		t.Errorf("built-in executable = %q", got.Executable())
+	// Jupyter runs code, so it requires the launch token, which only the
+	// proxy presents.
+	for _, got := range builtins {
+		if got.Name == "Jupyter Lab" {
+			if got.ProxyHeaders["Authorization"] != "token $"+EnvToken || !strings.Contains(got.Command, `"$`+EnvToken+`"`) {
+				t.Errorf("Jupyter Lab does not require the launch token: %+v", got)
+			}
+		}
 	}
 }
 
@@ -114,6 +148,12 @@ func TestParseCommandsRejectsInvalidSettings(t *testing.T) {
 		"spaced ready path":   {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nready_path = \"/a b\"\n", "no spaces"},
 		"relative ready path": {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nready_path = \"health\"\n", "must start with /"},
 		"bad duration":        {"[[launcher]]\n" + valid + "stop_grace = \"soon\"\n", `stop_grace "soon"`},
+		"path pattern":        {"[[launcher]]\n" + valid + "patterns = [\"a/*.py\"]\n", "file name pattern"},
+		"bad pattern":         {"[[launcher]]\n" + valid + "patterns = [\"[\"]\n", "file name pattern"},
+		"headers in command":  {"[[launcher]]\n" + valid + "proxy_headers = { X-A = \"1\" }\n", "apply only to mode"},
+		"reserved header":     {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nproxy_headers = { Host = \"x\" }\n", "cannot set Host"},
+		"bad header name":     {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nproxy_headers = { \"A B\" = \"x\" }\n", "not a valid HTTP header name"},
+		"multiline header":    {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = [\"file\"]\nmode = \"service\"\nproxy_headers = { X-A = \"a\\nb\" }\n", "must be one line"},
 		"zero duration":       {"[[launcher]]\n" + valid + "stop_grace = \"0s\"\n", "positive duration"},
 		"wrong type":          {"[[launcher]]\nname = \"A\"\ncommand = \"true\"\ntargets = \"file\"\nmode = \"command\"\n", "targets"},
 	} {
@@ -133,7 +173,7 @@ func TestLoadRegistry(t *testing.T) {
 
 	// Without a file, only the built-in commands are registered.
 	registry, err := LoadRegistry(path)
-	if err != nil || !registry.Missing || len(registry.Commands) != 1 || !registry.Commands[0].Builtin || registry.Path != path {
+	if err != nil || !registry.Missing || len(registry.Commands) != len(BuiltinCommands()) || !registry.Commands[0].Builtin || registry.Path != path {
 		t.Fatalf("missing file: LoadRegistry() = %+v, %v", registry, err)
 	}
 
@@ -208,13 +248,49 @@ func TestLoadRegistryReplacesBuiltins(t *testing.T) {
 		return registry
 	}
 	plot := "[[launcher]]\nname = \"Plot\"\ncommand = \"plot\"\ntargets = [\"file\"]\nmode = \"command\"\n"
+	names := func(registry Registry) string {
+		var names []string
+		for _, command := range registry.Commands {
+			names = append(names, command.Name)
+		}
+		return strings.Join(names, ",")
+	}
 	registry := write(plot)
-	if len(registry.Commands) != 2 || registry.Commands[0].Name != "TensorBoard" || !registry.Commands[0].Builtin || registry.Commands[1].Name != "Plot" {
-		t.Fatalf("file without TensorBoard = %+v", registry.Commands)
+	if got := names(registry); got != "TensorBoard,Jupyter Lab,MLflow,MLflow (SQLite),Aim,Streamlit,Plot" {
+		t.Fatalf("file without built-in names = %s", got)
 	}
 	registry = write(plot + "[[launcher]]\nname = \"TensorBoard\"\ncommand = \"conda run -n tb tensorboard\"\ntargets = [\"directory\"]\nmode = \"service\"\n")
-	if len(registry.Commands) != 2 || registry.Commands[0].Name != "Plot" || registry.Commands[1].Name != "TensorBoard" ||
-		registry.Commands[1].Builtin || registry.Commands[1].Command != "conda run -n tb tensorboard" {
-		t.Fatalf("file replacing TensorBoard = %+v", registry.Commands)
+	replaced := registry.Commands[len(registry.Commands)-1]
+	if got := names(registry); got != "Jupyter Lab,MLflow,MLflow (SQLite),Aim,Streamlit,Plot,TensorBoard" ||
+		replaced.Builtin || replaced.Command != "conda run -n tb tensorboard" {
+		t.Fatalf("file replacing TensorBoard = %s, %+v", got, replaced)
+	}
+}
+
+func TestCommandPatternsAndHeaders(t *testing.T) {
+	t.Parallel()
+	commands, err := ParseCommands([]byte(`
+[[launcher]]
+name = "App"
+command = "app"
+targets = ["file"]
+mode = "service"
+patterns = ["*.py", "app*"]
+proxy_headers = { Authorization = "token $ROTARI_LAUNCHER_TOKEN", X-Static = "1" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := commands[0]
+	for name, want := range map[string]bool{"run.py": true, "app.txt": true, "run.txt": false, "": false} {
+		if got := command.Matches(name); got != want {
+			t.Errorf("Matches(%q) = %v, want %v", name, got, want)
+		}
+	}
+	if (Command{}).Matches("anything") != true {
+		t.Error("a command without patterns does not match every name")
+	}
+	if command.ProxyHeaders["Authorization"] != "token $ROTARI_LAUNCHER_TOKEN" || command.ProxyHeaders["X-Static"] != "1" {
+		t.Fatalf("proxy headers = %v", command.ProxyHeaders)
 	}
 }
