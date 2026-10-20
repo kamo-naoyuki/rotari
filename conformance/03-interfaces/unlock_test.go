@@ -18,11 +18,211 @@ type unlockAssessment struct {
 	RefusalCode      string `json:"refusal_code"`
 	ExecutionChecked bool   `json:"execution_checked"`
 	Revision         string `json:"revision"`
-	Coordinator      struct {
+	Action           string `json:"action"`
+	Repair           struct {
+		Complete   bool             `json:"complete"`
+		Reason     string           `json:"reason"`
+		Executions []map[string]any `json:"executions"`
+	} `json:"repair"`
+	Coordinator struct {
 		State    string         `json:"state"`
 		Reason   string         `json:"reason"`
 		Identity map[string]any `json:"identity"`
 	} `json:"coordinator"`
+}
+
+func TestUnlockFinalizationRepair(t *testing.T) {
+	covers(t, "SAFE-15", "SAFE-4", "SAFE-7", "RES-7")
+	for _, variant := range []string{"plain", "array", "carried-array", "matrix", "incomplete", "duplicate"} {
+		for _, transport := range []string{"CLI", "MCP"} {
+			t.Run(variant+"/"+transport, func(t *testing.T) {
+				e := support.NewEnv(t)
+				args := []string{"add", "-p", "repair"}
+				switch variant {
+				case "array", "carried-array":
+					args = append(args, "--array", "1-3")
+				case "matrix":
+					args = append(args, "--matrix", "SEED=1,2")
+				}
+				e.MustRotari(append(args, "--", "true")...)
+				e.MustRotari("run", "-p", "repair", "--quiet")
+				projectDir := filepath.Join(e.Base, "projects", "repair")
+				metaPath := filepath.Join(projectDir, "meta.json")
+				meta := readUnlockJSON(t, metaPath)
+				runID := meta["last_run_id"].(string)
+				runDir := filepath.Join(projectDir, "runs", runID)
+				summaryPath := filepath.Join(runDir, "summary.json")
+				summary := readUnlockJSON(t, summaryPath)
+				if variant == "carried-array" {
+					sourceID := runID
+					commands := readUnlockJSON(t, filepath.Join(runDir, "commands.json"))
+					context := readUnlockJSON(t, filepath.Join(runDir, "context.json"))
+					runID = "20261020-130000-00000000"
+					runDir = filepath.Join(projectDir, "runs", runID)
+					if err := os.MkdirAll(runDir, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					for _, value := range commands["commands"].([]any) {
+						command := value.(map[string]any)
+						command["origin"] = map[string]any{"run_id": sourceID, "job_id": command["id"]}
+						delete(command, "task_origins")
+					}
+					summary["run_id"] = runID
+					summaryPath = filepath.Join(runDir, "summary.json")
+					writeUnlockJSON(t, summaryPath, summary)
+					writeUnlockJSON(t, filepath.Join(runDir, "commands.json"), commands)
+					writeUnlockJSON(t, filepath.Join(runDir, "context.json"), context)
+					writeUnlockJSON(t, filepath.Join(runDir, "carried.json"), map[string]any{"run_id": runID, "results": summary["results"]})
+					meta["last_run_id"] = runID
+				}
+				if variant == "incomplete" {
+					summary["results"] = []any{}
+					writeUnlockJSON(t, summaryPath, summary)
+				}
+				if variant == "duplicate" {
+					results := summary["results"].([]any)
+					summary["results"] = append(results, results[0])
+					writeUnlockJSON(t, summaryPath, summary)
+				}
+				meta["phase"] = "running"
+				writeUnlockJSON(t, metaPath, meta)
+				contextPath := filepath.Join(runDir, "context.json")
+				context := readUnlockJSON(t, contextPath)
+				identity := support.CurrentCoordinator(t)
+				identity.PID = 1 << 30
+				context["coordinator"] = identity
+				writeUnlockJSON(t, contextPath, context)
+				e.MustRotari("add", "-p", "repair", "--", "false")
+				before := support.SavePairTree(t, projectDir)
+				var session *mcpSession
+				target := map[string]any{"project": "repair"}
+				if transport == "MCP" {
+					session = startMCP(t, e)
+					target["basedir_ref"] = baseDirRef(t, session, "repair")
+				}
+				var preview unlockAssessment
+				if transport == "CLI" {
+					result := e.MustRotari("unlock", "-p", "repair", "--dry-run", "--json")
+					if err := json.Unmarshal([]byte(result.Stdout), &preview); err != nil {
+						t.Fatal(err)
+					}
+				} else if message := session.call("rotari_preview_unlock", target, &preview); message != "" {
+					t.Fatal(message)
+				}
+				complete := variant != "incomplete" && variant != "duplicate"
+				if preview.Repair.Complete != complete || preview.ExecutionChecked || preview.Applied || preview.Allowed == complete {
+					t.Fatalf("preview=%+v", preview)
+				}
+				if complete && (preview.Action != "finalize" || preview.RefusalCode != "execution_unknown" || len(preview.Repair.Executions) == 0) {
+					t.Fatalf("missing execution refusal: %+v", preview)
+				}
+				if !complete && (preview.Action != "release" || preview.Repair.Reason == "") {
+					t.Fatalf("unexplained release: %+v", preview)
+				}
+				if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
+					t.Fatal("preview changed state")
+				}
+				if complete {
+					if transport == "CLI" {
+						refused := e.Rotari("unlock", "-p", "repair", "--json")
+						if refused.Code != 1 || !strings.Contains(refused.Stderr, "execution_unknown") {
+							t.Fatalf("refusal=%s", refused)
+						}
+					} else {
+						target["if_revision"] = preview.Revision
+						var refused struct {
+							IsError bool             `json:"isError"`
+							Output  unlockAssessment `json:"structuredContent"`
+						}
+						if err := json.Unmarshal(session.request("tools/call", map[string]any{"name": "rotari_unlock", "arguments": target}), &refused); err != nil {
+							t.Fatal(err)
+						}
+						if !refused.IsError || refused.Output.RefusalCode != "execution_unknown" {
+							t.Fatalf("refusal=%+v", refused)
+						}
+					}
+					if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
+						t.Fatal("refusal changed state")
+					}
+				}
+				var applied unlockAssessment
+				if transport == "CLI" {
+					result := e.MustRotari("unlock", "-p", "repair", "--assume-stopped", "--json")
+					if err := json.Unmarshal([]byte(result.Stdout), &applied); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					target["assume_stopped"], target["if_revision"] = true, preview.Revision
+					if message := session.call("rotari_unlock", target, &applied); message != "" {
+						t.Fatal(message)
+					}
+				}
+				meta = readUnlockJSON(t, metaPath)
+				wantPhase := "collecting"
+				if complete {
+					wantPhase = "finished"
+				}
+				if !applied.Applied || meta["phase"] != wantPhase || meta["last_run_id"] != runID {
+					t.Fatalf("applied=%+v meta=%v", applied, meta)
+				}
+				if complete {
+					var completion struct {
+						ExitCode int `json:"last_run_exit_code"`
+					}
+					data, err := os.ReadFile(metaPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := json.Unmarshal(data, &completion); err != nil {
+						t.Fatal(err)
+					}
+					if float64(completion.ExitCode) != summary["exit_code"] || meta["updated_at"] != summary["finished_at"] {
+						t.Fatalf("recorded completion not preserved: %v", meta)
+					}
+				}
+				for _, name := range []string{"summary.json", "commands.json", "carried.json"} {
+					beforePath := filepath.Join("runs", runID, name)
+					after := support.SavePairTree(t, projectDir)
+					if before.Observation(t)[beforePath] != after.Observation(t)[beforePath] {
+						t.Fatalf("rewrote recorded %s", name)
+					}
+				}
+				if got := e.MustRotari("check", "repair"); !strings.Contains(got.Stdout, "queued=1") {
+					t.Fatalf("consumed queue: %s", got)
+				}
+				context = readUnlockJSON(t, contextPath)
+				recovery := context["recovery"].(map[string]any)
+				if recovery["action"] != applied.Action || recovery["assume_stopped"] != true {
+					t.Fatalf("recovery evidence=%v", recovery)
+				}
+				e.MustRotari("unlock", "-p", "repair", "--assume-stopped")
+			})
+		}
+	}
+}
+
+func readUnlockJSON(t *testing.T, path string) map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(data, &value); err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
+
+func writeUnlockJSON(t *testing.T, path string, value any) {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestUnlockOwnershipAndDryRun(t *testing.T) {

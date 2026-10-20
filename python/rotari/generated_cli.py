@@ -705,8 +705,10 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
-                    "description": "explicitly attest that an unverifiable "
-                    "coordinator stopped; never overrides a live "
+                    "description": "explicitly attest that unverifiable "
+                    "coordinator and managed executions stopped; "
+                    "required for finalization repair with "
+                    "started attempts; never overrides a live "
                     "coordinator",
                     "name": "assume-stopped",
                 },

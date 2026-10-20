@@ -90,6 +90,7 @@ func cmdUnlock(args []string) int {
 	}
 	if *dryRun {
 		fmt.Printf("dry run: project=%s run_id=%s allowed=%t refusal_code=%s coordinator=%s reason=%q revision=%s\n", queueName, result.RunID, result.Allowed, result.RefusalCode, result.Coordinator.State, result.Coordinator.Reason, result.Revision)
+		fmt.Printf("Recovery action: %s; %s\n", result.Action, result.Repair.Reason)
 		if !result.Allowed {
 			fmt.Println((&project.UnlockRefusedError{Result: result}).Error())
 		}
@@ -106,8 +107,16 @@ func cmdUnlock(args []string) int {
 		printWarningf("coordinator ownership was not verified; recovery used --assume-stopped: %s", result.Coordinator.Reason)
 	}
 	message := fmt.Sprintf("recovered queue project=%s run_id=%s", queueName, result.RunID)
+	if result.Action == "finalize" {
+		message = fmt.Sprintf("repaired finalization project=%s run_id=%s", queueName, result.RunID)
+	}
 	fmt.Println(colorKeyValueMessage(message, green))
 	fmt.Println("Job termination was not verified; recovery does not stop jobs.")
-	fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, result.RunID))
+	if result.Action == "finalize" {
+		fmt.Println("Recorded results and finish time were preserved; completion notifications were not replayed.")
+	} else {
+		fmt.Println("Recovery action: release; " + result.Repair.Reason)
+		fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, result.RunID))
+	}
 	return 0
 }

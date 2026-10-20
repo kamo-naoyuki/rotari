@@ -73,7 +73,17 @@ flowchart LR
   permits recovery. CLI dry-run and MCP preview return the same policy
   evidence without mutation; CLI, MCP and Python expose the attestation.
   Recovery authorization is recorded in the existing run context, without
-  changing the coordinator record. Execution termination is not checked yet.
+  changing the coordinator record. `project`'s `repair.go` validates summary
+  completeness against expanded commands, carried origins/status marks and
+  all relevant attempts. Unlock either finalizes matching interrupted
+  metadata through `state.FinalizeRun` with the recorded finish time and
+  applicable client cleanup, or explains a release to collecting.
+  It never replays `projectrun.Runner` callbacks. Started/uncertain executions
+  require explicit attestation for repair; terminal records are not proof
+  of termination. Expanded array origins use `model.TaskOrigin`, the same
+  domain rule to which run planning delegates; pinned and unpinned origins
+  keep their respective attempt semantics. Execution termination is not
+  probed yet.
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
    It lists registered basedirs and lightweight project/run metadata, checks
    project locks across the selected basedir, and loads a project's queue and

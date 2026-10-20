@@ -125,7 +125,7 @@ the IDs, this table, and those calls disagree.
 | RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
-| RES-7 | `unlock` derives the run from the lock or interrupted metadata | conformance | `TestUnlockDerivesInterruptedRun` |
+| RES-7 | `unlock` derives the run from the lock or interrupted metadata | conformance | `TestUnlockDerivesInterruptedRun`, `TestUnlockFinalizationRepair` |
 | RES-8 | `basedirs` lists registered state directories | conformance | `TestBasedirsListsKnownStateDirectories`, `TestCommandsThatCreateAProjectRegisterItsBasedir` |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
@@ -158,10 +158,10 @@ the IDs, this table, and those calls disagree.
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
 | SAFE-2 | A running project rejects `run`, `retry`, and `delete`, so no second run or in-run retry starts; queue edits still target the next run; the `retry` rejection names `retry --to-project` | conformance | `TestRunningProjectRejectsSecondRunAndDelete`, `TestResetClearsQueueBesideActiveRun` |
 | SAFE-3 | An interrupted project rejects `run` and `delete`, naming the run and how to inspect, recover, and rerun it | conformance | `TestInterruptedProjectNeedsRecovery` |
-| SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, refuses verified live ownership and requires attestation for unknown ownership | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp`, `TestUnlockOwnershipAndDryRun` |
+| SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, refuses verified live ownership and requires attestation for unknown ownership | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp`, `TestUnlockOwnershipAndDryRun`, `TestUnlockFinalizationRepair` |
 | SAFE-5 | `reset` clears only the next queue, preserves run history, and does not change an active or interrupted run | conformance | `TestResetOfInterruptedProject`, `TestResetClearsQueueBesideActiveRun` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal` |
-| SAFE-7 | Unlock warnings and CLI/MCP previews share ownership/refusal evidence and explicitly leave execution termination unchecked | conformance | `TestUnlockWarnsAboutRunningJobs`, `TestMCPUnlockRecoversAnInterruptedRun`, `TestUnlockOwnershipAndDryRun` |
+| SAFE-7 | Unlock warnings and CLI/MCP previews share ownership/refusal evidence and explicitly leave execution termination unchecked | conformance | `TestUnlockWarnsAboutRunningJobs`, `TestMCPUnlockRecoversAnInterruptedRun`, `TestUnlockOwnershipAndDryRun`, `TestUnlockFinalizationRepair` |
 | SAFE-8 | Queue edits, including reset, apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun`, `TestResetClearsQueueBesideActiveRun`, `TestResetOfInterruptedProject` |
 | SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
 | SAFE-10 | `show` displays an active/interrupted run and a non-empty next queue separately | conformance | `TestShowActiveRunIncludesNextQueue` |
@@ -169,6 +169,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-12 | `delete --project` and `/api/delete-project` delete a whole idle project and its runs' registry entries, leave other projects alone, and on the CLI need the project named on the command line | conformance | `TestDeleteProjectRemovesOnlyThatProject`, `TestInterruptedProjectNeedsRecovery`, `TestRunningProjectRejectsSecondRunAndDelete` |
 | SAFE-13 | Unknown ownership requires explicit attestation; live ownership cannot be overridden; refusals include code and location guidance | conformance | `TestUnlockOwnershipAndDryRun` |
 | SAFE-14 | CLI/Python dry-run and MCP preview expose nonmutating ownership policy; refused applies preserve structured evidence | conformance | `TestUnlockOwnershipAndDryRun` |
+| SAFE-15 | A complete matching summary repairs finalization only with ownership and execution attestation safeguards; incomplete summaries only release, preserving the queue and history | conformance | `TestUnlockFinalizationRepair` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host or in another PID namespace fails, naming it | conformance | `TestControlFromAnotherHost`, `TestLockFromAnotherPIDNamespaceIsLocked` |
 | COORD-3 | A remote lock keeps the project locked until explicit recovery with attestation for unknown ownership | conformance | `TestControlFromAnotherHost`, `TestLockFromAnotherPIDNamespaceIsLocked`, `TestUnlockOwnershipAndDryRun` |

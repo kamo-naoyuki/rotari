@@ -214,9 +214,11 @@ A project is in one of three states, derived from `running.lock` and
   commands to inspect and recover it, and the `retry --run-id` command that
   reruns its failed and unfinished jobs afterwards.
 - **SAFE-4** `unlock` recovers an interrupted run: it leaves the queue as it
-  is, returns the project to idle, and names the `retry --run-id` command that
-  reruns the run's failed and unfinished jobs, since the run took them from
-  the queue when it started (CORE-3, RUN-12). `rotari unlock` and the MCP
+  is and returns the project to idle. A complete trustworthy summary repairs
+  finalization under SAFE-15; otherwise recovery returns to collecting and
+  names the `retry --run-id` command that reruns the failed/unfinished jobs,
+  since the run took them from the queue when it started (CORE-3, RUN-12).
+  `rotari unlock` and the MCP
   unlock tools share `project.Unlock` in
   [internal/project/unlock.go](../internal/project/unlock.go), covered by
   `TestUnlockByProjectState`. A `--run-id` must name that run. It
@@ -280,6 +282,33 @@ A project is in one of three states, derived from `running.lock` and
   preview never bypasses a fresh ownership check. Checked by
   `TestUnlockOwnershipAndDryRun`, and by flag-pair tests in
   [conformance/03-interfaces/pairruns/flag_pair_unlock_test.go](../conformance/03-interfaces/pairruns/flag_pair_unlock_test.go).
+- **SAFE-15** Unlock repairs management metadata to `finished` only when
+  metadata names the selected running/cancelling run and its valid summary
+  exactly covers the expanded commands, including array tasks and matrix
+  members, without duplicate/missing results or invalid attempt associations.
+  Carried outcomes must agree with their origins and explicit status marks.
+  The inventory includes earlier attempts and incomplete launch records.
+  Ownership still follows SAFE-13. Until execution probes are implemented,
+  every executed or possibly executed unit requires explicit
+  `--assume-stopped`; recorded terminal outcomes alone never establish
+  termination. Without that attestation an otherwise repairable run refuses
+  with `execution_unknown`, rather than silently choosing release.
+  Only entries established never launched need no execution attestation.
+  Repair uses `state.FinalizeRun`, preserves results, commands, origins, run
+  ID and recorded finish time, completes applicable client status, and never
+  replays notifications/hooks or consumes the next queue. Recovery evidence
+  precedes mutation; partial cleanup can be retried. A readable but incomplete
+  or inconsistent summary permits only `release` to collecting, with an
+  explicit explanation, never invented results. Malformed/unreadable repair
+  records are errors. Preview/apply expose `action` and `repair` through the
+  shared policy and reassess the inventory at apply.
+  Implemented in [internal/project/repair.go](../internal/project/repair.go),
+  with unit cases in
+  [internal/project/repair_test.go](../internal/project/repair_test.go).
+  `TestUnlockFinalizationRepair` in
+  [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
+  checks CLI/MCP parity, execution refusal, expanded inventory, release,
+  preserved state and repeated recovery.
 - **SAFE-8** While a project is running or interrupted, `add`, `copy`,
   `change`, `remove`, `import`, and `reset` edit the queue for the next run,
   since the run took its own jobs when it started (CORE-3). They leave the

@@ -1,7 +1,7 @@
 # Plan: Verified Unlock of Interrupted Runs
 
 Created: 2026-10-20
-Status: Phases 1a and 1b implemented and validated. Phases 2-4 not started.
+Status: Phases 1a, 1b, and 2 implemented and validated. Phases 3-4 not started.
 
 Phase 1a stores coordinator identity in the existing run context rather than
 a separate run-directory filename, avoiding collisions with arbitrary job IDs.
@@ -31,6 +31,29 @@ the isolated full normal/race check passed. The lockless-live regression
 fails on pre-change `d1d69523`. Unrelated jj-read and positional-selector
 intermittent failures are recorded in [ISSUES.md](../ISSUES.md); implementation
 history and rationale are in [work-log.md](work-log.md).
+
+Phase 2 repairs matching interrupted metadata to `finished` only after
+validating the complete expanded command/result inventory, carried origins
+and status marks, and all relevant attempts, including incomplete launches.
+Preview/apply share `action` (`finalize` or `release`) and the repair reason
+and execution inventory. A complete summary with started/uncertain work needs
+explicit execution attestation; otherwise it refuses with `execution_unknown`,
+not a silent release. Only established never-launched entries need no
+execution attestation. Normal, cancel, timeout, SSH and scheduler wrapper
+records establish outcomes, not managed-execution termination, so no
+terminal-record-only fast path was added. Repair preserves summary/results,
+commands, origins, run ID and finish time, cleans up applicable client status,
+and never replays completion hooks. Partial cleanup can be retried.
+`Finish` keeps removing its own lock on failure: durable ownership protects
+live supervisors, while interrupted metadata remains explicitly repairable.
+SAFE-15 and the operations guide record the boundary and wrapper audit.
+Validation: the motivating unit test failed before the fix; plain and inherited
+array binary regressions also fail on pre-change `435eea35`. Expanded-unit,
+origin/attempt, cleanup-retry, ownership, CLI/MCP and flag-pair tests passed,
+as did changed-file pre-commit, short checks, the final full normal/race check,
+67 Python tests with the final binary, and generated schema/reference checks.
+Execution probes remain Phase 3; ordinary release policy is tightened further
+in Phase 4. Reasons and validation details are in [work-log.md](work-log.md).
 
 ## Purpose
 

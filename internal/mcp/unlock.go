@@ -10,7 +10,7 @@ type UnlockInput struct {
 	BaseDirRef    string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
 	Project       string `json:"project" jsonschema:"project name"`
 	RunID         string `json:"run_id,omitempty" jsonschema:"the interrupted run to recover; by default the one the project's lock or metadata names"`
-	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that an unverifiable coordinator stopped; never overrides live ownership; jobs must be checked separately"`
+	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that unverifiable coordinator and managed executions stopped; required for finalization repair with started attempts; never overrides live ownership"`
 }
 
 type ApplyUnlockInput struct {
@@ -30,6 +30,8 @@ type UnlockOutput struct {
 	Applied          bool                          `json:"applied"`
 	RefusalCode      string                        `json:"refusal_code,omitempty"`
 	AssumeStopped    bool                          `json:"assume_stopped"`
+	Action           string                        `json:"action,omitempty" jsonschema:"finalize a complete recorded run or release it to collecting without synthesizing results"`
+	Repair           project.RepairAssessment      `json:"repair"`
 }
 
 // unlock previews or applies `rotari unlock` on a project through
@@ -47,7 +49,7 @@ func (tools writeTools) unlock(input UnlockInput, guard project.Guard) (UnlockOu
 		}
 	}
 	output := UnlockOutput{Project: paths.ProjectName, InterruptedRunID: result.RunID, InterruptedRun: result.Detail, JobsMayBeRunning: result.JobsMayBeRunning, ExecutionChecked: result.ExecutionChecked, Revision: result.Revision,
-		Coordinator: result.Coordinator, Allowed: result.Allowed, Applied: result.Applied, RefusalCode: result.RefusalCode, AssumeStopped: result.AssumeStopped}
+		Coordinator: result.Coordinator, Allowed: result.Allowed, Applied: result.Applied, RefusalCode: result.RefusalCode, AssumeStopped: result.AssumeStopped, Action: result.Action, Repair: result.Repair}
 	return output, err
 }
 

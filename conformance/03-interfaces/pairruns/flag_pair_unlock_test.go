@@ -22,6 +22,9 @@ func TestCLIFlagPairUnlockSamples(t *testing.T) {
 			t.Run(flag.Name, func(t *testing.T) {
 				seed := seedPairInterruptedUnlock(t, f)
 				args := append([]string{"unlock"}, f.Sample(t, flag)...)
+				if flag.Name != "assume-stopped" {
+					args = append(args, "--assume-stopped")
+				}
 				result := pairInvoke(t, f.E, args...)
 				assertPairUnlockRecovered(t, f, result, seed)
 			})
@@ -100,6 +103,9 @@ func invokePairUnlock(t *testing.T, f pairMutationFixture, flags []pairFlag) pai
 	for _, flag := range flags {
 		args = append(args, f.Sample(t, flag)...)
 	}
+	if !pairHasFlag(flags, "assume-stopped") {
+		args = append(args, "--assume-stopped")
+	}
 	result := pairInvoke(t, f.E, args...)
 	assertPairUnlockRecovered(t, f, result, seed)
 	if pairHasFlag(flags, "json") {
@@ -137,7 +143,7 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 		dryRun = dryRun || strings.HasPrefix(arg, "--dry-run")
 		jsonOutput = jsonOutput || strings.HasPrefix(arg, "--json")
 	}
-	recovered := strings.Contains(result.Stdout, "recovered queue project="+f.Project+" run_id="+f.Run)
+	recovered := strings.Contains(result.Stdout, "repaired finalization project="+f.Project+" run_id="+f.Run)
 	if jsonOutput {
 		var output struct {
 			Allowed bool   `json:"allowed"`
@@ -190,16 +196,25 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 			}
 		}
 	}
-	if meta.Phase != "collecting" || meta.LastRunID != f.Run {
-		t.Fatalf("unlocked metadata = %+v, want collecting with retained run ID %q", meta, f.Run)
+	if meta.Phase != "finished" || meta.LastRunID != f.Run {
+		t.Fatalf("unlocked metadata = %+v, want finished with retained run ID %q", meta, f.Run)
 	}
 	var actualMeta map[string]any
 	if err := json.Unmarshal(data, &actualMeta); err != nil {
 		t.Fatal(err)
 	}
-	seededMeta["phase"] = "collecting"
-	delete(seededMeta, "updated_at")
-	delete(actualMeta, "updated_at")
+	summaryPath := filepath.Join(projectDir, "runs", f.Run, "summary.json")
+	summaryData, err := os.ReadFile(summaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary map[string]any
+	if err := json.Unmarshal(summaryData, &summary); err != nil {
+		t.Fatal(err)
+	}
+	seededMeta["phase"] = "finished"
+	seededMeta["last_run_exit_code"] = summary["exit_code"]
+	seededMeta["updated_at"] = summary["finished_at"]
 	if !reflect.DeepEqual(seededMeta, actualMeta) {
 		t.Fatalf("unlock changed metadata beyond phase/updated_at: got %v, want %v", actualMeta, seededMeta)
 	}
@@ -211,7 +226,7 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 	}
 	seedContext, savedContext := pairUnlockContext(t, seed, contextPath), pairUnlockContext(t, afterTree, contextPath)
 	recovery, ok := savedContext["recovery"].(map[string]any)
-	if !ok || recovery["at"] == "" || recovery["coordinator_state"] != "stopped" {
+	if !ok || recovery["at"] == "" || recovery["coordinator_state"] != "stopped" || recovery["action"] != "finalize" || recovery["assume_stopped"] != true {
 		t.Fatalf("missing recovery evidence: %v", savedContext)
 	}
 	delete(savedContext, "recovery")
@@ -279,6 +294,9 @@ func TestCLIFlagPairUnlockSafety(t *testing.T) {
 				args := []string{"unlock", "--project-name", f.Project, "--run-id", runID}
 				if reversed {
 					args = []string{"unlock", "--run-id", runID, "--project-name", f.Project}
+				}
+				if mode == "without-lock" {
+					args = append(args, "--assume-stopped")
 				}
 				result := pairInvoke(t, f.E, args...)
 				after := savePairTree(t, f.E.Root)

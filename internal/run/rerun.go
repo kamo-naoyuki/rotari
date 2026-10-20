@@ -351,15 +351,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 // TaskOrigin returns the origin of one task of an array command: its own
 // task origin, or the command's origin narrowed to the task.
 func TaskOrigin(command model.QueuedCommand, task int) *model.JobOrigin {
-	if origin := command.TaskOrigins[taskID(command.ID, task)]; origin != nil {
-		return origin
-	}
-	if command.Origin == nil {
-		return nil
-	}
-	origin := *command.Origin
-	origin.JobID = taskID(command.Origin.JobID, task)
-	return &origin
+	return model.TaskOrigin(command, task)
 }
 
 func taskID(commandID string, task int) string {

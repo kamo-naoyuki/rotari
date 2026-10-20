@@ -131,8 +131,9 @@ rotari unlock -p sweep --run-id RUN_ID --dry-run
 rotari unlock -p sweep --run-id RUN_ID
 ```
 
-`unlock` verifies the run ID, removes a matching lock, and returns the project
-to queue collection. Never use it while the run may still be executing, or a
+`unlock` verifies the run ID, removes a matching lock, and either repairs
+finalization or returns the project to queue collection (see below).
+Never use it while the run may still be executing, or a
 second run could start for the same queue.
 
 ### Unlock ownership checks and automation migration
@@ -159,9 +160,10 @@ rotari unlock -p sweep --run-id RUN_ID --dry-run --json
 ```
 
 The JSON contains `allowed`, `applied`, `refusal_code`
-(`coordinator_live` or `coordinator_unknown`), `coordinator`
+(`coordinator_live`, `coordinator_unknown`, or `execution_unknown`), `coordinator`
 (`state`, `reason`, `observed_at`, `identity`), `assume_stopped`, `revision`,
-and recorded-job warnings. A successful preview exits zero even when
+`action` (`finalize` or `release`), `repair` (completeness, reason, execution
+inventory), and recorded-job warnings. A successful preview exits zero even when
 `allowed` is false; automation must inspect that field. Applying a refused
 recovery exits nonzero, retaining the JSON evidence on stdout and diagnostics
 on stderr. Applying always reassesses ownership under the state lock; a
@@ -187,8 +189,67 @@ it. Applied recovery records its authorization time, assessment, and attestation
 in the existing run context's `recovery` field, preserving coordinator identity
 and result history. The record describes authorization for the recovery attempt;
 an I/O failure later in recovery still returns an error.
-The queue stays intact, the project returns to collecting, and rerunning
-failed/unfinished jobs still requires `retry --run-id RUN_ID`.
+The queue stays intact. Incomplete runs return to collecting, and rerunning
+failed/unfinished jobs still requires `retry --run-id RUN_ID`; complete runs
+can repair finalization instead.
+
+### Attested finalization repair
+
+Computation may have finished while management finalization failed. If the
+summary names the interrupted run and exactly covers the command snapshot's
+expanded jobs, array tasks and matrix members, recovery can restore metadata
+to `finished`. It validates carried origins, status marks and attempt
+associations, including earlier attempts and incomplete launch records.
+Preview reports `action: "finalize"` and `repair.complete: true`.
+
+This does **not** prove execution termination. An otherwise complete run with
+any executed or possibly executed unit refuses with `execution_unknown`
+unless you explicitly attest with `--assume-stopped`, even if coordinator
+ownership is verified stopped. Inspect `repair.executions`, including the
+original attempts of carried results, and independently confirm all managed
+work stopped before attesting. Only jobs established never launched (for
+example blocked dependencies or pre-dispatch cancellation) need no execution
+attestation. A live coordinator always blocks.
+
+Repair preserves the original summary/results, commands, origins, run ID,
+and recorded finish time; it completes applicable client status without
+replaying completion notifications or hooks. It consumes no queued work and
+executes no jobs. A retry after partial cleanup is safe. An idle project
+without a lock remains a no-op.
+
+Without a complete trustworthy summary, preview reports `action: "release"`
+and explains why it cannot finalize. Apply returns to collecting without
+inventing a summary. Retry is a separate command. Malformed/unreadable repair
+records are explicit errors, not permission to skip validation. Apply rereads
+the summary and execution inventory under the state lock; a preview does not
+freeze the evidence.
+
+#### Why terminal records still need attestation
+
+The current wrapper/executor audit allows no terminal-record-only fast path:
+
+| Path | What a terminal record establishes | What remains unverified |
+| --- | --- | --- |
+| Normal wrapper completion | The wrapper waited for its direct command | Background managed descendants can outlive that command; wrapper/group and allocation termination are not established |
+| Cancellation | A recorded cancellation outcome; grace escalation can write it before the final kill | Wrapper, descendants/process group, and scheduler allocation may still be ending |
+| Timeout | A timeout outcome; the watchdog can write it before its group kill | The same process/allocation scope may still exist when the record becomes visible |
+| Local/SSH wait or lost-wrapper reconstruction | Local wait observes a direct process; SSH wait observes the SSH client, not a fresh remote scope check | Neither proves all managed local/remote descendants stopped |
+| Scheduler wait | A persisted wrapper or accounting outcome; wrapper completion can be returned before another scheduler query | Fresh scheduler identity/allocation termination still needs a probe |
+| Earlier retry or incomplete launch | A directory or launch record exists, even without final wrapper status | A later successful attempt says nothing about its predecessors |
+
+See the [wrapper](../internal/executor/wrapper.go),
+[SSH wait](../internal/executor/ssh.go),
+[scheduler wait](../internal/executor/scheduler_shared.go), and
+[recovery tests](../internal/project/repair_test.go).
+No scheduler, SSH or process-group termination probes are added in this
+phase. `execution_checked` remains false. This is attested repair, not
+executor verification.
+
+`projectrun.Finish` still removes its own lock on a finalization failure.
+Keeping it would misleadingly retain a running lock after the supervisor
+exits; durable coordinator identity already prevents recovery past a live
+supervisor without relying on that lock. Interrupted metadata and the
+original summary remain available for explicit repair.
 
 Python exposes the same options through
 `unlock(run_id=..., dry_run=True, json=True)` and

@@ -107,7 +107,7 @@ func LatestAttemptID(runDir, jobID string) (string, error) {
 		if !entry.IsDir() || !IsValidPathElement(entry.Name()) {
 			continue
 		}
-		payload, decodeErr := decodeAttemptIDForRun(entry.Name(), runID)
+		payload, decodeErr := DecodeAttemptIDForRun(entry.Name(), runID)
 		if decodeErr != nil {
 			payload, decodeErr = DecodeAttemptID(entry.Name())
 		}
@@ -122,7 +122,9 @@ func LatestAttemptID(runDir, jobID string) (string, error) {
 	return latest, nil
 }
 
-func decodeAttemptIDForRun(attemptID, runID string) (AttemptIDPayload, error) {
+// DecodeAttemptIDForRun decodes an attempt belonging to runID, including
+// imported runs whose IDs do not have the usual timestamp format.
+func DecodeAttemptIDForRun(attemptID, runID string) (AttemptIDPayload, error) {
 	prefix := "att_" + runID + "-"
 	if !strings.HasPrefix(attemptID, prefix) {
 		return AttemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)

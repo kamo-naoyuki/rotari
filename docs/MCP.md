@@ -86,14 +86,24 @@ stale lock, and returns the project to idle with its queue kept, as
 including without a run lock. Unknown ownership requires explicit
 `assume_stopped: true`; verified live ownership cannot be overridden.
 Refused applies are tool errors retaining structured `allowed: false` and
-`refusal_code` (`coordinator_live` or `coordinator_unknown`) with inspection
+`refusal_code` (`coordinator_live`, `coordinator_unknown`, or `execution_unknown`) with inspection
 guidance naming the recorded host and namespace.
 Both preview and apply report `execution_checked: false`: job termination
 is not verified, even when terminal records exist. Confirm independently
 that the coordinator and jobs stopped before applying, and do not enable
 attestation blindly in existing automation. See the
 [migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration).
-Then call
+Preview/apply also share `action` (`finalize` or `release`) and `repair`
+(`complete`, `reason`, `executions`). A complete matching summary repairs
+management metadata to finished, preserving recorded results and finish time
+and completing applicable client status without replaying notifications.
+Every started/uncertain execution, including earlier attempts and carried
+origins, requires explicit `assume_stopped` for repair in this phase, even
+when ownership is verified stopped. Only established never-launched units
+need no execution attestation. Without it, repair refuses rather than
+silently releasing. Incomplete summaries only release to collecting, with
+an explanation; malformed/unreadable repair records are errors.
+After a release, call
 `rotari_preview_run` and `rotari_start_run` with `retry` and `run_id` set to
 the recovered run to rerun its failed and unfinished jobs while keeping the
 next queue untouched.

@@ -44,6 +44,21 @@ func (queue Queue) OriginOf(jobID string) *JobOrigin {
 	return nil
 }
 
+// TaskOrigin resolves a task's own origin or the corresponding task of its
+// array's origin. It never changes the command's stored origin.
+func TaskOrigin(command QueuedCommand, task int) *JobOrigin {
+	id := fmt.Sprintf("%s-%d", command.ID, task)
+	if origin := command.TaskOrigins[id]; origin != nil {
+		return origin
+	}
+	if command.Origin == nil {
+		return nil
+	}
+	origin := *command.Origin
+	origin.JobID = fmt.Sprintf("%s-%d", origin.JobID, task)
+	return &origin
+}
+
 type QueuedCommand struct {
 	ID               string   `json:"id"`
 	Command          []string `json:"command"`
@@ -682,11 +697,22 @@ type RunCoordinator struct {
 }
 
 type RunRecovery struct {
-	At                string          `json:"at"`
-	AssumeStopped     bool            `json:"assume_stopped"`
-	CoordinatorState  string          `json:"coordinator_state"`
-	CoordinatorReason string          `json:"coordinator_reason"`
-	Coordinator       *RunCoordinator `json:"coordinator,omitempty"`
+	At                string              `json:"at"`
+	AssumeStopped     bool                `json:"assume_stopped"`
+	CoordinatorState  string              `json:"coordinator_state"`
+	CoordinatorReason string              `json:"coordinator_reason"`
+	Coordinator       *RunCoordinator     `json:"coordinator,omitempty"`
+	Action            string              `json:"action,omitempty"`
+	Executions        []RecoveryExecution `json:"executions,omitempty"`
+}
+
+type RecoveryExecution struct {
+	RunID     string `json:"run_id"`
+	JobID     string `json:"job_id"`
+	AttemptID string `json:"attempt_id,omitempty"`
+	Backend   string `json:"backend"`
+	State     string `json:"state"`
+	Reason    string `json:"reason"`
 }
 
 // LaunchOrigin identifies a process on a host. ProcessStart, when known,

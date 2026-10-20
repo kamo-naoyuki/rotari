@@ -302,6 +302,35 @@ def test_unlock_real_cli_ownership_and_preview(tmp_path):
         is True
     )
 
+    # A real completed execution can repair interrupted management metadata,
+    # but its terminal result alone cannot attest to all managed work stopping.
+    client.run()
+    meta_path = project / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    completed_run = project / "runs" / meta["last_run_id"]
+    summary_path = completed_run / "summary.json"
+    summary = summary_path.read_bytes()
+    meta["phase"] = "running"
+    meta_path.write_text(json.dumps(meta))
+    client.add(["false"])
+    queue = (project / "queue.json").read_bytes()
+    preview = client.unlock(dry_run=True, json=True).json()
+    assert preview["action"] == "finalize"
+    assert preview["repair"]["complete"] is True
+    assert preview["allowed"] is False
+    assert preview["refusal_code"] == "execution_unknown"
+    with pytest.raises(RotariError) as error:
+        client.unlock(json=True)
+    assert error.value.result.json()["refusal_code"] == "execution_unknown"
+    applied = client.unlock(assume_stopped=True, json=True).json()
+    assert applied["action"] == "finalize"
+    assert applied["applied"] is True
+    repaired_meta = json.loads(meta_path.read_text())
+    assert repaired_meta["phase"] == "finished"
+    assert repaired_meta["updated_at"] == json.loads(summary)["finished_at"]
+    assert summary_path.read_bytes() == summary
+    assert (project / "queue.json").read_bytes() == queue
+
 
 def test_run_builds_options_from_schema():
     output = (

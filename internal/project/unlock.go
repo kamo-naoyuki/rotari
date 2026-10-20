@@ -37,6 +37,8 @@ type UnlockResult struct {
 	AssumeStopped    bool                  `json:"assume_stopped"`
 	Revision         string                `json:"revision"`
 	Applied          bool                  `json:"applied"`
+	Action           string                `json:"action,omitempty"`
+	Repair           RepairAssessment      `json:"repair"`
 }
 
 type UnlockRefusedError struct{ Result UnlockResult }
@@ -49,6 +51,9 @@ func (err *UnlockRefusedError) Error() string {
 	}
 	if err.Result.RefusalCode == "coordinator_live" {
 		return fmt.Sprintf("coordinator_live: run coordinator is running: %s%s", err.Result.Coordinator.Reason, location)
+	}
+	if err.Result.RefusalCode == "execution_unknown" {
+		return "execution_unknown: finalization repair requires --assume-stopped after confirming all managed executions, including earlier attempts and carried origins, stopped; terminal outcome records are not termination evidence"
 	}
 	return fmt.Sprintf("coordinator_unknown: %s%s; inspect on the original host in the same PID namespace if accessible, or explicitly attest that the coordinator stopped with --assume-stopped; job termination is not verified", err.Result.Coordinator.Reason, location)
 }
@@ -124,6 +129,18 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard, assumeStopped b
 		assessment.Identity = &model.RunCoordinator{Host: lock.Host, PID: lock.PID, PIDNamespace: lock.PIDNamespace}
 	}
 	result := UnlockResult{RunID: runID, Detail: strings.TrimPrefix(detail, ": "), JobsMayBeRunning: stillRunning, Coordinator: assessment, AssumeStopped: assumeStopped, Revision: revision}
+	repair, summary, err := assessRepair(paths, runID, meta, store)
+	if err != nil {
+		return result, err
+	}
+	result.Repair = repair
+	result.Action = "release"
+	if result.Repair.Complete {
+		result.Action = "finalize"
+		if len(result.Repair.Executions) > 0 && !assumeStopped {
+			result.RefusalCode = "execution_unknown"
+		}
+	}
 	switch assessment.State {
 	case CoordinatorLive:
 		result.RefusalCode = "coordinator_live"
@@ -152,6 +169,7 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard, assumeStopped b
 		At: time.Now().UTC().Format(time.RFC3339Nano), AssumeStopped: assumeStopped,
 		CoordinatorState: string(assessment.State), CoordinatorReason: assessment.Reason,
 		Coordinator: assessment.Identity,
+		Action:      result.Action, Executions: result.Repair.Executions,
 	}
 	if err := state.SaveContext(store, runDir, context); err != nil {
 		return result, fmt.Errorf("record recovery evidence: %w", err)
@@ -161,7 +179,12 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard, assumeStopped b
 			return UnlockResult{}, fmt.Errorf("failed to remove run lock: %w", err)
 		}
 	}
-	if err := recoverInterrupted(paths); err != nil {
+	if result.Action == "finalize" {
+		err = finalizeRepair(paths, runDir, meta, summary, store)
+	} else {
+		err = recoverInterrupted(paths)
+	}
+	if err != nil {
 		return UnlockResult{}, fmt.Errorf("failed to update metadata: %w", err)
 	}
 	result.Applied = true
