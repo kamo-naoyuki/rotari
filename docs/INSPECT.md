@@ -90,8 +90,9 @@ Use `--basedir DIR` on `jobs`, `runs`, or `projects` to inspect one state
 directory.
 
 For `jobs` and `runs`, finished entries default to the last day. Unfinished
-attempts of active, interrupted, or incomplete runs, and active or interrupted
-runs, are always included. Their job states are persisted observations: for example,
+attempts of active, interrupted, or incomplete runs are always included.
+Active, interrupted, and incomplete runs are included regardless of age. Their
+job states are persisted observations: for example,
 `running (recorded)` does not assert that an executor is still alive. Jobs
 of those runs that rotari has not dispatched yet are listed as `pending`, with
 `-` for the attempt ID, right after the newest row of their run.
@@ -105,6 +106,18 @@ state filter together narrow the listing with AND:
 ```sh
 rotari jobs --running
 rotari jobs --filter-failed --filter-running
+```
+
+Use `runs` lifecycle filters to narrow the `STATUS` column. The available
+choices are `running`, `interrupted`, `incomplete`, `finished`, `failed`, and
+`cancelled`; `--filter-*` forms also have shorter aliases, such as
+`--filter-failed` / `--failed`. Multiple lifecycle choices combine with OR.
+They narrow the existing time window rather than replacing it, so use
+`--since 7d` to include older finished runs:
+
+```sh
+rotari runs --running
+rotari runs --filter-failed --filter-cancelled --since 7d
 ```
 
 ```sh

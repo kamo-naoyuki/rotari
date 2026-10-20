@@ -175,3 +175,102 @@ func TestRunsWindowFiltersSettledHistoryButKeepsActiveRun(t *testing.T) {
 		t.Fatalf("runs --since 7d omitted old completed run %s:\n%s", oldRun, wider)
 	}
 }
+
+func TestRunsNamedLifecycleFilters(t *testing.T) {
+	covers(t, "CLI-28")
+	e := support.NewEnv(t)
+	project := "run-lifecycle"
+
+	e.MustRotari("add", "-p", project, "--job-name", "ok", "--", "true")
+	if result := e.Rotari("run", "-p", project, "--quiet"); result.Code != 0 {
+		t.Fatalf("successful run failed: %s", result)
+	}
+	okID := shownRunID(t, e.MustRotari("show", "-p", project, "--json").Stdout)
+
+	e.MustRotari("add", "-p", project, "--job-name", "bad", "--", "false")
+	if result := e.Rotari("run", "-p", project, "--quiet"); result.Code != 1 {
+		t.Fatalf("failing run exit = %d, want 1: %s", result.Code, result)
+	}
+	failedID := shownRunID(t, e.MustRotari("show", "-p", project, "--json").Stdout)
+
+	e.MustRotari("add", "-p", project, "--job-name", "cancel-me", "--", "sh", "-c", "sleep 20")
+	e.MustRotari("run", "-p", project, "--async")
+	cancelledID := shownRunID(t, e.MustRotari("show", "-p", project, "--json").Stdout)
+	if result := e.Rotari("cancel", "-p", project, "--wait"); result.Code != 0 {
+		t.Fatalf("cancel run failed: %s", result)
+	}
+
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"finished long", []string{"--filter-finished"}, okID},
+		{"finished short", []string{"--finished"}, okID},
+		{"failed long", []string{"--filter-failed"}, failedID},
+		{"failed short", []string{"--failed"}, failedID},
+		{"cancelled long", []string{"--filter-cancelled"}, cancelledID},
+		{"cancelled short", []string{"--cancelled"}, cancelledID},
+		{"OR combination", []string{"--filter-finished", "--filter-cancelled"}, ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := append([]string{"runs", "--basedir", e.Base, project, "--json"}, test.args...)
+			output := e.MustRotari(args...).Stdout
+			var runs []struct {
+				RunID     string `json:"run_id"`
+				Lifecycle string `json:"lifecycle"`
+			}
+			if err := json.Unmarshal([]byte(output), &runs); err != nil {
+				t.Fatalf("runs JSON is invalid: %v\n%s", err, output)
+			}
+			if test.name == "OR combination" {
+				if len(runs) != 2 {
+					t.Fatalf("runs %v returned %d rows, want both lifecycle matches: %+v", test.args, len(runs), runs)
+				}
+				return
+			}
+			if len(runs) != 1 || runs[0].RunID != test.want {
+				t.Fatalf("runs %v = %+v, want only %s", test.args, runs, test.want)
+			}
+		})
+	}
+
+	e.MustRotari("add", "-p", project, "--job-name", "long", "--", "sh", "-c", "sleep 20")
+	e.MustRotari("run", "-p", project, "--async")
+	t.Cleanup(func() { _ = e.Rotari("cancel", "-p", project, "--wait") })
+	runningID := shownRunID(t, e.MustRotari("show", "-p", project, "--json").Stdout)
+	for _, filter := range []string{"--filter-running", "--running"} {
+		t.Run(filter, func(t *testing.T) {
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				output := e.MustRotari("runs", "--basedir", e.Base, project, "--json", filter).Stdout
+				var runs []struct {
+					RunID     string `json:"run_id"`
+					Lifecycle string `json:"lifecycle"`
+				}
+				if err := json.Unmarshal([]byte(output), &runs); err != nil {
+					t.Fatalf("runs JSON is invalid: %v\n%s", err, output)
+				}
+				if len(runs) == 1 && runs[0].RunID == runningID && runs[0].Lifecycle == "running" {
+					return
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+			t.Fatalf("runs %s did not select the running run %q", filter, runningID)
+		})
+	}
+}
+
+func shownRunID(t *testing.T, output string) string {
+	t.Helper()
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(output), &shown); err != nil {
+		t.Fatalf("show JSON is invalid: %v\n%s", err, output)
+	}
+	if shown.RunID == "" {
+		t.Fatalf("show JSON has no run_id:\n%s", output)
+	}
+	return shown.RunID
+}

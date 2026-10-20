@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +15,38 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/runlist"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+func TestRunLifecycleFilters(t *testing.T) {
+	runs := make([]runlist.Run, 0, len(runLifecycleFilterValues))
+	for _, lifecycle := range runLifecycleFilterValues {
+		runs = append(runs, runlist.Run{Lifecycle: lifecycle})
+	}
+	for _, lifecycle := range runLifecycleFilterValues {
+		for _, option := range []string{"--filter-" + lifecycle, "--" + lifecycle} {
+			t.Run(option, func(t *testing.T) {
+				fs := flag.NewFlagSet("runs", flag.ContinueOnError)
+				options := cliRunLifecycleOptions(fs)
+				if err := fs.Parse([]string{option}); err != nil {
+					t.Fatal(err)
+				}
+				filtered := filterRunsByLifecycle(runs, options)
+				if len(filtered) != 1 || filtered[0].Lifecycle != lifecycle {
+					t.Fatalf("filterRunsByLifecycle(%s) = %+v", option, filtered)
+				}
+			})
+		}
+	}
+
+	fs := flag.NewFlagSet("runs", flag.ContinueOnError)
+	options := cliRunLifecycleOptions(fs)
+	if err := fs.Parse([]string{"--filter-running", "--finished"}); err != nil {
+		t.Fatal(err)
+	}
+	filtered := filterRunsByLifecycle(runs, options)
+	if len(filtered) != 2 || filtered[0].Lifecycle != "running" || filtered[1].Lifecycle != "finished" {
+		t.Fatalf("OR filters returned %+v", filtered)
+	}
+}
 
 func writeListsRun(t *testing.T, baseDir, projectName, runID string) state.ProjectPaths {
 	t.Helper()

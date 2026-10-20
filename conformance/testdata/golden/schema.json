@@ -826,6 +826,42 @@
         },
         {
           "name": "json"
+        },
+        {
+          "name": "filter-running"
+        },
+        {
+          "name": "running"
+        },
+        {
+          "name": "filter-interrupted"
+        },
+        {
+          "name": "interrupted"
+        },
+        {
+          "name": "filter-incomplete"
+        },
+        {
+          "name": "incomplete"
+        },
+        {
+          "name": "filter-finished"
+        },
+        {
+          "name": "finished"
+        },
+        {
+          "name": "filter-failed"
+        },
+        {
+          "name": "failed"
+        },
+        {
+          "name": "filter-cancelled"
+        },
+        {
+          "name": "cancelled"
         }
       ],
       "name": "runs"

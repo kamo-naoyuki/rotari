@@ -87,6 +87,66 @@ func displayRunTime(value string) string {
 	return model.FormatDisplayTimestamp(value)
 }
 
+var runLifecycleFilterValues = []string{"running", "interrupted", "incomplete", "finished", "failed", "cancelled"}
+
+func runLifecycleFilterSpecs() []cliFlagSpec {
+	specs := make([]cliFlagSpec, 0, len(runLifecycleFilterValues)*2)
+	for _, lifecycle := range runLifecycleFilterValues {
+		specs = append(specs,
+			cliFlagSpec{Name: "filter-" + lifecycle, Description: "select runs in the " + lifecycle + " lifecycle", CommandLineOnly: true},
+			cliFlagSpec{Name: lifecycle, Description: "short form of --filter-" + lifecycle, CommandLineOnly: true},
+		)
+	}
+	return specs
+}
+
+type runLifecycleOptions struct {
+	flags map[string]runLifecycleFlagPair
+}
+
+type runLifecycleFlagPair struct {
+	filter *bool
+	short  *bool
+}
+
+func cliRunLifecycleOptions(fs *flag.FlagSet) runLifecycleOptions {
+	options := runLifecycleOptions{flags: make(map[string]runLifecycleFlagPair, len(runLifecycleFilterValues))}
+	for _, lifecycle := range runLifecycleFilterValues {
+		options.flags[lifecycle] = runLifecycleFlagPair{
+			filter: cliBool(fs, "filter-"+lifecycle, false),
+			short:  cliBool(fs, lifecycle, false),
+		}
+	}
+	return options
+}
+
+func (options runLifecycleOptions) selected(lifecycle string) bool {
+	flags := options.flags[lifecycle]
+	return flags.filter != nil && *flags.filter || flags.short != nil && *flags.short
+}
+
+func (options runLifecycleOptions) anySelected() bool {
+	for _, lifecycle := range runLifecycleFilterValues {
+		if options.selected(lifecycle) {
+			return true
+		}
+	}
+	return false
+}
+
+func filterRunsByLifecycle(runs []runlist.Run, options runLifecycleOptions) []runlist.Run {
+	if !options.anySelected() {
+		return runs
+	}
+	filtered := make([]runlist.Run, 0, len(runs))
+	for _, run := range runs {
+		if options.selected(run.Lifecycle) {
+			filtered = append(filtered, run)
+		}
+	}
+	return filtered
+}
+
 // runListJSON is one run of `runs --json`, named like `show --json`.
 type runListJSON struct {
 	BaseDir      string                `json:"base_dir"`
@@ -118,6 +178,7 @@ func cmdRuns(args []string) int {
 	masterdir := cliString(fs, "masterdir", "")
 	since := cliString(fs, "since", joblist.DefaultSinceText)
 	jsonOutput := cliBool(fs, "json", false)
+	lifecycles := cliRunLifecycleOptions(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -151,12 +212,16 @@ func cmdRuns(args []string) int {
 		printError(err)
 		return 1
 	}
-	runs = runlist.Recent(runs, time.Now().Add(-window))
+	runs = filterRunsByLifecycle(runlist.Recent(runs, time.Now().Add(-window)), lifecycles)
 	if *jsonOutput {
 		return printRunRowsJSON(runs)
 	}
 	if len(runs) == 0 {
-		fmt.Printf("No active or interrupted runs, or runs finished within %s, found in %s.\n", *since, runlist.DescribeScope(baseDirs, projectFilter))
+		if lifecycles.anySelected() {
+			fmt.Printf("No runs matched the requested lifecycle filters in %s (using --since %s).\n", runlist.DescribeScope(baseDirs, projectFilter), *since)
+		} else {
+			fmt.Printf("No active or interrupted runs, or runs finished within %s, found in %s.\n", *since, runlist.DescribeScope(baseDirs, projectFilter))
+		}
 		return 0
 	}
 	rows := make([]runListRow, 0, len(runs))

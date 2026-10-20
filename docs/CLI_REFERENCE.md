@@ -354,8 +354,20 @@ Usage: `rotari runs [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
-| `--since` | `DURATION` | `ROTARI_RUNS_SINCE` | include finished runs in this time window (default 1d), such as 24h or 7d; active or interrupted runs are always included |
+| `--since` | `DURATION` | `ROTARI_RUNS_SINCE` | include finished runs in this time window (default 1d), such as 24h or 7d; active or interrupted runs are always included; lifecycle filters narrow the results |
 | `--json` | `` | `ROTARI_RUNS_JSON` | print machine-readable JSON |
+| `--filter-running` | `` | `CLI only` | select runs in the running lifecycle |
+| `--running` | `` | `CLI only` | short form of --filter-running |
+| `--filter-interrupted` | `` | `CLI only` | select runs in the interrupted lifecycle |
+| `--interrupted` | `` | `CLI only` | short form of --filter-interrupted |
+| `--filter-incomplete` | `` | `CLI only` | select runs in the incomplete lifecycle |
+| `--incomplete` | `` | `CLI only` | short form of --filter-incomplete |
+| `--filter-finished` | `` | `CLI only` | select runs in the finished lifecycle |
+| `--finished` | `` | `CLI only` | short form of --filter-finished |
+| `--filter-failed` | `` | `CLI only` | select runs in the failed lifecycle |
+| `--failed` | `` | `CLI only` | short form of --filter-failed |
+| `--filter-cancelled` | `` | `CLI only` | select runs in the cancelled lifecycle |
+| `--cancelled` | `` | `CLI only` | short form of --filter-cancelled |
 
 ### `rotari show`
 

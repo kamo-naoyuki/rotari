@@ -1272,6 +1272,66 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_RUNS_JSON",
                     "name": "json",
                 },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the running lifecycle",
+                    "name": "filter-running",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-running",
+                    "name": "running",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the interrupted lifecycle",
+                    "name": "filter-interrupted",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-interrupted",
+                    "name": "interrupted",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the incomplete lifecycle",
+                    "name": "filter-incomplete",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-incomplete",
+                    "name": "incomplete",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the finished lifecycle",
+                    "name": "filter-finished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-finished",
+                    "name": "finished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the failed lifecycle",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-failed",
+                    "name": "failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select runs in the cancelled lifecycle",
+                    "name": "filter-cancelled",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-cancelled",
+                    "name": "cancelled",
+                },
             ],
             "name": "runs",
             "positional": "[PROJECT]",

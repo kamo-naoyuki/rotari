@@ -262,13 +262,22 @@ does not promise to detect a lost remote client.
 - **CLI-6** The listing window, `jobs --since`, `runs --since`, and the Web jobs page's
   `since`, takes a Go duration such as `24h` or `90m`, or a whole number of
   days such as `7d`; anything else is rejected. The CLI commands default to
-  `1d`; running jobs and active or interrupted runs are included regardless of
+  `1d`; running jobs and active, interrupted, or incomplete runs are included regardless of
   age. `jobs --since 0` keeps unfinished jobs and excludes finished history;
   use `--running` or `--filter-running` to select only running-state jobs.
   All three interfaces parse it with
   `joblist.ParseSince` in [`internal/joblist/joblist.go`](../internal/joblist/joblist.go),
   with the end-to-end check in
   [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
+- **CLI-28** `runs` lifecycle filters select the `STATUS` lifecycle labels:
+  `running`, `interrupted`, `incomplete`, `finished`, `failed`, and `cancelled`.
+  Each `--filter-*` form has a shorter alias, multiple lifecycle filters
+  combine with OR, and the selected statuses are further narrowed by `--since`.
+  CLI metadata drives help, schema, and shell completion; filtering is applied
+  after the normal recent-run window. Covered by
+  [`cmd/rotari/lists.go`](../cmd/rotari/lists.go),
+  [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go),
+  and the contract row in [`contracts/README.md`](README.md).
 - **CLI-27** Result filters have discoverable named options:
   `--filter-failed`, `--filter-unfinished`, and `--filter-success`, with
   `--failed`, `--unfinished`, and `--success` as short forms. `jobs` also has
