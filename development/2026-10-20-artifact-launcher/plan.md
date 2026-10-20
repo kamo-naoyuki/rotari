@@ -5,14 +5,18 @@ Status: Proposed; no implementation changes
 
 ## Goal
 
-Open a launcher from the Artifacts view, run an arbitrary noninteractive shell
-command against the selected file or directory, and inspect or stop it from
-the Web UI. Make TensorBoard the first built-in service preset, accessible
-through the existing `rotari web` connection without another SSH port forward.
+Open a launcher from the Artifacts view, run any noninteractive shell command
+the user has registered in a launcher configuration file against the selected
+file or directory, and inspect or stop it from the Web UI. TensorBoard is the
+first service the feature must support: a registered TensorBoard entry is
+reachable through the existing `rotari web` connection without another SSH
+port forward.
 
-This is a personal-use feature. A user authorized to launch commands is
-trusted to execute code with the OS permissions of the Web server's user.
-Presets are conveniences, not an executable allowlist or a sandbox.
+This is a personal-use feature. Registered commands are arbitrary shell code
+that the user wrote, and they run with the OS permissions of the Web server's
+user. The Web UI and API only choose a registered command and an artifact; they
+never accept command text. Registration is therefore an executable allowlist
+for what the Web interface can start, not a sandbox for what a command does.
 
 ## Existing implementation
 
@@ -42,16 +46,22 @@ Presets are conveniences, not an executable allowlist or a sandbox.
 Include in the first implementation:
 
 - Launch from a recorded artifact file, directory, or browsed directory child.
-- Arbitrary editable shell commands, with TensorBoard as a built-in preset.
+- Arbitrary user-registered shell commands, defined in a dedicated launcher
+  configuration file, with a verified TensorBoard entry in its template.
 - Ordinary command mode and HTTP service mode.
-- Explicit cwd, startup-environment inheritance, live logs, exit status,
-  service readiness, stop, and reuse of matching live launches.
-- One launcher registry per Web server, shared across its basedir mounts.
-- A server-wide launcher list reachable after leaving the Artifacts view.
-- Saving named presets outside project/run records.
+- Registered cwd rule, startup-environment inheritance, live logs, exit
+  status, service readiness, stop, and reuse of matching live launches.
+- One launcher manager per Web server, shared across its basedir mounts.
+- A server-wide launch list reachable after leaving the Artifacts view.
 
 Exclude initially:
 
+- Command text, arguments, or cwd supplied from the browser or Web API,
+  including one-off edits of a registered command.
+- Registering, editing, or deleting commands from the Web UI or API.
+- Built-in commands that exist without the user registering them.
+- Launching from the CLI, MCP server, or Python client. Their API listings
+  must not gain launcher endpoints.
 - Interactive stdin, PTYs, browser terminals, and terminal reconnection.
 - SSH/Slurm/PBS/LSF/SGE launch backends or automatic execution on a job's host.
 - Automatic reconstruction of a historical training environment.
@@ -63,28 +73,32 @@ Exclude initially:
 ## User flow
 
 1. Open a job's Artifacts view and select an entry or directory child.
-2. Choose **Launch with > TensorBoard** or **Launch with > Custom command**.
-3. Show a dialog containing the absolute target, actual execution host and
-   user, originating job/attempt, cwd, mode, and editable command.
+2. Choose **Launch with > NAME**, listing the registered commands whose
+   target kinds match the selection. Commands that do not match are not
+   offered; with none registered, show how to create the launcher file.
+3. Show a read-only dialog containing the command name and text, absolute
+   target, actual execution host and user, originating job/attempt, cwd, and
+   mode.
 4. Validate and launch only after explicit confirmation. Show preparation and
    startup failures with their logs, rather than opening a broken link.
 5. In service mode, enable **Open** after HTTP readiness succeeds. Open in a
    separate tab; embedding in an iframe is not required.
 6. Show **Open**, **Logs**, and **Stop** beside a live service, and **Logs** and
    **Stop** beside an ordinary command. Retain exit status after completion.
-7. Offer to save an edited command as a named preset. Saving does not execute it.
 
-For a directory, default cwd to that directory; for a file, use its parent.
-Allow an explicit absolute cwd override and validate that it is an accessible
-directory. Do not silently fall back to the Web server's startup directory.
-TensorBoard is offered for directories; a selected event file can instead
-have an explicit **Use parent directory** action, not an implicit target change.
+The registered command chooses its cwd rule: the target directory (for a file,
+its parent), the target's parent, or a fixed absolute directory. The server
+validates the effective cwd as an accessible directory and never silently falls
+back to the Web server's startup directory. A command registered only for
+directories, such as TensorBoard, is not offered for a selected file; a
+selected event file can have an explicit **Use parent directory** action, not
+an implicit target change.
 
 The target must be accessible on the Web host. A path recorded on a remote
 node is not evidence that it exists here. Missing, unresolved, outside-root,
 or inaccessible targets get an explicit explanation.
 
-## Execution and preset model
+## Execution and registration model
 
 ### Commands
 
@@ -103,10 +117,11 @@ Inherit the Web server's startup environment and supply documented variables:
 | `ROTARI_LAUNCHER_BASE_PATH` | Server-generated proxy path, service mode only |
 
 Pass these as environment values, not unescaped textual substitutions into
-shell source. Presets quote variable expansions. Do not inherit the selected
-job's saved environment or return raw inherited environment values to clients.
-Users may explicitly write `conda run`, an absolute executable, or environment
-assignments in their command.
+shell source. Registered commands, including the template entries, quote the
+variable expansions. Do not inherit the selected job's saved environment or
+return raw inherited environment values to clients. Users may explicitly
+write `conda run`, an absolute executable, or environment assignments in their
+command.
 
 An illustrative TensorBoard command is:
 
@@ -119,34 +134,49 @@ tensorboard \
 ```
 
 Verify these options and proxy behavior against an installed TensorBoard
-before treating the preset as working. Rotari must not silently install it.
+before shipping the template entry. Rotari must not silently install it.
 Report a missing executable/environment as a launch failure.
 
-### Presets
+### Registered commands
 
-A preset contains a name, command, applicable target kinds, command/service
-mode, and, for services, a readiness path and timeout. Start with built-in
-TensorBoard and editable custom-command defaults.
+Commands are registered in a dedicated `launchers.toml`, separate from
+ordinary command configuration, following the precedent of
+`notifications.toml`. Each entry has a unique name, the command text, the
+target kinds it applies to (file, directory, or both), its cwd rule,
+command/service mode, and, for services, a readiness path and timeout.
+Unknown keys, duplicate names, empty commands, unknown modes or target kinds,
+relative fixed cwds, and settings that do not apply to the entry's mode are
+errors, not ignored values.
 
-Store user presets in a dedicated launcher configuration associated with the
-Web startup workspace, following existing config-location conventions. Capture
-that scope once; switching basedirs or selecting a job must not change where a
-preset is saved. Load and save through one owning package with schema validation
-and atomic writes. Do not use browser storage as the authoritative preset store,
-modify training config, or auto-load executable presets from artifact contents.
-Malformed config produces an explicit error, not an empty preset list.
+Read the file only from the global config directory (`config.HomeDir()`).
+Do not read it from a workspace, basedir, or project scope: one Web server
+mounts several basedirs, basedirs may live on shared storage written by
+others, and the commands must not change with the selected basedir or job.
+Never load executable definitions from artifact or run contents. Provide
+`rotari config --launchers` to generate a commented template containing the
+verified TensorBoard entry, mirroring `rotari config --notifications`, and
+list the file in `rotari config --list`.
+
+`rotari web --allow-exec` loads and validates the file once at startup. A
+missing file means no commands are registered and the UI says how to create
+one; a malformed or unreadable file fails startup with its path. Edits take
+effect after the Web server restarts; live reload is a later feature. Parse
+and validate through one owning package, which is the only source of
+registered definitions for the manager and the Web layer.
 
 ### Identity and reuse
 
 Give each launch an opaque server-generated ID. Record its source basedir,
 project, run, job, selected attempt, artifact entry/child, resolved target,
-cwd, command, mode, effective preset settings, and lifecycle timestamps.
+cwd, the registered command's name, and a snapshot of its definition as
+loaded, mode, and lifecycle timestamps.
 
-Serialize matching start requests: source context, target, cwd, command, and
-service settings define the reuse key before generated port/path values.
-Return the existing starting/ready/running launch on duplicate submission.
-Provide an explicit **Start another instance** action. Never reuse an exited,
-failed, or stopping instance; editing a preset must not change a live launch.
+Serialize matching start requests: the command name, resolved target, and
+effective cwd define the reuse key before generated port/path values. Two
+jobs whose artifacts resolve to the same directory share one live
+TensorBoard. Return the existing starting/ready/running launch on duplicate
+submission. Provide an explicit **Start another instance** action. Never reuse
+an exited, failed, or stopping instance.
 
 ## Process ownership and lifecycle
 
@@ -204,10 +234,10 @@ untrusted service content is a later feature, not an implied guarantee.
 ## Access boundaries
 
 Introduce an explicit, default-off execution capability, provisionally
-`rotari web --allow-exec`. Require both it and `allow-control` for launch,
-stop, and preset mutations; reject conflicting startup options rather than
-silently ignoring one. Static export must reject execution-only options and
-show launch controls as unavailable.
+`rotari web --allow-exec`. Require both it and `allow-control` for launch and
+stop; reject conflicting startup options rather than silently ignoring one.
+Static export must reject execution-only options and show launch controls as
+unavailable. There is no Web mutation of registered commands to protect.
 
 When execution is enabled:
 
@@ -218,9 +248,12 @@ When execution is enabled:
   Origin for mutations; reject cross-origin requests. Define the authenticated
   non-browser path explicitly rather than treating a missing Origin as proof
   of safety. Do not enable wildcard CORS. Cover DNS-rebinding scenarios.
-- Use POST for starting/stopping/saving; GET and page loading never execute.
+- Use POST for starting/stopping; GET and page loading never execute.
 - Resolve artifact identity on the server against registered basedirs and the
   shared artifact rules. Browser-supplied display paths are not authority.
+- Resolve the command by name against the definitions loaded at startup. A
+  request carrying command text, cwd, mode, or service settings is rejected,
+  not partially honored.
 - Do not claim that artifact-root checks constrain arbitrary commands: the
   command has the Web user's filesystem permissions and can write/delete files.
   Even a validated path can change before an external process opens it.
@@ -230,36 +263,46 @@ When execution is enabled:
 
 ## Package and API boundaries
 
-- Proposed `internal/launcher`: execution specification, preset schema/storage,
-  lifecycle manager, deduplication, logs, readiness, and process ownership.
-  No dependency on HTTP, job status, or project-run orchestration.
+- Proposed `internal/launcher`: execution specification, `launchers.toml`
+  schema/loading/validation, lifecycle manager, deduplication, logs,
+  readiness, and process ownership. It only reads the file; nothing in rotari
+  writes it except the `config --launchers` template generator. No dependency
+  on HTTP, job status, or project-run orchestration.
 - `internal/webui`: resolve selected artifact context through existing shared
   helpers, enforce capabilities, adapt requests, serve the fixed-target proxy,
   and render dialogs/list/status. Factor shared artifact resolution only as
   needed; do not expose lower-level helpers that bypass its policy.
-- `cmd/rotari`: parse execution flags, construct one manager, and coordinate
-  HTTP and process shutdown. Add private helper dispatch only if required by
-  the proven crash-cleanup design.
+- `cmd/rotari`: parse execution flags, load the launcher file at startup,
+  construct one manager, generate the `config --launchers` template, and
+  coordinate HTTP and process shutdown. Add private helper dispatch only if
+  required by the proven crash-cleanup design.
 
-Provisional API: preset list/save, launch list/start/detail/logs/stop, and a
-service proxy route keyed by launch ID. Keep start inputs structured: source
-artifact identity, command, cwd, mode, and service settings. No free target-path
-or upstream-URL API. Return explicit lifecycle/error fields and appropriate
-HTTP errors; never convert startup errors into success-shaped responses.
+Provisional API: registered-command list (read-only), launch
+list/start/detail/logs/stop, and a service proxy route keyed by launch ID.
+Start inputs are only the source artifact identity, the registered command
+name, and whether to start another instance. No command-text, cwd, free
+target-path, or upstream-URL input. Return explicit lifecycle/error fields and
+appropriate HTTP errors; never convert startup errors into success-shaped
+responses.
 
 ## Implementation phases
 
 1. **Feasibility and lifecycle checkpoint.** Prove TensorBoard path-prefix
    proxying over one forwarded port, readiness/port ownership, process-group
    stop, and parent-death cleanup in isolated fixtures. Finalize runtime paths,
-   resource bounds, preset config location, and supported proxy authorities.
-2. **Command manager.** Implement preset schema/storage and process ownership,
-   command-mode start/list/log/stop, deduplication, and cleanup with unit tests.
-3. **Web capability and Artifacts entry.** Wire opt-in/auth/request checks and
-   artifact resolution; add custom-command dialog and server-wide launch list.
-   Verify a real command can be launched, observed, and stopped from Artifacts.
+   resource bounds, the `launchers.toml` schema, and supported proxy
+   authorities.
+2. **Registration and command manager.** Implement `launchers.toml` loading and
+   validation, `config --launchers`/`--list`, process ownership, command-mode
+   start/list/log/stop, deduplication, and cleanup with unit tests.
+3. **Web capability and Artifacts entry.** Wire opt-in/auth/request checks,
+   artifact resolution, and name-based command resolution; add the
+   **Launch with** menu, confirmation dialog, and server-wide launch list.
+   Verify a registered command can be launched, observed, and stopped from
+   Artifacts.
 4. **HTTP services and TensorBoard.** Add allocated upstreams, readiness,
-   authenticated prefix proxying, TensorBoard preset, and Open/reuse actions.
+   authenticated prefix proxying, the TensorBoard template entry, and
+   Open/reuse actions.
 5. **Contracts, docs, and end-to-end validation.** Document behavior and limits,
    cover interfaces/variants below, and complete repository checks.
 
@@ -276,12 +319,19 @@ its required shutdown or access protections as a temporary default.
 - Multiple basedirs/projects with identical names remain distinct. One server
   owns one manager; other Web processes cannot adopt/stop its launches.
 - Concurrent duplicate clicks spawn once; an explicit extra instance spawns
-  separately. Missing paths/cwd/executables and malformed presets show errors.
+  separately. Missing paths/cwd/executables show errors.
+- A missing `launchers.toml` registers nothing and explains how to create it;
+  a malformed one (unknown keys, duplicate names, bad modes/target kinds/cwd
+  rules) fails `rotari web --allow-exec` startup with its path. Files in
+  workspace, basedir, project, and artifact locations are never loaded.
+- Commands are offered only for matching target kinds. Start requests naming
+  an unknown command, a command for the wrong target kind, or carrying
+  command text, cwd, mode, or service settings are rejected without spawning.
 - Logs stream/page without unbounded memory/disk use; exit codes are accurate.
   Stop kills shell descendants, readiness timeout cleans up, and both graceful
   and abrupt parent-exit fixtures verify process cleanup.
 - Disabled execution, read-only mode, static export, bad auth, cross-origin and
-  invalid Host requests cannot start/stop commands or save presets.
+  invalid Host requests cannot start or stop commands.
 - Proxy tests cover prefixes, redirects, assets, queries, streaming, upstream
   exit, token stripping, guessed/unknown IDs, and attempted arbitrary targets.
 - A real TensorBoard opens through only the rotari port and displays a known
