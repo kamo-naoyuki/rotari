@@ -60,3 +60,26 @@ Commit: `0f8a198d` (2026-10-20 14:48:03 +0900).
 - **Validation:** Documentation only; no tests run.
 - **Remaining:** Decide loopback authentication for `--allow-exec`; then the
   plan phases.
+
+## Port ownership verification dropped
+
+Commit: `e1459fc8` (2026-10-20 14:55:39 +0900).
+
+- **Change:** Removed the per-OS port ownership check (`/proc` on Linux,
+  `lsof` on macOS) from the plan's Service access section, its acceptance
+  item, and the Phase 1 checkpoint. Rotari still allocates the service port
+  (bind port 0 on loopback, then pass the port to the command). A service
+  is ready only when the readiness probe succeeds and its process is still
+  running afterwards. Documented the remaining window as a known limitation.
+- **Reason:** The user judged ownership verification excessive for a
+  personal-use feature. A service that loses the port normally fails to bind
+  and exits, which the alive-after-probe rule reports as a startup failure.
+  Rotari still has to pick the port because the proxy must know the
+  upstream, and a port fixed in `launchers.toml` would limit each command to
+  one instance.
+- **Plan impact:** Reverses the port check decided in `0f8a198d` and removes
+  two per-OS implementations from Phase 1. Still open: whether `--allow-exec`
+  also requires an auth token on loopback listeners.
+- **Validation:** Documentation only; no tests run.
+- **Remaining:** Decide loopback authentication for `--allow-exec`; then the
+  plan phases.
