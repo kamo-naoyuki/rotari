@@ -29,6 +29,7 @@ func cmdWeb(args []string) int {
 		return 1
 	}
 	options := webOptions(baseDir, flags.allowControl, flags.notifications)
+	options.LauncherFile, _ = webLauncherFile()
 	loadedNotifications, err := notification.Load(baseDir, "")
 	if err != nil {
 		printErrorf("failed to load notification configuration: %v", err)
@@ -53,6 +54,10 @@ type webCommandFlags struct {
 	port                                int
 	allowControl, notifications         bool
 	portExplicit                        bool
+	// allowExec enables launching registered commands; allowedHosts are
+	// extra Host names accepted while it is on.
+	allowExec    bool
+	allowedHosts []string
 	// artifactRoots are absolute --artifact-root directories.
 	artifactRoots []string
 	// staticArtifactContents copies artifact files into a static export.
@@ -71,6 +76,9 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 	var artifactRoots stringSliceFlag
 	cliValue(fs, &artifactRoots, "artifact-root")
 	staticArtifactContents := cliBool(fs, "static-artifact-contents", false)
+	allowExec := cliBool(fs, "allow-exec", false)
+	var allowedHosts stringSliceFlag
+	cliValue(fs, &allowedHosts, "allowed-host")
 	if err := cliParse(fs, args); err != nil {
 		return webCommandFlags{}, 1
 	}
@@ -89,7 +97,22 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 		printError("--static-artifact-contents requires --static-dir")
 		return webCommandFlags{}, 1
 	}
-	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications, staticArtifactContents: *staticArtifactContents}
+	if *allowExec && !*allowControl {
+		printError("--allow-exec requires job control; remove --allow-control=false")
+		return webCommandFlags{}, 1
+	}
+	if len(allowedHosts) > 0 && !*allowExec {
+		printError("--allowed-host only applies with --allow-exec")
+		return webCommandFlags{}, 1
+	}
+	for _, name := range allowedHosts {
+		if !validAllowedHost(name) {
+			printErrorf("--allowed-host %q must be a host name or IP address without a port", name)
+			return webCommandFlags{}, 1
+		}
+	}
+	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications, staticArtifactContents: *staticArtifactContents,
+		allowExec: *allowExec, allowedHosts: allowedHosts}
 	for _, root := range artifactRoots {
 		absolute, err := filepath.Abs(root)
 		if info, statErr := os.Stat(absolute); err != nil || statErr != nil || !info.IsDir() {
@@ -125,6 +148,23 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 	}
 	options.ReloadBaseDirs = registry.BaseDirs
 	options.ArtifactRoots = flags.artifactRoots
+	if flags.allowExec {
+		launches, err := newWebLaunches()
+		if err != nil {
+			printErrorf("cannot enable launching: %v", err)
+			return 1
+		}
+		defer launches.Manager.Close()
+		options.Launches = launches
+		if flags.authToken == "" {
+			if flags.authToken, err = newWebAuthToken(); err != nil {
+				printErrorf("cannot generate a Web token: %v", err)
+				return 1
+			}
+			fmt.Fprintf(os.Stderr, "--allow-exec requires authentication. Sign in with user name %q and this token as the password:\n  %s\nSet %s to keep one token across restarts.\n", "rotari", flags.authToken, envWebAuthToken)
+		}
+		printLaunchRegistry(launches.Registry)
+	}
 	if !webui.IsLoopbackHost(flags.host) && flags.authToken == "" {
 		controlWarning := "registered basedir paths, job logs, artifact files under job working directories and --artifact-root, and environment variable names"
 		if flags.allowControl {
@@ -136,6 +176,9 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 	if flags.authToken != "" {
 		handler = webui.WithAuthToken(handler, flags.authToken)
 	}
+	if flags.allowExec {
+		handler = webui.WithExecGuard(handler, execAllowedHosts(flags))
+	}
 	listener, err := webui.Listen(flags.host, flags.port, !flags.portExplicit)
 	if err != nil {
 		printErrorf("web server failed: %v", err)
@@ -144,6 +187,10 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 	server := &http.Server{Handler: handler}
 	go func() {
 		<-interruptSignal()
+		// Stop launches before the listener, so none starts meanwhile.
+		if options.Launches != nil {
+			_ = options.Launches.Manager.Close()
+		}
 		_ = server.Close()
 	}()
 	fmt.Printf("rotari web listening at http://%s\n", listener.Addr())
@@ -156,7 +203,7 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 
 func webStaticServerOptions(fs *flag.FlagSet) []string {
 	var incompatible []string
-	for _, name := range []string{"allow-control", "artifact-root", "auth-token", "host", "port"} {
+	for _, name := range []string{"allow-control", "allow-exec", "allowed-host", "artifact-root", "auth-token", "host", "port"} {
 		provided := cliOptionSet(fs, name)
 		spec := cliCommandFlag("web", name)
 		if !provided && !spec.CommandLineOnly {

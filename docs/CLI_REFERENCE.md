@@ -58,6 +58,7 @@ generate a config file template
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--list` | `` | `ROTARI_CONFIG_LIST` | list existing config files |
 | `--notifications` | `` | `CLI only` | generate notifications.toml instead of command defaults |
+| `--launchers` | `` | `CLI only` | generate launchers.toml, the commands rotari web --allow-exec can run against artifacts, in the global config directory |
 | `--format` | `FORMAT` | `ROTARI_CONFIG_FORMAT` | config format: yaml, toml, or json (choices: yaml, toml, json) |
 | `--output` | `FILE` | `ROTARI_CONFIG_OUTPUT` | output config file path |
 
@@ -762,6 +763,8 @@ serve the web status UI
 | `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
 | `--static-artifact-contents` | `` | `CLI only` | copy previewable artifact files (up to 10 MiB each, 100 MiB in all) into the static export so previews work there; requires --static-dir |
 | `--artifact-root` | `DIR (repeatable)` | `CLI only` | also serve recorded artifact files under this directory, besides each job's working directory (live server only; may be repeated; cannot be combined with --static-dir) |
+| `--allow-exec` | `` | `CLI only` | let the Web UI run the commands registered in the global launchers.toml against artifacts; requires job control and a token (generated and printed when none is set); cannot be combined with --static-dir |
+| `--allowed-host` | `NAME (repeatable)` | `CLI only` | with --allow-exec, also accept this Host name besides localhost, 127.0.0.1, ::1, and a specific --host (may be repeated) |
 
 ### `rotari mcp`
 

@@ -344,3 +344,39 @@ func TestManagerKeepsRecentOutput(t *testing.T) {
 		t.Fatalf("page = %+v, %v", page, err)
 	}
 }
+
+func TestRuntimeDirSweepRemovesOnlyAbandonedDirectories(t *testing.T) {
+	t.Parallel()
+	temp := t.TempDir()
+	live, lock, err := createRuntimeDir(temp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	abandoned, abandonedLock, err := createRuntimeDir(temp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abandonedLock.Close() // what the kernel does when its process dies
+	unlocked := filepath.Join(temp, runtimeDirPattern+"unlocked")
+	fresh := filepath.Join(temp, runtimeDirPattern+"fresh")
+	other := filepath.Join(temp, "unrelated")
+	for _, dir := range []string{unlocked, fresh, other} {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * staleRuntimeAge)
+	for _, dir := range []string{live, abandoned, unlocked, other} {
+		if err := os.Chtimes(dir, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sweepRuntimeDirs(temp, time.Now())
+	for dir, kept := range map[string]bool{live: true, abandoned: false, unlocked: false, fresh: true, other: true} {
+		_, err := os.Stat(dir)
+		if exists := err == nil; exists != kept {
+			t.Errorf("%s exists = %v, want %v", filepath.Base(dir), exists, kept)
+		}
+	}
+}

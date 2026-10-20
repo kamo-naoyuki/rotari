@@ -591,9 +591,10 @@ projects overview and a project page by
 
 **WEB-3** `rotari web --static-dir DIR` writes a static export and exits; it
 does not start the live HTTP server. Options that configure that server
-(`--host`, `--port`, `--auth-token`) or its control endpoints
-(`--allow-control`) are rejected when explicitly supplied by flag, environment,
-or config, rather than accepted and silently ignored. The shared web command
+(`--host`, `--port`, `--auth-token`, `--artifact-root`), its control endpoints
+(`--allow-control`), or launching (`--allow-exec`, `--allowed-host`) are
+rejected when explicitly supplied by flag, environment, or config, rather than
+accepted and silently ignored. The shared web command
 boundary is in [cmd/rotari/web.go](../cmd/rotari/web.go); static-mode pair and
 standalone checks are in
 [conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).

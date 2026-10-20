@@ -119,6 +119,8 @@ type Manager struct {
 	config   ManagerConfig
 	lifetime *Lifetime
 	dir      string
+	// lock holds dir's flock so other managers' sweeps leave dir alone.
+	lock *os.File
 
 	mu       sync.Mutex
 	closed   bool
@@ -126,7 +128,8 @@ type Manager struct {
 }
 
 // NewManager creates the manager's lifetime pipe and private runtime
-// directory.
+// directory, removing runtime directories that managers which died without
+// Close left behind.
 func NewManager(config ManagerConfig) (*Manager, error) {
 	if len(config.Wrapper) == 0 {
 		return nil, errors.New("launcher wrapper command is empty")
@@ -144,12 +147,12 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp("", "rotari-web-launches-")
+	dir, lock, err := createRuntimeDir(os.TempDir())
 	if err != nil {
 		lifetime.Close()
-		return nil, fmt.Errorf("create launcher runtime directory: %w", err)
+		return nil, err
 	}
-	return &Manager{config: config, lifetime: lifetime, dir: dir}, nil
+	return &Manager{config: config, lifetime: lifetime, dir: dir, lock: lock}, nil
 }
 
 // Start runs request's command, or returns the matching live launch with
@@ -432,7 +435,9 @@ func (manager *Manager) Close() error {
 		}()
 	}
 	wg.Wait()
-	return errors.Join(manager.lifetime.Close(), os.RemoveAll(manager.dir))
+	err := errors.Join(manager.lifetime.Close(), os.RemoveAll(manager.dir))
+	manager.lock.Close()
+	return err
 }
 
 func newLaunchID() (string, error) {

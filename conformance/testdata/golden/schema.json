@@ -48,6 +48,9 @@
           "name": "notifications"
         },
         {
+          "name": "launchers"
+        },
+        {
           "name": "format",
           "value_name": "FORMAT",
           "values": [
@@ -2144,6 +2147,13 @@
         {
           "name": "artifact-root",
           "value_name": "DIR"
+        },
+        {
+          "name": "allow-exec"
+        },
+        {
+          "name": "allowed-host",
+          "value_name": "NAME"
         }
       ],
       "name": "web"

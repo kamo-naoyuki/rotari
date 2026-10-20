@@ -9,11 +9,18 @@ window.__ROTARI_STATIC_ARTIFACT_CONTENTS__ =
   __ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__;
 // Every run of the exported basedir; the Activity page sorts them into days.
 window.__ROTARI_STATIC_ACTIVITY__ = __ROTARI_STATIC_ACTIVITY_DATA__;
+// Why launching is unavailable, worded by the server (launches.go).
+window.__ROTARI_STATIC_LAUNCHERS__ = __ROTARI_STATIC_LAUNCHERS_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
   if (request.pathname.endsWith("/api/activity")) {
     return new Response(JSON.stringify(window.__ROTARI_STATIC_ACTIVITY__), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (request.pathname.endsWith("/api/launchers")) {
+    return new Response(JSON.stringify(window.__ROTARI_STATIC_LAUNCHERS__), {
       headers: { "Content-Type": "application/json" },
     });
   }

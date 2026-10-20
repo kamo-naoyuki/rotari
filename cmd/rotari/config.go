@@ -593,6 +593,7 @@ func cmdConfig(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	list := cliBool(fs, "list", false)
 	notifications := cliBool(fs, "notifications", false)
+	launchers := cliBool(fs, "launchers", false)
 	format := cliString(fs, "format", "")
 	output := cliString(fs, "output", "")
 	if err := cliParse(fs, args); err != nil || len(fs.Args()) != 0 {
@@ -604,6 +605,9 @@ func cmdConfig(args []string) int {
 	selectedFormat := *format
 	if selectedFormat == "" {
 		selectedFormat = configFormatFromOutput(*output)
+	}
+	if *launchers {
+		return writeLauncherTemplate(fs, *list, *notifications, *format, *output)
 	}
 	if *notifications {
 		if *list {
@@ -639,6 +643,7 @@ func cmdConfig(args []string) int {
 			return 1
 		}
 		common, projects := config.ListPaths(resolvedBaseDir, projectFilter, notification.FileName)
+		common = withLauncherFile(common)
 		if len(common) > 0 {
 			fmt.Println("Common:")
 			for _, path := range common {

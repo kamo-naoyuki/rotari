@@ -50,6 +50,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'show the current Rot
                           'description': 'generate notifications.toml instead of '
                                          'command defaults',
                           'name': 'notifications'},
+                         {'command_line_only': True,
+                          'description': 'generate launchers.toml, the commands rotari '
+                                         'web --allow-exec can run against artifacts, '
+                                         'in the global config directory',
+                          'name': 'launchers'},
                          {'description': 'config format: yaml, toml, or json',
                           'environment': 'ROTARI_CONFIG_FORMAT',
                           'name': 'format',
@@ -2364,7 +2369,21 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'show the current Rot
                                          '--static-dir)',
                           'name': 'artifact-root',
                           'repeated': True,
-                          'value_name': 'DIR'}],
+                          'value_name': 'DIR'},
+                         {'command_line_only': True,
+                          'description': 'let the Web UI run the commands registered '
+                                         'in the global launchers.toml against '
+                                         'artifacts; requires job control and a token '
+                                         '(generated and printed when none is set); '
+                                         'cannot be combined with --static-dir',
+                          'name': 'allow-exec'},
+                         {'command_line_only': True,
+                          'description': 'with --allow-exec, also accept this Host '
+                                         'name besides localhost, 127.0.0.1, ::1, and '
+                                         'a specific --host (may be repeated)',
+                          'name': 'allowed-host',
+                          'repeated': True,
+                          'value_name': 'NAME'}],
                'name': 'web'},
               {'description': "serve rotari's tools for agents over MCP on stdio",
                'flags': [{'command_line_only': True,

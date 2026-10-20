@@ -166,6 +166,8 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACTS_DATA__", artifacts, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__", artifactData, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ACTIVITY_DATA__", activity, 1)
+	launchers, _ := json.Marshal(staticLaunchAvailability())
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LAUNCHERS_DATA__", string(launchers), 1)
 	return bootstrap
 }
 

@@ -40,6 +40,11 @@ type Options struct {
 	StaticArtifactsCopied func(files int, bytes int64)
 	// NotificationSettings controls which browser events and fields are shown.
 	NotificationSettings notification.ChannelSettings
+	// Launches is set when rotari web runs with --allow-exec.
+	Launches *LaunchOptions
+	// LauncherFile is where launchers.toml is read from. Explanations of why
+	// launching is unavailable name it even when Launches is nil.
+	LauncherFile string
 
 	Store      state.Store
 	Editor     queueops.Editor

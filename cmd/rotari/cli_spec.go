@@ -127,6 +127,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}, {Name: "project-name", Description: "project name", ValueName: "NAME"}},
 			cliFlagSpec{Name: "list", Description: "list existing config files"},
 			cliFlagSpec{Name: "notifications", Description: "generate notifications.toml instead of command defaults", CommandLineOnly: true},
+			cliFlagSpec{Name: "launchers", Description: "generate launchers.toml, the commands rotari web --allow-exec can run against artifacts, in the global config directory", CommandLineOnly: true},
 			cliFlagSpec{Name: "format", Description: "config format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "output", Description: "output config file path", ValueName: "FILE"},
 		),
@@ -453,6 +454,8 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "notifications", Description: "default state of the browser desktop-notification toggle; pass --notifications=false to default it off"},
 			cliFlagSpec{Name: "static-artifact-contents", Description: "copy previewable artifact files (up to 10 MiB each, 100 MiB in all) into the static export so previews work there; requires --static-dir", CommandLineOnly: true},
 			cliFlagSpec{Name: "artifact-root", Description: "also serve recorded artifact files under this directory, besides each job's working directory (live server only; may be repeated; cannot be combined with --static-dir)", ValueName: "DIR", Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "allow-exec", Description: "let the Web UI run the commands registered in the global launchers.toml against artifacts; requires job control and a token (generated and printed when none is set); cannot be combined with --static-dir", CommandLineOnly: true},
+			cliFlagSpec{Name: "allowed-host", Description: "with --allow-exec, also accept this Host name besides localhost, 127.0.0.1, ::1, and a specific --host (may be repeated)", ValueName: "NAME", Repeated: true, CommandLineOnly: true},
 		),
 	},
 	{
