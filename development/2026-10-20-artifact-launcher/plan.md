@@ -1,7 +1,8 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Proposed; no implementation changes
+Status: Phase 1 (feasibility gates) passed; Phase 2 next. See
+[Phase 1 results](#phase-1-results).
 
 ## Goal
 
@@ -141,6 +142,14 @@ return raw inherited environment values to clients. Users may explicitly
 write `conda run`, an absolute executable, or environment assignments in their
 command.
 
+Add `127.0.0.1,localhost,::1` to `NO_PROXY` and `no_proxy` (appending to
+inherited values) for every launch. Phase 1 found that with `http_proxy` set
+and no `no_proxy`, as on the development host, TensorBoard's gRPC connection
+to its own data server on localhost goes through the corporate proxy and
+fails. Loopback traffic never needs a proxy, so this is not a behavior the
+user can want. Rotari's own readiness probe and proxy transport set no proxy
+at all.
+
 An illustrative TensorBoard command is:
 
 ```sh
@@ -227,11 +236,15 @@ helpers only where their semantics match.
 - A readiness timeout stops the process group and preserves diagnostic logs.
 - Web shutdown rejects new launches and stops all owned groups before exit.
   Existing `server.Close` alone is not sufficient lifecycle management.
-- Abrupt Web death also needs cleanup. Prototype a private lifetime-pipe
-  watchdog/helper that terminates owned groups on parent disappearance, without
-  reusing the training supervisor. Prove this before shipping; normal-shutdown
-  handling alone is not an acceptable substitute. State platform limitations,
-  including the impossibility of cleanup if every supervising process is killed.
+- Abrupt Web death also needs cleanup. Each launch runs under the hidden
+  `rotari __launch` wrapper (`launcher.RunWrapper`), which holds the read end
+  of a lifetime pipe whose write end only the Web process holds. When the Web
+  process exits for any reason, including SIGKILL, the kernel closes the
+  write end and every wrapper stops its command's group. The wrapper does not
+  reuse the training supervisor. Limitations: a process that leaves the group
+  (`setsid`, daemonizing) is not tracked, and killing the wrapper itself with
+  SIGKILL (for example, `kill -9` on its group, or the OOM killer) leaves the
+  command running.
 - Do not recover ownership or signal processes from a stale PID file after
   restart. Daemonizing commands that escape the process group are unsupported.
 
@@ -240,7 +253,8 @@ for logs and any manager records. Filesystem records own retained metadata;
 memory indexes live process handles. A new Web server never adopts old sessions.
 Use bounded log retention with visible truncation, paged log reads, and a
 clear completed-record retention policy. Remove only this session's owned
-runtime files during cleanup. Exact bounds belong in implementation tests/docs.
+runtime files during cleanup. The exact paths and bounds are under
+[Phase 1 results](#phase-1-results).
 
 ## Service access
 
@@ -265,11 +279,18 @@ result nor any response from a foreign listener is ever used:
   which macOS ships, and compare `getpgid(pid)`.
 
 Implement this as one platform-neutral `internal/launcher` function with
-per-OS implementations. If the check cannot run (for example, `lsof` is
-missing or `/proc` is unreadable), the launch fails with that reason rather
-than skipping verification. A foreign listener stops the launch's process
-group and reports that another process holds the port; the launch never
-becomes ready, so its port is never proxied.
+per-OS implementations (`launcher.VerifyListener`). If the check cannot run
+(for example, `lsof` is missing or `/proc` is unreadable), the launch fails
+with that reason rather than skipping verification. A foreign listener stops
+the launch's process group and reports that another process holds the port;
+the launch never becomes ready, so its port is never proxied.
+
+The service must listen on exactly `127.0.0.1:PORT`. A service in the launch
+listening on `0.0.0.0` or `::` instead fails the check with a "bind it to
+127.0.0.1" error: it would be reachable from the network, and on macOS,
+where `lsof` cannot see other users' sockets, only an exact bind guarantees
+that no other user holds the same address. Readiness is: wait until a TCP
+connection to the port succeeds, then `VerifyListener`, then the HTTP probe.
 
 Once the service holds the port, no other user can bind it, so one check at
 readiness is enough while the service runs. When the service exits, the
@@ -383,6 +404,79 @@ responses.
 
 Each phase is a coherent commit/checkpoint. Do not ship a launcher that lacks
 its required shutdown or access protections as a temporary default.
+
+## Phase 1 results
+
+The building blocks are in `internal/launcher`. Nothing calls them yet;
+Phase 2 adds the manager, the `__launch` dispatch in `cmd/rotari`, the
+`internal/archtest` boundary rule (no rotari imports), and the package's
+entry in `docs/ARCHITECTURE.md` and `contracts/00-overview.md`.
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A process that wins the port race is never trusted | Passed on Linux; macOS compiles, untested (CI is Linux only) | `TestVerifyListenerRejectsForeignListener` (fails with the group check disabled), `TestVerifyListenerRejectsNonLoopbackBind`, `TestParseLsofListeners` |
+| Killing the Web process cleans up its launches | Passed | `TestKilledOwnerStopsLaunches` SIGKILLs a stand-in Web process (fails when the wrapper ignores lifetime EOF), `TestLifetimeCloseStopsCommands` |
+| `launchers.toml` cannot be written or replaced by another user | Passed for mode and ownership checks; another owner cannot be created without root, so that branch is untested | `TestOpenTrustedFileRejectsWritableElements` (file, directory, symlink in and to a writable directory), `TestOpenTrustedFileAcceptsPrivateFiles` (sticky directory) |
+| TensorBoard works behind a fixed-target prefix proxy on one port | Passed with TensorBoard 2.21.0 | Manual run behind `httputil.ReverseProxy`; `TestTensorBoardBehindPrefix` when `ROTARI_LAUNCHER_TEST_TENSORBOARD` is set |
+
+TensorBoard findings:
+
+- `--path_prefix P` serves everything under `P`. Its redirect from `P` to
+  `P/` uses a relative `Location`, its assets are relative (`index.js`), and
+  paths outside `P` return 404. No HTML rewriting is needed.
+- With its port taken, TensorBoard exits with status 255 within a second
+  ("could not bind to port"). This is the startup failure the user sees.
+- `--reuse_port true` would let rotari reserve the port with `SO_REUSEPORT`
+  and hand it over. It only works for TensorBoard and is not needed while
+  `VerifyListener` is in place, so it is not used.
+- Inherited `http_proxy` without `no_proxy` breaks TensorBoard's own
+  loopback gRPC; see the `NO_PROXY` rule under Commands.
+
+Decisions:
+
+- **Process model.** `launcher.Start` runs `rotari __launch --grace D --
+  /bin/sh -c COMMAND` in a process group of its own; the wrapper runs the
+  shell in another group and reports `started PGID` and the final
+  `exit CODE` / `signal N` on descriptor 4. Stop signals the wrapper, which
+  sends SIGTERM to the command's group and SIGKILL after the grace period
+  (default 5s). When the shell exits, the members it left in its group are
+  stopped the same way, so a finished command leaks nothing.
+- **Runtime directory.** `os.MkdirTemp("", "rotari-web-launches-")` (mode
+  0700) per Web server, removed at shutdown. It holds launch logs only; launch
+  records live in memory and end with the server.
+- **Logs.** The command writes to a pipe that the manager copies into two
+  rotating 8 MiB segments per launch; a read past the dropped segment says
+  that earlier output was dropped. Reads are paged.
+- **Retention and limits.** At most 16 live launches per server; starting
+  another fails with that reason. The 50 most recently ended launches are
+  kept with their logs; older ones and their logs are removed.
+- **Schema.** Defaults shown; `name`, `command`, `targets`, and `mode` are
+  required:
+
+  ```toml
+  [[launcher]]
+  name = "TensorBoard"
+  command = '''tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"'''
+  targets = ["directory"]  # "file", "directory"
+  mode = "service"         # "command", "service"
+  cwd = "target"           # "target", "parent", or an absolute directory
+  ready_path = "/"         # service only; relative to the base path
+  ready_timeout = "60s"    # service only
+  stop_grace = "5s"
+  ```
+
+- **Proxy route.** Launches belong to the server, not to a basedir mount, so
+  the proxy is the top-level `/_launch/<ID>/`, outside `/_basedir/<ID>/` and
+  its prefix stripping; `ROTARI_LAUNCHER_BASE_PATH` is `/_launch/<ID>`.
+  Rotari has no sub-path reverse-proxy support, so a deployment must serve
+  rotari at the root of its origin.
+- **Proxy authorities.** With `--allow-exec`, accept `Host` values
+  `localhost`, `127.0.0.1`, and `[::1]` with any port, so SSH forwarding to a
+  different local port works and DNS rebinding (which uses an attacker's
+  name) does not. Also accept the literal `--host` address when it is a
+  specific non-loopback address. Any other name, such as one served through
+  an HTTPS reverse proxy, needs a new repeatable `--allowed-host NAME`
+  option, added in Phase 3. A mutation's `Origin` must match its `Host`.
 
 ## Acceptance and validation
 
