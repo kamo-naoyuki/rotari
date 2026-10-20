@@ -270,3 +270,50 @@ Git date: 2026-10-20 15:04:47 +0900
   outside the state lock with snapshot/revalidation remain Phase 4.
   Automatic unlock, killing/resubmitting jobs and a Web unlock action remain
   out of scope.
+
+## Phase 4: verified execution evidence for release and repair
+
+Implementation commit: `a1bbb006`
+
+- **Change:** Apply execution assessment to ordinary release as well as
+  finalization repair. Run bounded execution probes outside the project state
+  lock, then reacquire the lock and verify that the coordinator and all
+  execution-relevant state are unchanged before applying the preview. Reject
+  active execution even with `--assume-stopped`; require attestation for
+  unknown evidence, while verified stopped evidence needs no execution
+  attestation. Add an SSH probe keyed by a private per-attempt token, preserve
+  remote process identity and finished markers after the SSH wrapper exits,
+  and prune only old, verified-stopped remote state. Update CLI/MCP help,
+  conformance, SAFE-4/7/16 and related operator, interface, and architecture
+  documentation.
+- **Reason:** A scheduler or SSH query can take long enough that holding the
+  state lock would block unrelated inspection and coordination. Releasing that
+  lock creates a time-of-check/time-of-use window, so the preview must be
+  invalidated if the coordinator, selected run, carried origin, execution
+  identity or recorded outcome changes. A positive active observation cannot
+  be made safe by human attestation; missing or inconclusive evidence remains
+  explicit unknown. SSH client exit alone does not prove the remote process
+  group stopped, so remote evidence must outlive the client without exposing
+  the private lookup token as a native execution ID.
+- **Validation:** Focused project, executor, MCP and CLI tests passed; the
+  CLI/MCP interface suite and Phase 4 active-execution coordination tests
+  passed. Tests cover lock availability during a scheduler probe, stale
+  preview rejection after execution identity changes, SSH token matching and
+  ambiguous results, remote-state retention/pruning, and parity for ordinary
+  release. The updated help golden passed, changed-file pre-commit passed,
+  and Python tests passed (65 passed, 2 skipped because the optional binary
+  environment was not configured). `scripts/check.sh --short` passed vet and
+  Web typecheck but failed the unchanged `TestRunRecordsAJJWorkingCopy` after
+  its `jj` subprocess was killed at 33 seconds; the isolated test passed in
+  4.56 seconds. The first full check failed three unchanged timing-sensitive
+  tests: the two `jj` revision-read tests and a local cancellation timing
+  assertion. Isolated reruns passed in 4.56 seconds, 1.78 seconds and
+  0.43 seconds respectively; details are recorded in [ISSUES.md](../ISSUES.md).
+  `GOFLAGS=-p=1 scripts/check.sh` then passed vet, Web typecheck, all normal
+  tests, and all race tests. A final review made stale-evidence expiry
+  idempotent so revalidation does not duplicate its diagnostic. After that
+  adjustment, the complete project, executor and MCP packages, the
+  idempotence test under `-race`, and changed-file pre-commit all passed.
+- **Isolation:** The user's pending plan revisions and concurrent
+  `internal/launcher` work are not part of this phase and must remain
+  unstaged. No production run was unlocked and no dependencies were added.
