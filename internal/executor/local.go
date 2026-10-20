@@ -151,6 +151,10 @@ func startLocalJob(runDir string, job model.JobSpec, store state.Store, logf fun
 	if err := store.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return endedLocalJob(failedLocalResult(job, err))
 	}
+	identity := localIdentity{Executor: "local", Host: hostname, PIDNamespace: state.PIDNamespace()}
+	if err := store.WriteJSON(filepath.Join(jobDir, "job.json"), identity); err != nil {
+		return endedLocalJob(failedLocalResult(job, fmt.Errorf("record local launch location: %w", err)))
+	}
 	if job.Name != "" {
 		_ = os.WriteFile(filepath.Join(jobDir, "name"), []byte(job.Name+"\n"), store.FileMode)
 	}
@@ -205,6 +209,11 @@ func startLocalJob(runDir string, job model.JobSpec, store state.Store, logf fun
 		return failed(err)
 	}
 	_ = os.WriteFile(filepath.Join(jobDir, "pid"), []byte(strconv.Itoa(process.Process.Pid)+"\n"), store.FileMode)
+	identity.PID = process.Process.Pid
+	identity.ProcessStart = state.ProcessStart(identity.PID)
+	if err := store.WriteJSON(filepath.Join(jobDir, "job.json"), identity); err != nil {
+		logf("warning: cannot publish local execution identity job=%s pid=%d: %v; termination assessment will remain unknown\n", job.ID, identity.PID, err)
+	}
 	logf("[%s] submit job=%s pid=%d command=%s\n", nowRFC3339(), job.ID, process.Process.Pid, strings.Join(job.Command, " "))
 	return &localJob{job: job, jobDir: jobDir, store: store, logf: logf, hostname: hostname, process: process, logs: logs}
 }

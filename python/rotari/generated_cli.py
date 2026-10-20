@@ -707,9 +707,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "command_line_only": True,
                     "description": "explicitly attest that unverifiable "
                     "coordinator and managed executions stopped; "
-                    "required for finalization repair with "
-                    "started attempts; never overrides a live "
-                    "coordinator",
+                    "required for unknown finalization execution "
+                    "evidence; never overrides verified live "
+                    "ownership or execution",
                     "name": "assume-stopped",
                 },
                 {

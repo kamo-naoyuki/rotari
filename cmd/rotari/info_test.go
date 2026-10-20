@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -77,7 +78,7 @@ func TestCmdInfoReportsContextAndActiveRun(t *testing.T) {
 		t.Fatalf("legacy coordinator = %+v, want unknown with reason", got)
 	}
 	if got := report.ActiveRuns[0].Jobs; got == nil || got.Finished != 0 || got.Alive != 1 || got.Gone != 0 || got.Unknown != 0 {
-		t.Fatalf("job liveness = %#v, want one live local process group", got)
+		t.Fatalf("job liveness = %#v, want one live local process group; execution assessment=%+v", got, report.ActiveRuns[0].Executions)
 	}
 }
 
@@ -106,7 +107,7 @@ func setupInfoActiveRun(t *testing.T) (baseDir, masterDir string) {
 	if err := state.WriteJSON(state.ContextPath(runDir), model.RunContext{Hostname: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: "local"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: "local", Command: []string{"sleep", "30"}}); err != nil {
 		t.Fatal(err)
 	}
 	process := exec.Command("sleep", "30")
@@ -119,6 +120,14 @@ func setupInfoActiveRun(t *testing.T) (baseDir, masterDir string) {
 		_ = process.Wait()
 	})
 	if err := os.WriteFile(filepath.Join(jobDir, "pid"), []byte(fmt.Sprintf("%d\n", process.Process.Pid)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-a", Command: []string{"sleep", "30"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), map[string]any{
+		"executor": "local", "host": host, "pid": process.Process.Pid, "pid_namespace": state.PIDNamespace(), "process_start": state.ProcessStart(process.Process.Pid),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return baseDir, masterDir
@@ -252,7 +261,8 @@ func TestInfoJobLivenessUnknownAndTerminalAttempts(t *testing.T) {
 				got = &infoJobLiveness{}
 			}
 			if *got != test.want {
-				t.Fatalf("liveness = %+v, want %+v", *got, test.want)
+				assessment, _ := project.AssessExecutions(state.ProjectPaths{RunsDir: filepath.Dir(runDir)}, filepath.Base(runDir))
+				t.Fatalf("liveness = %+v, want %+v; assessment=%+v", *got, test.want, assessment)
 			}
 		})
 	}
@@ -310,7 +320,16 @@ func writeInfoLivenessFixture(t *testing.T, hostname, executorName, pid, status 
 	if err := state.WriteJSON(state.ContextPath(runDir), model.RunContext{Hostname: hostname}); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: executorName}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "job-a", Executor: executorName, Command: []string{"sleep", "60"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-a", Command: []string{"sleep", "60"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	nativePID, _ := strconv.Atoi(pid)
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), map[string]any{
+		"executor": executorName, "host": hostname, "pid": nativePID, "pid_namespace": state.PIDNamespace(), "process_start": "1",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if pid != "" {

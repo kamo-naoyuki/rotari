@@ -160,7 +160,7 @@ rotari unlock -p sweep --run-id RUN_ID --dry-run --json
 ```
 
 The JSON contains `allowed`, `applied`, `refusal_code`
-(`coordinator_live`, `coordinator_unknown`, or `execution_unknown`), `coordinator`
+(`coordinator_live`, `coordinator_unknown`, `execution_active`, or `execution_unknown`), `coordinator`
 (`state`, `reason`, `observed_at`, `identity`), `assume_stopped`, `revision`,
 `action` (`finalize` or `release`), `repair` (completeness, reason, execution
 inventory), and recorded-job warnings. A successful preview exits zero even when
@@ -169,10 +169,13 @@ recovery exits nonzero, retaining the JSON evidence on stdout and diagnostics
 on stderr. Applying always reassesses ownership under the state lock; a
 preview is not authorization to bypass a later live observation.
 
-**Job termination is not checked in this phase**, including when every job
-has a terminal record. Machine-readable output explicitly reports
-`execution_checked: false`. Independently confirm that jobs, wrappers and
-their managed descendants stopped before recovery or rerunning jobs.
+Finalization repair now checks local process groups and scheduler executions
+as described below. Ordinary `release` still does **not** check execution
+termination. `execution_checked` is true only for a nonempty finalization
+inventory whose units all have verified `active` or `stopped` evidence within
+their stated scope: it does not mean stopped or allowed. Unknown evidence and
+ordinary release report false. Independently confirm unknown or unchecked
+jobs, wrappers and managed descendants stopped before recovery or rerunning.
 `--assume-stopped` attests to stopped work rather than proving it; it does not
 kill jobs, restart monitoring, or resubmit anything.
 
@@ -202,12 +205,19 @@ to `finished`. It validates carried origins, status marks and attempt
 associations, including earlier attempts and incomplete launch records.
 Preview reports `action: "finalize"` and `repair.complete: true`.
 
-This does **not** prove execution termination. An otherwise complete run with
-any executed or possibly executed unit refuses with `execution_unknown`
-unless you explicitly attest with `--assume-stopped`, even if coordinator
-ownership is verified stopped. Inspect `repair.executions`, including the
-original attempts of carried results, and independently confirm all managed
-work stopped before attesting. Only jobs established never launched (for
+The summary alone does **not** prove execution termination. Inspect
+`repair.executions`, including earlier attempts and the original attempts
+behind carried results:
+
+- All executions assessed `stopped`: repair needs no execution attestation.
+- Any verified `active` execution: `execution_active`, even with
+  `--assume-stopped`. A terminal outcome does not override positive activity;
+  the evidence exposes the conflict.
+- Any `unknown` execution: `execution_unknown` unless you independently
+  confirm stopped work and explicitly attest with `--assume-stopped`.
+
+Coordinator ownership is checked separately and may still need attestation.
+Only jobs established never launched (for
 example blocked dependencies or pre-dispatch cancellation) need no execution
 attestation. A live coordinator always blocks.
 
@@ -224,7 +234,56 @@ records are explicit errors, not permission to skip validation. Apply rereads
 the summary and execution inventory under the state lock; a preview does not
 freeze the evidence.
 
-#### Why terminal records still need attestation
+#### Read-only execution evidence and limits
+
+`rotari info --json` exposes the same assessment at
+`active_runs[].execution_assessment`, independently of the recorded job
+outcome counts. Text includes each unit's reason. Finalization preview uses
+`repair.executions`; each unit includes run/job/attempt identity, backend,
+state, evidence source, observation time, native identity when available,
+scope, `recorded_terminal` and possibly-live/conflict indicators. A saved
+summary can conflict with positive activity even when attempt outcome files
+are missing. Neither view changes execution
+or outcome files.
+
+New local attempts record the host, PID namespace, process-group PID and
+leader start time in the existing attempt `job.json`. Only the same host
+and namespace can inspect the group. An absent group is stopped; a group
+whose leader start time matches is active. An existing group without a
+matching/readable start time, including surviving children after its leader
+exits, is possibly live and unknown, not safely stopped or unoverridable
+activity. Legacy records without host/namespace identity and permission
+failures stay unknown. Descendants that escape the group, for example with
+`setsid`, are outside this check; stopped evidence is not a machine-wide
+process audit.
+
+Slurm, PBS, SGE and LSF use fresh queue/accounting queries and existing
+backend parsers. Queued, held and suspended jobs count as active. A matching,
+unique terminal accounting record can establish scheduler-managed
+termination only alongside a successful classifiable queue observation
+without active evidence. Queue absence alone, expired/missing accounting,
+wrong or ambiguous native identities, errors and unrecognized states stay
+unknown. PBS/LSF installations that reject queries for removed jobs may
+therefore require attestation despite available history; LSF history-only
+`bhist` is not used as verified evidence. SGE fetches its whole queue once
+per assessment, including pending jobs.
+
+Scheduler probes run against the scheduler selected by the current command
+environment, not a stored cluster connection. Use the original scheduler
+environment; they cannot audit compute-node descendants or fence a remote
+host. Each command has a five-second timeout and 64 KiB output limit; the
+batch has a thirty-second budget including the existing query rate gate.
+Budget exhaustion is unknown. SSH probing is not implemented yet and
+explicitly reports unknown.
+
+This phase uses these probes for finalization, not ordinary release. Apply
+rereads and probes under the project state lock, so scheduler latency may
+hold that lock up to the assessment budget. Snapshot/probe/revalidation
+outside that lock and SSH token verification belong to the next phase.
+No check kills, resubmits or restarts anything, and Web UI unlock remains
+unavailable.
+
+#### Why terminal records alone do not prove termination
 
 The current wrapper/executor audit allows no terminal-record-only fast path:
 

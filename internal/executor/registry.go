@@ -54,7 +54,8 @@ func (registry Registry) Names() []string {
 // Owner determines which executor owns the job recorded in jobDir, based on
 // the metadata each executor writes on submission. Every scheduler-style
 // executor writes job.json with its own "executor" name, so job.json alone
-// (not its mere existence) names the owner; a local job has a pid file.
+// (not its mere existence) names the owner. New local jobs do too; legacy
+// local jobs have a pid file.
 func (registry Registry) Owner(store state.Store, jobDir string) (JobExecutor, error) {
 	if path, err := state.ValidatedStateFile(jobDir, "job.json"); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
 		var meta struct {

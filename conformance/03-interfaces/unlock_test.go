@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
@@ -31,9 +33,109 @@ type unlockAssessment struct {
 	} `json:"coordinator"`
 }
 
+func TestUnlockExecutionEvidenceOverridesTerminalOutcome(t *testing.T) {
+	covers(t, "SAFE-16", "SAFE-14", "CLI-21")
+	for _, transport := range []string{"CLI", "MCP"} {
+		t.Run(transport, func(t *testing.T) {
+			e := support.NewEnv(t)
+			e.MustRotari("add", "-p", "live-execution", "--", "true")
+			e.MustRotari("run", "-p", "live-execution", "--quiet")
+			projectDir := filepath.Join(e.Base, "projects", "live-execution")
+			metaPath := filepath.Join(projectDir, "meta.json")
+			meta := readUnlockJSON(t, metaPath)
+			runDir := filepath.Join(projectDir, "runs", meta["last_run_id"].(string))
+			summary := readUnlockJSON(t, filepath.Join(runDir, "summary.json"))
+			result := summary["results"].([]any)[0].(map[string]any)
+			attemptDir := filepath.Join(runDir, result["id"].(string), "attempts", result["attempt_id"].(string))
+			process := exec.Command("sleep", "30")
+			process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			if err := process.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = process.Process.Kill(); _ = process.Wait() }()
+			execution := support.ProcessIdentity(t, process.Process.Pid)
+			writeUnlockJSON(t, filepath.Join(attemptDir, "job.json"), map[string]any{
+				"executor": "local", "host": execution.Host, "pid": execution.PID, "pid_namespace": execution.PIDNamespace, "process_start": execution.ProcessStart,
+			})
+			contextPath := filepath.Join(runDir, "context.json")
+			context := readUnlockJSON(t, contextPath)
+			coordinator := support.CurrentCoordinator(t)
+			coordinator.PID = 1 << 30
+			context["coordinator"] = coordinator
+			writeUnlockJSON(t, contextPath, context)
+			meta["phase"] = "running"
+			writeUnlockJSON(t, metaPath, meta)
+			before := support.SavePairTree(t, projectDir)
+			var info struct {
+				Runs []struct {
+					Executions struct {
+						Active int              `json:"active"`
+						Units  []map[string]any `json:"executions"`
+					} `json:"execution_assessment"`
+				} `json:"active_runs"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("info", "-p", "live-execution", "--json").Stdout), &info); err != nil {
+				t.Fatal(err)
+			}
+			if len(info.Runs) != 1 || info.Runs[0].Executions.Active != 1 || info.Runs[0].Executions.Units[0]["conflict"] != true {
+				t.Fatalf("info lost terminal/live conflict: %+v", info)
+			}
+			var session *mcpSession
+			target := map[string]any{"project": "live-execution"}
+			if transport == "MCP" {
+				session = startMCP(t, e)
+				target["basedir_ref"] = baseDirRef(t, session, "live-execution")
+			}
+			for _, attest := range []bool{false, true} {
+				var preview unlockAssessment
+				if transport == "CLI" {
+					args := []string{"unlock", "-p", "live-execution", "--dry-run", "--json"}
+					if attest {
+						args = append(args, "--assume-stopped")
+					}
+					if err := json.Unmarshal([]byte(e.MustRotari(args...).Stdout), &preview); err != nil {
+						t.Fatal(err)
+					}
+					args = []string{"unlock", "-p", "live-execution", "--json"}
+					if attest {
+						args = append(args, "--assume-stopped")
+					}
+					applied := e.Rotari(args...)
+					if applied.Code != 1 || !strings.Contains(applied.Stderr, "execution_active") {
+						t.Fatalf("live apply=%s", applied)
+					}
+				} else {
+					delete(target, "if_revision")
+					target["assume_stopped"] = attest
+					if message := session.call("rotari_preview_unlock", target, &preview); message != "" {
+						t.Fatal(message)
+					}
+					target["if_revision"] = preview.Revision
+					var refused struct {
+						IsError bool             `json:"isError"`
+						Output  unlockAssessment `json:"structuredContent"`
+					}
+					if err := json.Unmarshal(session.request("tools/call", map[string]any{"name": "rotari_unlock", "arguments": target}), &refused); err != nil {
+						t.Fatal(err)
+					}
+					if !refused.IsError || refused.Output.RefusalCode != "execution_active" {
+						t.Fatalf("live MCP apply=%+v", refused)
+					}
+				}
+				if preview.Allowed || preview.RefusalCode != "execution_active" || !preview.ExecutionChecked || preview.Repair.Executions[0]["conflict"] != true {
+					t.Fatalf("live preview=%+v", preview)
+				}
+				if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
+					t.Fatal("live refusal mutated state")
+				}
+			}
+		})
+	}
+}
+
 func TestUnlockFinalizationRepair(t *testing.T) {
-	covers(t, "SAFE-15", "SAFE-4", "SAFE-7", "RES-7")
-	for _, variant := range []string{"plain", "array", "carried-array", "matrix", "incomplete", "duplicate"} {
+	covers(t, "SAFE-15", "SAFE-16", "SAFE-4", "SAFE-7", "RES-7")
+	for _, variant := range []string{"plain", "legacy", "array", "carried-array", "matrix", "incomplete", "duplicate"} {
 		for _, transport := range []string{"CLI", "MCP"} {
 			t.Run(variant+"/"+transport, func(t *testing.T) {
 				e := support.NewEnv(t)
@@ -53,6 +155,19 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 				runDir := filepath.Join(projectDir, "runs", runID)
 				summaryPath := filepath.Join(runDir, "summary.json")
 				summary := readUnlockJSON(t, summaryPath)
+				if variant == "legacy" {
+					if err := filepath.WalkDir(runDir, func(path string, entry os.DirEntry, err error) error {
+						if err != nil {
+							return err
+						}
+						if !entry.IsDir() && entry.Name() == "job.json" {
+							return os.Remove(path)
+						}
+						return nil
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if variant == "carried-array" {
 					sourceID := runID
 					commands := readUnlockJSON(t, filepath.Join(runDir, "commands.json"))
@@ -110,11 +225,19 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 					t.Fatal(message)
 				}
 				complete := variant != "incomplete" && variant != "duplicate"
-				if preview.Repair.Complete != complete || preview.ExecutionChecked || preview.Applied || preview.Allowed == complete {
+				unknown := variant == "legacy"
+				if preview.Repair.Complete != complete || preview.ExecutionChecked != (complete && !unknown) || preview.Applied || preview.Allowed == unknown {
 					t.Fatalf("preview=%+v", preview)
 				}
-				if complete && (preview.Action != "finalize" || preview.RefusalCode != "execution_unknown" || len(preview.Repair.Executions) == 0) {
-					t.Fatalf("missing execution refusal: %+v", preview)
+				if complete && (preview.Action != "finalize" || len(preview.Repair.Executions) == 0) {
+					t.Fatalf("missing execution assessment: %+v", preview)
+				}
+				if complete && !unknown {
+					for _, execution := range preview.Repair.Executions {
+						if execution["state"] != "stopped" || execution["source"] != "local_process_group" || execution["observed_at"] == "" {
+							t.Fatalf("unverified termination: %v", execution)
+						}
+					}
 				}
 				if !complete && (preview.Action != "release" || preview.Repair.Reason == "") {
 					t.Fatalf("unexplained release: %+v", preview)
@@ -122,7 +245,7 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 				if !reflect.DeepEqual(before.Raw(), support.SavePairTree(t, projectDir).Raw()) {
 					t.Fatal("preview changed state")
 				}
-				if complete {
+				if unknown {
 					if transport == "CLI" {
 						refused := e.Rotari("unlock", "-p", "repair", "--json")
 						if refused.Code != 1 || !strings.Contains(refused.Stderr, "execution_unknown") {
@@ -147,12 +270,16 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 				}
 				var applied unlockAssessment
 				if transport == "CLI" {
-					result := e.MustRotari("unlock", "-p", "repair", "--assume-stopped", "--json")
+					args := []string{"unlock", "-p", "repair", "--json"}
+					if unknown {
+						args = append(args, "--assume-stopped")
+					}
+					result := e.MustRotari(args...)
 					if err := json.Unmarshal([]byte(result.Stdout), &applied); err != nil {
 						t.Fatal(err)
 					}
 				} else {
-					target["assume_stopped"], target["if_revision"] = true, preview.Revision
+					target["assume_stopped"], target["if_revision"] = unknown, preview.Revision
 					if message := session.call("rotari_unlock", target, &applied); message != "" {
 						t.Fatal(message)
 					}
@@ -192,7 +319,7 @@ func TestUnlockFinalizationRepair(t *testing.T) {
 				}
 				context = readUnlockJSON(t, contextPath)
 				recovery := context["recovery"].(map[string]any)
-				if recovery["action"] != applied.Action || recovery["assume_stopped"] != true {
+				if recovery["action"] != applied.Action || recovery["assume_stopped"] != unknown {
 					t.Fatalf("recovery evidence=%v", recovery)
 				}
 				e.MustRotari("unlock", "-p", "repair", "--assume-stopped")

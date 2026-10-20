@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
@@ -58,6 +57,7 @@ type infoRun struct {
 	Phase       project.RunPhase              `json:"phase"`
 	Jobs        *infoJobLiveness              `json:"jobs,omitempty"`
 	Coordinator project.CoordinatorAssessment `json:"coordinator"`
+	Executions  project.ExecutionAssessment   `json:"execution_assessment"`
 }
 
 type infoJobLiveness struct {
@@ -274,7 +274,11 @@ func inspectInfoRun(name string, paths state.ProjectPaths, inspection project.In
 	if err != nil {
 		return infoRun{}, false, err
 	}
-	jobs, err := infoRunJobLiveness(runDir)
+	executions, err := project.AssessExecutions(paths, runID)
+	if err != nil {
+		return infoRun{}, false, fmt.Errorf("inspect executions in run %q for project %q: %w", runID, name, err)
+	}
+	jobs, err := infoRunJobLivenessWithAssessment(runDir, executions)
 	if err != nil {
 		return infoRun{}, false, fmt.Errorf("inspect jobs in run %q for project %q: %w", runID, name, err)
 	}
@@ -282,16 +286,18 @@ func inspectInfoRun(name string, paths state.ProjectPaths, inspection project.In
 	if err != nil {
 		return infoRun{}, false, fmt.Errorf("inspect coordinator in run %q for project %q: %w", runID, name, err)
 	}
-	return infoRun{Project: name, RunID: runID, Phase: phase, Jobs: jobs, Coordinator: coordinator}, true, nil
+	return infoRun{Project: name, RunID: runID, Phase: phase, Jobs: jobs, Coordinator: coordinator, Executions: executions}, true, nil
 }
 
 func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
-	context, err := state.LoadContext(jsonStore(), runDir)
-	hostKnown := err == nil && context.Hostname != ""
-	hostname, err := os.Hostname()
+	assessment, err := project.AssessExecutions(state.ProjectPaths{RunsDir: filepath.Dir(runDir)}, filepath.Base(runDir))
 	if err != nil {
 		return nil, err
 	}
+	return infoRunJobLivenessWithAssessment(runDir, assessment)
+}
+
+func infoRunJobLivenessWithAssessment(runDir string, assessment project.ExecutionAssessment) (*infoJobLiveness, error) {
 	attemptDirs, err := state.LatestAttemptDirs(runDir)
 	if err != nil {
 		return nil, err
@@ -305,6 +311,14 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 	for _, carriedResult := range carried {
 		result.countFinished(jobstatus.ResolveJob(jobstatus.Attempt{}, carriedResult, true))
 	}
+	executionStates := make(map[string]string, len(assessment.Executions))
+	for _, execution := range assessment.Executions {
+		dir := filepath.Join(filepath.Dir(runDir), execution.RunID, execution.JobID)
+		if execution.AttemptID != "" {
+			dir = filepath.Join(dir, "attempts", execution.AttemptID)
+		}
+		executionStates[dir] = execution.State
+	}
 	for _, attemptDir := range attemptDirs {
 		attempt := jobstatus.ReadAttempt(jsonStore(), attemptDir)
 		if attempt.Finished() {
@@ -317,18 +331,13 @@ func infoRunJobLiveness(runDir string) (*infoJobLiveness, error) {
 			}
 			continue
 		}
-		if !hostKnown || context.Hostname != hostname || state.ReadAttemptExecutor(attemptDir) != "local" {
-			result.Unknown++
-			continue
-		}
-		alive, known := executor.LocalProcessGroupAlive(attemptDir)
-		switch {
-		case !known:
-			result.Unknown++
-		case alive:
+		switch executionStates[attemptDir] {
+		case "active":
 			result.Alive++
-		default:
+		case "stopped":
 			result.Gone++
+		default:
+			result.Unknown++
 		}
 	}
 	result.Pending += infoNotStartedJobs(runDir, carried)
@@ -458,6 +467,27 @@ func printInfoRuns(runs []infoRun) {
 		fmt.Printf(" coordinator=%s reason=%q", run.Coordinator.State, run.Coordinator.Reason)
 		if identity := run.Coordinator.Identity; identity != nil {
 			fmt.Printf(" host=%s pid=%d namespace=%s", identity.Host, identity.PID, identity.PIDNamespace)
+		}
+		fmt.Printf(" executions=stopped:%d active:%d unknown:%d", run.Executions.Stopped, run.Executions.Active, run.Executions.Unknown)
+		fmt.Println()
+		printExecutionEvidence(run.Executions.Executions)
+	}
+}
+
+func printExecutionEvidence(executions []model.RecoveryExecution) {
+	for _, execution := range executions {
+		fmt.Printf("    job=%s run=%s attempt=%s backend=%s execution=%s source=%s observed_at=%s reason=%q", execution.JobID, execution.RunID, execution.AttemptID, execution.Backend, execution.State, execution.Source, execution.ObservedAt, execution.Reason)
+		if execution.NativeID != "" {
+			fmt.Printf(" native_id=%s", execution.NativeID)
+		}
+		if execution.PossiblyActive {
+			fmt.Print(" possibly_active=true")
+		}
+		if execution.Conflict {
+			fmt.Print(" conflict=true")
+		}
+		if execution.Scope != "" {
+			fmt.Printf(" scope=%q", execution.Scope)
 		}
 		fmt.Println()
 	}

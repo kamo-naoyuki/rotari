@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -126,11 +128,19 @@ func invokePairUnlock(t *testing.T, f pairMutationFixture, flags []pairFlag) pai
 		output["revision"] = "<verified-revision>"
 		coordinator := output["coordinator"].(map[string]any)
 		delete(coordinator, "observed_at")
+		pairUnlockExecutionTimes(t, output["repair"].(map[string]any))
 		data, err := json.Marshal(output)
 		if err != nil {
 			t.Fatal(err)
 		}
 		result.Stdout = string(data)
+	} else {
+		result.Stdout = regexp.MustCompile(`observed_at=\S+`).ReplaceAllStringFunc(result.Stdout, func(field string) string {
+			if _, err := time.Parse(time.RFC3339Nano, strings.TrimPrefix(field, "observed_at=")); err != nil {
+				t.Fatalf("invalid execution observation: %s", field)
+			}
+			return "observed_at=<execution-time>"
+		})
 	}
 	result.Args = nil
 	return pairMutationResult{Process: result, State: pairUnlockObservation(t, *f.Current)}
@@ -275,6 +285,7 @@ func pairUnlockObservation(t *testing.T, tree pairSavedTree) map[string]string {
 		context := pairUnlockContext(t, normalized, file.Path)
 		if recovery, ok := context["recovery"].(map[string]any); ok {
 			recovery["at"] = "<recovery-time>"
+			pairUnlockExecutionTimes(t, recovery)
 			data, err := json.Marshal(context)
 			if err != nil {
 				t.Fatal(err)
@@ -284,6 +295,26 @@ func pairUnlockObservation(t *testing.T, tree pairSavedTree) map[string]string {
 	}
 	return normalized.Observation(t)
 }
+
+func pairUnlockExecutionTimes(t *testing.T, record map[string]any) {
+	t.Helper()
+	executions, ok := record["executions"].([]any)
+	if !ok || len(executions) == 0 {
+		t.Fatal("missing execution evidence in completed fixture")
+	}
+	for _, value := range executions {
+		execution := value.(map[string]any)
+		observed, ok := execution["observed_at"].(string)
+		if !ok {
+			t.Fatalf("missing execution observation: %v", execution)
+		}
+		if _, err := time.Parse(time.RFC3339Nano, observed); err != nil {
+			t.Fatalf("invalid execution observation: %v", execution)
+		}
+		execution["observed_at"] = "<execution-time>"
+	}
+}
+
 func TestCLIFlagPairUnlockSafety(t *testing.T) {
 	covers(t, "SAFE-4")
 	f := newPairMutationFixture(t)

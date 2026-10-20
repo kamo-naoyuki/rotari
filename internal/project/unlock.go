@@ -55,6 +55,9 @@ func (err *UnlockRefusedError) Error() string {
 	if err.Result.RefusalCode == "execution_unknown" {
 		return "execution_unknown: finalization repair requires --assume-stopped after confirming all managed executions, including earlier attempts and carried origins, stopped; terminal outcome records are not termination evidence"
 	}
+	if err.Result.RefusalCode == "execution_active" {
+		return "execution_active: a fresh probe verified active managed execution; inspect repair.executions and stop the work before recovery; --assume-stopped cannot override it"
+	}
 	return fmt.Sprintf("coordinator_unknown: %s%s; inspect on the original host in the same PID namespace if accessible, or explicitly attest that the coordinator stopped with --assume-stopped; job termination is not verified", err.Result.Coordinator.Reason, location)
 }
 
@@ -137,15 +140,29 @@ func Unlock(paths state.ProjectPaths, runID string, guard Guard, assumeStopped b
 	result.Action = "release"
 	if result.Repair.Complete {
 		result.Action = "finalize"
-		if len(result.Repair.Executions) > 0 && !assumeStopped {
-			result.RefusalCode = "execution_unknown"
+		result.ExecutionChecked = len(result.Repair.Executions) > 0
+		result.JobsMayBeRunning = false
+		for _, execution := range result.Repair.Executions {
+			if execution.State != "stopped" {
+				result.JobsMayBeRunning = true
+			}
+			switch execution.State {
+			case "active":
+				result.RefusalCode = "execution_active"
+			case "stopped":
+			default:
+				result.ExecutionChecked = false
+				if !assumeStopped && result.RefusalCode == "" {
+					result.RefusalCode = "execution_unknown"
+				}
+			}
 		}
 	}
 	switch assessment.State {
 	case CoordinatorLive:
 		result.RefusalCode = "coordinator_live"
 	case CoordinatorUnknown:
-		if !assumeStopped {
+		if !assumeStopped && result.RefusalCode != "execution_active" {
 			result.RefusalCode = "coordinator_unknown"
 		}
 	}

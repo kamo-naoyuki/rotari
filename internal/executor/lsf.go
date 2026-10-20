@@ -344,24 +344,9 @@ var lsfExitCode = regexp.MustCompile(`exit code ([0-9]+)`)
 func lsfAccounting(jobID string) (int, string, bool, error) {
 	commands := lsfAccountingCommands(jobID)
 	if output, err := runLSFCommandWithInput(nil, commands[0]...); err == nil {
-		fields := strings.Fields(string(output))
-		if len(fields) > 0 {
-			stat := strings.ToUpper(fields[0])
-			switch {
-			case stat == "DONE":
-				return 0, "done", true, nil
-			case stat == "EXIT":
-				code := 0
-				if len(fields) > 1 {
-					code, _ = strconv.Atoi(fields[1])
-				}
-				if code == 0 {
-					code = 1
-				}
-				return code, "exit", true, nil
-			case lsfStateName(stat) != "":
-				return 0, lsfStateName(stat), false, nil
-			}
+		code, state, ended := parseLSFAccounting(output)
+		if state != "" {
+			return code, state, ended, nil
 		}
 	}
 	output, err := runLSFCommandWithInput(nil, commands[1]...)
@@ -383,6 +368,29 @@ func lsfAccounting(jobID string) (int, string, bool, error) {
 		}
 	}
 	return code, "exit", true, nil
+}
+
+func parseLSFAccounting(output []byte) (int, string, bool) {
+	fields := strings.Fields(string(output))
+	if len(fields) == 0 {
+		return 0, "", false
+	}
+	stat := strings.ToUpper(fields[0])
+	switch stat {
+	case "DONE":
+		return 0, "done", true
+	case "EXIT":
+		code := 0
+		if len(fields) > 1 {
+			code, _ = strconv.Atoi(fields[1])
+		}
+		if code == 0 {
+			code = 1
+		}
+		return code, "exit", true
+	default:
+		return 0, lsfStateName(stat), false
+	}
 }
 
 func runLSFCommand(name string, args ...string) ([]byte, error) {

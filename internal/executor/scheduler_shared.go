@@ -190,11 +190,17 @@ func newSchedulerSubmissionGate(interval time.Duration) *schedulerSubmissionGate
 }
 
 func (gate *schedulerSubmissionGate) wait(scheduler string, interval time.Duration) {
+	if delay := gate.delay(scheduler, interval); delay > 0 {
+		gate.timing.withDefaults().Sleep(delay)
+	}
+}
+
+func (gate *schedulerSubmissionGate) delay(scheduler string, interval time.Duration) time.Duration {
 	if interval <= 0 {
 		interval = gate.interval
 	}
 	if interval <= 0 {
-		return
+		return 0
 	}
 	timing := gate.timing.withDefaults()
 	gate.mu.Lock()
@@ -205,9 +211,7 @@ func (gate *schedulerSubmissionGate) wait(scheduler string, interval time.Durati
 	}
 	gate.next[scheduler] = scheduled.Add(interval)
 	gate.mu.Unlock()
-	if delay := scheduled.Sub(now); delay > 0 {
-		timing.Sleep(delay)
-	}
+	return scheduled.Sub(now)
 }
 
 func (policy schedulerSubmissionRetryPolicy) submit(logf func(string, ...any), scheduler string, submit func() ([]byte, error)) ([]byte, error) {

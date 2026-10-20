@@ -82,6 +82,7 @@ func cmdUnlock(args []string) int {
 	}
 	switch {
 	case err != nil:
+		printExecutionEvidence(result.Repair.Executions)
 		printError(err)
 		return 1
 	case result.RunID == "":
@@ -91,13 +92,14 @@ func cmdUnlock(args []string) int {
 	if *dryRun {
 		fmt.Printf("dry run: project=%s run_id=%s allowed=%t refusal_code=%s coordinator=%s reason=%q revision=%s\n", queueName, result.RunID, result.Allowed, result.RefusalCode, result.Coordinator.State, result.Coordinator.Reason, result.Revision)
 		fmt.Printf("Recovery action: %s; %s\n", result.Action, result.Repair.Reason)
+		printExecutionEvidence(result.Repair.Executions)
 		if !result.Allowed {
 			fmt.Println((&project.UnlockRefusedError{Result: result}).Error())
 		}
 		if result.Detail != "" {
 			fmt.Println("Recorded jobs: " + result.Detail)
 		}
-		fmt.Println("Job termination is not verified; confirm jobs stopped before applying recovery.")
+		printUnlockVerification(result)
 		return 0
 	}
 	if result.JobsMayBeRunning {
@@ -111,12 +113,21 @@ func cmdUnlock(args []string) int {
 		message = fmt.Sprintf("repaired finalization project=%s run_id=%s", queueName, result.RunID)
 	}
 	fmt.Println(colorKeyValueMessage(message, green))
-	fmt.Println("Job termination was not verified; recovery does not stop jobs.")
+	printUnlockVerification(result)
 	if result.Action == "finalize" {
 		fmt.Println("Recorded results and finish time were preserved; completion notifications were not replayed.")
 	} else {
 		fmt.Println("Recovery action: release; " + result.Repair.Reason)
 		fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, result.RunID))
 	}
+
 	return 0
+}
+
+func printUnlockVerification(result project.UnlockResult) {
+	if result.ExecutionChecked {
+		fmt.Println("Execution evidence is verified only within each probe's stated scope; recovery never stops jobs.")
+	} else {
+		fmt.Println("Execution termination is not fully verified; confirm unknown or unchecked work stopped. Recovery never stops jobs.")
+	}
 }

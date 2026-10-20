@@ -348,6 +348,10 @@ func slurmAccounting(jobID string) (int, string, bool, error) {
 	if err != nil {
 		return 0, "", false, SchedulerCommandHint("sacct", output, err)
 	}
+	return parseSlurmAccounting(output)
+}
+
+func parseSlurmAccounting(output []byte) (int, string, bool, error) {
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
 		fields := strings.Split(strings.TrimSpace(scanner.Text()), "|")

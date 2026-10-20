@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -28,10 +30,12 @@ type incompleteRepair string
 func (err incompleteRepair) Error() string { return string(err) }
 
 type repairInventory struct {
-	paths      state.ProjectPaths
-	store      state.Store
-	executions []model.RecoveryExecution
-	seen       map[string]bool
+	paths           state.ProjectPaths
+	store           state.Store
+	executions      []model.RecoveryExecution
+	seen            map[string]bool
+	observationOnly bool
+	recorded        map[string]bool
 }
 
 func assessRepair(paths state.ProjectPaths, runID string, meta model.Meta, store state.Store) (RepairAssessment, model.RunSummary, error) {
@@ -61,14 +65,36 @@ func assessRepair(paths state.ProjectPaths, runID string, meta model.Meta, store
 		return assessment, files.Summary, nil
 	}
 	assessment.Complete = true
-	assessment.Executions = inventory.executions
+	assessment.Executions = probeRecoveryExecutions(store, paths, inventory.executions)
 	assessment.Reason = "summary covers the expanded command snapshot and its recorded origins and attempts"
 	if len(assessment.Executions) > 0 {
-		assessment.Reason += "; execution termination is unknown and requires --assume-stopped"
+		assessment.Reason += "; execution probes report stopped, active or unknown within their stated scope"
 	} else {
 		assessment.Reason += "; inventory contains only jobs established never launched"
 	}
+
 	return assessment, files.Summary, nil
+}
+
+func probeRecoveryExecutions(store state.Store, paths state.ProjectPaths, executions []model.RecoveryExecution) []model.RecoveryExecution {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	probe := executor.NewExecutionProber(store, ctx)
+	for i, execution := range executions {
+		dir := filepath.Join(paths.RunsDir, execution.RunID, execution.JobID)
+		if execution.AttemptID != "" {
+			dir = filepath.Join(dir, "attempts", execution.AttemptID)
+		}
+		evidence := probe.Assess(dir, execution.Backend)
+		evidence.RunID, evidence.JobID, evidence.AttemptID = execution.RunID, execution.JobID, execution.AttemptID
+		evidence.RecordedTerminal = execution.RecordedTerminal || jobstatus.ReadAttempt(store, dir).Finished()
+		if evidence.State == "active" && evidence.RecordedTerminal {
+			evidence.Conflict = true
+			evidence.Reason += "; conflicts with a terminal recorded outcome, which does not override live evidence"
+		}
+		executions[i] = evidence
+	}
+	return executions
 }
 
 func (inventory *repairInventory) validate(runID string, files state.RunSnapshot) error {
@@ -173,6 +199,10 @@ func (inventory *repairInventory) validate(runID string, files state.RunSnapshot
 	}
 	// Unknown job directories must not disappear behind an apparently complete
 	// summary. Config snapshots are not executions.
+	return inventory.validateDirectories(runID, expanded)
+}
+
+func (inventory *repairInventory) validateDirectories(runID string, expanded map[string]bool) error {
 	entries, err := os.ReadDir(filepath.Join(inventory.paths.RunsDir, runID))
 	if err != nil {
 		return err
@@ -257,7 +287,7 @@ func (inventory *repairInventory) job(runID string, job model.JobSpec, result mo
 			attempts = append(attempts, child.Name())
 		}
 	}
-	if result.AttemptID != "" {
+	if result.AttemptID != "" && !inventory.observationOnly {
 		if !slices.Contains(attempts, result.AttemptID) {
 			return incompleteRepair("summary attempt is missing or belongs to another job/run: " + key)
 		}
@@ -268,7 +298,7 @@ func (inventory *repairInventory) job(runID string, job model.JobSpec, result mo
 				return incompleteRepair("summary omits a newer attempt for " + key)
 			}
 		}
-	} else if len(attempts) > 0 {
+	} else if len(attempts) > 0 && !inventory.observationOnly {
 		return incompleteRepair("summary does not identify the final attempt for " + key)
 	}
 	legacy := len(attempts) == 0
@@ -310,7 +340,7 @@ func (inventory *repairInventory) execution(runID string, job model.JobSpec, att
 		return incompleteRepair("attempt command does not match execution " + key)
 	}
 	attempt := jobstatus.ReadAttempt(inventory.store, dir)
-	if final && attempt.Finished() && attempt.ExitCode != result.ExitCode && !result.Accepted {
+	if !inventory.observationOnly && final && attempt.Finished() && attempt.ExitCode != result.ExitCode && !result.Accepted {
 		return incompleteRepair("recorded outcome conflicts with summary for " + key)
 	}
 	backend := command.Executor
@@ -323,6 +353,7 @@ func (inventory *repairInventory) execution(runID string, job model.JobSpec, att
 	inventory.executions = append(inventory.executions, model.RecoveryExecution{
 		RunID: runID, JobID: job.ID, AttemptID: attemptID, Backend: backend,
 		State: "unknown", Reason: "persisted outcome does not establish wrapper, managed descendants, or allocation termination",
+		RecordedTerminal: attempt.Finished() || (final && (!inventory.observationOnly || inventory.recorded[runID+"/"+job.ID])),
 	})
 	return nil
 }
@@ -405,6 +436,9 @@ func (inventory *repairInventory) origin(job model.JobSpec, result model.JobResu
 		return incompleteRepair("carried outcome disagrees with origin and status mark for " + job.ID)
 	}
 	sourceMarked := model.QueueMarkedStatusByJobID(files.Commands)[origin.JobID]
+	if inventory.observationOnly {
+		inventory.recorded[origin.RunID+"/"+origin.JobID] = true
+	}
 	return inventory.job(origin.RunID, *spec, recorded, repairJobOrigin(files.Commands, *spec), sourceMarked, origin.AttemptID == "", visiting)
 }
 

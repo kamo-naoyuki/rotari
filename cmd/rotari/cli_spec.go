@@ -211,7 +211,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "remove a confirmed stale run lock",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "verify the run ID recorded in the stale lock", ValueName: "ID"},
-			cliFlagSpec{Name: "assume-stopped", Description: "explicitly attest that unverifiable coordinator and managed executions stopped; required for finalization repair with started attempts; never overrides a live coordinator", CommandLineOnly: true},
+			cliFlagSpec{Name: "assume-stopped", Description: "explicitly attest that unverifiable coordinator and managed executions stopped; required for unknown finalization execution evidence; never overrides verified live ownership or execution", CommandLineOnly: true},
 			cliFlagSpec{Name: "dry-run", Description: "assess recovery without changing state", CommandLineOnly: true},
 			cliFlagSpec{Name: "json", Description: "print recovery assessment and refusal codes as JSON", CommandLineOnly: true}),
 		Positional: "[PROJECT]",

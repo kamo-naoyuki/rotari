@@ -289,6 +289,10 @@ func pbsJobState(jobID string) (string, error) {
 	if err != nil {
 		return "", SchedulerCommandHint("qstat", output, err)
 	}
+	return parsePBSJobState(output), nil
+}
+
+func parsePBSJobState(output []byte) string {
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(strings.TrimSpace(line), "=", 2)
 		if len(parts) != 2 || strings.TrimSpace(parts[0]) != "job_state" {
@@ -296,20 +300,20 @@ func pbsJobState(jobID string) (string, error) {
 		}
 		switch strings.TrimSpace(parts[1]) {
 		case "Q":
-			return "pending", nil
+			return "pending"
 		case "R", "E":
-			return "running", nil
+			return "running"
 		case "H":
-			return "held", nil
+			return "held"
 		case "S":
-			return "suspended", nil
+			return "suspended"
 		case "W":
-			return "waiting", nil
+			return "waiting"
 		default:
-			return strings.ToLower(strings.TrimSpace(parts[1])), nil
+			return strings.ToLower(strings.TrimSpace(parts[1]))
 		}
 	}
-	return "", nil
+	return ""
 }
 
 // pbsAccounting reads a finished job's exit code, and whether it was
@@ -321,6 +325,10 @@ func pbsAccounting(jobID string) (int, string, bool, error) {
 	if err != nil {
 		return 0, "", false, SchedulerCommandHint("qstat", output, err)
 	}
+	return parsePBSAccounting(output)
+}
+
+func parsePBSAccounting(output []byte) (int, string, bool, error) {
 	values := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {
 		if key, value, found := strings.Cut(line, "="); found {

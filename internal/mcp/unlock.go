@@ -10,7 +10,7 @@ type UnlockInput struct {
 	BaseDirRef    string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
 	Project       string `json:"project" jsonschema:"project name"`
 	RunID         string `json:"run_id,omitempty" jsonschema:"the interrupted run to recover; by default the one the project's lock or metadata names"`
-	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that unverifiable coordinator and managed executions stopped; required for finalization repair with started attempts; never overrides live ownership"`
+	AssumeStopped bool   `json:"assume_stopped,omitempty" jsonschema:"explicit attestation that unverifiable coordinator and managed executions stopped; required for unknown finalization execution evidence; never overrides verified live ownership or execution"`
 }
 
 type ApplyUnlockInput struct {
@@ -19,7 +19,7 @@ type ApplyUnlockInput struct {
 }
 
 type UnlockOutput struct {
-	ExecutionChecked bool                          `json:"execution_checked" jsonschema:"false in this phase: executor termination is not checked; terminal status is not proof all jobs stopped"`
+	ExecutionChecked bool                          `json:"execution_checked" jsonschema:"true only for finalization with a nonempty inventory whose executions all have active/stopped probe evidence within their stated scope; true does not imply stopped or recovery allowed; ordinary release and unknown evidence remain false"`
 	Project          string                        `json:"project"`
 	InterruptedRunID string                        `json:"interrupted_run_id,omitempty" jsonschema:"the interrupted run the unlock recovers; empty when the project has none and nothing changes"`
 	InterruptedRun   string                        `json:"interrupted_run,omitempty" jsonschema:"what the interrupted run's jobs last reported"`

@@ -1,7 +1,7 @@
 # Plan: Verified Unlock of Interrupted Runs
 
 Created: 2026-10-20
-Status: Phases 1a, 1b, and 2 implemented and validated. Phases 3-4 not started.
+Status: Phases 1a, 1b, 2, and 3 implemented and validated. Phase 4 not started.
 
 Phase 1a stores coordinator identity in the existing run context rather than
 a separate run-directory filename, avoiding collisions with arbitrary job IDs.
@@ -54,6 +54,34 @@ as did changed-file pre-commit, short checks, the final full normal/race check,
 67 Python tests with the final binary, and generated schema/reference checks.
 Execution probes remain Phase 3; ordinary release policy is tightened further
 in Phase 4. Reasons and validation details are in [work-log.md](work-log.md).
+
+Phase 3 adds executor-owned read-only local/scheduler probes shared by `info`
+and finalization repair. New local attempts publish host/namespace before
+launch, then PID/start time in the existing `job.json`; incomplete publication
+stays unknown instead of losing the running process handle. Group existence
+with matching leader identity is active; leaderless/reused/unverifiable live
+groups are possibly live and unknown. Only the recorded host/namespace may
+establish a missing group stopped. Escaped descendants remain outside scope.
+Scheduler probes reuse backend parsers, validate native IDs, require terminal
+accounting plus a successful non-active queue observation for stopped, batch
+SGE's whole queue including pending jobs, and bound commands/output/rate waits.
+All relevant attempts and carried origins remain in the inventory.
+The reason for separating this evidence from terminal outcomes is unchanged:
+a completed command does not establish that its managed execution stopped.
+Positive activity blocks repair even with attestation; unknown needs explicit
+attestation; all stopped units permit repair without execution attestation.
+`execution_checked` describes a nonempty fully classified finalization
+inventory, not permission or success. Ordinary release remains unchecked,
+and SSH probing plus snapshot/probe/revalidation outside the state lock remain
+Phase 4. SAFE-16 and the operations guide state these limits.
+The motivating unit regression failed before implementation, and binary
+conformance failed on pre-change `53f68884`. Local/scheduler evidence tables,
+shared CLI/MCP policy, all unlock flag pairs, changed-file pre-commit, short
+checks, and the final full normal/race check passed. All 67 Python tests
+passed with the final binary; generated schema/reference checks passed.
+Earlier full checks exposed intermittent unchanged copy-selector and retry
+source-hint fixtures; three isolated repeats of each affected case passed,
+and both observations are tracked in [ISSUES.md](../ISSUES.md).
 
 ## Purpose
 

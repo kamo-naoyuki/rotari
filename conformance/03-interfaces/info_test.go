@@ -51,10 +51,10 @@ func TestInfoReportsContextAndRunLocks(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"hostname":"`+host+`"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte(`{"id":"job-a","executor":"local"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte(`{"id":"job-a","executor":"local","command":["sleep","30"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(finishedJobDir, "command.json"), []byte(`{"id":"job-done","executor":"local"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(finishedJobDir, "command.json"), []byte(`{"id":"job-done","executor":"local","command":["true"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(finishedJobDir, "status"), []byte("0\n"), 0o644); err != nil {
@@ -75,6 +75,14 @@ func TestInfoReportsContextAndRunLocks(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(jobDir, "pid"), []byte(strconv.Itoa(process.Process.Pid)+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeUnlockJSON(t, filepath.Join(runDir, "commands.json"), map[string]any{"commands": []any{
+		map[string]any{"id": "job-a", "command": []string{"sleep", "30"}},
+		map[string]any{"id": "job-done", "command": []string{"true"}},
+	}})
+	identity := support.ProcessIdentity(t, process.Process.Pid)
+	writeUnlockJSON(t, filepath.Join(jobDir, "job.json"), map[string]any{
+		"executor": "local", "host": identity.Host, "pid": identity.PID, "pid_namespace": identity.PIDNamespace, "process_start": identity.ProcessStart,
+	})
 
 	result := e.MustRotari("info", "--json")
 	var report struct {

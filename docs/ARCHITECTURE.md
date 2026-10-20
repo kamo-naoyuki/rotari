@@ -78,12 +78,22 @@ flowchart LR
   all relevant attempts. Unlock either finalizes matching interrupted
   metadata through `state.FinalizeRun` with the recorded finish time and
   applicable client cleanup, or explains a release to collecting.
-  It never replays `projectrun.Runner` callbacks. Started/uncertain executions
-  require explicit attestation for repair; terminal records are not proof
-  of termination. Expanded array origins use `model.TaskOrigin`, the same
+  It never replays `projectrun.Runner` callbacks. Unknown executions require
+  explicit attestation for repair; terminal records are not termination
+  evidence. Expanded array origins use `model.TaskOrigin`, the same
   domain rule to which run planning delegates; pinned and unpinned origins
-  keep their respective attempt semantics. Execution termination is not
-  probed yet.
+  keep their respective attempt semantics. `project.AssessExecutions` reuses
+  the repair inventory's job/attempt/origin traversal for read-only `info`.
+  Executor-owned `ExecutionProber` classifies local groups and fresh scheduler
+  queue/accounting observations using backend parsers. Local attempts
+  durably publish host/PID namespace/start identity in `job.json`; incomplete
+  publication stays unknown. Probes are bounded and rate-limited, with
+  per-assessment SGE whole-queue caching. Verified active evidence blocks
+  finalization even with attestation and terminal outcomes; stopped evidence
+  allows repair without execution attestation. Unknown/unsupported evidence
+  remains explicit. Process-group and scheduler scopes are not machine-wide
+  audits. Ordinary release remains unchecked; SSH probing and moving the
+  probe outside the state lock with snapshot revalidation are next-phase work.
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
    It lists registered basedirs and lightweight project/run metadata, checks
    project locks across the selected basedir, and loads a project's queue and

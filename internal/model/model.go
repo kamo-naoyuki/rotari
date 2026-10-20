@@ -707,12 +707,19 @@ type RunRecovery struct {
 }
 
 type RecoveryExecution struct {
-	RunID     string `json:"run_id"`
-	JobID     string `json:"job_id"`
-	AttemptID string `json:"attempt_id,omitempty"`
-	Backend   string `json:"backend"`
-	State     string `json:"state"`
-	Reason    string `json:"reason"`
+	RunID            string `json:"run_id"`
+	JobID            string `json:"job_id"`
+	AttemptID        string `json:"attempt_id,omitempty"`
+	Backend          string `json:"backend"`
+	State            string `json:"state"`
+	Reason           string `json:"reason"`
+	Source           string `json:"source,omitempty"`
+	ObservedAt       string `json:"observed_at,omitempty"`
+	NativeID         string `json:"native_id,omitempty"`
+	Scope            string `json:"scope,omitempty"`
+	PossiblyActive   bool   `json:"possibly_active,omitempty"`
+	Conflict         bool   `json:"conflict,omitempty"`
+	RecordedTerminal bool   `json:"recorded_terminal,omitempty"`
 }
 
 // LaunchOrigin identifies a process on a host. ProcessStart, when known,

@@ -205,13 +205,18 @@ func waitSGEJob(store state.Store, runDir string, job sgeJobMetadata) model.JobR
 	})
 }
 
+type sgeQueueJob struct {
+	JobNumber string `xml:"JB_job_number"`
+	State     string `xml:"state,attr"`
+}
+
 type sgeQueueXML struct {
 	QueueInfo struct {
-		Jobs []struct {
-			JobNumber string `xml:"JB_job_number"`
-			State     string `xml:"state,attr"`
-		} `xml:"job_list"`
+		Jobs []sgeQueueJob `xml:"job_list"`
 	} `xml:"queue_info"`
+	JobInfo struct {
+		Jobs []sgeQueueJob `xml:"job_list"`
+	} `xml:"job_info"`
 }
 
 func sgeJobActive(jobID string) (bool, error) {
@@ -233,15 +238,21 @@ func sgeJobState(jobID string) (string, error) {
 	if err != nil {
 		return "", SchedulerCommandHint("qstat", output, err)
 	}
+	return parseSGEJobState(output, jobID)
+}
+
+func parseSGEJobState(output []byte, jobID string) (string, error) {
 	var listing sgeQueueXML
 	if err := xml.Unmarshal(output, &listing); err != nil {
 		return "", fmt.Errorf("parse qstat XML: %w", err)
 	}
-	for _, job := range listing.QueueInfo.Jobs {
+	for _, job := range append(listing.QueueInfo.Jobs, listing.JobInfo.Jobs...) {
 		if job.JobNumber != jobID {
 			continue
 		}
 		switch strings.ToLower(job.State) {
+		case "":
+			return "unknown", nil
 		case "qw", "hqw", "h", "w", "swr":
 			return "pending", nil
 		case "r", "t", "rr":
@@ -263,6 +274,10 @@ func sgeAccounting(jobID string) (int, bool, error) {
 	if err != nil {
 		return 0, false, SchedulerCommandHint("qacct", output, err)
 	}
+	return parseSGEAccounting(output)
+}
+
+func parseSGEAccounting(output []byte) (int, bool, error) {
 	values := make(map[string]string)
 	for _, line := range strings.Split(string(output), "\n") {
 		fields := strings.Fields(line)

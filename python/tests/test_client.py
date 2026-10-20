@@ -302,8 +302,8 @@ def test_unlock_real_cli_ownership_and_preview(tmp_path):
         is True
     )
 
-    # A real completed execution can repair interrupted management metadata,
-    # but its terminal result alone cannot attest to all managed work stopping.
+    # New local identities permit repair from verified process-group termination,
+    # independently of the terminal outcome.
     client.run()
     meta_path = project / "meta.json"
     meta = json.loads(meta_path.read_text())
@@ -317,12 +317,10 @@ def test_unlock_real_cli_ownership_and_preview(tmp_path):
     preview = client.unlock(dry_run=True, json=True).json()
     assert preview["action"] == "finalize"
     assert preview["repair"]["complete"] is True
-    assert preview["allowed"] is False
-    assert preview["refusal_code"] == "execution_unknown"
-    with pytest.raises(RotariError) as error:
-        client.unlock(json=True)
-    assert error.value.result.json()["refusal_code"] == "execution_unknown"
-    applied = client.unlock(assume_stopped=True, json=True).json()
+    assert preview["allowed"] is True
+    assert preview["execution_checked"] is True
+    assert all(unit["state"] == "stopped" for unit in preview["repair"]["executions"])
+    applied = client.unlock(json=True).json()
     assert applied["action"] == "finalize"
     assert applied["applied"] is True
     repaired_meta = json.loads(meta_path.read_text())

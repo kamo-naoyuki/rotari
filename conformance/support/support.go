@@ -29,16 +29,20 @@ type CoordinatorProcess struct {
 }
 
 func CurrentCoordinator(t *testing.T) CoordinatorProcess {
+	return ProcessIdentity(t, os.Getpid())
+}
+
+func ProcessIdentity(t *testing.T, pid int) CoordinatorProcess {
 	t.Helper()
 	host, err := os.Hostname()
 	if err != nil {
 		t.Fatal(err)
 	}
-	namespace, err := os.Readlink("/proc/self/ns/pid")
+	namespace, err := os.Readlink(fmt.Sprintf("/proc/%d/ns/pid", pid))
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile("/proc/self/stat")
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +50,7 @@ func CurrentCoordinator(t *testing.T) CoordinatorProcess {
 	if len(fields) < 20 {
 		t.Fatalf("incomplete process stat: %s", data)
 	}
-	return CoordinatorProcess{Host: host, PID: os.Getpid(), PIDNamespace: namespace, ProcessStart: fields[19]}
+	return CoordinatorProcess{Host: host, PID: pid, PIDNamespace: namespace, ProcessStart: fields[19]}
 }
 
 const (

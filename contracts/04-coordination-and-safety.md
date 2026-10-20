@@ -251,9 +251,9 @@ A project is in one of three states, derived from `running.lock` and
   `state.LatestAttemptDirs`; checked by
   `TestUnlockWarnsAboutRunningJobs` and `TestMCPUnlockRecoversAnInterruptedRun`.
   CLI dry-run and MCP preview also report coordinator ownership, permission
-  and refusal codes through shared `project.Unlock`. This phase does not
-  verify execution termination; machine-readable preview/apply output says
-  `execution_checked: false`, even if every job has recorded a final status.
+  and refusal codes through shared `project.Unlock`. Finalization additionally
+  reports execution evidence under SAFE-16. Ordinary release still leaves
+  execution termination unchecked (`execution_checked: false`).
   `TestUnlockOwnershipAndDryRun` in
   [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
   checks CLI/MCP parity and nonmutation.
@@ -288,8 +288,8 @@ A project is in one of three states, derived from `running.lock` and
   members, without duplicate/missing results or invalid attempt associations.
   Carried outcomes must agree with their origins and explicit status marks.
   The inventory includes earlier attempts and incomplete launch records.
-  Ownership still follows SAFE-13. Until execution probes are implemented,
-  every executed or possibly executed unit requires explicit
+  Ownership still follows SAFE-13. Execution evidence follows SAFE-16:
+  unknown executed or possibly executed units require explicit
   `--assume-stopped`; recorded terminal outcomes alone never establish
   termination. Without that attestation an otherwise repairable run refuses
   with `execution_unknown`, rather than silently choosing release.
@@ -309,6 +309,47 @@ A project is in one of three states, derived from `running.lock` and
   [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
   checks CLI/MCP parity, execution refusal, expanded inventory, release,
   preserved state and repeated recovery.
+- **SAFE-16** Read-only execution assessment is shared by `info` and
+  finalization repair, independently of recorded outcomes. It inventories
+  expanded commands, all attempts (including incomplete publication), and
+  original executions behind carried results. Each unit reports identity,
+  backend, state (`active`, `stopped`, `unknown`), source, observation time,
+  scope and reason. New local attempts record host, PID namespace, group PID
+  and leader start time in the existing `job.json`. Only matching host and
+  namespace permit group inspection. An absent group establishes stopped;
+  an existing group with matching leader start time establishes active.
+  Missing/mismatching leader identity, surviving leaderless groups,
+  inaccessible evidence and legacy identities are unknown, not stopped;
+  possibly live groups are explicitly marked. Descendants leaving the
+  recorded group are outside the probe's scope.
+  Scheduler probes use bounded, rate-limited fresh queue/accounting queries
+  and backend-owned parsers. Queued, held and suspended jobs are active;
+  positive activity overrides terminal outcomes and is not overridable.
+  Stopped requires a matching unique terminal accounting record and a
+  successful classifiable queue query without active evidence. Queue absence
+  alone, wrong/ambiguous native identities, unknown states, query failures
+  and missing accounting are unknown. SGE's whole-queue XML is fetched once
+  per assessment, including its pending-job section. Queries use the current
+  scheduler environment and cannot inspect compute-node process groups.
+  SSH verification is unsupported and explicitly unknown in this phase.
+  For finalization, active execution refuses with `execution_active` even
+  with attestation; unknown refuses with `execution_unknown` unless attested;
+  all stopped units need no execution attestation. Coordinator safeguards
+  still apply. `execution_checked` is true only for a nonempty complete
+  finalization inventory whose units all have active/stopped evidence, not
+  a synonym for stopped or allowed. Ordinary release remains unchecked.
+  Probes never signal, submit, rewrite results or infer successful outcomes.
+  Implemented in
+  [internal/executor/execution_probe.go](../internal/executor/execution_probe.go)
+  and [internal/project/execution.go](../internal/project/execution.go), with
+  focused tests in
+  [internal/executor/execution_probe_test.go](../internal/executor/execution_probe_test.go)
+  and [internal/project/execution_test.go](../internal/project/execution_test.go).
+  `TestUnlockFinalizationRepair` and
+  `TestUnlockExecutionEvidenceOverridesTerminalOutcome` in
+  [conformance/03-interfaces/unlock_test.go](../conformance/03-interfaces/unlock_test.go)
+  check CLI/MCP parity, unoverridable activity, terminal/live conflicts,
+  verified stopped repair, unknown legacy evidence and read-only previews.
 - **SAFE-8** While a project is running or interrupted, `add`, `copy`,
   `change`, `remove`, `import`, and `reset` edit the queue for the next run,
   since the run took its own jobs when it started (CORE-3). They leave the

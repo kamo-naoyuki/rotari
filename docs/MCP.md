@@ -86,20 +86,27 @@ stale lock, and returns the project to idle with its queue kept, as
 including without a run lock. Unknown ownership requires explicit
 `assume_stopped: true`; verified live ownership cannot be overridden.
 Refused applies are tool errors retaining structured `allowed: false` and
-`refusal_code` (`coordinator_live`, `coordinator_unknown`, or `execution_unknown`) with inspection
+`refusal_code` (`coordinator_live`, `coordinator_unknown`, `execution_active`,
+or `execution_unknown`) with inspection
 guidance naming the recorded host and namespace.
-Both preview and apply report `execution_checked: false`: job termination
-is not verified, even when terminal records exist. Confirm independently
-that the coordinator and jobs stopped before applying, and do not enable
+Finalization preview and apply share local/scheduler execution probes.
+`execution_checked` is true only for a nonempty finalization inventory with
+all units classified active/stopped, within their documented scope; true
+does not imply stopped or allowed. Unknown evidence and ordinary release
+remain false. Confirm independently that unknown or unchecked work stopped
+before applying, and do not enable
 attestation blindly in existing automation. See the
 [migration guide](OPERATIONS.md#unlock-ownership-checks-and-automation-migration).
 Preview/apply also share `action` (`finalize` or `release`) and `repair`
 (`complete`, `reason`, `executions`). A complete matching summary repairs
 management metadata to finished, preserving recorded results and finish time
 and completing applicable client status without replaying notifications.
-Every started/uncertain execution, including earlier attempts and carried
-origins, requires explicit `assume_stopped` for repair in this phase, even
-when ownership is verified stopped. Only established never-launched units
+The inventory includes earlier attempts and carried origins. Verified active
+executions always block repair, even with attestation or terminal results;
+unknown executions require explicit `assume_stopped`. All stopped executions
+need no execution attestation, but coordinator safeguards still apply.
+Each execution includes source, observation time, reason and scope; SSH
+verification is unsupported and unknown. Only established never-launched units
 need no execution attestation. Without it, repair refuses rather than
 silently releasing. Incomplete summaries only release to collecting, with
 an explanation; malformed/unreadable repair records are errors.

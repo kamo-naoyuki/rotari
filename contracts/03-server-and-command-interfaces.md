@@ -150,9 +150,11 @@ does not promise to detect a lost remote client.
 - **CLI-21** `info` reports the resolved master directory, base directory,
   selected project (marking it when not yet created) or available choices,
   visible config files, supervisors, run locks, and active or
-  interrupted runs. For unfinished attempts, it best-effort checks the local
-  process group for local-executor jobs; remote and other executor processes
-  are unverified, and this is not proof of process identity. Each run's inline
+  interrupted runs. Execution evidence uses the shared SAFE-16 assessment
+  for local and scheduler attempts, including terminal outcomes, earlier
+  attempts and carried origins. JSON exposes `execution_assessment` counts
+  and per-unit evidence; text prints counts and reasons separately from
+  recorded job outcomes. Each run's inline
   job counts include jobs with a recorded final result and carried results as
   `finished`, and those of them that failed also as `failed`; terminal
   attempts awaiting a retry and `pending` jobs, not yet dispatched, are counted as
@@ -163,11 +165,13 @@ does not promise to detect a lost remote client.
   its context: `live`, `stopped`, or `unknown`, with a reason and observation
   time. Only the same host and PID namespace can verify process identity;
   missing legacy identity or unavailable evidence is unknown. A management
-  completion marker is not proof of process death. This read-only assessment
-  does not change unlock policy or assess job termination. Its implementation
+  completion marker is not proof of process death. Coordinator assessment
+  implementation
   is shared in [`internal/project/coordinator.go`](../internal/project/coordinator.go),
   with evidence tests in
   [`internal/project/coordinator_test.go`](../internal/project/coordinator_test.go).
+  Execution assessment is shared with finalization repair, never silently
+  substituted for the recorded outcome or public run lifecycle.
   Human-readable output uses the standard CLI colors only on a
   terminal; JSON and redirected output remain plain. The implementation is in
   [`cmd/rotari/info.go`](../cmd/rotari/info.go), with CLI and non-mutation
