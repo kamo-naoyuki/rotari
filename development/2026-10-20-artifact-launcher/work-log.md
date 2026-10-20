@@ -35,3 +35,28 @@ Commits:
 - **Validation:** Documentation only; no tests run.
 - **Remaining:** Settle the two open review items before Phase 1; then the
   phases in the plan.
+
+## Unavailable-launch guidance and port ownership check
+
+Commit: `0f8a198d` (2026-10-20 14:48:03 +0900).
+
+- **Change:** Added a table to the plan's User flow listing each state in
+  which launching is unavailable (no `--allow-exec`, `--allow-control=false`,
+  no registered commands, no command for the target kind, static export) with
+  the explanation and enabling step to show. The server produces the text and
+  the start API returns the same reason. Added a port ownership check to
+  Service access: before readiness and on proxy reconnect, confirm that the
+  listening process belongs to the launch's process group, through `/proc` on
+  Linux and `lsof` (or `libproc`) on macOS. If the check cannot run, the launch
+  fails. Added matching acceptance items.
+- **Reason:** The user accepted `--allow-exec` as a required opt-in on the
+  condition that the Web UI tells them to add it and how. Linux and macOS are
+  both release platforms (`release.yml`), so the port check needs a real
+  implementation on each, not Linux only.
+- **Plan impact:** Resolved the port ownership open item. The
+  disabled-launch explanation follows the existing read-only hint ("restart
+  with --allow-control to enable job control"). Still open: whether
+  `--allow-exec` also requires an auth token on loopback listeners.
+- **Validation:** Documentation only; no tests run.
+- **Remaining:** Decide loopback authentication for `--allow-exec`; then the
+  plan phases.
