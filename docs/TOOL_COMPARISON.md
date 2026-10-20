@@ -3,7 +3,8 @@
 This note compares rotari first with the tools it most directly replaces:
 shell background jobs, GNU Parallel, pueue, task-spooler, submitit, and
 hand-written scheduler submissions. It then compares it with workflow
-engines, which are often mentioned alongside it but do a different job. The
+engines, which are often mentioned alongside it but do a different job, and
+with experiment trackers, which complement it. The
 first part is based on clones of
 [pueue](https://github.com/Nukesor/pueue) (2026-09-09),
 [task-spooler](https://github.com/justanhduc/task-spooler) (the GPU fork,
@@ -191,3 +192,50 @@ them:
   cron, and event triggers.
 - **Airflow, Prefect, or Dagster** for production pipelines that run on a
   schedule and need monitoring.
+
+## Experiment trackers
+
+Experiment trackers record what a training job measured: its parameters,
+metrics over time, and outputs such as models. The job's code logs to them
+through their library, and their UI compares runs. They answer "which
+settings gave the best result"; rotari answers "what ran, where, and what
+failed". Most of them do not run your commands, and rotari does not read
+metrics, so the two are used together rather than instead of each other.
+
+| | Records | How data gets there | Where data lives | Runs jobs itself |
+| --- | --- | --- | --- | --- |
+| [MLflow](https://mlflow.org/) | parameters, metrics, artifacts, models | the job's code calls its API, or autologging | a local file store or SQLite database, or a tracking server | `mlflow run` runs an MLflow Project; it has no queue of shell commands |
+| [Aim](https://aimstack.io/) | parameters, metrics, images, and other objects | the job's code calls its SDK or a framework integration | a local repository, optionally behind a tracking server | no |
+| [Weights & Biases](https://wandb.ai/) | parameters, metrics, artifacts, models | the job's code calls its SDK | a hosted service or a self-hosted server | `wandb agent` runs sweep trials the server hands out |
+| [ClearML](https://clear.ml/) | experiments, metrics, artifacts, models, datasets | the job's code calls its SDK, with automatic logging | a ClearML server, hosted or self-hosted | ClearML Agent runs queued tasks on workers |
+| [TensorBoard](https://www.tensorflow.org/tensorboard) | scalars, images, graphs, and other summaries | the job writes event files | event files on disk | no |
+| rotari | each job's command, status, attempts, logs, and artifact paths | rotari runs the job; no code changes | files in the basedir | yes: local, SSH, Slurm, PBS, LSF, SGE |
+
+How they fit together:
+
+- **Rotari runs, the tracker records.** A job started by rotari logs to the
+  tracker as it would anywhere else. Jobs receive `ROTARI_RUN_ID`,
+  `ROTARI_JOB_ID`, and `ROTARI_ATTEMPT_ID`; logging them as tracker tags, for
+  example `mlflow.set_tag("rotari_job", os.environ["ROTARI_JOB_ID"])`, links a
+  tracker run back to the job, its logs, and its other attempts.
+- **Open the tracker from rotari's Web UI.** With `rotari web --allow-exec`,
+  TensorBoard, MLflow, Aim, and Jupyter Lab are built-in launchers for a
+  job's artifacts, served through the Web UI's own port (see
+  [Built-in services](CONFIGURATION.md#built-in-services)). A tracker's store
+  must be an artifact candidate of the job to be offered; a store the
+  training code creates implicitly, such as MLflow's default `mlflow.db` in
+  the working directory, is not yet found (planned in
+  [development/2026-10-21-experiment-tracker-integration](https://github.com/kamo-naoyuki/rotari/blob/main/development/2026-10-21-experiment-tracker-integration/plan.md)).
+  Declare it with `rotari add --artifact mlflow.db` meanwhile.
+- **Sweeps.** Rotari's matrix and array jobs run parameter sweeps on any
+  backend and keep each trial's logs and status; the tracker compares their
+  results. W&B Sweeps and ClearML's agents instead decide trials themselves
+  and run them on their own workers, which suits search strategies such as
+  Bayesian optimization that choose the next trial from earlier results.
+- **Shared storage.** Many parallel jobs writing one SQLite database over a
+  network file system risk lock errors, since SQLite's locking is unreliable
+  there. A file store, a store per job, or a tracking server avoids it.
+
+Choose a tracker for comparing metrics and managing models; keep rotari for
+running the jobs that produce them. Consider ClearML's agents or W&B Sweeps
+instead of rotari when the tracker should also decide and dispatch the runs.
