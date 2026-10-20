@@ -327,7 +327,13 @@ responses.
    proxying over one forwarded port, readiness, process-group
    stop, and parent-death cleanup in isolated fixtures. Finalize runtime paths,
    resource bounds, the `launchers.toml` schema, and supported proxy
-   authorities.
+   authorities. Treat these as pass/fail gates before implementing the Web
+   proxy: a local process that wins the allocated-port race must never make a
+   launch appear ready or have its response proxied; forcibly killing the Web
+   process must clean up its launcher process groups; and the launcher file
+   must not be replaceable or writable by another OS user on supported
+   platforms. If any gate cannot be met, revise the service or configuration
+   design before proceeding.
 2. **Registration and command manager.** Implement `launchers.toml` loading and
    validation, `config --launchers`/`--list`, process ownership, command-mode
    start/list/log/stop, deduplication, and cleanup with unit tests.
@@ -366,6 +372,15 @@ its required shutdown or access protections as a temporary default.
 - Logs stream/page without unbounded memory/disk use; exit codes are accurate.
   Stop kills shell descendants, readiness timeout cleans up, and both graceful
   and abrupt parent-exit fixtures verify process cleanup.
+- A local process that binds the allocated service port first and returns a
+  successful readiness response is never shown as **Open**, and its response
+  is never served by the Rotari proxy. The check must cover the launcher still
+  being alive during the probe, not only the case where it has already exited.
+- On supported platforms, forcibly terminating the Web process cleans up its
+  launcher process groups. The `launchers.toml` file (including its resolved
+  target when symlinks are involved) cannot be replaced or written by another
+  OS user; reject unsafe ownership or permissions, or document a narrower
+  supported configuration model with an explicit reason.
 - Disabled execution, read-only mode, static export, bad auth, cross-origin and
   invalid Host requests cannot start or stop commands.
 - With `--allow-exec`, a loopback server without a configured token generates
