@@ -372,9 +372,9 @@ Usage: `rotari show [SELECTOR]`
 | `--queue` | `` | `ROTARI_SHOW_QUEUE` | show the current queue even when a run is selected |
 | `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | job ID |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | job name |
-| `--failed` | `` | `ROTARI_SHOW_FAILED` | show failed jobs; may be combined with the other result filters |
-| `--unfinished` | `` | `ROTARI_SHOW_UNFINISHED` | show unfinished jobs; may be combined with the other result filters |
-| `--success` | `` | `ROTARI_SHOW_SUCCESS` | show successful jobs; may be combined with the other result filters |
+| `--failed` | `` | `ROTARI_SHOW_FAILED` | short form of --filter-failed |
+| `--unfinished` | `` | `ROTARI_SHOW_UNFINISHED` | short form of --filter-unfinished |
+| `--success` | `` | `ROTARI_SHOW_SUCCESS` | short form of --filter-success |
 | `--stage` | `NAME` | `ROTARI_SHOW_STAGE` | show jobs in this stage only |
 | `--matrix` | `NAME` | `ROTARI_SHOW_MATRIX` | show jobs of this matrix only, named by its base job name |
 | `--logs` | `` | `ROTARI_SHOW_LOGS` | print output logs for all jobs |
@@ -387,7 +387,9 @@ Usage: `rotari show [SELECTOR]`
 | `--report` | `` | `ROTARI_SHOW_REPORT` | print a Markdown report: notes, a job table, and each job's evidence |
 | `--artifacts` | `` | `ROTARI_SHOW_ARTIFACTS` | list every artifact candidate of one job attempt instead of its logs |
 | `--wide` | `` | `ROTARI_SHOW_WIDE` | print the run or queue table in full: attempt IDs, submit times, expanded dependencies, whole commands, and the columns that are the same for every job |
-| `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `--filter-failed` | `` | `CLI only` | select jobs with a failed result |
+| `--filter-unfinished` | `` | `CLI only` | select jobs without a finished result |
+| `--filter-success` | `` | `CLI only` | select jobs with a successful result |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
@@ -444,9 +446,25 @@ Usage: `rotari jobs [PROJECT]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `--format` | `FORMAT` | `ROTARI_JOBS_FORMAT` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
-| `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; use 0 for running jobs only |
+| `--since` | `DURATION` | `ROTARI_JOBS_SINCE` | include jobs finished within this duration (default 1d), such as 24h or 7d; unfinished jobs are always included |
 | `--json` | `` | `ROTARI_JOBS_JSON` | print machine-readable JSON; not with --format |
 | `--wide` | `` | `ROTARI_JOBS_WIDE` | add job names and elapsed times to the default fields, keep the time zone, (recorded), and the project and state directory columns even when every job shares them, and print whole state directories and commands; not with --format or --json |
+| `--filter-failed` | `` | `CLI only` | select jobs with a failed result |
+| `--filter-unfinished` | `` | `CLI only` | select jobs without a finished result |
+| `--filter-success` | `` | `CLI only` | select jobs with a successful result |
+| `--failed` | `` | `CLI only` | short form of --filter-failed |
+| `--unfinished` | `` | `CLI only` | short form of --filter-unfinished |
+| `--success` | `` | `CLI only` | short form of --filter-success |
+| `--filter-running` | `` | `CLI only` | select jobs in the running state |
+| `--running` | `` | `CLI only` | short form of --filter-running |
+| `--filter-waiting` | `` | `CLI only` | select jobs in the waiting state |
+| `--waiting` | `` | `CLI only` | short form of --filter-waiting |
+| `--filter-suspended` | `` | `CLI only` | select jobs in the suspended state |
+| `--suspended` | `` | `CLI only` | short form of --filter-suspended |
+| `--filter-pending` | `` | `CLI only` | select jobs in the pending state |
+| `--pending` | `` | `CLI only` | short form of --filter-pending |
+| `--filter-unknown` | `` | `CLI only` | select jobs in the unknown state |
+| `--unknown` | `` | `CLI only` | short form of --filter-unknown |
 
 ### `rotari wait`
 
@@ -516,9 +534,9 @@ Usage: `rotari copy [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | source run ID; defaults to the latest run |
 | `--to-project` | `NAME` | `CLI only` | copy into this project's queue instead, creating the project if needed; the copied jobs are unfinished there |
-| `--failed` | `` | `ROTARI_COPY_FAILED` | include failed jobs; may be combined with result filters |
-| `--unfinished` | `` | `ROTARI_COPY_UNFINISHED` | include unfinished jobs; may be combined with result filters |
-| `--success` | `` | `ROTARI_COPY_SUCCESS` | include successful jobs; may be combined with result filters |
+| `--failed` | `` | `ROTARI_COPY_FAILED` | short form of --filter-failed |
+| `--unfinished` | `` | `ROTARI_COPY_UNFINISHED` | short form of --filter-unfinished |
+| `--success` | `` | `ROTARI_COPY_SUCCESS` | short form of --filter-success |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | copy a job; may be repeated |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | copy a job by name |
 | `--stage` | `STAGE` | `ROTARI_COPY_STAGE` | only copy jobs in this stage, narrowed by any result filter |
@@ -526,7 +544,9 @@ Usage: `rotari copy [RUN_ID]`
 | `--append` | `` | `ROTARI_COPY_APPEND` | append to a non-empty queue |
 | `--overwrite` | `` | `ROTARI_COPY_OVERWRITE` | replace a non-empty queue |
 | `--quiet` | `` | `ROTARI_COPY_QUIET` | suppress success output |
-| `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `--filter-failed` | `` | `CLI only` | select jobs with a failed result |
+| `--filter-unfinished` | `` | `CLI only` | select jobs without a finished result |
+| `--filter-success` | `` | `CLI only` | select jobs with a successful result |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
@@ -564,9 +584,9 @@ Usage: `rotari run [RUN_ID]`
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
-| `--failed` | `` | `ROTARI_RUN_FAILED` | only execute failed jobs; others carry forward their previous result |
-| `--unfinished` | `` | `ROTARI_RUN_UNFINISHED` | only execute unfinished jobs; others carry forward their previous result |
-| `--success` | `` | `ROTARI_RUN_SUCCESS` | only execute successful jobs; others carry forward their previous result |
+| `--failed` | `` | `ROTARI_RUN_FAILED` | short form of --filter-failed; only execute failed jobs, others carry forward their previous result |
+| `--unfinished` | `` | `ROTARI_RUN_UNFINISHED` | short form of --filter-unfinished; only execute unfinished jobs, others carry forward their previous result |
+| `--success` | `` | `ROTARI_RUN_SUCCESS` | short form of --filter-success; only execute successful jobs, others carry forward their previous result |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished; may be repeated; not with a result filter; others carry forward their previous result |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | only execute this job by name |
 | `--stage` | `STAGE` | `ROTARI_RUN_STAGE` | only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result |
@@ -597,7 +617,9 @@ Usage: `rotari run [RUN_ID]`
 | `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
 | `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
 | `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
-| `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `--filter-failed` | `` | `CLI only` | select jobs with a failed result |
+| `--filter-unfinished` | `` | `CLI only` | select jobs without a finished result |
+| `--filter-success` | `` | `CLI only` | select jobs with a successful result |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
@@ -670,7 +692,9 @@ Usage: `rotari retry [RUN_ID]`
 | `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
 | `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
 | `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
-| `--filter-result` | `RESULT (repeatable)` | `CLI only` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `--filter-failed` | `` | `CLI only` | select jobs with a failed result |
+| `--filter-unfinished` | `` | `CLI only` | select jobs without a finished result |
+| `--filter-success` | `` | `CLI only` | select jobs with a successful result |
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |

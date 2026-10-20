@@ -23,16 +23,16 @@ func parseJobFilterOptions(t *testing.T, command string, args ...string) (*jobFi
 	return options, cliParse(fs, args)
 }
 
-func TestFilterResultCombinesWithShortForms(t *testing.T) {
-	options, err := parseJobFilterOptions(t, "run", "--failed", "--filter-result", "unfinished")
+func TestNamedResultFiltersCombineWithShortForms(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "run", "--failed", "--filter-unfinished")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := options.resultSelection(); got != "failed,unfinished" {
 		t.Fatalf("resultSelection() = %q, want failed,unfinished", got)
 	}
-	if _, err := parseJobFilterOptions(t, "run", "--filter-result", "broken"); err == nil || !strings.Contains(err.Error(), `invalid choice "broken"`) {
-		t.Fatalf("--filter-result broken error = %v", err)
+	if _, err := parseJobFilterOptions(t, "run", "--filter-result", "failed"); err == nil {
+		t.Fatal("removed --filter-result option was accepted")
 	}
 }
 
@@ -183,13 +183,16 @@ func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
 	if !found {
 		t.Fatalf("help has no Filters heading:\n%s", help)
 	}
-	if strings.Contains(general, "--filter-") || !strings.Contains(general, "--basedir") || !strings.Contains(general, "--stage") {
+	if strings.Contains(general, "\n  --filter-") || !strings.Contains(general, "--basedir") || !strings.Contains(general, "--stage") {
 		t.Fatalf("general options = %q, want every option except --filter-*", general)
 	}
-	for _, name := range []string{"--filter-result", "--filter-stage", "--filter-command", "--filter-not-stage", "--filter-matrix", "--filter-not-matrix"} {
+	for _, name := range []string{"--filter-failed", "--filter-unfinished", "--filter-success", "--filter-stage", "--filter-command", "--filter-not-stage", "--filter-matrix", "--filter-not-matrix"} {
 		if !strings.Contains(filters, name) {
 			t.Fatalf("filters = %q, want %s", filters, name)
 		}
+	}
+	if strings.Contains(filters, "--filter-result") {
+		t.Fatalf("Filters still lists removed generic result selector:\n%s", filters)
 	}
 }
 

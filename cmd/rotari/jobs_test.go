@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -297,6 +298,38 @@ func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFilterJobsSharesResultSelectionAndMatchesNamedStates(t *testing.T) {
+	fs := flag.NewFlagSet("jobs", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	results := cliJobResultOptions(fs)
+	states := cliJobsStateOptions(fs)
+	if err := cliParse(fs, []string{"--filter-unfinished", "--running"}); err != nil {
+		t.Fatal(err)
+	}
+	rows := []joblist.Row{
+		{JobID: "running", State: "running (recorded)"},
+		{JobID: "waiting", State: "waiting (recorded)"},
+		{JobID: "failed", State: "failed"},
+		{JobID: "success", State: "success (accepted) (carried)"},
+	}
+	filtered := filterJobs(rows, results.selection(), states)
+	if len(filtered) != 1 || filtered[0].JobID != "running" {
+		t.Fatalf("filtered jobs = %#v, want only running unfinished job", filtered)
+	}
+
+	fs = flag.NewFlagSet("jobs", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	results = cliJobResultOptions(fs)
+	states = cliJobsStateOptions(fs)
+	if err := cliParse(fs, []string{"--failed"}); err != nil {
+		t.Fatal(err)
+	}
+	filtered = filterJobs(rows, results.selection(), states)
+	if len(filtered) != 1 || filtered[0].JobID != "failed" {
+		t.Fatalf("short result filter = %#v, want only failed job", filtered)
 	}
 }
 

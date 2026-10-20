@@ -18,7 +18,109 @@ import (
 // lists these options under their own heading.
 const filterFlagPrefix = "filter-"
 
-var resultFilterValues = []string{"failed", "unfinished", "success"}
+type jobResultOptions struct {
+	failed, unfinished, success                   *bool
+	filterFailed, filterUnfinished, filterSuccess *bool
+}
+
+func jobResultFilterSpecs() []cliFlagSpec {
+	return []cliFlagSpec{
+		{Name: "filter-failed", Description: "select jobs with a failed result", CommandLineOnly: true},
+		{Name: "filter-unfinished", Description: "select jobs without a finished result", CommandLineOnly: true},
+		{Name: "filter-success", Description: "select jobs with a successful result", CommandLineOnly: true},
+	}
+}
+
+func jobsCommandFlags() []cliFlagSpec {
+	flags := append(commonCLIFlags(),
+		cliFlagSpec{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
+		cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)", ValueName: "FORMAT"},
+		cliFlagSpec{Name: "since", Description: "include jobs finished within this duration (default 1d), such as 24h or 7d; unfinished jobs are always included", ValueName: "DURATION"},
+		cliFlagSpec{Name: "json", Description: "print machine-readable JSON; not with --format"},
+		cliFlagSpec{Name: "wide", Description: "add job names and elapsed times to the default fields, keep the time zone, (recorded), and the project and state directory columns even when every job shares them, and print whole state directories and commands; not with --format or --json"},
+	)
+	flags = append(flags, jobResultFilterSpecs()...)
+	flags = append(flags, jobResultShortFlagSpecs()...)
+	flags = append(flags, jobStateFilterSpecs()...)
+	return flags
+}
+
+func jobResultShortFlagSpecs() []cliFlagSpec {
+	return []cliFlagSpec{
+		{Name: "failed", Description: "short form of --filter-failed", CommandLineOnly: true},
+		{Name: "unfinished", Description: "short form of --filter-unfinished", CommandLineOnly: true},
+		{Name: "success", Description: "short form of --filter-success", CommandLineOnly: true},
+	}
+}
+
+var jobsStateFilterValues = []string{"running", "waiting", "suspended", "pending", "unknown"}
+
+func jobStateFilterSpecs() []cliFlagSpec {
+	specs := make([]cliFlagSpec, 0, len(jobsStateFilterValues)*2)
+	for _, state := range jobsStateFilterValues {
+		specs = append(specs,
+			cliFlagSpec{Name: "filter-" + state, Description: "select jobs in the " + state + " state", CommandLineOnly: true},
+			cliFlagSpec{Name: state, Description: "short form of --filter-" + state, CommandLineOnly: true},
+		)
+	}
+	return specs
+}
+
+func cliJobResultOptions(fs *flag.FlagSet) jobResultOptions {
+	return jobResultOptions{
+		failed:           cliBool(fs, "failed", false),
+		unfinished:       cliBool(fs, "unfinished", false),
+		success:          cliBool(fs, "success", false),
+		filterFailed:     cliBool(fs, "filter-failed", false),
+		filterUnfinished: cliBool(fs, "filter-unfinished", false),
+		filterSuccess:    cliBool(fs, "filter-success", false),
+	}
+}
+
+type jobsStateOptions struct {
+	flags map[string]stateFlagPair
+}
+
+type stateFlagPair struct {
+	filter *bool
+	short  *bool
+}
+
+func cliJobsStateOptions(fs *flag.FlagSet) jobsStateOptions {
+	options := jobsStateOptions{flags: make(map[string]stateFlagPair, len(jobsStateFilterValues))}
+	for _, state := range jobsStateFilterValues {
+		options.flags[state] = stateFlagPair{
+			filter: cliBool(fs, "filter-"+state, false),
+			short:  cliBool(fs, state, false),
+		}
+	}
+	return options
+}
+
+func (options jobsStateOptions) selected(state string) bool {
+	flags := options.flags[state]
+	return flags.filter != nil && *flags.filter || flags.short != nil && *flags.short
+}
+
+func (options jobsStateOptions) anySelected() bool {
+	for _, state := range jobsStateFilterValues {
+		if options.selected(state) {
+			return true
+		}
+	}
+	return false
+}
+
+func (options jobResultOptions) selection() string {
+	failed, unfinished, success := options.filters()
+	return model.ResultSelection(failed, unfinished, success)
+}
+
+func (options jobResultOptions) filters() (failed, unfinished, success bool) {
+	return (options.failed != nil && *options.failed) || (options.filterFailed != nil && *options.filterFailed),
+		(options.unfinished != nil && *options.unfinished) || (options.filterUnfinished != nil && *options.filterUnfinished),
+		(options.success != nil && *options.success) || (options.filterSuccess != nil && *options.filterSuccess)
+}
 
 // jobFilterSet names which filters a command accepts.
 type jobFilterSet int
@@ -50,8 +152,8 @@ func (set jobFilterSet) execution() bool {
 func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 	var specs []cliFlagSpec
 	if set.results() {
+		specs = append(specs, jobResultFilterSpecs()...)
 		specs = append(specs,
-			cliFlagSpec{Name: "filter-result", Description: "select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms", ValueName: "RESULT", Values: resultFilterValues, Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated", ValueName: "KIND", Values: model.FailureKindValues(), Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
@@ -94,8 +196,7 @@ func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 // jobFilterOptions holds the parsed result filters, scope, and --filter-*
 // options of a command.
 type jobFilterOptions struct {
-	failed, unfinished, success   *bool
-	results                       cliChoiceList
+	results                       jobResultOptions
 	stage, filterStage            *string
 	matrix, filterMatrix          *string
 	command                       *string
@@ -115,11 +216,7 @@ type jobFilterOptions struct {
 func cliJobFilterOptions(fs *flag.FlagSet, set jobFilterSet) *jobFilterOptions {
 	options := &jobFilterOptions{}
 	if set.results() {
-		options.failed = cliBool(fs, "failed", false)
-		options.unfinished = cliBool(fs, "unfinished", false)
-		options.success = cliBool(fs, "success", false)
-		options.results.choices = resultFilterValues
-		cliValue(fs, &options.results, "filter-result")
+		options.results = cliJobResultOptions(fs)
 		options.exitCodes = new(intSliceFlag)
 		fs.Var(options.exitCodes, "filter-exit-code", "select jobs with this exit code; may be repeated")
 		options.failureKinds = new(failureKindFlag)
@@ -158,17 +255,12 @@ func cliJobFilterOptions(fs *flag.FlagSet, set jobFilterSet) *jobFilterOptions {
 
 // resultFilters reports which results the result filters select.
 func (options *jobFilterOptions) resultFilters() (failed, unfinished, success bool) {
-	if options.failed == nil {
-		return false, false, false
-	}
-	return *options.failed || slices.Contains(options.results.values, "failed"),
-		*options.unfinished || slices.Contains(options.results.values, "unfinished"),
-		*options.success || slices.Contains(options.results.values, "success")
+	return options.results.filters()
 }
 
 // resultSelection returns the result selection; see model.ResultSelection.
 func (options *jobFilterOptions) resultSelection() string {
-	return model.ResultSelection(options.resultFilters())
+	return options.results.selection()
 }
 
 // scope returns the stage or matrix given by --stage, --matrix, or their

@@ -253,9 +253,23 @@ does not promise to detect a lost remote client.
   `since`, takes a Go duration such as `24h` or `90m`, or a whole number of
   days such as `7d`; anything else is rejected. The CLI commands default to
   `1d`; running jobs and active or interrupted runs are included regardless of
-  age. All three interfaces parse it with
+  age. `jobs --since 0` keeps unfinished jobs and excludes finished history;
+  use `--running` or `--filter-running` to select only running-state jobs.
+  All three interfaces parse it with
   `joblist.ParseSince` in [`internal/joblist/joblist.go`](../internal/joblist/joblist.go),
   with the end-to-end check in
+  [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
+- **CLI-27** Result filters have discoverable named options:
+  `--filter-failed`, `--filter-unfinished`, and `--filter-success`, with
+  `--failed`, `--unfinished`, and `--success` as short forms. `jobs` also has
+  named execution-state options such as `--filter-running` (`--running`).
+  Result filters combine with each other using OR; for `jobs`, result and
+  state filters combine using AND across the two dimensions. CLI metadata
+  drives help, schema, and shell completion. Result selection is shared
+  through `jobResultOptions` and `jobfilter.Filter.Selects`; state matching
+  for `jobs` filters the collected `joblist.Row` projection. Covered by
+  [`cmd/rotari/job_filter_flags_test.go`](../cmd/rotari/job_filter_flags_test.go),
+  [`cmd/rotari/jobs_test.go`](../cmd/rotari/jobs_test.go), and
   [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
 - **CLI-7** The commands that change a project's queue or run history
   (`add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`) take

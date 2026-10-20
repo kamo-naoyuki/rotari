@@ -913,13 +913,13 @@
           "name": "wide"
         },
         {
-          "name": "filter-result",
-          "value_name": "RESULT",
-          "values": [
-            "failed",
-            "unfinished",
-            "success"
-          ]
+          "name": "filter-failed"
+        },
+        {
+          "name": "filter-unfinished"
+        },
+        {
+          "name": "filter-success"
         },
         {
           "name": "filter-exit-code",
@@ -1072,6 +1072,54 @@
         },
         {
           "name": "wide"
+        },
+        {
+          "name": "filter-failed"
+        },
+        {
+          "name": "filter-unfinished"
+        },
+        {
+          "name": "filter-success"
+        },
+        {
+          "name": "failed"
+        },
+        {
+          "name": "unfinished"
+        },
+        {
+          "name": "success"
+        },
+        {
+          "name": "filter-running"
+        },
+        {
+          "name": "running"
+        },
+        {
+          "name": "filter-waiting"
+        },
+        {
+          "name": "waiting"
+        },
+        {
+          "name": "filter-suspended"
+        },
+        {
+          "name": "suspended"
+        },
+        {
+          "name": "filter-pending"
+        },
+        {
+          "name": "pending"
+        },
+        {
+          "name": "filter-unknown"
+        },
+        {
+          "name": "unknown"
         }
       ],
       "name": "jobs"
@@ -1315,13 +1363,13 @@
           "name": "quiet"
         },
         {
-          "name": "filter-result",
-          "value_name": "RESULT",
-          "values": [
-            "failed",
-            "unfinished",
-            "success"
-          ]
+          "name": "filter-failed"
+        },
+        {
+          "name": "filter-unfinished"
+        },
+        {
+          "name": "filter-success"
         },
         {
           "name": "filter-exit-code",
@@ -1600,13 +1648,13 @@
           "value_name": "N"
         },
         {
-          "name": "filter-result",
-          "value_name": "RESULT",
-          "values": [
-            "failed",
-            "unfinished",
-            "success"
-          ]
+          "name": "filter-failed"
+        },
+        {
+          "name": "filter-unfinished"
+        },
+        {
+          "name": "filter-success"
         },
         {
           "name": "filter-exit-code",
@@ -1891,13 +1939,13 @@
           "value_name": "N"
         },
         {
-          "name": "filter-result",
-          "value_name": "RESULT",
-          "values": [
-            "failed",
-            "unfinished",
-            "success"
-          ]
+          "name": "filter-failed"
+        },
+        {
+          "name": "filter-unfinished"
+        },
+        {
+          "name": "filter-success"
         },
         {
           "name": "filter-exit-code",

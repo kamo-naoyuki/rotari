@@ -38,15 +38,15 @@ var pairInventory = map[string]struct {
 	"export":     {7, "36180bb4d09c2f4f"},
 	"import":     {7, "32eb87a68c1692c7"},
 	"remove":     {17, "83215b4518cebafa"},
-	"show":       {40, "a4009f7efa15df10"},
+	"show":       {42, "558c40dd7be58e35"},
 	"lineage":    {4, "03f8539f8880af76"},
-	"jobs":       {8, "b5cda57b21095ca9"},
+	"jobs":       {24, "11236a65e2e34346"},
 	"runs":       {6, "822476cb56a884e4"},
 	"wait":       {10, "09b2d9361b6f5850"},
 	"add":        {27, "804acd7f5887f012"},
-	"copy":       {33, "7b6f514c217bb197"},
-	"run":        {64, "e9941bdbf2345490"},
-	"retry":      {64, "e9941bdbf2345490"},
+	"copy":       {35, "e0c9bc79b78fcf38"},
+	"run":        {66, "94f05a64ef869384"},
+	"retry":      {66, "94f05a64ef869384"},
 	"server":     {3, "1bc5f18bd9dd276d"},
 	"web":        {10, "db8a2826bc39f7f8"},
 	"mcp":        {2, "c90df8ffe2985354"},
@@ -220,7 +220,7 @@ type pairEquivalence struct{ mode, selector, reason string }
 // equality, rejection, or robustness checks, only baseline-effect detection.
 var pairEquivalences = []pairEquivalence{
 	{"failed-logs", "failed", "--failed-logs already selects failed jobs (docs/INSPECT.md); --failed is redundant"},
-	{"failed-logs", "filter-result", "sample is failed: the documented long form of --failed is redundant with --failed-logs"},
+	{"failed-logs", "filter-failed", "sample is failed: selecting failed jobs is redundant with --failed-logs"},
 }
 
 func TestCLIFlagPairObservability(t *testing.T) {
@@ -343,13 +343,13 @@ func TestCLIFlagPairSamples(t *testing.T) {
 			})
 		}
 	}
-	for _, name := range []string{"filter-result", "filter-exit-code"} {
+	for _, name := range []string{"filter-failed", "filter-exit-code"} {
 		t.Run("show/repeated-"+name, func(t *testing.T) {
-			values := []string{"7", "9"}
-			if name == "filter-result" {
-				values = []string{"failed", "success"}
+			if name == "filter-failed" {
+				assertPairOutcome(t, pairInvoke(t, f.e, "show", "--filter-failed", "--filter-success"))
+				return
 			}
-			assertPairOutcome(t, pairInvoke(t, f.e, "show", "--"+name, values[0], "--"+name, values[1]))
+			assertPairOutcome(t, pairInvoke(t, f.e, "show", "--"+name, "7", "--"+name, "9"))
 		})
 	}
 }

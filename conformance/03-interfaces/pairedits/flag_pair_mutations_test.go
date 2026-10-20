@@ -118,7 +118,7 @@ func pairEditSample(t *testing.T, f pairMutationFixture, command string, flag pa
 		"retry-delay": "5s", "retry-backoff": "2", "retry-max-delay": "1m",
 		"array": "4-6", "set-job-name": "renamed-pair", "status": "failed",
 		"format": "json", "run-name": "pair-copy", "overwrite": "true", "partial-array": "false",
-		"filter-exit-code": "3", "filter-failure-kind": "error", "filter-result": "failed",
+		"filter-exit-code": "3", "filter-failure-kind": "error", "filter-failed": "",
 		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*",
 		"filter-started-after": "2000-01-01T00:00:00Z", "filter-started-before": "2000-01-01T00:00:00Z",
 		"filter-finished-after": "2000-01-01T00:00:00Z", "filter-finished-before": "2000-01-01T00:00:00Z",

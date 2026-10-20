@@ -682,7 +682,7 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 
 	for _, options := range [][]string{
 		{"--failed-logs"}, {"--logs", "--failed"}, {"--failed", "--logs"},
-		{"--logs", "--filter-result", "failed"}, {"--filter-result", "failed", "--logs"},
+		{"--logs", "--filter-failed"}, {"--filter-failed", "--logs"},
 	} {
 		t.Run(strings.Join(options, " "), func(t *testing.T) {
 			var output bytes.Buffer

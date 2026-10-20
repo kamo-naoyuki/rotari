@@ -51,7 +51,10 @@ Covered by the "complete" rows of `TestPositionalArguments` in
 | Job name | `--job-name NAME` | a named command |
 | Array task name | `NAME[2]` | one task of a named array command |
 | Group | `--stage STAGE`, `--matrix NAME`, `--all` | every command of a stage, of a matrix (by base job name), or of the queue |
-| Result filter | `--failed`, `--unfinished`, `--success` | jobs by their result in the reference run || Filter | `--filter-*` | narrows a result filter or a group; see [Filters](#filters) || Run name | positional `NAME` of `show` and `wait` | a run by its `--run-name` label |
+| Result filter | `--filter-failed`, `--filter-unfinished`, `--filter-success` | jobs by their result in the reference run |
+| Short result form | `--failed`, `--unfinished`, `--success` | short forms of the named result filters |
+| Filter | `--filter-*` | narrows a result filter or a group; see [Filters](#filters) |
+| Run name | positional `NAME` of `show` and `wait` | a run by its `--run-name` label |
 
 A command, not a task, is the unit of queue edits: an array command is
 selected as a whole by its job ID or name. Commands that act on results or
@@ -150,7 +153,7 @@ combine:
 | Kind | Options | Combination |
 | --- | --- | --- |
 | Direct | `--job-id` (job, task, or attempt ID), `--job-name`, positional job IDs | the named jobs, and nothing else |
-| Result filter | `--failed`, `--unfinished`, `--success`, `--filter-result` | with each other: any of them (OR) |
+| Result filter | `--filter-failed`, `--filter-unfinished`, `--filter-success`, `--failed`, `--unfinished`, `--success` | with each other: any of them (OR) |
 | Scope | `--stage`, `--matrix`, `--filter-stage`, `--filter-matrix` | narrows a result filter (AND); alone, every job in it |
 | Filter | `--filter-not-stage`, `--filter-not-matrix` | narrows a result filter and a scope (AND); alone, every job it keeps |
 
@@ -161,7 +164,7 @@ exception: naming a job already says what to execute, so a result filter or a
 scope on top of it could only drop the job again, and combining them is an
 error rather than an intersection.
 
-`retry` is therefore not an alias of `run --failed --unfinished`. As an alias,
+`retry` is therefore not an alias of `run --filter-failed --filter-unfinished`. As an alias,
 `retry -j ID` would expand to a direct selector with a result filter and be
 rejected. Instead `--failed --unfinished` is `retry`'s default, used only when
 neither a result filter nor a direct selector is given: `retry -j ID` runs only
@@ -204,10 +207,10 @@ hold:
 
 ### Filters
 
-Every option that filters jobs is named `--filter-*`, so filters are told
-apart from other options at a glance and never collide with a job setting of
-the same name. `show`, `copy`, `run`, and `retry` list them under their own
-heading in `--help`. `change` and `remove` take only the definition filters
+Each result filter has a discoverable `--filter-*` option and a shorter
+`--failed`/`--unfinished`/`--success` form. `show`, `copy`, `run`, and `retry`
+list filters under their own heading in `--help`. `change` and `remove` take
+only the definition filters
 (`--filter-command`, `--filter-stage`, `--filter-matrix`, and their
 `--filter-not-*` forms); `--filter-changed` and `--filter-new` are taken by
 `show`, `run`, and `retry` only. `show --json` keeps the jobs that its job
@@ -215,18 +218,28 @@ table keeps for `--failed`, in the run's summary results and in a job or
 array view's jobs.
 
 For run-wide log output, `show --logs --failed` and
-`show --logs --filter-result failed` select the same failed jobs as
+`show --logs --filter-failed` select the same failed jobs as
 `show --failed-logs`, including carried output. Other result selections are
 rejected with log output. The CLI forwards the parsed failed selection to the
 existing log selector in [cmd/rotari/show.go](../cmd/rotari/show.go); the
 external check is
 [conformance/03-interfaces/log_selection_test.go](../conformance/03-interfaces/log_selection_test.go).
 
+`jobs` accepts the named result filters and named execution-state filters:
+`--filter-running`, `--filter-waiting`, `--filter-suspended`,
+`--filter-pending`, and `--filter-unknown`, each with a shorter alias such as
+`--running`. Result filters combine with OR, state filters combine with OR,
+and specifying both dimensions narrows by both. Annotations such as
+`(recorded)` do not change the state matched.
+
 **SEL-11** The `--filter-*` options select jobs as follows:
 
-- `--filter-result RESULT` (`failed`, `unfinished`, or `success`) is the
-  long form of `--failed`, `--unfinished`, and `--success`; repeated, and
-  together with them, the results combine with OR.
+- `--filter-failed`, `--filter-unfinished`, and `--filter-success` select
+  results; `--failed`, `--unfinished`, and `--success` are their short forms.
+  Result filters combine with OR.
+- `jobs`' named state filters select the displayed execution state; its
+  short forms, such as `--running`, select the same state. State filters
+  combine with OR, and result and state filters combine with AND.
 - `--filter-exit-code N` matches jobs whose resolved exit code equals N; repeated values combine with OR.
 - `--filter-failure-kind KIND` matches jobs whose result falls into one of the failure kinds (`timeout`, `cancelled`, `blocked`, `oom`, `signal`, `error`); repeated values combine with OR.
 - `--filter-diagnosis VALUE` recomputes the latest attempt's diagnosis with

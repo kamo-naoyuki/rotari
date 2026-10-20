@@ -215,7 +215,7 @@ func TestCLIFlagPairCopyObservability(t *testing.T) {
 	if len(want) == 0 || reflect.DeepEqual(want, failed) || reflect.DeepEqual(want, training) {
 		t.Fatal("copy fixture cannot distinguish stage and result selection")
 	}
-	for _, flags := range [][]string{{"--stage", "training", "--failed"}, {"--failed", "--stage", "training"}, {"--filter-result", "failed", "--filter-stage", "training"}} {
+	for _, flags := range [][]string{{"--stage", "training", "--failed"}, {"--failed", "--stage", "training"}, {"--filter-failed", "--filter-stage", "training"}} {
 		got := pairCopyNames(t, f, flags...)
 		if !reflect.DeepEqual(got, want) || reflect.DeepEqual(got, all) {
 			t.Fatalf("copy %v selected %v, want %v", flags, got, want)

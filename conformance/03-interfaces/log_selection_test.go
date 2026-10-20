@@ -17,7 +17,7 @@ func TestShowLogResultSelection(t *testing.T) {
 		t.Fatalf("expected a failing retry: %s", result)
 	}
 	for _, view := range []string{run.RunID, "latest"} {
-		for _, selection := range [][]string{{"--failed"}, {"--filter-result", "failed"}} {
+		for _, selection := range [][]string{{"--failed"}, {"--filter-failed"}} {
 			for _, mode := range []string{"--logs", "--failed-logs"} {
 				t.Run(view+"/"+mode+"/"+strings.Join(selection, " "), func(t *testing.T) {
 					args := []string{"show", "-p", run.Project, "--run-id", view, "--no-pager", mode}

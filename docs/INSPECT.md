@@ -96,6 +96,17 @@ runs, are always included. Their job states are persisted observations: for exam
 of those runs that rotari has not dispatched yet are listed as `pending`, with
 `-` for the attempt ID, right after the newest row of their run.
 
+Use the named filters to narrow `jobs` by result or execution state. For
+example, `--running` shows running jobs, while `--filter-failed` shows failed
+jobs; `--filter-running` and `--failed` are equivalent long and short forms.
+Filters in the same group are combined with OR, while a result filter and a
+state filter together narrow the listing with AND:
+
+```sh
+rotari jobs --running
+rotari jobs --filter-failed --filter-running
+```
+
 ```sh
 rotari jobs --since 7d
 rotari runs --since 7d
@@ -218,7 +229,7 @@ rotari show -p sweep --job-id JOB_ID --stream stdout --follow
 rotari show -p sweep --logs --tail 1 # each job's last line, such as a final metric
 ```
 
-`show --logs --failed` (or `--logs --filter-result failed`) selects the same
+`show --logs --failed` (or `--logs --filter-failed`) selects the same
 failed jobs as `--failed-logs`, including output carried from an older run.
 Jobs are listed in the order the run defines them, so the members of a matrix
 and the tasks of an array stay together. `--tail N` prints only the last N

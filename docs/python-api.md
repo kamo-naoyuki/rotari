@@ -75,9 +75,9 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
-| `failed` | `bool` | only execute failed jobs; others carry forward their previous result |
-| `unfinished` | `bool` | only execute unfinished jobs; others carry forward their previous result |
-| `success` | `bool` | only execute successful jobs; others carry forward their previous result |
+| `failed` | `bool` | short form of --filter-failed; only execute failed jobs, others carry forward their previous result |
+| `unfinished` | `bool` | short form of --filter-unfinished; only execute unfinished jobs, others carry forward their previous result |
+| `success` | `bool` | short form of --filter-success; only execute successful jobs, others carry forward their previous result |
 | `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished; may be repeated; not with a result filter; others carry forward their previous result |
 | `job_name` | `str` | only execute this job by name |
 | `stage` | `str` | only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result |
@@ -108,7 +108,9 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
 | `sge_submit_interval` | `str` | minimum SGE submission interval |
 | `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `filter_failed` | `bool` | select jobs with a failed result |
+| `filter_unfinished` | `bool` | select jobs without a finished result |
+| `filter_success` | `bool` | select jobs with a successful result |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
@@ -181,7 +183,9 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
 | `sge_submit_interval` | `str` | minimum SGE submission interval |
 | `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `filter_failed` | `bool` | select jobs with a failed result |
+| `filter_unfinished` | `bool` | select jobs without a finished result |
+| `filter_success` | `bool` | select jobs with a successful result |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
@@ -250,9 +254,9 @@ Show details for a project, run, job, or attempt.
 | `queue` | `bool` | show the current queue even when a run is selected |
 | `job_ids` | `str` | job ID |
 | `job_name` | `str` | job name |
-| `failed` | `bool` | show failed jobs; may be combined with the other result filters |
-| `unfinished` | `bool` | show unfinished jobs; may be combined with the other result filters |
-| `success` | `bool` | show successful jobs; may be combined with the other result filters |
+| `failed` | `bool` | short form of --filter-failed |
+| `unfinished` | `bool` | short form of --filter-unfinished |
+| `success` | `bool` | short form of --filter-success |
 | `stage` | `str` | show jobs in this stage only |
 | `matrix` | `str` | show jobs of this matrix only, named by its base job name |
 | `logs` | `bool` | print output logs for all jobs |
@@ -264,7 +268,9 @@ Show details for a project, run, job, or attempt.
 | `report` | `bool` | print a Markdown report: notes, a job table, and each job's evidence |
 | `artifacts` | `bool` | list every artifact candidate of one job attempt instead of its logs |
 | `wide` | `bool` | print the run or queue table in full: attempt IDs, submit times, expanded dependencies, whole commands, and the columns that are the same for every job |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
+| `filter_failed` | `bool` | select jobs with a failed result |
+| `filter_unfinished` | `bool` | select jobs without a finished result |
+| `filter_success` | `bool` | select jobs with a successful result |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |

@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -35,6 +37,8 @@ func cmdJobs(args []string) int {
 	masterdir := cliString(fs, "masterdir", "")
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", joblist.DefaultSinceText)
+	results := cliJobResultOptions(fs)
+	states := cliJobsStateOptions(fs)
 	jsonOutput := cliBool(fs, "json", false)
 	wide := cliBool(fs, "wide", false)
 	if err := cliParse(fs, args); err != nil {
@@ -99,6 +103,7 @@ func cmdJobs(args []string) int {
 		printError(err)
 		return 1
 	}
+	rows = filterJobs(rows, results.selection(), states)
 	joblist.Sort(rows)
 	if *jsonOutput {
 		return printJobsJSON(rows)
@@ -113,7 +118,11 @@ func cmdJobs(args []string) int {
 		if projectFilter != "" {
 			scope = fmt.Sprintf("project %q in %s", projectFilter, scope)
 		}
-		fmt.Printf("No unfinished or recently finished jobs found in %s (finished within %s).\n", scope, *since)
+		if results.selection() != "" || states.anySelected() {
+			fmt.Printf("No jobs matched the requested filters in %s (finished within %s).\n", scope, *since)
+		} else {
+			fmt.Printf("No unfinished or recently finished jobs found in %s (finished within %s).\n", scope, *since)
+		}
 		return 0
 	}
 	if !customFormat && len(baseDirs) > 1 {
@@ -121,6 +130,40 @@ func cmdJobs(args []string) int {
 	}
 	printJobsTableFormat(rows, columns, !customFormat, *wide)
 	return 0
+}
+
+func filterJobs(rows []joblist.Row, resultSelection string, states jobsStateOptions) []joblist.Row {
+	filtered := make([]joblist.Row, 0, len(rows))
+	filter := jobfilter.Filter{}
+	filterStates := states.anySelected()
+	for _, row := range rows {
+		state := normalizedJobsState(row.State)
+		if filterStates && !states.selected(state) {
+			continue
+		}
+		if resultSelection != "" {
+			result := model.JobResult{}
+			finished := false
+			switch state {
+			case model.StatusSuccess:
+				finished = true
+			case model.StatusFailed, model.StatusCancelled, "blocked":
+				finished, result.ExitCode = true, 1
+			}
+			if !filter.Selects(resultSelection, jobfilter.Job{Result: result, Finished: finished}) {
+				continue
+			}
+		}
+		filtered = append(filtered, row)
+	}
+	return filtered
+}
+
+func normalizedJobsState(value string) string {
+	for _, annotation := range []string{" (recorded)", " (carried)", " (accepted)"} {
+		value = strings.TrimSuffix(value, annotation)
+	}
+	return value
 }
 
 // jobsJSON is one job of `jobs --json`, named like `runs --json`.

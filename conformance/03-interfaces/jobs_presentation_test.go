@@ -52,6 +52,64 @@ func TestJobsWindowAcceptsDays(t *testing.T) {
 	}
 }
 
+func TestJobsNamedResultFilters(t *testing.T) {
+	covers(t, "CLI-27")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	for _, test := range []struct {
+		name string
+		flag string
+		want string
+	}{
+		{"filter form", "--filter-failed", run.BadJob},
+		{"short form", "--failed", run.BadJob},
+		{"success", "--filter-success", run.OKJob},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			output := e.MustRotari("jobs", "--basedir", e.Base, run.Project, "--json", test.flag).Stdout
+			var jobs []struct {
+				JobID string `json:"job_id"`
+			}
+			if err := json.Unmarshal([]byte(output), &jobs); err != nil {
+				t.Fatalf("jobs JSON is invalid: %v\n%s", err, output)
+			}
+			if len(jobs) != 1 || jobs[0].JobID != test.want {
+				t.Fatalf("jobs %s = %+v, want only %s", test.flag, jobs, test.want)
+			}
+		})
+	}
+}
+
+func TestJobsFilterRunningState(t *testing.T) {
+	covers(t, "CLI-27")
+	e := support.NewEnv(t)
+	project := "live-jobs"
+	job := support.AddedJobID(t, e.MustRotari("add", "-p", project, "--job-name", "long", "--", "sh", "-c", "sleep 20"))
+	e.MustRotari("run", "-p", project, "--async")
+	t.Cleanup(func() { _ = e.Rotari("cancel", "-p", project, "--wait") })
+
+	for _, filter := range []string{"--running", "--filter-running"} {
+		t.Run(filter, func(t *testing.T) {
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				output := e.MustRotari("jobs", "--basedir", e.Base, project, "--json", filter).Stdout
+				var jobs []struct {
+					JobID string `json:"job_id"`
+					State string `json:"state"`
+				}
+				if err := json.Unmarshal([]byte(output), &jobs); err != nil {
+					t.Fatalf("jobs JSON is invalid: %v\n%s", err, output)
+				}
+				if len(jobs) == 1 && jobs[0].JobID == job && jobs[0].State == "running (recorded)" {
+					return
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+			t.Fatalf("jobs %s did not select the running job %q", filter, job)
+		})
+	}
+}
+
 func TestRunsWindowFiltersSettledHistoryButKeepsActiveRun(t *testing.T) {
 	covers(t, "CLI-6")
 	e := support.NewEnv(t)

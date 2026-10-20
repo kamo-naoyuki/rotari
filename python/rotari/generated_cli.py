@@ -1325,20 +1325,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "show failed jobs; may be combined with the "
-                    "other result filters",
+                    "description": "short form of --filter-failed",
                     "environment": "ROTARI_SHOW_FAILED",
                     "name": "failed",
                 },
                 {
-                    "description": "show unfinished jobs; may be combined with "
-                    "the other result filters",
+                    "description": "short form of --filter-unfinished",
                     "environment": "ROTARI_SHOW_UNFINISHED",
                     "name": "unfinished",
                 },
                 {
-                    "description": "show successful jobs; may be combined with "
-                    "the other result filters",
+                    "description": "short form of --filter-success",
                     "environment": "ROTARI_SHOW_SUCCESS",
                     "name": "success",
                 },
@@ -1417,13 +1414,18 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
-                    "description": "select jobs with this result; may be "
-                    "repeated; --failed, --unfinished, and "
-                    "--success are short forms",
-                    "name": "filter-result",
-                    "repeated": True,
-                    "value_name": "RESULT",
-                    "values": ["failed", "unfinished", "success"],
+                    "description": "select jobs with a failed result",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs without a finished result",
+                    "name": "filter-unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a successful result",
+                    "name": "filter-success",
                 },
                 {
                     "command_line_only": True,
@@ -1648,8 +1650,8 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "description": "include jobs finished within this duration "
-                    "(default 1d), such as 24h or 7d; use 0 for "
-                    "running jobs only",
+                    "(default 1d), such as 24h or 7d; unfinished "
+                    "jobs are always included",
                     "environment": "ROTARI_JOBS_SINCE",
                     "name": "since",
                     "value_name": "DURATION",
@@ -1668,6 +1670,86 @@ CLI_SCHEMA: dict[str, Any] = {
                     "commands; not with --format or --json",
                     "environment": "ROTARI_JOBS_WIDE",
                     "name": "wide",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a failed result",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs without a finished result",
+                    "name": "filter-unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a successful result",
+                    "name": "filter-success",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-failed",
+                    "name": "failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-unfinished",
+                    "name": "unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-success",
+                    "name": "success",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs in the running state",
+                    "name": "filter-running",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-running",
+                    "name": "running",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs in the waiting state",
+                    "name": "filter-waiting",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-waiting",
+                    "name": "waiting",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs in the suspended state",
+                    "name": "filter-suspended",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-suspended",
+                    "name": "suspended",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs in the pending state",
+                    "name": "filter-pending",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-pending",
+                    "name": "pending",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs in the unknown state",
+                    "name": "filter-unknown",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "short form of --filter-unknown",
+                    "name": "unknown",
                 },
             ],
             "name": "jobs",
@@ -2001,20 +2083,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "include failed jobs; may be combined with "
-                    "result filters",
+                    "description": "short form of --filter-failed",
                     "environment": "ROTARI_COPY_FAILED",
                     "name": "failed",
                 },
                 {
-                    "description": "include unfinished jobs; may be combined "
-                    "with result filters",
+                    "description": "short form of --filter-unfinished",
                     "environment": "ROTARI_COPY_UNFINISHED",
                     "name": "unfinished",
                 },
                 {
-                    "description": "include successful jobs; may be combined "
-                    "with result filters",
+                    "description": "short form of --filter-success",
                     "environment": "ROTARI_COPY_SUCCESS",
                     "name": "success",
                 },
@@ -2063,13 +2142,18 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
-                    "description": "select jobs with this result; may be "
-                    "repeated; --failed, --unfinished, and "
-                    "--success are short forms",
-                    "name": "filter-result",
-                    "repeated": True,
-                    "value_name": "RESULT",
-                    "values": ["failed", "unfinished", "success"],
+                    "description": "select jobs with a failed result",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs without a finished result",
+                    "name": "filter-unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a successful result",
+                    "name": "filter-success",
                 },
                 {
                     "command_line_only": True,
@@ -2283,20 +2367,23 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "only execute failed jobs; others carry "
-                    "forward their previous result",
+                    "description": "short form of --filter-failed; only execute "
+                    "failed jobs, others carry forward their "
+                    "previous result",
                     "environment": "ROTARI_RUN_FAILED",
                     "name": "failed",
                 },
                 {
-                    "description": "only execute unfinished jobs; others carry "
+                    "description": "short form of --filter-unfinished; only "
+                    "execute unfinished jobs, others carry "
                     "forward their previous result",
                     "environment": "ROTARI_RUN_UNFINISHED",
                     "name": "unfinished",
                 },
                 {
-                    "description": "only execute successful jobs; others carry "
-                    "forward their previous result",
+                    "description": "short form of --filter-success; only execute "
+                    "successful jobs, others carry forward their "
+                    "previous result",
                     "environment": "ROTARI_RUN_SUCCESS",
                     "name": "success",
                 },
@@ -2514,13 +2601,18 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
-                    "description": "select jobs with this result; may be "
-                    "repeated; --failed, --unfinished, and "
-                    "--success are short forms",
-                    "name": "filter-result",
-                    "repeated": True,
-                    "value_name": "RESULT",
-                    "values": ["failed", "unfinished", "success"],
+                    "description": "select jobs with a failed result",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs without a finished result",
+                    "name": "filter-unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a successful result",
+                    "name": "filter-success",
                 },
                 {
                     "command_line_only": True,
@@ -2974,13 +3066,18 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
-                    "description": "select jobs with this result; may be "
-                    "repeated; --failed, --unfinished, and "
-                    "--success are short forms",
-                    "name": "filter-result",
-                    "repeated": True,
-                    "value_name": "RESULT",
-                    "values": ["failed", "unfinished", "success"],
+                    "description": "select jobs with a failed result",
+                    "name": "filter-failed",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs without a finished result",
+                    "name": "filter-unfinished",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select jobs with a successful result",
+                    "name": "filter-success",
                 },
                 {
                     "command_line_only": True,
