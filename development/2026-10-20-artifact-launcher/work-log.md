@@ -261,3 +261,109 @@ Commits:
   checks, `config --launchers`/`--list`, the Web API and Artifacts UI for
   command mode, the unavailable-state explanations, and the server-wide
   launch list.
+
+## Phase 3: `--allow-exec`, the launch API, the Artifacts UI, and docs
+
+Commits:
+
+- `2a1de96b` (2026-10-20 17:29:41 +0900): server side.
+- `8cf6021b` (2026-10-20 17:41:19 +0900): Web UI.
+- `957edaae` (2026-10-20 17:44:35 +0900): output tail fix.
+- `9a90d46f` (2026-10-20 17:44:38 +0900): docs and plan notes.
+- `910cc68f` (2026-10-20 17:53:50 +0900): flag-pair inventory.
+- `cf63599f` (2026-10-20 18:07:10 +0900): browser test wait.
+
+- **Change:**
+  - **CLI:**
+    - `rotari web --allow-exec` (command-line only) loads the global
+      `launchers.toml` at startup and refuses to start if the file is
+      untrusted or invalid.
+    - It requires a token on every listener, and generates and prints one
+      when none is set.
+    - It wraps the handler in `WithExecGuard`: Host must be a loopback
+      name, a specific `--host`, or a repeatable `--allowed-host`, and a
+      non-GET request needs a same-origin `Origin` or an explicit
+      token/bearer header.
+    - It closes the manager before the listener on shutdown, and strips
+      `ROTARI_WEB_AUTH_TOKEN` from launch environments.
+    - `config --launchers` writes a 0600 template in a 0700 global
+      directory and checks it; `config --list` shows the global file only.
+    - `cli_spec.go` carries the new options. The schema golden, the CLI
+      reference, and `generated_cli.py` were regenerated (raw generator
+      output, matching the committed file's format).
+  - **`internal/webui`:** `launches.go` serves:
+    - `/api/launchers`: availability, with the server's reason and
+      enabling hint in every unavailable state, including per-kind
+      "unmatched" texts and the static export's answer;
+    - `/api/launch-preview`;
+    - `/api/launch`: strict JSON, so any field besides name and artifact
+      identity is rejected;
+    - `/api/launches`, `/api/launch-log` (paged, `from=end`), and
+      `/api/launch-stop`.
+
+    Artifacts resolve through `resolveArtifact` and `os.Root`, and a target
+    must exist on the Web host.
+  - **Web UI:** **Launch with…** in every preview title line, a
+    confirmation built from the preview, reuse with **Start another
+    instance**, and a **Launches** view with output and Stop, behind a
+    top-bar button shown only when launching is available.
+  - **`internal/launcher`:** each manager flocks its runtime directory and
+    sweeps unlocked ones left by killed servers.
+  - **Docs:** `CONFIGURATION.md` (launcher file), `INSPECT.md` (launching
+    walkthrough), `OPERATIONS.md` (security model), `FAQ.md`, and
+    `ARCHITECTURE.md` (process model, packages, `cmd` files) are updated.
+    The WEB-3 contract and its pair conformance test now cover
+    `--allow-exec` and `--allowed-host`.
+- **Reason:** Phase 3 of the plan: command mode usable end to end from the
+  Web UI, with the access protections it depends on.
+- **Plan impact:** Phase 3 is complete; decisions are in the plan's "Phase 3
+  notes". Two problems the manual end-to-end check and review found:
+  - A SIGKILLed server left its runtime directory, which led to the sweep.
+  - The Launches view showed the oldest kept output instead of the latest,
+    which led to `from=end`.
+
+  Two existing tests asserted layouts that intentionally changed: the
+  top-bar item list, and WEB-3's server-only option list.
+- **Validation:** Run with Go 1.25.8 and Node 22.23.3, checksum-verified in a
+  scratch directory, because this host has Node v12:
+  - **Unit, API, and browser tests:**
+    - `go test` of `internal/launcher`, `internal/webui`, `cmd/rotari`,
+      `internal/archtest`, `internal/doclinks`, `conformance`,
+      `conformance/03-interfaces`, `conformance/03-interfaces/pairweb`, and
+      `conformance/05-web` passed.
+    - New jsdom tests cover the Launch with flow, unavailable explanations,
+      and the static export. `npm run typecheck` and `go vet ./...` passed.
+    - Python tests: 65 passed, 2 skipped.
+    - The CLI reference and API docs `--check` passed.
+  - **Full `scripts/check.sh`:**
+    - The first run failed in `conformance/03-interfaces`: the flag-pair
+      inventory and classification needed the new options (fixed in
+      `910cc68f`), plus the timing flake `TestRetryProgressCountsOnlyExecutedJobs`.
+    - The second run passed vet, typecheck, and `go test`. Under `-race`, it
+      failed only `TestWebLaunchInBrowser`, whose fixed wait was too short
+      for the race-instrumented wrapper (fixed in `cf63599f`).
+    - After that, `go test -race ./internal/webui` passed, and the launch
+      tests passed three times under `-race`.
+    - A third full `scripts/check.sh` failed only
+      `TestUnlockExecutionEvidenceOverridesTerminalOutcome/MCP/complete`
+      ("live refusal mutated state"; unlock code is untouched here), which
+      passed five times in isolation. That flake and
+      `TestRetryProgressCountsOnlyExecutedJobs` are now in `ISSUES.md`. The
+      race step did not run in that pass; the launcher packages' race tests
+      had passed in the previous run.
+  - **Earlier flakes:** `TestLocalJobCancelStopsCommandBeforeForegroundExec`
+    and `TestReadJJ` failed once under load in the first short run, and
+    passed when rerun alone.
+  - **Manual end-to-end check with the built binary:** isolated
+    `ROTARI_MASTERDIR`, `XDG_CONFIG_HOME`, and basedir under one scratch
+    directory, removed afterwards.
+    - The server printed a generated token and served nothing without it
+      (401); a bad Host got 421, and a cross-origin POST with Basic auth 403.
+    - A registered command ran on a recorded artifact, and its log and exit
+      code were correct.
+    - After SIGKILL of `rotari web`, the launched `sleep` was gone within
+      about 0.4 s.
+- **Remaining:** Phase 4 (service mode, port checks in readiness, the
+  `/_launch/<ID>/` proxy, TensorBoard, the startup retry for a lost port,
+  and replacing the "service mode is not available yet" notes), then
+  Phase 5 (contract IDs and conformance rows).
