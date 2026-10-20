@@ -373,8 +373,9 @@ The live Web UI can run commands you registered yourself against an artifact,
 for example a plotting script on a file or a viewer on a directory. It is off
 by default. To turn it on:
 
-1. Register commands in the global launcher file; `rotari config --launchers`
-   writes a commented template (see
+1. TensorBoard is available without registering anything. Register other
+   commands in the global launcher file; `rotari config --launchers` writes
+   a commented template (see
    [Launcher commands](CONFIGURATION.md#launcher-commands)).
 2. Start `rotari web --allow-exec`. Launching requires a token on every
    listener, including `127.0.0.1`, because other users on a shared host can
@@ -389,7 +390,9 @@ it in its title line too. Each row also has **Download** for a file. The list of
 commands that accept a file or a directory, whichever is open; without any,
 the Web UI says why and how to change that (launching disabled, read-only
 server, no registered commands, none for this kind of target, or a static
-export). Choosing a command shows what will run before anything does: the
+export). A command whose program is not installed on the Web server's host is
+shown disabled, with the reason. Choosing a command shows what will run before
+anything does: the
 command text, the absolute target, the working directory, the user and host
 it runs as, and the job and attempt it came from. **Launch** starts it. The
 browser never sends command text: it names a registered command and an

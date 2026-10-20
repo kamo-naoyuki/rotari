@@ -174,4 +174,21 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
   if (!panelText().includes('No registered command accepts a file') || !panelText().includes('TensorBoard (directory)')) fail('unmatched explanation', panelText());
 `)
+	missing := launchOptions(t, f.baseDir,
+		launchCommand("Missing", `rotari-surely-missing-tool "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),
+		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile))
+	runLaunchBrowserScript(t, missing, f, `
+  // A command whose program is missing stays visible but disabled, with
+  // the reason.
+  await window.showArtifacts('default', runID, 'job-1', '');
+  window.document.getElementById('artifact-preview').scrollIntoView = () => {};
+  await window.openArtifact(entries['data.csv'], '', 'file');
+  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+  const buttons = [...document.querySelectorAll('#artifact-launch-panel .launch-choices button')];
+  const missingButton = buttons.find(button => button.textContent === 'Missing');
+  const catButton = buttons.find(button => button.textContent === 'Cat');
+  if (!missingButton || !missingButton.disabled || missingButton.title !== 'rotari-surely-missing-tool was not found on PATH') fail('missing command button', missingButton && missingButton.outerHTML);
+  if (!catButton || catButton.disabled) fail('available command button', catButton && catButton.outerHTML);
+  if (!panelText().includes('Missing: rotari-surely-missing-tool was not found on PATH')) fail('missing reason', panelText());
+`)
 }

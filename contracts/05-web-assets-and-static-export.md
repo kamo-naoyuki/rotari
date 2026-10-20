@@ -726,9 +726,14 @@ authentication alone, which a browser resends by itself, does not exempt a
 request without `Origin`. Covered by `TestWebLaunchGuardsRequests` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
-**WEB-15** Only commands in the global config directory's `launchers.toml`
-(`$XDG_CONFIG_HOME/rotari/launchers.toml`) can run; a copy in a basedir,
-project, or workspace is never read. `rotari web --allow-exec` refuses to
+**WEB-15** Only the built-in TensorBoard command and the commands in the
+global config directory's `launchers.toml`
+(`$XDG_CONFIG_HOME/rotari/launchers.toml`) can run; an entry there with a
+built-in's name replaces it, and a copy of the file in a basedir, project,
+or workspace is never read. `GET /api/launchers` marks a command
+`unavailable`, with the reason, when the first program it runs is not on the
+Web server's `PATH` (or an absolute path to it is not executable), and such a
+command neither previews nor starts. `rotari web --allow-exec` refuses to
 start when that file, a directory above it, or a symlink on the way is owned
 by another user or writable by group or others, or when the file is invalid;
 `rotari config --launchers` writes a template there with mode `0600` and

@@ -64,7 +64,9 @@ Exclude initially:
 - Command text, arguments, or cwd supplied from the browser or Web API,
   including one-off edits of a registered command.
 - Registering, editing, or deleting commands from the Web UI or API.
-- Built-in commands that exist without the user registering them.
+- Built-in commands that exist without the user registering them. (Reversed
+  after Phase 5 at the user's request: TensorBoard is built in, and a file
+  entry with its name replaces it; see the work log.)
 - Launching from the CLI, MCP server, or Python client. Their API listings
   must not gain launcher endpoints.
 - Interactive stdin, PTYs, browser terminals, and terminal reconnection.

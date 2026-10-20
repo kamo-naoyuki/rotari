@@ -387,8 +387,8 @@ provides HTTP authentication, not encryption.
   who can read the export, such as a published site, can then read them.
   The command reports how many files and bytes it copied.
 - **Launching (`rotari web --allow-exec`):** off by default. It lets anyone
-  who can sign in run the commands registered in your global
-  `launchers.toml`, as you, against the job artifacts the Web UI may serve
+  who can sign in run the built-in TensorBoard command and the commands
+  registered in your global `launchers.toml`, as you, against the job artifacts the Web UI may serve
   (see [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
   The browser and API only name a registered command and an artifact; command
   text, working directories, and modes come only from that file, which rotari

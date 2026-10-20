@@ -200,9 +200,13 @@ file. For the event settings, fields, and Slack/Teams/Discord setup, see
 
 ## Launcher commands
 
-`launchers.toml` registers the commands that `rotari web --allow-exec` can run
-against a job's artifacts from the Web UI (see
+`rotari web --allow-exec` can run TensorBoard, which is built in, and the
+commands `launchers.toml` registers, against a job's artifacts from the Web
+UI (see
 [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
+The built-in TensorBoard command is the one shown under [Services](#services);
+an entry named `TensorBoard` in the file replaces it, for example to run
+TensorBoard from a particular environment.
 Rotari reads it **only from the global config directory**
 (`$XDG_CONFIG_HOME/rotari/launchers.toml`, by default
 `~/.config/rotari/launchers.toml`), never from a workspace, basedir, or project,
@@ -218,9 +222,17 @@ and `rotari web --allow-exec` does not start, unless no other user can change
 it: the file and every directory above it, following symlinks, must be owned
 by you or root and not writable by group or others (a sticky directory such as
 `/tmp` is allowed). The error names the offending path and the `chmod` that
-fixes it. A missing file only means no command is registered; any unknown key,
-duplicate name, or setting that does not apply to an entry's mode is an error.
-`rotari config --list` shows the file when it exists.
+fixes it. A missing file only means that only TensorBoard is available; any
+unknown key, duplicate name, or setting that does not apply to an entry's mode
+is an error. `rotari config --list` shows the file when it exists.
+
+A command whose first program cannot be found on the Web server's `PATH` (or
+whose absolute path is not executable) is shown disabled in the Web UI with
+that reason, and does not start; this is checked whenever the list is shown,
+so installing the program needs no restart. Only the first program is
+checked: for `conda run -n ENV tensorboard ...` that is `conda`, not the
+environment's TensorBoard. A first word that is a shell builtin, an
+expansion, or a relative or `~` path is not checked.
 
 Each `[[launcher]]` entry registers one command:
 
@@ -256,7 +268,7 @@ say so in the command, for example
 ### Services
 
 `mode = "service"` registers a command that serves HTTP, such as the
-template's TensorBoard entry. The Web UI opens it through the `rotari web`
+built-in TensorBoard command below. The Web UI opens it through the `rotari web`
 port itself, under `/_launch/ID/`, so no further SSH port forward is needed:
 
 ```toml

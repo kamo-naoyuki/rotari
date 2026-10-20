@@ -9,24 +9,44 @@ import (
 	"time"
 )
 
-func TestTemplateParsesToTensorBoard(t *testing.T) {
+func TestBuiltinTensorBoard(t *testing.T) {
 	t.Parallel()
-	commands, err := ParseCommands(Template())
-	if err != nil {
-		t.Fatal(err)
+	builtins := BuiltinCommands()
+	if len(builtins) != 1 {
+		t.Fatalf("built-in commands = %+v", builtins)
 	}
-	if len(commands) != 1 {
-		t.Fatalf("template has %d commands, want 1", len(commands))
-	}
-	got := commands[0]
-	if got.Name != "TensorBoard" || got.Mode != ModeService || !slices.Equal(got.Targets, []TargetKind{TargetDirectory}) ||
+	got := builtins[0]
+	if got.Name != "TensorBoard" || !got.Builtin || got.Mode != ModeService || !slices.Equal(got.Targets, []TargetKind{TargetDirectory}) ||
 		got.CWD != CWDTarget || got.ReadyPath != DefaultReadyPath || got.ReadyTimeout != DefaultReadyTimeout || got.StopGrace != DefaultStopGrace {
-		t.Fatalf("template command = %+v", got)
+		t.Fatalf("built-in TensorBoard = %+v", got)
 	}
 	for _, variable := range []string{EnvArtifact, EnvPort, EnvBasePath} {
 		if !strings.Contains(got.Command, `"$`+variable+`"`) {
-			t.Errorf("template command does not quote $%s: %s", variable, got.Command)
+			t.Errorf("built-in command does not quote $%s: %s", variable, got.Command)
 		}
+	}
+	if got.Executable() != "tensorboard" {
+		t.Errorf("built-in executable = %q", got.Executable())
+	}
+}
+
+// The template registers nothing by itself, and its commented examples
+// parse once uncommented.
+func TestTemplateExamples(t *testing.T) {
+	t.Parallel()
+	commands, err := ParseCommands(Template())
+	if err != nil || len(commands) != 0 {
+		t.Fatalf("template = %+v, %v; want no commands", commands, err)
+	}
+	var examples strings.Builder
+	for _, line := range strings.Split(string(Template()), "\n") {
+		if example, ok := strings.CutPrefix(line, "# "); ok && (strings.HasPrefix(example, "[[launcher]]") || strings.Contains(example, " = ")) {
+			examples.WriteString(example + "\n")
+		}
+	}
+	commands, err = ParseCommands([]byte(examples.String()))
+	if err != nil || len(commands) != 2 || commands[0].Name != "TensorBoard" || commands[1].Name != "Line count" {
+		t.Fatalf("template examples = %+v, %v\n%s", commands, err, examples.String())
 	}
 }
 
@@ -111,8 +131,9 @@ func TestLoadRegistry(t *testing.T) {
 	dir := trustedDir(t)
 	path := filepath.Join(dir, FileName)
 
+	// Without a file, only the built-in commands are registered.
 	registry, err := LoadRegistry(path)
-	if err != nil || !registry.Missing || len(registry.Commands) != 0 || registry.Path != path {
+	if err != nil || !registry.Missing || len(registry.Commands) != 1 || !registry.Commands[0].Builtin || registry.Path != path {
 		t.Fatalf("missing file: LoadRegistry() = %+v, %v", registry, err)
 	}
 
@@ -166,5 +187,34 @@ func TestWorkingDirectory(t *testing.T) {
 		if got != test.want {
 			t.Errorf("cwd %q for %s %s = %q, want %q", test.cwd, test.kind, test.target, got, test.want)
 		}
+	}
+}
+
+// An entry with a built-in command's name replaces it; other entries come
+// after the built-ins.
+func TestLoadRegistryReplacesBuiltins(t *testing.T) {
+	t.Parallel()
+	dir := trustedDir(t)
+	path := filepath.Join(dir, FileName)
+	write := func(content string) Registry {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		registry, err := LoadRegistry(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registry
+	}
+	plot := "[[launcher]]\nname = \"Plot\"\ncommand = \"plot\"\ntargets = [\"file\"]\nmode = \"command\"\n"
+	registry := write(plot)
+	if len(registry.Commands) != 2 || registry.Commands[0].Name != "TensorBoard" || !registry.Commands[0].Builtin || registry.Commands[1].Name != "Plot" {
+		t.Fatalf("file without TensorBoard = %+v", registry.Commands)
+	}
+	registry = write(plot + "[[launcher]]\nname = \"TensorBoard\"\ncommand = \"conda run -n tb tensorboard\"\ntargets = [\"directory\"]\nmode = \"service\"\n")
+	if len(registry.Commands) != 2 || registry.Commands[0].Name != "Plot" || registry.Commands[1].Name != "TensorBoard" ||
+		registry.Commands[1].Builtin || registry.Commands[1].Command != "conda run -n tb tensorboard" {
+		t.Fatalf("file replacing TensorBoard = %+v", registry.Commands)
 	}
 }

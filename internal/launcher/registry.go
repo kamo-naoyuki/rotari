@@ -65,6 +65,36 @@ type Command struct {
 	ReadyPath    string
 	ReadyTimeout time.Duration
 	StopGrace    time.Duration
+	// Builtin marks a command rotari provides without a launcher file
+	// entry (BuiltinCommands).
+	Builtin bool
+}
+
+// tensorBoardCommand is the TensorBoard invocation that works behind the
+// Web server's proxy; it was checked against TensorBoard 2.21.0.
+const tensorBoardCommand = `tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"`
+
+// BuiltinCommands are registered without a launcher file. An entry in the
+// file with the same name replaces one, for example to run TensorBoard
+// from a particular environment.
+func BuiltinCommands() []Command {
+	return []Command{{
+		Name: "TensorBoard", Command: tensorBoardCommand, Targets: []TargetKind{TargetDirectory},
+		Mode: ModeService, CWD: CWDTarget, ReadyPath: DefaultReadyPath, ReadyTimeout: DefaultReadyTimeout,
+		StopGrace: DefaultStopGrace, Builtin: true,
+	}}
+}
+
+// withBuiltins puts the built-in commands the file does not replace first,
+// then the file's own.
+func withBuiltins(commands []Command) []Command {
+	var result []Command
+	for _, builtin := range BuiltinCommands() {
+		if !slices.ContainsFunc(commands, func(command Command) bool { return command.Name == builtin.Name }) {
+			result = append(result, builtin)
+		}
+	}
+	return append(result, commands...)
 }
 
 // Accepts reports whether the command can run against a target of kind.
@@ -108,13 +138,15 @@ func (registry Registry) Lookup(name string) (Command, bool) {
 }
 
 // LoadRegistry reads the launcher file at the absolute path after
-// OpenTrustedFile's checks. A missing file is not an error; an untrusted,
-// unreadable, or invalid one is.
+// OpenTrustedFile's checks, and adds the built-in commands it does not
+// replace. A missing file is not an error and registers only the
+// built-ins; an untrusted, unreadable, or invalid one is an error.
 func LoadRegistry(path string) (Registry, error) {
 	registry := Registry{Path: path}
 	file, err := OpenTrustedFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		registry.Missing = true
+		registry.Commands = withBuiltins(nil)
 		return registry, nil
 	}
 	if err != nil {
@@ -128,9 +160,11 @@ func LoadRegistry(path string) (Registry, error) {
 	if len(data) > maxRegistryBytes {
 		return registry, fmt.Errorf("launcher file %s is larger than %d bytes", path, maxRegistryBytes)
 	}
-	if registry.Commands, err = ParseCommands(data); err != nil {
+	commands, err := ParseCommands(data)
+	if err != nil {
 		return registry, fmt.Errorf("launcher file %s: %w", path, err)
 	}
+	registry.Commands = withBuiltins(commands)
 	return registry, nil
 }
 
@@ -263,7 +297,7 @@ func positiveDuration(name, value string) (time.Duration, error) {
 }
 
 // Template is the commented launcher file `rotari config --launchers`
-// writes. Its TensorBoard entry was checked against TensorBoard 2.21.0.
+// writes. It registers nothing by itself; its examples are comments.
 func Template() []byte {
 	return []byte(`# Commands that rotari web --allow-exec can run against artifacts.
 # rotari reads this file only from its global config directory, at startup,
@@ -289,12 +323,24 @@ func Template() []byte {
 #   ready_timeout  service only (default "60s")
 #   stop_grace     time between SIGTERM and SIGKILL on stop (default "5s")
 
-[[launcher]]
-name = "TensorBoard"
-# Use the TensorBoard of a specific environment if it is not on PATH, for
-# example: conda run --no-capture-output -n ENV tensorboard ...
-command = '''tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"'''
-targets = ["directory"]
-mode = "service"
+# TensorBoard is built in: rotari registers it without an entry here, as
+#   tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1
+#     --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"
+# for directories, in service mode. An entry named "TensorBoard" replaces it,
+# for example to use the TensorBoard of a particular environment:
+#
+# [[launcher]]
+# name = "TensorBoard"
+# command = '''conda run --no-capture-output -n ENV tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"'''
+# targets = ["directory"]
+# mode = "service"
+#
+# A command that runs on a file and exits:
+#
+# [[launcher]]
+# name = "Line count"
+# command = 'wc -l "$ROTARI_LAUNCHER_ARTIFACT"'
+# targets = ["file"]
+# mode = "command"
 `)
 }

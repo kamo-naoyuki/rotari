@@ -325,7 +325,8 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 	e := f.e
 	path := writeLaunchers(t, e,
 		launcherEntry("List", `ls "$ROTARI_LAUNCHER_ARTIFACT"; echo "cwd=$ROTARI_LAUNCHER_CWD token=${ROTARI_WEB_AUTH_TOKEN-unset}"; cat; echo end`, `"directory"`, "command")+
-			launcherEntry("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, `"file"`, "command"))
+			launcherEntry("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, `"file"`, "command")+
+			launcherEntry("Missing", `rotari-conformance-missing-tool "$ROTARI_LAUNCHER_ARTIFACT"`, `"file"`, "command"))
 	// A launcher file anywhere else is never read.
 	if err := os.WriteFile(filepath.Join(e.Base, "launchers.toml"), []byte(launcherEntry("Basedir", "true", `"file"`, "command")), 0o600); err != nil {
 		t.Fatal(err)
@@ -336,14 +337,24 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 	base, _, _ := startWebProcess(t, e, "--allow-exec")
 	var availability struct {
 		Commands []struct {
-			Name string `json:"name"`
+			Name        string `json:"name"`
+			Builtin     bool   `json:"builtin"`
+			Unavailable string `json:"unavailable"`
 		} `json:"commands"`
 	}
 	if err := json.Unmarshal([]byte(api(e, http.MethodGet, base+"/api/launchers", "").Body), &availability); err != nil {
 		t.Fatal(err)
 	}
-	if len(availability.Commands) != 2 || availability.Commands[0].Name != "List" || availability.Commands[1].Name != "Cat" {
+	// TensorBoard is built in; the file's commands follow.
+	names := []string{}
+	for _, command := range availability.Commands {
+		names = append(names, command.Name)
+	}
+	if strings.Join(names, ",") != "TensorBoard,List,Cat,Missing" || !availability.Commands[0].Builtin {
 		t.Fatalf("registered commands = %+v", availability.Commands)
+	}
+	if availability.Commands[3].Unavailable != "rotari-conformance-missing-tool was not found on PATH" || availability.Commands[2].Unavailable != "" {
+		t.Fatalf("availability of Cat and Missing = %+v", availability.Commands[2:])
 	}
 
 	list := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", f.request("List", "data", "", nil)))
@@ -362,6 +373,7 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 		"command text":    f.request("Cat", "data", "n.txt", map[string]any{"command": "touch pwned"}),
 		"working dir":     f.request("Cat", "data", "n.txt", map[string]any{"cwd": "/"}),
 		"unknown command": f.request("Basedir", "data", "n.txt", nil),
+		"missing program": f.request("Missing", "data", "n.txt", nil),
 		"wrong kind":      f.request("Cat", "data", "", nil),
 		"absent target":   f.request("Cat", "gone.txt", "", nil),
 		"escaping child":  f.request("Cat", "data", "../data/n.txt", nil),

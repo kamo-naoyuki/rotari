@@ -74,17 +74,20 @@ func newWebAuthToken() (string, error) {
 }
 
 func printLaunchRegistry(registry launcher.Registry) {
-	switch {
-	case registry.Missing:
-		fmt.Fprintf(os.Stderr, "Launching is enabled, but %s does not exist; create it with `rotari config --launchers` and restart.\n", registry.Path)
-	case len(registry.Commands) == 0:
-		fmt.Fprintf(os.Stderr, "Launching is enabled, but %s registers no commands.\n", registry.Path)
-	default:
-		names := make([]string, 0, len(registry.Commands))
-		for _, command := range registry.Commands {
-			names = append(names, command.Name)
+	names := make([]string, 0, len(registry.Commands))
+	for _, command := range registry.Commands {
+		name := command.Name
+		if command.Builtin {
+			name += " (built in)"
 		}
-		fmt.Fprintf(os.Stderr, "Launching is enabled with %d registered command(s) from %s: %s\n", len(names), registry.Path, strings.Join(names, ", "))
+		if reason := command.Unavailable(); reason != "" {
+			name += " (unavailable: " + reason + ")"
+		}
+		names = append(names, name)
+	}
+	fmt.Fprintf(os.Stderr, "Launching is enabled with %d command(s): %s\n", len(names), strings.Join(names, ", "))
+	if registry.Missing {
+		fmt.Fprintf(os.Stderr, "Register your own in %s; `rotari config --launchers` writes a template.\n", registry.Path)
 	}
 }
 

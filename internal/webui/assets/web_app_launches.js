@@ -110,20 +110,36 @@ async function toggleArtifactLaunch(index, child, type, button) {
   panel.innerHTML =
     '<p class="meta">Launch with</p><div class="launch-choices">' +
     commands
-      .map(
-        (command) =>
-          '<button type="button" onclick="previewArtifactLaunch(' +
-          index +
-          "," +
-          jsArg(child) +
-          "," +
-          jsArg(command.name) +
-          ')">' +
-          esc(command.name) +
-          "</button>",
+      .map((command) =>
+        // A command whose program is missing stays visible, disabled, with
+        // the server's reason.
+        command.unavailable
+          ? '<button type="button" disabled title="' +
+            esc(command.unavailable) +
+            '">' +
+            esc(command.name) +
+            "</button>"
+          : '<button type="button" onclick="previewArtifactLaunch(' +
+            index +
+            "," +
+            jsArg(child) +
+            "," +
+            jsArg(command.name) +
+            ')">' +
+            esc(command.name) +
+            "</button>",
       )
       .join("") +
-    "</div>";
+    "</div>" +
+    commands
+      .filter((command) => command.unavailable)
+      .map(
+        (command) =>
+          '<p class="meta launch-unavailable">' +
+          esc(command.name + ": " + command.unavailable) +
+          "</p>",
+      )
+      .join("");
 }
 
 function launchRequestBody(index, child, name, newInstance) {

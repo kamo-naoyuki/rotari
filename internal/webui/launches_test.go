@@ -438,7 +438,7 @@ func TestLaunchTransportChecksPortOwner(t *testing.T) {
 	}
 }
 
-// TestLaunchProxyTensorBoard runs the template's TensorBoard entry through
+// TestLaunchProxyTensorBoard runs the built-in TensorBoard command through
 // the proxy, with the command from ROTARI_TEST_LAUNCHER_TENSORBOARD in
 // place of "tensorboard" (for example "conda run -n tb tensorboard"). It is
 // skipped without it; CI does not install TensorBoard.
@@ -447,11 +447,7 @@ func TestLaunchProxyTensorBoard(t *testing.T) {
 	if tensorBoard == "" {
 		t.Skip("ROTARI_TEST_LAUNCHER_TENSORBOARD is not set")
 	}
-	commands, err := launcher.ParseCommands(launcher.Template())
-	if err != nil || len(commands) != 1 {
-		t.Fatalf("template = %v, %v", commands, err)
-	}
-	command := commands[0]
+	command := launcher.BuiltinCommands()[0]
 	command.Command = strings.Replace(command.Command, "tensorboard ", tensorBoard+" ", 1)
 	f := newArtifactFixture(t)
 	options := launchOptions(t, f.baseDir, command)
@@ -489,5 +485,33 @@ func TestLaunchProxyTensorBoard(t *testing.T) {
 		if response.StatusCode != http.StatusOK || !strings.HasPrefix(strings.TrimSpace(string(body)), want) {
 			t.Fatalf("GET %s = %d %.200q", path, response.StatusCode, body)
 		}
+	}
+}
+
+// A command whose program is missing is listed with the reason, and
+// neither previews nor starts.
+func TestLaunchUnavailableCommand(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir,
+		launchCommand("Missing", `rotari-surely-missing-tool "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),
+		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile))
+	handler := Handler(options)
+	availability := decodeBody[launchAvailability](t, serveJSON(t, handler, http.MethodGet, "/api/launchers", ""))
+	if len(availability.Commands) != 2 || availability.Commands[0].Unavailable != "rotari-surely-missing-tool was not found on PATH" ||
+		availability.Commands[1].Unavailable != "" {
+		t.Fatalf("availability = %+v", availability.Commands)
+	}
+	body := `{"project_name":"default","run_id":"` + f.runID + `","job_id":"job-1","entry":` + fmt.Sprint(f.entries["data.csv"]) + `,"name":"Missing"}`
+	started := serveJSON(t, handler, http.MethodPost, "/api/launch", body)
+	if got := decodeBody[webLaunchError](t, started); started.Code != http.StatusBadRequest ||
+		!strings.Contains(got.Error, `cannot launch "Missing": rotari-surely-missing-tool was not found on PATH`) {
+		t.Fatalf("start = %d %s", started.Code, started.Body.String())
+	}
+	preview := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=job-1&entry="+fmt.Sprint(f.entries["data.csv"])+"&name=Missing", "")
+	if preview.Code != http.StatusBadRequest {
+		t.Fatalf("preview = %d %s", preview.Code, preview.Body.String())
+	}
+	if launches := options.Launches.Manager.List(); len(launches) != 0 {
+		t.Fatalf("an unavailable command started: %+v", launches)
 	}
 }

@@ -38,6 +38,10 @@ type webLaunchCommand struct {
 	Targets []launcher.TargetKind `json:"targets"`
 	Mode    launcher.Mode         `json:"mode"`
 	CWD     string                `json:"cwd"`
+	Builtin bool                  `json:"builtin,omitempty"`
+	// Unavailable says why the command cannot run on this host, such as
+	// its program missing from PATH; the UI shows it disabled.
+	Unavailable string `json:"unavailable,omitempty"`
 }
 
 // launchAvailability is the /api/launchers response: whether this server
@@ -84,6 +88,7 @@ func (s site) launchAvailability() launchAvailability {
 	for _, command := range s.Launches.Registry.Commands {
 		availability.Commands = append(availability.Commands, webLaunchCommand{
 			Name: command.Name, Command: command.Command, Targets: command.Targets, Mode: command.Mode, CWD: command.CWD,
+			Builtin: command.Builtin, Unavailable: command.Unavailable(),
 		})
 		for _, kind := range command.Targets {
 			byKind[kind] = append(byKind[kind], command.Name)
@@ -261,6 +266,9 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	command, ok := s.Launches.Registry.Lookup(request.Name)
 	if !ok {
 		return launcher.StartRequest{}, fmt.Errorf("no command named %q is registered in %s", request.Name, s.Launches.Registry.Path)
+	}
+	if reason := command.Unavailable(); reason != "" {
+		return launcher.StartRequest{}, fmt.Errorf("cannot launch %q: %s; install it, or register a command that names its path in %s", command.Name, reason, s.Launches.Registry.Path)
 	}
 	if request.Entry == nil {
 		return launcher.StartRequest{}, errors.New("entry must name an artifact candidate of the attempt")
