@@ -221,12 +221,12 @@ How they fit together:
 - **Open the tracker from rotari's Web UI.** With `rotari web --allow-exec`,
   TensorBoard, MLflow, Aim, and Jupyter Lab are built-in launchers for a
   job's artifacts, served through the Web UI's own port (see
-  [Built-in services](CONFIGURATION.md#built-in-services)). A tracker's store
-  must be an artifact candidate of the job to be offered; a store the
-  training code creates implicitly, such as MLflow's default `mlflow.db` in
-  the working directory, is not yet found (planned in
-  [development/2026-10-21-experiment-tracker-integration](https://github.com/kamo-naoyuki/rotari/blob/main/development/2026-10-21-experiment-tracker-integration/plan.md)).
-  Declare it with `rotari add --artifact mlflow.db` meanwhile.
+  [Built-in services](CONFIGURATION.md#built-in-services)). The Artifacts
+  view also offers the job's working directory as `.`, so stores created
+  there implicitly—such as MLflow's default `mlflow.db` and Aim's `.aim`
+  repository—can be browsed and opened without declaring them as candidates.
+  See [Using rotari with experiment trackers](INSPECT.md#using-rotari-with-experiment-trackers)
+  for the default locations, run tags, and storage trade-offs.
 - **Sweeps.** Rotari's matrix and array jobs run parameter sweeps on any
   backend and keep each trial's logs and status; the tracker compares their
   results. W&B Sweeps and ClearML's agents instead decide trials themselves
@@ -234,7 +234,8 @@ How they fit together:
   Bayesian optimization that choose the next trial from earlier results.
 - **Shared storage.** Many parallel jobs writing one SQLite database over a
   network file system risk lock errors, since SQLite's locking is unreliable
-  there. A file store, a store per job, or a tracking server avoids it.
+  there. Consider a file store, per-job stores, or a tracking server, and test
+  the choice under the expected concurrency.
 
 Choose a tracker for comparing metrics and managing models; keep rotari for
 running the jobs that produce them. Consider ClearML's agents or W&B Sweeps

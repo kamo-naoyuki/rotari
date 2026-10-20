@@ -373,6 +373,69 @@ contents by default; `--static-artifact-contents` copies previewable files
 who can access the Web UI or an export with copied contents may be able to read
 those files; see [Web UI security](OPERATIONS.md#security-model) before sharing.
 
+### Using rotari with experiment trackers
+
+Rotari runs the job and keeps its command, status, attempts, and logs. An
+experiment tracker records and compares what the job measured; rotari does
+not read tracker metrics or replace the tracker's UI.
+
+With the default local settings, MLflow 3.17 creates `mlflow.db` in the job's
+working directory and uses a SQLite tracking URI. Aim 3 creates its repository
+in `.aim` under the working directory. These paths may be created by the job
+at runtime and therefore need not appear among the discovered artifact
+candidates. The Artifacts view includes the working directory as the `.` row,
+even when the job definition named no paths:
+
+- Open **Launch with…** on `.` and choose **Aim** to open the repository
+  beneath that directory.
+- Open `mlflow.db` inside `.` and choose **MLflow (SQLite)**. This file
+  appears after MLflow creates it.
+- A file store such as `mlruns` can be opened with **MLflow** on that
+  directory. If the job names a local `file:` or `sqlite:` tracking URI,
+  discovery also records its local path; remote tracking URIs are not local
+  artifacts.
+
+These built-in services are available from the live Web UI when it is started
+with `rotari web --allow-exec`; see
+[Built-in services](CONFIGURATION.md#built-in-services) and
+[Launching commands on artifacts](#launching-commands-on-artifacts). The
+basedir must be trusted or the path must be under an explicitly allowed
+`--artifact-root`. The Web server must also be able to access the same
+working directory and tracker store. Static exports cannot launch services.
+
+Use the metadata rotari supplies to link each tracker run back to the exact
+job and attempt. For example, an MLflow job can set tags when it starts its
+run:
+
+```python
+import os
+import mlflow
+
+with mlflow.start_run():
+    mlflow.set_tags({
+        "rotari_run_id": os.environ["ROTARI_RUN_ID"],
+        "rotari_job_id": os.environ["ROTARI_JOB_ID"],
+        "rotari_attempt_id": os.environ["ROTARI_ATTEMPT_ID"],
+    })
+    # Log parameters, metrics, and artifacts here.
+```
+
+The same IDs can be added as tags or metadata in other trackers. A job ID
+identifies the logical job; the attempt ID distinguishes retries, and the run
+ID identifies the rotari batch. Tracker links make it easier to move between
+the tracker's measurements and rotari's logs and job history.
+
+Choose storage for the expected concurrency and where the jobs run. A single
+SQLite `mlflow.db` written by many parallel jobs on an NFS mount can encounter
+locking failures or corruption because SQLite relies on filesystem locking.
+For that workload, consider an MLflow file store, separate stores per job, or
+a tracking server; test the chosen store and filesystem under the expected
+write load. Aim repositories also need care with concurrent writers on
+network filesystems. A tracking server is a better fit when jobs on different
+hosts need one centrally managed store, or when access control and shared
+visibility matter. Rotari does not start or manage that server; its built-in
+launchers open local stores only.
+
 ### Launching commands on artifacts
 
 The live Web UI can run commands you registered yourself against an artifact,

@@ -1,11 +1,11 @@
 # Plan: Use rotari with experiment trackers
 
 Created: 2026-10-21
-Status: In progress. Phase 1 (URI rule) and Phase 2 (working-directory entry,
-derived by the Web server; the CLI listing JSON gains `working_directory_type`
-but `show --artifacts` text is unchanged) are implemented; the Phase 2
-browser tests could not be run on the Node 12 development host. Phases 3 and
-4 remain.
+Status: Phases 1-3 implemented. Phase 2's Go conformance tests pass, but its
+browser tests could not be run on the Node 12 development host. Phase 3 adds
+the tracker guide and updates the comparison. Phase 4 remains unverified:
+MLflow and Aim are not installed in the current environment, so their
+end-to-end default-store launches could not be exercised here.
 
 ## Goal
 
@@ -130,9 +130,10 @@ tool comparison.
 3. **Guide and comparison.** User guide section; cross-links from
    `docs/TOOL_COMPARISON.md`.
 4. **End-to-end check.** With MLflow and Aim installed in a scratch
-   environment, a job that writes to each default location, and one that sets
-   `MLFLOW_TRACKING_URI` to a `sqlite:` URI, can be opened from Artifacts
-   through the built-in services.
+   environment, verify that a job writing to each default location, and one
+   that sets `MLFLOW_TRACKING_URI` to a `sqlite:` URI, can be opened from
+   Artifacts through the built-in services. Not yet run: neither tracker is
+   installed in the current environment.
 
 ## Acceptance
 
