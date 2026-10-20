@@ -409,7 +409,7 @@ provides HTTP authentication, not encryption.
   a registered service as trusted code, like the command itself. The proxy
   connects only to the launch's own `127.0.0.1` port, and checks before each
   new connection that the listening process belongs to the launch (through
-  `/proc` on Linux, `lsof` on macOS).
+  `/proc` on Linux, `/usr/sbin/lsof` on macOS).
   Their output stays in a private `0700` directory under `$TMPDIR` until the
   Web server stops; a later `rotari web --allow-exec` removes directories that
   a killed server left behind.
