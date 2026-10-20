@@ -182,6 +182,21 @@ effect after the Web server restarts; live reload is a later feature. Parse
 and validate through one owning package, which is the only source of
 registered definitions for the manager and the Web layer.
 
+Before reading the file, check that no other OS user can write or replace it,
+in the manner of OpenSSH `StrictModes`; a failing check stops startup with the
+offending path and the required fix:
+
+- The file, after resolving symlinks, is a regular file owned by the Web
+  server's user and not writable by group or others.
+- Every directory from the resolved file's directory up to the filesystem
+  root is owned by that user or root and not writable by group or others,
+  unless it is root-owned and sticky (such as `/tmp`). A writable directory
+  would let another user rename a different file into place.
+- When symlinks are involved, apply both checks to every link and to the
+  directories containing each link, not only to the final target.
+- Read the file through the descriptor that was checked, so it cannot be
+  swapped between the check and the read.
+
 ### Identity and reuse
 
 Give each launch an opaque server-generated ID. Record its source basedir,
@@ -237,13 +252,31 @@ requests and several services, such as TensorBoards for different
 directories, run at once; a port fixed in `launchers.toml` would allow only
 one instance per command.
 
-Do not verify which process owns the port. If another process takes the port
-between allocation and the service binding it, the service normally fails to
-bind and exits. Mark a service ready only when the readiness probe succeeds
-and its process is still running afterwards, so that case becomes a startup
-failure with the service's log. Document the remaining window (a foreign
-server answering the probe before the service exits) as a known limitation,
-as it is when running a service by hand on a shared host.
+Between allocation and the service binding the port, another local process,
+possibly another user's, can bind it first. The service then usually fails to
+bind and exits, but until it does, a foreign server can answer on the port.
+Before sending the readiness probe, verify that the process listening on
+`127.0.0.1:PORT` belongs to the launch's process group, so neither the probe
+result nor any response from a foreign listener is ever used:
+
+- Linux: map the listening socket's inode from `/proc/net/tcp` to a process
+  through `/proc/<pid>/fd`, and compare that process's group.
+- macOS: find the listening PID with `lsof -nP -iTCP:PORT -sTCP:LISTEN -Fp`,
+  which macOS ships, and compare `getpgid(pid)`.
+
+Implement this as one platform-neutral `internal/launcher` function with
+per-OS implementations. If the check cannot run (for example, `lsof` is
+missing or `/proc` is unreadable), the launch fails with that reason rather
+than skipping verification. A foreign listener stops the launch's process
+group and reports that another process holds the port; the launch never
+becomes ready, so its port is never proxied.
+
+Once the service holds the port, no other user can bind it, so one check at
+readiness is enough while the service runs. When the service exits, the
+proxy stops routing to the launch as soon as the manager observes the exit.
+To close the window between that exit and its observation, re-verify
+ownership before opening each new upstream connection; reused keep-alive
+connections need no new check.
 
 Preserve the allocated path prefix, query strings, streaming, and browser asset
 requests. Use a service-specific prefix setting for TensorBoard; do not attempt
@@ -379,8 +412,9 @@ its required shutdown or access protections as a temporary default.
 - On supported platforms, forcibly terminating the Web process cleans up its
   launcher process groups. The `launchers.toml` file (including its resolved
   target when symlinks are involved) cannot be replaced or written by another
-  OS user; reject unsafe ownership or permissions, or document a narrower
-  supported configuration model with an explicit reason.
+  OS user, including through a writable containing directory; reject unsafe
+  ownership or permissions, or document a narrower supported configuration
+  model with an explicit reason.
 - Disabled execution, read-only mode, static export, bad auth, cross-origin and
   invalid Host requests cannot start or stop commands.
 - With `--allow-exec`, a loopback server without a configured token generates
