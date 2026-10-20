@@ -110,7 +110,9 @@ it does not restart monitoring, resume dispatch, or execute any job.
   coordinator, but removes a lock from another host or PID namespace on the
   operator's word (COORD-3), even when jobs might still be running. It leaves
   the queue and run history intact. Only the CLI and MCP expose it; the Web
-  API and UI have no unlock, and the Python client wraps the CLI.
+  API and UI have no unlock, and the Python client wraps the CLI. The CLI
+  has no confirmation or dry run: running the command is the operator's
+  word. MCP splits it into a preview and an apply guarded by `if_revision`.
 - [`Finish`](../../internal/projectrun/lifecycle.go) writes the summary, then
   `Finalize` requires the run lock to still name the run. When the lock is
   gone, `Finalize` fails and metadata stays `running`; `Finish` removes its
@@ -159,27 +161,44 @@ Each assessment includes job/task and attempt identity, backend, evidence
 source, observation time, and an actionable reason. Errors and conflicting
 evidence are visible, not converted to "stopped."
 
+Evidence precedence is shared across all interfaces: trustworthy positive-live
+evidence for the selected execution or coordinator always blocks recovery,
+even when a terminal record disagrees. Preserve and display the conflict,
+but do not downgrade it to an overridable unknown. Only conflicts without
+trustworthy positive-live evidence can use the unknown/attestation path.
+Validate execution identity and observation freshness before applying this
+rule; an unrelated reused PID or stale scheduler snapshot is not proof of
+current activity. Live evidence whose identity cannot be validated, such as
+a live process group without a recorded start time, is "possibly live": it
+blocks normal unlock but is an overridable unknown, shown as possibly live,
+not a non-overridable block.
+
 ### Coordinator identity
 
 Today only the run lock records the coordinator's host, PID, and PID
 namespace. Once a reader or `Finish` removes the lock, nothing says which
 process owned the run, so its liveness cannot be checked: in the motivating
-case the supervisor kept running after its lock was removed. Phase 1 adds a
+case the supervisor kept running after its lock was removed. Phase 1a adds a
 record in the run directory, written when the run starts, holding the
 coordinator's host, PID namespace, PID, and process start time, and marked
 when the coordinator exits normally. A run without that record (older runs)
 has unverifiable ownership. A missing lock is not evidence that its former
-owner stopped. A normal-exit marker records completed management work, not
-proof that the process has already exited; define the point after which it
-cannot dispatch or finalize before trusting that marker.
+owner stopped. Reuse [`state.ProcessStart`](../../internal/state/lock.go) and
+`state.PIDNamespace` for the identity, and the rule in
+[`attachment/origin.go`](../../internal/attachment/origin.go) that a PID
+without a recorded or readable start time may still be the same process;
+`LockInfo` itself records no start time today. A normal-exit marker records
+completed management work, not proof that the process has already exited;
+define the point after which it cannot dispatch or finalize before trusting
+that marker.
 
 ### Execution evidence
 
 | Execution | Existing state | Evidence and limits |
 | --- | --- | --- |
-| Scheduler | `job.json` holds the native job/task ID; [`ProbeSchedulerJob`](../../internal/executor/scheduler_probe.go) runs the queue and accounting queries but returns raw output. | Classify with the existing `scheduler_status` parsers, not in callers. Active queue state blocks unlock. A terminal accounting record or matching terminal wrapper result establishes termination; contradictory evidence remains unknown. Absence from the queue alone, expired accounting, and query failure do not prove termination. SGE's queue query lists all jobs, so batch per run. |
-| Local | Only a `pid` file; no host, PID namespace, or process start time per attempt. The run's context host is known. | Prefer a matching terminal wrapper result. Otherwise check the process group only from the run's host and PID namespace, as `info` does for the host. Without a recorded process start time, PID-group reuse cannot be told apart, so a live group is "active or reused" (blocks) and a missing group is "stopped" only when host and namespace match. Unrecorded namespace identity is unknown, not an assumed match. A child that left the process group (for example with `setsid`) cannot be detected; document this limit. Phase 3 adds the start time and namespace to new attempts. |
-| SSH | `job.json` holds the host, SSH options, and a remote token that cancel already uses to find the remote process. | Prefer a matching terminal result. Otherwise run a bounded remote query by token, like the cancel script, with a timeout. Death of the local SSH client proves nothing about the remote process. Records without a token remain unknown. |
+| Scheduler | `job.json` holds the native job/task ID; [`ProbeSchedulerJob`](../../internal/executor/scheduler_probe.go) runs the queue and accounting queries but returns raw output. | Classify with the existing `scheduler_status` parsers, not in callers. Trustworthy active queue state blocks unlock even if a terminal record disagrees. A terminal accounting record establishes termination within the scheduler's documented scope; a wrapper record alone does not prove the allocation stopped. Absence from the queue alone, expired accounting, and query failure do not prove termination. Process groups on compute nodes cannot be inspected from the submitting host, and without a timeout the wrapper does not lead its own group, so scheduler termination evidence comes from the scheduler only. SGE's queue query lists all jobs, so batch per run. |
+| Local | Only a `pid` file; no host, PID namespace, or process start time per attempt. The run's context host is known. | A matching terminal wrapper result is outcome evidence, not proof that the process group is empty. Check the process group only from the run's host and PID namespace, as `info` does for the host. Without a recorded process start time, PID-group reuse cannot be told apart, so a live group is "possibly live" (blocks normal unlock, overridable); with a matching recorded start time it is positively live (blocks, not overridable). A missing group is "stopped" only when host and namespace match. Unrecorded namespace identity is unknown, not an assumed match. Children remaining in the group must be checked; children that left it (for example with `setsid`) cannot be detected by that check, a documented limit. Phase 3 adds the start time (`state.ProcessStart`) and namespace (`state.PIDNamespace`) to new attempts. |
+| SSH | `job.json` holds the host, SSH options, and a remote token that cancel already uses to find the remote process. | A terminal result supplies outcome evidence; termination needs evidence covering the managed remote execution. Run a bounded remote query by token, like the cancel script, with a timeout, and audit whether it covers surviving children; the remote process group is defined only when the wrapper leads it (with a timeout), so state the query's scope per case. Death of the local SSH client proves nothing about the remote process. Records without a token remain unknown. |
 
 Inventory executions from command snapshots and attempt/submission records,
 not only directories already containing a command file. Cover plain jobs,
@@ -211,7 +230,13 @@ explicitly return unknown.
 4. Record recovery evidence and any override without modifying historical
    job outcomes. Keep credentials and unnecessary backend output out of it.
 
-`--dry-run` performs the assessment but does not recover or persist it.
+A dry run performs the assessment but does not recover or persist it. The
+CLI `unlock` has no dry run today (only `--basedir`, `--project-name`, and
+`--run-id`), and neither has the CLI-wrapping Python client; only MCP has a
+preview step (`rotari_preview_unlock`, then `rotari_unlock` with
+`if_revision`).
+Phase 1b adds a CLI `--dry-run` and its Python projection, matching the MCP
+preview's states and evidence, together with the override.
 Machine-readable responses expose the same states and evidence as text.
 Do not add expensive external probes to project lists, routine page
 refreshes, or `jobs`/`show`; label earlier observations as stale.
@@ -269,29 +294,70 @@ started. Document the evidence that permits each fast path. Paths without
 that guarantee remain blocked until Phase 3 assessment or explicit operator
 attestation; do not ship an unchecked summary-only fallback.
 
+Audit the wrapper's terminal status record first, but do not treat it as
+proof that its process group or scheduler allocation has stopped. In the
+normal path, the wrapper waits for its direct command; that command can exit
+while background children remain even in the same process group. In the
+cancel-grace and timeout-watchdog paths, the wrapper can write terminal status
+before issuing the final kill. A terminal file can therefore be observable
+while managed execution is still alive.
+
+Document separate evidence requirements for normal completion, cancellation,
+and timeout, including the wrapper, managed children, and any scheduler
+allocation. A fast path must establish the required scope of termination,
+not merely agreement between summary and wrapper exit codes. If current
+records cannot establish it, require a backend/process-group check or explicit
+attestation rather than assuming that a wrapper-only fast path exists.
+Coordinator-recorded cancellations and results reconstructed after a lost
+wrapper do not establish termination either. `FinalizePendingResults` entries
+need no stop check only when the inventory establishes they never launched.
+
+The motivating run predates the coordinator record, so its ownership is
+unverifiable: Phase 2 repairs it only with explicit attestation of the
+coordinator. Its terminal wrapper record establishes the recorded command
+outcome, but any remaining uncertainty about managed execution termination
+needs additional verification or explicit attestation as well.
+
 Without a complete trustworthy summary, unlock only releases the interrupted
 project for future work. Preserve failed/unfinished results; never fabricate a
 summary or execute missing jobs. Explain that retry is a separate action.
 
 ## Unknown evidence and compatibility
 
-Normal unlock refuses unknown or conflicting evidence. An explicit override
-records the operator's attestation and the unresolved evidence; it cannot
-bypass positively live ownership or execution. One unknown execution blocks
-recovery of the whole run unless explicitly overridden; no partial unlock
-is introduced.
+Normal unlock refuses unknown or conflicting evidence (see the rationale
+below). Conflicts containing trustworthy positive-live evidence are blocking,
+not overridable unknowns; possibly-live evidence is an overridable unknown.
+An explicit override records the operator's attestation and the unresolved
+evidence; it cannot bypass positively live ownership or
+execution. One unknown execution blocks recovery of the whole run unless
+explicitly overridden; no partial unlock is introduced.
 
-This tightens the existing operator-directed behavior (SAFE-7 and COORD-3).
+The default tightens once, in Phase 1b, for ownership: from then on a lock
+from another host or PID namespace, or a run without a coordinator record,
+needs the override. Execution evidence joins the same refusal in Phase 4.
+Before Phase 1b, unlock behaves as today; Phase 1a changes no behavior.
+Phase 1b therefore carries the SAFE-4/COORD-3 contract change, the
+migration guide for automation users, and machine-readable refusal reasons
+in CLI, MCP, and Python. Do not silently infer consent in automation.
+
 Older runs without coordinator records and executions with insufficient
 identity may need the override. Measure how often this occurs to prioritize
-backend support and migration guidance, not to relax the default. Update MCP,
-Python, and script examples with machine-readable refusal reasons and the
-explicit attestation option. Do not silently infer consent in automation.
+backend support and migration guidance, not to relax the default.
+
+When ownership is unknown only because the coordinator ran on another host
+or PID namespace, the refusal names that host and namespace and explains that
+running `unlock` on the original host in the same PID namespace may allow
+verification if the recorded identity is still inspectable. Moving to the
+host alone is insufficient; an old container/namespace may no longer be
+accessible. Do not recommend recreating a container as equivalent identity.
+On shared file systems, unlocking from another login node is common, so give
+this actionable guidance before the explicit-attestation alternative.
 
 ## Open decisions
 
 1. **Override option and attestation format.** Choose a consistent explicit
-   interface for CLI, MCP, and Python, including dry-run behavior.
+   interface for CLI, MCP, and Python, including dry-run behavior; decide
+   in Phase 1b.
 2. **Whether the Web API exposes assessment.** It has none today; adding Web
    unlock remains outside this plan.
 3. **Coordinator record format** and how it relates to the lock and
@@ -359,51 +425,212 @@ to deliver this capability initially. Adding Web controls would expand the
 interface and testing scope without resolving the ownership and termination
 questions. Web assessment remains an open extension; Web unlock is excluded.
 
+### Tighten the default in one named phase
+
+Requiring attestation for unknown ownership is a user-visible change to
+SAFE-4 and COORD-3: a lock from another host, accepted today on the
+operator's word, would be refused. If the plan only says that Phase 4
+documents the migration, Phase 1 could ship that refusal without its
+contract change, refusal reasons, or migration guide, and automation would
+break with nothing to follow. Naming Phase 1b as the point where the
+default tightens keeps the contract, documentation, and the three
+interfaces in the same change as the behavior. Execution evidence tightens
+again in Phase 4, which carries its own contract change.
+
+### Add the CLI dry run with the override
+
+The CLI `unlock` has no way to see what it would do: it has no dry run and
+no confirmation, so today running it is the operator's attestation. Once
+unknown evidence is refused and the override is required, a CLI user or
+script must be able to read the refusal reasons and evidence before
+choosing to attest; otherwise the only way to learn them is to attempt the
+unlock. MCP already separates preview and apply, so the CLI catches up in
+the same phase that introduces the override, and both report one result
+rather than two classifications.
+
+### Split Phase 1 into identity and override
+
+Phase 1 combined assessment types, policy, persisted identity, and an
+override across three interfaces. Persisting the coordinator record has to
+start as early as possible, because only runs started after it ships can be
+verified; it changes no behavior and is low risk. The override interface,
+by contrast, is visible and hard to change once automation depends on it.
+Splitting them lets the record ship first (1a) and gather runs that carry
+it, while the override (1b) is designed with real refusal cases at hand.
+The override is still designed for both ownership and execution evidence,
+so Phase 4 reuses it rather than reshaping it.
+
+### State that the motivating run needs attestation
+
+The motivating run started before any coordinator record exists, so no
+later phase can verify its ownership retroactively. Without saying so, a
+Phase 2 acceptance test might expect that run to repair without the
+override, and either fail or tempt a weaker ownership check to make it
+pass. The plan therefore expects coordinator attestation, plus verification
+or attestation for managed execution termination. Its wrapper record alone
+does not remove the latter requirement.
+
+### Audit the wrapper record, but not as termination proof
+
+"Only proven fast paths" leaves Phase 2 without a starting point. The wrapper
+record is execution-side evidence and is present in the motivating run, so
+it is a useful starting point for an audit, not a promised fast path.
+
+Reading [the wrapper implementation](../../internal/executor/wrapper.go)
+shows why the stronger claim was removed: normal completion waits for the
+direct command, not every process in its group. A background child can
+outlive that command without leaving the group. The cancellation grace timer
+and timeout watchdog also write terminal status before issuing their final
+kill; a crash or delay between those operations leaves an observable terminal
+record without proven termination. Even the wrapper's own terminal record
+must therefore be evaluated by path and scope. Coordinator-recorded results
+provide no stronger guarantee.
+
+This distinction may defer automatic repair to the execution-assessment
+phase. That is preferable to declaring safety based on exit-code agreement
+while duplicate work can still overlap surviving processes.
+
+### Do not turn positive-live conflicts into overridable unknowns
+
+A wrapper may report finished while the matching scheduler job is still
+running, or a matching local process group may still contain children. If
+all contradictions become unknown, the override intended for missing evidence
+could bypass known activity, contradicting the plan's live-execution refusal.
+Keep trustworthy positive-live evidence blocking regardless of terminal
+evidence, and display both observations. Identity and freshness checks avoid
+confusing reused identifiers or historical observations with current activity.
+
+### Treat unvalidated live evidence as overridable
+
+Every local attempt recorded before Phase 3 lacks a process start time, so a
+live process group under its PID may be the job or an unrelated process that
+reused the ID. Treating that as trustworthy positive-live evidence would make
+it non-overridable, and an unrelated long-lived process could then keep the
+run unrecoverable indefinitely, with no action available to the operator.
+Treating it as stopped would hide a job that may still be running. "Possibly
+live" keeps normal unlock refusing and displays the observation, while the
+explicit override remains available, consistent with the rule that
+identity must be validated before evidence counts as positive-live. Once
+the start time is recorded and matches, the evidence becomes positive-live
+and stops being overridable.
+
+### Say that Phase 2 repairs with attestation
+
+The wrapper audit showed that its terminal record does not establish
+termination, and Phase 2 has no backend or process-group assessment. So in
+Phase 2 almost every repair needs attestation of execution termination as
+well as of legacy ownership. Describing Phase 2 as if evidence-based fast
+paths were expected would set an acceptance target it cannot meet, and could
+invite weakening the evidence rules to meet it. Phase 2 still has its own
+value: an attested repair restores the run to `finished` with its summary,
+instead of the collecting state that unlock leaves today. Evidence-based fast
+paths move to Phase 3, where the assessment that provides that evidence
+exists.
+
+### Scope process-group evidence to where it is defined
+
+A process-group check is meaningful only where rotari knows the group and
+can inspect it. The local executor starts the wrapper in its own group, but
+a scheduler or SSH wrapper leads its own group only when a timeout is set,
+and compute-node groups are not visible from the submitting host. Without
+stating this, wrapper and children tests could be read as applying to every
+executor and lead to probes that inspect an unrelated group. Scheduler
+evidence therefore comes from the scheduler, SSH evidence from the token
+query with a stated scope, and the process-group tests apply to local
+attempts.
+
+### Reuse existing process identity helpers
+
+`state.ProcessStart`, `state.PIDNamespace`, and the attachment rule for a
+missing start time already decide whether a PID is still the same process.
+A second implementation for coordinators or local attempts would be the
+kind of drift [AGENTS.md](../../AGENTS.md) warns about: one rule in several
+places. The plan names them so that each phase extends them.
+
+### Point refusals to the coordinator's host
+
+Shared file systems make it ordinary to run rotari from a different login
+node than the one that started the run. Ownership is then unknown only
+because of where the check runs, not because evidence is missing. Naming
+the host and PID namespace can make a refusal actionable, reducing operator
+attestation where verification is possible. A PID only identifies a process
+within its namespace: reaching the original host does not grant access to a
+former container's namespace. Guidance must be conditional on access to that
+same namespace and recorded identity, not promise that changing hosts solves
+every remote-ownership refusal.
+
 ## Contracts affected
 
-- SAFE-4 and COORD-3: other-host/namespace recovery gains verification and an
-  explicit override.
-- SAFE-7: the warning becomes the shared assessment's evidence.
-- CLI-21: `info`'s local check moves to the shared assessment.
-- RES-7 and CORE-5 remain; new rules are needed for finalization repair and
-  for the override. Give them IDs when their phase starts.
+- Phase 1a: none.
+- Phase 1b: SAFE-4 and COORD-3 (other-host/namespace and record-less runs
+  need the override); new rules with IDs for the override and for the CLI
+  dry run (SAFE-7's MCP preview gains the same result).
+- Phase 2: a new rule with an ID for finalization repair; RES-7 and CORE-5
+  remain.
+- Phase 3: SAFE-7 (the warning becomes the shared assessment's evidence),
+  CLI-21 (`info`'s local check moves to the shared assessment), and the
+  Phase 2 repair rule (assessed termination replaces execution attestation).
+- Phase 4: SAFE-4 again, for refusal on unknown execution evidence.
 
 ## Implementation phases
 
 Each phase is a separate change with its own tests and documentation.
 
-1. **Coordinator identity and policy foundation.** Define shared assessment
-   types and recovery policy. Persist coordinator identity before execution,
-   and assess it even when the run lock is absent. Test live, stopped,
-   reused-PID, other-host/namespace, and legacy missing-record cases. Select
-   the override interface and implement explicit attestation for unknown
-   ownership across CLI, MCP, and Python before Phase 2 uses it.
-2. **Guarded finalization repair.** Recover a run with a complete matching
+1. **Coordinator identity and policy foundation.**
+   - **1a. Identity record.** Define shared assessment types and recovery
+     policy. Persist coordinator identity before execution, and assess it
+     even when the run lock is absent, reusing `state.ProcessStart` and
+     `state.PIDNamespace`. Test live, stopped, reused-PID,
+     other-host/namespace, and legacy missing-record cases. Expose the
+     assessment read-only (for example in `info`); unlock behavior does not
+     change.
+   - **1b. Override and tightened default.** Select the override interface,
+     designed for both ownership and execution evidence, and require it for
+     unknown ownership across CLI, MCP, and Python. Refusals name the
+     coordinator's host and namespace. Add the CLI `--dry-run` (new; the CLI
+     has none today) and its Python projection, sharing the MCP preview's
+     result. Update SAFE-4 and COORD-3, add the override and dry-run rules,
+     and publish the migration guide for automation users in the same
+     change.
+2. **Attested finalization repair.** Recover a run with a complete matching
    summary to `finished` instead of collecting, subject to the completeness,
    ownership, and termination requirements above. Reproduce the motivating
-   state in a failing test first. Implement only proven evidence-based fast
-   paths; other cases require explicit attestation or remain blocked pending
-   Phase 3. Record whether `Finish` should keep removing its lock on failure.
-   Add a contract rule and conformance row. Do not treat this phase as full
-   executor verification.
+   state in a failing test first. Expect execution termination to need
+   explicit attestation in this phase: the wrapper audit separates
+   direct-command outcome from managed-execution termination for normal,
+   cancel, and timeout paths, and the terminal record alone does not
+   establish termination. Only never-launched entries established by the
+   inventory need no attestation. Evidence-based fast paths are added in
+   Phase 3. Record whether `Finish` should keep removing its lock on
+   failure. Add a contract rule and conformance row. Do not treat this phase
+   as executor verification.
 3. **Read-only execution assessment.** Add executor-owned classified probes
    under the shared policy, starting with local and schedulers. Reuse
    `info`'s logic, add process start time and PID namespace to new local
-   attempts, and wire `info` and MCP preview to the shared assessment.
+   attempts, and wire `info` and MCP preview to the shared assessment. Let
+   finalization repair use assessed termination evidence, so a verified
+   stopped run repairs without execution attestation.
 4. **Full verified unlock.** Make `unlock` use fresh execution assessment,
    revalidate under the state lock, persist evidence and overrides, and add
-   SSH token queries. Reuse Phase 1's attestation interface for unknown
+   SSH token queries. Reuse Phase 1b's attestation interface for unknown
    executions. Update CLI, MCP, and Python together; every intermediate
    phase must label unsupported checks rather than claim full verification.
 5. **Documentation.** Each phase updates recovery guides (`docs/OPERATIONS.md`,
    `docs/FAQ.md`), CLI/API documentation, `docs/ARCHITECTURE.md`, contracts,
-   and conformance mappings for what it changes; Phase 4 documents the
-   migration for automation users.
+   and conformance mappings for what it changes; Phase 1b documents the
+   migration for automation users, and Phase 4 extends it to execution
+   evidence.
 
 ## Validation and acceptance criteria
 
-- Phase 1: removing the run lock does not hide a live coordinator; missing
-  legacy identity requires explicit attestation and never implies death.
+- Phase 1a: removing the run lock does not hide a live coordinator in the
+  assessment; missing legacy identity is unknown and never implies death;
+  unlock behavior is unchanged.
+- Phase 1b: unknown ownership requires explicit attestation in CLI, MCP, and
+  Python alike; the refusal names the coordinator's host and namespace;
+  a live coordinator refuses even with the override. CLI `--dry-run`, the
+  Python dry run, and the MCP preview report the same states and evidence
+  and change nothing.
 - Phase 2: the successful-summary/running-metadata state recovers to
   `finished` without execution, queue changes, result loss, or duplicate
   notifications; an incomplete or mismatched summary still recovers to
@@ -411,7 +638,26 @@ Each phase is a separate change with its own tests and documentation.
   or duplicate results, invalid attempt/origin associations, and cancellation
   before external termination do not qualify for summary-based repair.
   Live ownership/execution refuses even with an override; unknown ownership
-  or termination evidence requires explicit attestation.
+  or termination evidence requires explicit attestation. The motivating
+  state without a coordinator record requires coordinator attestation and
+  separate termination verification or attestation; a terminal wrapper record
+  alone is insufficient. Never-launched results require inventory evidence,
+  not fictitious process termination evidence.
+  In Phase 2, executed jobs require execution attestation even with a
+  terminal wrapper record.
+- Phase 3: a run whose executions are assessed as stopped repairs without
+  execution attestation.
+- Wrapper tests (local attempts): normal command exit with a background child
+  still in its process group; terminal status visible before final kill in
+  cancellation and timeout paths; and children outside the managed process
+  group. Scheduler and SSH tests check the scope their evidence states.
+- Evidence precedence tests: matching wrapper-finished/scheduler-running and
+  wrapper-finished/live-process-group (with matching start time) conflicts
+  refuse even with override. A live group without a recorded start time is
+  possibly live: refused without override, accepted with it. Stale
+  observations or reused identities must not become positive-live proof.
+- Refusal guidance tests: original host with a different or inaccessible PID
+  namespace does not promise verification merely by moving to that host.
 - Table tests: terminal/active/unknown/conflicting evidence; query timeout,
   permission error, unavailable backend, missing identity, and old records.
 - Inventory tests: plain/array/matrix, earlier retries, carried results,
