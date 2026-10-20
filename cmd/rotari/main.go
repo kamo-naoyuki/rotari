@@ -10,6 +10,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
+	"github.com/kamo-naoyuki/rotari/internal/launcher"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
@@ -44,6 +45,10 @@ func dispatch(args []string) int {
 	}
 	if args[0] == "__log-forward" {
 		return executor.RunLogForward(args[1:])
+	}
+	// The wrapper of one launched command; it loads no configuration.
+	if args[0] == launcher.WrapperCommand {
+		return launcher.RunWrapper(args[1:])
 	}
 	if isHelpArgument(args[0]) || args[0] == "help" {
 		printUsage()

@@ -142,6 +142,9 @@ The package map, process roles, and per-command walkthroughs are in
   `internal/sourcerev` reads the version-control revision of a directory and
   holds no run rules; `internal/projectrun` decides which directories a run
   records.
+  `internal/launcher` runs commands a user registered for artifacts and owns
+  their processes; it imports no rotari package and no HTTP code, so callers
+  supply the command, target, and environment.
   Executors implement job execution only.
 - Renderers do not read status files themselves: `show`, `jobs`, `report`,
   and the Web UI resolve outcomes through `internal/jobstatus` so they cannot
@@ -151,10 +154,10 @@ The package map, process roles, and per-command walkthroughs are in
 
 The import-level parts of these rules (what `internal/model`, `internal/state`,
 `internal/executor`, `internal/run`, `internal/runlineage`,
-`internal/jobfilter`, `internal/artifact`, and `internal/sourcerev` may
-import, no `internal` package importing `cmd/`, and `conformance` importing
-only the standard library and its harness `conformance/support`) are
-enforced by
+`internal/jobfilter`, `internal/artifact`, `internal/sourcerev`, and
+`internal/launcher` may import, no `internal` package importing `cmd/`, and
+`conformance` importing only the standard library and its harness
+`conformance/support`) are enforced by
 [`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).
 Change a rule there in the same change as this list.
 

@@ -79,6 +79,12 @@ var boundaryRules = []boundaryRule{
 		forbidden: fileAccess,
 	},
 	{
+		pkg:       "internal/launcher",
+		reason:    "launcher runs registered commands and owns their processes, knowing nothing of jobs, runs, or HTTP",
+		allowed:   []string{},
+		forbidden: []string{"net/http"},
+	},
+	{
 		pkg:    "conformance",
 		reason: "conformance checks the binary and Web API from outside the code",
 		// conformance/support is the conformance packages' own harness,

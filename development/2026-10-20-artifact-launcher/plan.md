@@ -1,9 +1,8 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Phase 1 (feasibility gates) passed; Phase 2 in progress: the
-registry and manager are in `internal/launcher`, and the `cmd/rotari` wiring
-is next. See [Phase 1 results](#phase-1-results).
+Status: Phases 1 and 2 done; Phase 3 next. See
+[Phase 1 results](#phase-1-results).
 
 ## Goal
 
@@ -397,11 +396,14 @@ responses.
    platforms. If any gate cannot be met, revise the service or configuration
    design before proceeding.
 2. **Registration and command manager.** Implement `launchers.toml` loading and
-   validation, `config --launchers`/`--list`, process ownership, command-mode
-   start/list/log/stop, deduplication, and cleanup with unit tests.
+   validation, process ownership, command-mode start/list/log/stop,
+   deduplication, and cleanup with unit tests, and dispatch `rotari
+   __launch`. Done; `config --launchers`/`--list` moved to Phase 3 so that
+   the user-visible options arrive with `--allow-exec`, which they refer to.
 3. **Web capability and Artifacts entry.** Wire opt-in/auth/request checks,
-   artifact resolution, and name-based command resolution; add the
-   **Launch with** menu, confirmation dialog, and server-wide launch list.
+   artifact resolution, and name-based command resolution; add
+   `config --launchers`/`--list`, the **Launch with** menu, confirmation
+   dialog, and server-wide launch list.
    Verify a registered command can be launched, observed, and stopped from
    Artifacts.
 4. **HTTP services and TensorBoard.** Add allocated upstreams, readiness,
@@ -415,10 +417,11 @@ its required shutdown or access protections as a temporary default.
 
 ## Phase 1 results
 
-The building blocks are in `internal/launcher`. Nothing calls them yet;
-Phase 2 adds the manager, the `__launch` dispatch in `cmd/rotari`, the
-`internal/archtest` boundary rule (no rotari imports), and the package's
-entry in `docs/ARCHITECTURE.md` and `contracts/00-overview.md`.
+The building blocks are in `internal/launcher`. Phase 2 added the registry,
+the manager, the `__launch` dispatch in `cmd/rotari`, the `internal/archtest`
+boundary rule (no rotari imports, no `net/http`), and the package's entry in
+`docs/ARCHITECTURE.md` and `contracts/00-overview.md`. Phase 3 is the first
+caller.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |

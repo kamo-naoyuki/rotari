@@ -185,6 +185,7 @@ flowchart TB
   joblist["joblist<br/>recent jobs"]
   supervisor["supervisor<br/>server request work"]
   webui["webui<br/>Web handlers and assets"]
+  launcher["launcher<br/>launched commands<br/>(imports nothing from rotari)"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -247,6 +248,7 @@ flowchart TB
   supervisor --> projectrun
   supervisor --> jobcontrol
   cmd --> webui
+  cmd --> launcher
   webui --> web
   webui --> queueops
   webui --> jobcontrol
@@ -322,6 +324,7 @@ are checked against this graph by
 | [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `assets/` |
+| [internal/launcher](../internal/launcher/) | Commands a user registered in `launchers.toml` and runs against an artifact from the Web UI: the file's schema and the StrictModes-style check that no other user can change it, the manager of one Web server's launches (start, reuse, stop, limits, rotating output), the `rotari __launch` wrapper that stops a launch's process group when the Web process exits for any reason, and the check that a service port belongs to the launch. Knows nothing of jobs, runs, or HTTP. | `manager.go` (`Manager`), `registry.go` (`LoadRegistry`), `wrapper.go` (`RunWrapper`), `listener.go` (`VerifyListener`) |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs or a whole project (`DeleteProject`), and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
@@ -376,6 +379,8 @@ internal package.
 - Does it decide which base directory, project, run, or job a selector
   names? `internal/resolve`.
 - Is it a Web handler, the static export, or a Web asset? `internal/webui`.
+- Does it start or stop a command the user registered for artifacts?
+  `internal/launcher`.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
 
 ## Files in cmd/rotari
