@@ -151,10 +151,10 @@ func (inspector *shellInspector) call(call *syntax.CallExpr) commandShape {
 		if !ok {
 			continue
 		}
-		if rule, accepted := Classify(value, assign.Name.Value, Literal); accepted {
+		if path, rule, accepted := Classify(value, assign.Name.Value, Literal); accepted {
 			source := inspector.origin.source(assign.Value.Pos())
-			source.Rule, source.Key, source.Expanded = rule, assign.Name.Value, expanded
-			inspector.add(value, source)
+			source.Rule, source.Key, source.Expanded, source.Value = rule, assign.Name.Value, expanded, value
+			inspector.add(path, source)
 		}
 	}
 	words := make([]string, len(call.Args))

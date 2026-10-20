@@ -145,9 +145,14 @@ func (c *collector) resolve(value string) (string, string) {
 
 // add records source for value, merging it into an existing candidate with
 // the same path. A new candidate beyond MaxCandidates is dropped.
-func (c *collector) add(value string, source Source) {
-	resolved, basis := c.resolve(value)
-	source.Value = value
+// add records a reference to path. source.Value keeps the text as written
+// when the caller set it, such as a local URI (PATH-R6); otherwise it is
+// path.
+func (c *collector) add(path string, source Source) {
+	resolved, basis := c.resolve(path)
+	if source.Value == "" {
+		source.Value = path
+	}
 	if index, ok := c.byPath[resolved]; ok {
 		c.result.Candidates[index].Sources = append(c.result.Candidates[index].Sources, source)
 		return
@@ -234,10 +239,10 @@ func (c *collector) commandWords(words []string, add func(string, Source), sourc
 				value, key = keyValue, name
 			}
 		}
-		if rule, ok := Classify(value, key, Literal); ok {
+		if path, rule, ok := Classify(value, key, Literal); ok {
 			found := source(index)
-			found.Rule, found.Key = rule, key
-			add(value, found)
+			found.Rule, found.Key, found.Value = rule, key, value
+			add(path, found)
 		}
 	}
 	return shape
@@ -255,8 +260,8 @@ func (c *collector) environment(entries []string) {
 		if strings.HasSuffix(strings.ToUpper(name), "PATH") && strings.Contains(value, ":") {
 			continue
 		}
-		if rule, ok := Classify(value, name, Literal); ok {
-			c.add(value, Source{Kind: KindEnvironment, Rule: rule, Index: indexOf(index), Key: name})
+		if path, rule, ok := Classify(value, name, Literal); ok {
+			c.add(path, Source{Kind: KindEnvironment, Value: value, Rule: rule, Index: indexOf(index), Key: name})
 		}
 	}
 }

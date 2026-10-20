@@ -152,6 +152,7 @@ Then accept the first matching positive rule:
 | PATH-R3 | A directory-containing relative reference or trailing separator | `results/metrics`, `results/` | Slash alone is not proof; exclusions take precedence |
 | PATH-R4 | A basename with a recognized filename extension | `metrics.csv`, `plot.png`, `config.yaml` | A dot alone, unknown suffix, or version number is insufficient |
 | PATH-R5 | A literal value under a recognized path key/long option | `output_dir: results`, `--file-path results`, `checkpoint_file=latest`, `--output results` | Under an output/input key, a format name such as `png` is skipped; `format` is not a key |
+| PATH-R6 | A local `file:` or `sqlite:` URI, recording the path it names (added 2026-10-21; see [tracker integration](../2026-10-21-experiment-tracker-integration/plan.md)) | `sqlite:///runs/mlflow.db`, `file:./mlruns`, `file:///data/aim` | Checked before PATH-X1, which still skips every other URI; a file URI naming another host and an in-memory SQLite database are skipped |
 
 Initial PATH-R4 extensions (case-insensitive): `.yaml`, `.yml`, `.json`, `.toml`,
 `.csv`, `.tsv`, `.jsonl`, `.txt`, `.png`, `.jpg`, `.jpeg`, `.svg`, `.pdf`, `.npy`,

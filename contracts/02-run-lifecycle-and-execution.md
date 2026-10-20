@@ -659,7 +659,7 @@ j_dir: "~/j"
 | Rule | Condition | Command | Recorded |
 | --- | --- | --- | --- |
 | `PATH-X1` | Empty or blank | `rotari add -- train --log-dir '' --cache-dir ' '` | nothing |
-| `PATH-X1` | A URL or URI (`scheme://`, `mailto:`, `data:`, `urn:`) | `rotari add -- train https://example.org/a.png s3://bucket/a file:///a.csv mailto:me@example.org` | nothing |
+| `PATH-X1` | A URL or URI (`scheme://`, `mailto:`, `data:`, `urn:`), other than a local `file:` or `sqlite:` URI (`PATH-R6`) | `rotari add -- train https://example.org/a.png s3://bucket/a ftp://host/a.csv postgresql://db/m mailto:me@example.org` | nothing |
 | `PATH-X1` | A number or numeric ratio | `rotari add -- train --log-dir 10 0.001 1e-3 inf 1/2 0.5/1.5` | nothing |
 | `PATH-X1` | A regular expression (`^…`, `.*`, `.+`, `\.`, `\d`, `\w`, `\s`, `(?`, `[^`) | `rotari add -- train '^results' '.*/a.csv' 'a\.csv' 'a/\d+'` | nothing |
 | `PATH-X1` | A control character, such as a newline in code | `rotari add -- train "$(printf 'a/b\nc.csv')"` | nothing |
@@ -840,6 +840,9 @@ open("results/%d.pt" % 1)
 | `PATH-R5` | Other keys | `rotari add -- train --name n --format f --dir-name d --outdir o --output-format t --dropout r --filename x --paths y` | nothing |
 | `PATH-R5` | Keys compare case-insensitively, `-` as `_`, by the last dotted part, ignoring `--`, `+`, `++`, `~` | `rotari add -- train --LOG-DIR k1 trainer.log_dir=k2 +x.save_dir=k3 ++y.out_dir=k4 '~cache_dir=k5'` | `k1`, `k2`, `k3`, `k4`, `k5` |
 | `PATH-R5` | Environment variable names are keys | `rotari add --env OUTPUT=e1 --env CACHE_DIR=e2 --env MODEL=e3 -- true` | `e1`, `e2` |
+| `PATH-R6` | A local `file:` URI records the path it names (`file:///p`, `file://localhost/p`, `file:/p`, `file:./p`, `file:p`), percent-decoded, without a query | `rotari add -- train file:///data/a file://localhost/data/b file:./c file:d%20e` | `/data/a`, `/data/b`, `c`, `d e` |
+| `PATH-R6` | A `sqlite:` URI, as experiment trackers take one: `sqlite:///rel.db` is relative, `sqlite:////abs.db` absolute | `rotari add --env MLFLOW_TRACKING_URI=sqlite:///runs/mlflow.db -- train sqlite:////data/m.db?mode=ro` | `/data/m.db`, `runs/mlflow.db` |
+| `PATH-R6` | Not a file on another host, an in-memory or empty SQLite database, or a malformed escape | `rotari add -- train file://server/a sqlite:// sqlite:///:memory: sqlite://m.db file:///a%zz` | nothing |
 | `PATH-D1` | The job's log destinations; stderr follows `--output` without `--error` | `rotari add --output logs/out.log --output logs/copy.log -- true` | `logs/out.log`, `logs/copy.log` |
 | `PATH-D2` | Paths declared with `add --artifact`, not classified; a plain `$NAME` expands with `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, and the job's own variables; globs and other `$` text stay literal | `rotari add --env LR=0.1 --artifact 'sweep/$LR.csv' --artifact results/ --artifact 'logs/*.txt' -- true` | `sweep/0.1.csv`, `results`, `logs/*.txt` |
 

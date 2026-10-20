@@ -107,14 +107,17 @@ func (c *collector) configs(read ConfigReader) {
 			c.diagnose(file, "not inspected: "+err.Error())
 		}
 		for _, reference := range references {
-			c.add(reference.Value, Source{Kind: KindConfig, Rule: reference.Rule, Key: reference.Key, File: file, Location: reference.Location})
+			c.add(reference.Path, Source{Kind: KindConfig, Value: reference.Value, Rule: reference.Rule, Key: reference.Key, File: file, Location: reference.Location})
 		}
 	}
 }
 
 // ConfigReference is one path reference found in a configuration source.
 type ConfigReference struct {
+	// Value is the text as written; Path is the path it names, which
+	// differs only for a local URI (PATH-R6).
 	Value    string
+	Path     string
 	Rule     Rule
 	Key      string
 	Location string
@@ -157,8 +160,8 @@ func (w *configWalker) scalar(value, key, location string) error {
 	if w.values > MaxSourceValues {
 		return fmt.Errorf("%w: more than %d values", errSourceLimit, MaxSourceValues)
 	}
-	if rule, ok := Classify(value, key, Interpolated); ok {
-		w.references = append(w.references, ConfigReference{Value: value, Rule: rule, Key: key, Location: location})
+	if path, rule, ok := Classify(value, key, Interpolated); ok {
+		w.references = append(w.references, ConfigReference{Value: value, Path: path, Rule: rule, Key: key, Location: location})
 	}
 	return nil
 }

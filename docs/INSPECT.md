@@ -325,7 +325,9 @@ rotari add --array 0-9 --artifact 'results/$ROTARI_ARRAY_TASK_ID/plot.png' pytho
 
 Automatic discovery looks for likely paths in command arguments, environment
 and matrix values, output destinations, and referenced configuration or script
-files. Paths in configuration and scripts are inspected without running the
+files. A local `file:` or `sqlite:` URI counts as the path it names, so an
+experiment tracker's store set as `MLFLOW_TRACKING_URI=sqlite:///runs/mlflow.db`
+or `file:./mlruns` is found; other URLs and URIs are not paths. Paths in configuration and scripts are inspected without running the
 job; dynamically generated paths and unreadable files may be missed. For SSH
 and scheduler jobs, discovery reads files available on the host running
 `rotari run`.

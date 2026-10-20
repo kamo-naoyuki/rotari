@@ -47,8 +47,8 @@ func (c *collector) python(file string, data []byte) {
 		if !token.literal || pythonFormat.MatchString(token.value) || strings.ContainsAny(token.value, "{}") {
 			return
 		}
-		if rule, ok := Classify(token.value, key, Interpolated); ok {
-			c.add(token.value, Source{Kind: KindPython, Rule: rule, Key: key, File: file, Location: fmt.Sprintf("%d:%d", token.line, token.column)})
+		if path, rule, ok := Classify(token.value, key, Interpolated); ok {
+			c.add(path, Source{Kind: KindPython, Value: token.value, Rule: rule, Key: key, File: file, Location: fmt.Sprintf("%d:%d", token.line, token.column)})
 		}
 	}
 	for index, token := range tokens {

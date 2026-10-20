@@ -43,6 +43,11 @@ const (
 	// RuleDeclared accepts a path the user declared with add --artifact,
 	// without classification.
 	RuleDeclared Rule = "PATH-D2"
+	// RuleLocalURI accepts a URI that names a local file, file: or sqlite:,
+	// as experiment trackers take (MLFLOW_TRACKING_URI=sqlite:///mlflow.db),
+	// and records the path it names. Every other URI stays skipped by
+	// PATH-X1.
+	RuleLocalURI Rule = "PATH-R6"
 )
 
 // Syntax says how a value is written, which decides whether unexpanded
@@ -94,22 +99,100 @@ var (
 // Classify decides whether value is a path reference. key is the context
 // the value appears under: a long option name, a key=value key, an
 // environment variable name, or a configuration key; empty when none. It
-// returns the accepting rule, or false when the value is skipped.
-func Classify(value, key string, syntax Syntax) (Rule, bool) {
+// returns the path the value names, which differs from value only for a
+// local URI (PATH-R6), and the accepting rule, or false when the value is
+// skipped.
+func Classify(value, key string, syntax Syntax) (string, Rule, bool) {
+	if path, ok := localURIPath(value); ok {
+		if excluded(path, syntax) {
+			return "", "", false
+		}
+		return path, RuleLocalURI, true
+	}
 	if excluded(value, syntax) {
-		return "", false
+		return "", "", false
 	}
 	switch {
 	case strings.HasPrefix(value, "/"), strings.HasPrefix(value, "./"), strings.HasPrefix(value, "../"):
-		return RuleExplicitPath, true
+		return value, RuleExplicitPath, true
 	case strings.Contains(value, "/"):
-		return RuleDirectoryReference, true
+		return value, RuleDirectoryReference, true
 	case hasRecognizedExtension(value):
-		return RuleExtension, true
+		return value, RuleExtension, true
 	case IsPathKey(key), isIOKey(key) && !isFormatName(value):
-		return RulePathKey, true
+		return value, RulePathKey, true
 	}
-	return "", false
+	return "", "", false
+}
+
+// localURIPath returns the filesystem path a local file: or sqlite: URI
+// names (PATH-R6):
+//
+//	file:///abs/path, file://localhost/abs/path, file:/abs/path,
+//	file:./rel, file:rel        a file or directory
+//	sqlite:///rel.db, sqlite:////abs.db   a SQLite database (SQLAlchemy form)
+//
+// A file URI naming another host, an in-memory or empty SQLite URI, and
+// any other scheme are not local paths. A query or fragment is dropped and
+// percent-encoding decoded.
+func localURIPath(value string) (string, bool) {
+	scheme, rest, found := strings.Cut(value, ":")
+	if !found {
+		return "", false
+	}
+	var path string
+	switch strings.ToLower(scheme) {
+	case "file":
+		if authority, ok := strings.CutPrefix(rest, "//"); ok {
+			host, _, _ := strings.Cut(authority, "/")
+			if host != "" && !strings.EqualFold(host, "localhost") {
+				return "", false
+			}
+			rest = authority[len(host):]
+		}
+		path = rest
+	case "sqlite":
+		database, ok := strings.CutPrefix(rest, "///")
+		if !ok {
+			return "", false
+		}
+		path = database
+	default:
+		return "", false
+	}
+	if index := strings.IndexAny(path, "?#"); index >= 0 {
+		path = path[:index]
+	}
+	decoded, ok := percentDecode(path)
+	if !ok || decoded == "" || decoded == ":memory:" {
+		return "", false
+	}
+	return decoded, true
+}
+
+// percentDecode decodes %XX escapes; a malformed escape fails. It stands in
+// for net/url, which this package does not import (no network packages).
+func percentDecode(value string) (string, bool) {
+	if !strings.Contains(value, "%") {
+		return value, true
+	}
+	var decoded strings.Builder
+	for index := 0; index < len(value); index++ {
+		if value[index] != '%' {
+			decoded.WriteByte(value[index])
+			continue
+		}
+		if index+2 >= len(value) {
+			return "", false
+		}
+		code, err := strconv.ParseUint(value[index+1:index+3], 16, 8)
+		if err != nil {
+			return "", false
+		}
+		decoded.WriteByte(byte(code))
+		index += 2
+	}
+	return decoded.String(), true
 }
 
 // excluded applies PATH-X1 to PATH-X3, which take precedence over every

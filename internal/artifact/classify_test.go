@@ -11,7 +11,8 @@ func TestClassify(t *testing.T) {
 		value  string
 		key    string
 		syntax Syntax
-		want   Rule // "" means skipped
+		want   Rule   // "" means skipped
+		path   string // the recorded path when it differs from value
 	}{
 		// Positive rules.
 		{name: "absolute path", value: "/work/results", want: RuleExplicitPath},
@@ -92,18 +93,47 @@ func TestClassify(t *testing.T) {
 		{name: "glob class", value: "out/run[0-9].csv", syntax: Interpolated},
 		{name: "tilde", value: "~/data", syntax: Interpolated},
 		{name: "interpolated plain path still accepted", value: "results/a.csv", syntax: Interpolated, want: RuleDirectoryReference},
+
+		// Local URIs (PATH-R6) record the path they name.
+		{name: "sqlite relative", value: "sqlite:///mlflow.db", key: "MLFLOW_TRACKING_URI", want: RuleLocalURI, path: "mlflow.db"},
+		{name: "sqlite nested relative", value: "sqlite:///runs/mlflow.db", want: RuleLocalURI, path: "runs/mlflow.db"},
+		{name: "sqlite absolute", value: "sqlite:////work/exp/mlflow.db", want: RuleLocalURI, path: "/work/exp/mlflow.db"},
+		{name: "sqlite query dropped", value: "sqlite:///mlflow.db?mode=ro", want: RuleLocalURI, path: "mlflow.db"},
+		{name: "file triple slash", value: "file:///work/exp/mlruns", want: RuleLocalURI, path: "/work/exp/mlruns"},
+		{name: "file localhost", value: "file://localhost/work/mlruns", want: RuleLocalURI, path: "/work/mlruns"},
+		{name: "file single slash", value: "file:/work/mlruns", want: RuleLocalURI, path: "/work/mlruns"},
+		{name: "file relative", value: "file:./mlruns", want: RuleLocalURI, path: "./mlruns"},
+		{name: "file bare relative", value: "file:mlruns", want: RuleLocalURI, path: "mlruns"},
+		{name: "file upper case scheme", value: "FILE:///work/x", want: RuleLocalURI, path: "/work/x"},
+		{name: "file percent encoded", value: "file:///work/my%20runs", want: RuleLocalURI, path: "/work/my runs"},
+		{name: "file in interpolated config", value: "file:./mlruns", syntax: Interpolated, want: RuleLocalURI, path: "./mlruns"},
+		{name: "file other host", value: "file://server/share/mlruns"},
+		{name: "sqlite in memory", value: "sqlite://"},
+		{name: "sqlite memory name", value: "sqlite:///:memory:"},
+		{name: "sqlite two slashes", value: "sqlite://mlflow.db"},
+		{name: "file bad escape", value: "file:///work/%zz"},
+		{name: "file empty", value: "file://"},
+		{name: "file to a device", value: "file:///dev/null"},
+		{name: "interpolated file uri", value: "file:${OUT}/mlruns", syntax: Interpolated},
+		{name: "http tracking server", value: "http://127.0.0.1:5000", key: "MLFLOW_TRACKING_URI"},
+		{name: "databricks", value: "databricks", key: "MLFLOW_TRACKING_URI"},
+		{name: "postgres", value: "postgresql://user@db/mlflow"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rule, ok := Classify(test.value, test.key, test.syntax)
+			path, rule, ok := Classify(test.value, test.key, test.syntax)
 			if test.want == "" {
 				if ok {
-					t.Fatalf("Classify(%q, %q) = %s, want skipped", test.value, test.key, rule)
+					t.Fatalf("Classify(%q, %q) = %q, %s, want skipped", test.value, test.key, path, rule)
 				}
 				return
 			}
-			if !ok || rule != test.want {
-				t.Fatalf("Classify(%q, %q) = %q, %v, want %s", test.value, test.key, rule, ok, test.want)
+			wantPath := test.path
+			if wantPath == "" {
+				wantPath = test.value
+			}
+			if !ok || rule != test.want || path != wantPath {
+				t.Fatalf("Classify(%q, %q) = %q, %q, %v, want %q, %s", test.value, test.key, path, rule, ok, wantPath, test.want)
 			}
 		})
 	}

@@ -116,7 +116,7 @@ func TestConfigReferencesKeepKeyAndRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ConfigReference{{Value: "ckpt", Rule: RulePathKey, Key: "save_dir", Location: "trainer.save_dir"}}
+	want := []ConfigReference{{Value: "ckpt", Path: "ckpt", Rule: RulePathKey, Key: "save_dir", Location: "trainer.save_dir"}}
 	if !reflect.DeepEqual(references, want) {
 		t.Fatalf("references = %#v, want %#v", references, want)
 	}
