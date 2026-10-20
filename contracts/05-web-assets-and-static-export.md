@@ -772,7 +772,9 @@ and its readiness path under `$ROTARI_LAUNCHER_BASE_PATH` answers 2xx or 3xx;
 a process outside the launch on that port fails it. Each service launch gets
 its own `$ROTARI_LAUNCHER_TOKEN`, which never appears in an API response.
 Only after readiness does `/_launch/ID/...` forward requests to it, with path
-and query unchanged, without the browser's `Authorization` and
+and query unchanged. Open links in both Artifacts and Launches keep this
+server-wide path, including after refresh on a `/_basedir/ID/` page.
+Requests are forwarded without the browser's `Authorization` and
 `X-Rotari-Token` headers or Rotari launch-session cookie, and with the
 command's `proxy_headers` (the readiness probe sends them too), in which
 `$ROTARI_LAUNCHER_TOKEN` is the

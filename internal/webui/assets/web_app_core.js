@@ -735,6 +735,7 @@ function applyBasedirLinks() {
     if (
       link.classList.contains("basedir-switch") ||
       href.startsWith("/_basedir/") ||
+      href.startsWith("/_launch/") ||
       href.startsWith(prefix + "/")
     )
       return;

@@ -480,7 +480,9 @@ targets, and they must exist on the Web server's host. The working directory
 row is the only other target.
 
 A service (such as TensorBoard) shows **Open** once it answers; it opens in a
-new tab through the Web UI's own port. Starting the same command on the same
+new tab through the Web UI's own port. Open links in both Artifacts and
+Launches use the server-wide service route, even when viewing another basedir.
+Starting the same command on the same
 target again while it runs reuses that launch and offers **Start another
 instance**. **Launches** in the top bar
 lists this server's launches, newest first, with their state, exit status,

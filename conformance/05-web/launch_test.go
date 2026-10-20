@@ -506,6 +506,61 @@ func TestWebLaunchServesServices(t *testing.T) {
 	if ready.State != "running" {
 		t.Fatalf("service = %+v", ready)
 	}
+
+	t.Run("OpenLinksAcrossBasedirs", func(t *testing.T) {
+		if _, err := exec.LookPath("node"); err != nil {
+			t.Skip("node is not installed")
+		}
+		command := exec.Command("node", "-e", `
+	const { JSDOM, VirtualConsole } = require('jsdom');
+	const [base, token, id, expected] = process.argv.slice(1);
+	const get = (path, init = {}) => fetch(new URL(String(path), base), {
+	  ...init, headers: { ...init.headers, 'X-Rotari-Token': token },
+	});
+	(async () => {
+	  const { basedirs } = await (await get('/api/basedirs')).json();
+	  for (const prefix of ['', '/_basedir/' + basedirs[0].id]) {
+	    const page = prefix + '/project/launch';
+	    const html = await (await get(page)).text();
+	    const dom = new JSDOM(html, {
+	      runScripts: 'dangerously', url: base + page, virtualConsole: new VirtualConsole(),
+	      beforeParse(window) {
+	        window.fetch = get;
+	        window.setInterval = () => 1;
+	      },
+	    });
+	    const window = dom.window;
+	    try {
+	      await new Promise(resolve => setTimeout(resolve, 300));
+	      const panel = window.document.createElement('div');
+	      panel.id = 'artifact-launch-panel';
+	      window.document.body.append(panel);
+	      await window.followServiceStart(id, 'Viewer');
+	      const check = async (selector) => {
+	        // Periodic page refreshes must not remount server-wide services.
+	        window.applyBasedirLinks();
+	        window.applyBasedirLinks();
+	        const link = window.document.querySelector(selector);
+	        if (!link || link.getAttribute('href') !== expected + '/')
+	          throw new Error(page + ': wrong Open link: ' + link?.outerHTML);
+	        const response = await get(link.href);
+	        const body = await response.text();
+	        if (response.status !== 200 || !body.startsWith('path=' + expected + '/ query='))
+	          throw new Error(page + ': Open did not reach service: ' + response.status + ' ' + body.slice(0, 200));
+	      };
+	      await check('#artifact-launch-panel .launch-open');
+	      await window.showLaunches(id);
+	      await check('#launch-view .launch-open');
+	    } finally {
+	      window.close();
+	    }
+	  }
+	})().catch(error => { console.error(error.stack); process.exit(1); });
+	`, base, launchToken, viewer.ID, viewer.BasePath)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("Open links browser check failed: %v\n%s", err, output)
+		}
+	})
 	proxied := api(e, http.MethodGet, base+viewer.BasePath+"/data/runs?run=a%20b", "")
 	// The browser's credentials are dropped; the launch's own token,
 	// configured in proxy_headers, is presented instead.
