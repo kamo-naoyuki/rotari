@@ -253,9 +253,32 @@ receive `ROTARI_WEB_AUTH_TOKEN`. To use a tool from a particular environment,
 say so in the command, for example
 `conda run --no-capture-output -n ENV tensorboard ...`.
 
-Service mode (`mode = "service"`, with `ready_path` and `ready_timeout`), which
-the template's TensorBoard entry uses, is not available yet: launching such an
-entry fails with an explanation.
+### Services
+
+`mode = "service"` registers a command that serves HTTP, such as the
+template's TensorBoard entry. The Web UI opens it through the `rotari web`
+port itself, under `/_launch/ID/`, so no further SSH port forward is needed:
+
+```toml
+[[launcher]]
+name = "TensorBoard"
+command = '''tensorboard --logdir "$ROTARI_LAUNCHER_ARTIFACT" --host 127.0.0.1 --port "$ROTARI_LAUNCHER_PORT" --path_prefix "$ROTARI_LAUNCHER_BASE_PATH"'''
+targets = ["directory"]
+mode = "service"
+ready_path = "/"        # under the base path; answers 2xx or 3xx when ready (default "/")
+ready_timeout = "60s"   # default 60s
+```
+
+The service must listen on exactly `127.0.0.1:$ROTARI_LAUNCHER_PORT`, not
+`0.0.0.0`, and serve everything under `$ROTARI_LAUNCHER_BASE_PATH`, which is
+how requests arrive; rotari does not rewrite paths or pages, so a program that
+cannot serve under a path prefix does not work. Rotari picks the port. It
+counts the service as ready only when the process listening on the port
+belongs to the launch and `ready_path` answers, so another program that took
+the port first is never shown; that, a bind to another address, or no answer
+within `ready_timeout` fails the launch and stops it, with the reason and the
+service's output. A service that exits without ever listening, as when another
+process took its port, is restarted once on a new port.
 
 ## Shell completion
 

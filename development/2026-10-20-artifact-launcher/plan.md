@@ -1,8 +1,9 @@
 # Plan: Launch commands and services from Artifacts
 
 Created: 2026-10-20
-Status: Phases 1 to 3 done; Phase 4 (services and TensorBoard) next. See
-[Phase 1 results](#phase-1-results) and [Phase 3 notes](#phase-3-notes).
+Status: Phases 1 to 4 done; Phase 5 (contract IDs and conformance rows)
+next. See [Phase 1 results](#phase-1-results),
+[Phase 3 notes](#phase-3-notes), and [Phase 4 notes](#phase-4-notes).
 
 ## Goal
 
@@ -512,6 +513,33 @@ Decisions made while implementing the command-mode Web feature:
   end-to-end check).
 - The user guides document command mode and say that service mode is not
   available yet; Phase 4 replaces that note.
+
+## Phase 4 notes
+
+- Readiness is: TCP connect, `VerifyListener`, then one HTTP GET of the base
+  path plus `ready_path` accepting 2xx or 3xx. `internal/launcher` speaks
+  that one request over `net` itself, keeping its archtest rule (no
+  `net/http`). `ready_path` may not contain spaces.
+- A service that exits before anything ever listened on its port is
+  restarted once on a newly allocated port, and the log says so. A failure
+  after that, a foreign or non-loopback listener, or a readiness timeout
+  stops the group and records the reason as a failed launch.
+- The manager gets the base path from `ManagerConfig.ServicePath`, which
+  `cmd/rotari` sets to `webui.LaunchProxyPath`, so only `internal/webui`
+  knows the `/_launch/` route. `/_launch/ID` redirects to `/_launch/ID/`.
+  The route answers 503 while a launch is starting or after it has ended,
+  404 for an unknown ID, and 403 without `--allow-exec`.
+- The proxy keeps one `http.Transport` per ready launch; its dialer connects
+  only to the launch's loopback port and runs `VerifyListener` on every new
+  connection. `Authorization` and `X-Rotari-Token` are removed; paths and
+  queries pass unchanged, and responses stream (`FlushInterval: -1`).
+- End-to-end with the built binary and TensorBoard 2.21.0, running the
+  template entry unchanged except for the executable: the service was ready
+  in about 1.5 s with `http_proxy` set and no `no_proxy` in the Web server's
+  environment. Through the rotari port, the index page, its 5.9 MB script,
+  `data/runs`, and the event fixture's scalars were served; unauthenticated
+  requests got 401. SIGKILL of `rotari web` ended the wrapper, TensorBoard,
+  and its data server within about 0.4 s.
 
 ## Acceptance and validation
 

@@ -398,6 +398,14 @@ provides HTTP authentication, not encryption.
   and rejects a POST from another origin, or one without `Origin` unless it
   authenticates with `X-Rotari-Token` or a bearer token, which a browser never
   adds by itself. Launched commands get neither the Web token nor stdin.
+  A launched service is served from the Web UI's own origin under
+  `/_launch/ID/`, behind the same token, and requests reach it without the
+  `Authorization` or `X-Rotari-Token` header. Its pages, however, run with the
+  Web UI's origin and can call the rotari API as the signed-in browser: treat
+  a registered service as trusted code, like the command itself. The proxy
+  connects only to the launch's own `127.0.0.1` port, and checks before each
+  new connection that the listening process belongs to the launch (through
+  `/proc` on Linux, `lsof` on macOS).
   Their output stays in a private `0700` directory under `$TMPDIR` until the
   Web server stops; a later `rotari web --allow-exec` removes directories that
   a killed server left behind.

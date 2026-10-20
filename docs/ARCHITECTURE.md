@@ -119,7 +119,12 @@ flowchart LR
    API). Each launch runs under its own `rotari __launch` wrapper process,
    which holds the read end of a pipe only the Web server can write: when the
    Web server exits, even by SIGKILL, every wrapper stops its command's
-   process group. Launches are not runs: they take no project lock and write
+   process group. A service launch listens on a loopback port the manager
+   picks; once `launcher.VerifyListener` shows that the listener belongs to
+   the launch and its readiness path answers, `/_launch/ID/`
+   ([internal/webui/launch_proxy.go](../internal/webui/launch_proxy.go))
+   forwards requests to it unchanged, checking ownership again for every new
+   upstream connection. Launches are not runs: they take no project lock and write
    nothing under a basedir; their output lives in a private
    `$TMPDIR/rotari-web-launches-*` directory removed at shutdown, or by the
    next Web server if this one was killed.
@@ -338,7 +343,7 @@ are checked against this graph by
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages; the completion message the client prints is built in `cmd/rotari` from the run's files. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
-| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, the auth wrapper, and the launch API and its Host/Origin guard. CLI metadata, environment definitions, the config template, and the launcher manager come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `launches.go`, `launch_guard.go`, `assets/` |
+| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, the auth wrapper, and the launch API, its Host/Origin guard, and the `/_launch/` service proxy. CLI metadata, environment definitions, the config template, and the launcher manager come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `launches.go`, `launch_guard.go`, `launch_proxy.go`, `assets/` |
 | [internal/launcher](../internal/launcher/) | Commands a user registered in `launchers.toml` and runs against an artifact from the Web UI: the file's schema and the StrictModes-style check that no other user can change it, the manager of one Web server's launches (start, reuse, stop, limits, rotating output), the `rotari __launch` wrapper that stops a launch's process group when the Web process exits for any reason, and the check that a service port belongs to the launch. Knows nothing of jobs, runs, or HTTP. | `manager.go` (`Manager`), `registry.go` (`LoadRegistry`), `wrapper.go` (`RunWrapper`), `listener.go` (`VerifyListener`) |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs or a whole project (`DeleteProject`), and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |

@@ -391,8 +391,10 @@ artifact, which the server resolves as it does for previews, so only
 recorded candidates and their children under the allowed roots can be
 targets, and they must exist on the Web server's host.
 
-Starting the same command on the same target again while it runs reuses that
-launch and offers **Start another instance**. **Launches** in the top bar
+A service (such as TensorBoard) shows **Open** once it answers; it opens in a
+new tab through the Web UI's own port. Starting the same command on the same
+target again while it runs reuses that launch and offers **Start another
+instance**. **Launches** in the top bar
 lists this server's launches, newest first, with their state, exit status,
 and output (the server keeps at least the most recent 8 MiB of each, and the
 view shows the last 1 MiB), and stops a running one: SIGTERM
