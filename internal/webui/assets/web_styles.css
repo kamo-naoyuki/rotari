@@ -1921,6 +1921,12 @@ pre,
   align-items: center;
   gap: 4px;
 }
+/* A run job's five or six actions take two lines of three, which fit in
+   the height of a job name and its command. */
+.run-jobs td.actions .action-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+}
 .queue-overview td.actions button,
 .project-runs td.actions button,
 .run-jobs td.actions button {

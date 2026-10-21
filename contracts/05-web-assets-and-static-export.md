@@ -461,9 +461,9 @@ and copy button keep the whole ID. Hosts, Executor options, and Working
 directory have a copy button when not empty. Every column stays in the table; a column whose
 values are the same for every job, and Job ID and Finished, start hidden, and the Columns
 menu above the table turns any column but Job, Status, and Exit on or off,
-remembered per browser. A row ends with all its actions as buttons, without a menu: Log, Artifacts
-on a finished job, Diagnosis on a failed job, Notes (disabled when the job
-has none), Report, and Path. Covered by
+remembered per browser. A row ends with all its actions as buttons, without a menu, in lines of
+three: Log, Artifacts on a finished job, Diagnosis on a failed job, Notes
+(disabled when the job has none), Report, and Path. Covered by
 `TestWebRunJobsTable` in
 [run_jobs_test.go](../internal/webui/run_jobs_test.go). The project's queue
 table follows the same column rule, implemented once in `columnTable`: Job
