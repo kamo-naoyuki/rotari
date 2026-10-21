@@ -1876,8 +1876,10 @@ function runSelectionHTML() {
   );
 }
 // runActionsHTML is the run page's toolbar: actions on the checked jobs,
-// then Cancel run while the run is running and Delete run. Buttons that
-// need a selection start disabled until updateSelectedRunJobs enables them.
+// then a button per command for the directory holding the basedir where
+// launching is available, Cancel run while the run is running, and Delete
+// run. Buttons that need a selection start disabled until
+// updateSelectedRunJobs enables them.
 function runActionsHTML(q, run, runID) {
   const data =
     ' data-project="' + esc(q.project_name) + '" data-run="' + esc(runID) + '"';
@@ -1895,6 +1897,7 @@ function runActionsHTML(q, run, runID) {
     '<button type="button" class="cancel-selected-jobs" disabled onclick="controlSelectedRunJobs(\'cancel\')">Cancel selected</button>' +
     '<button type="button" class="suspend-resume-selected-jobs" disabled onclick="controlSelectedRunJobs(\'suspend-resume\')">Suspend selected</button>' +
     '<span class="toolbar-gap"></span>' +
+    basedirParentLaunchButtons(q.project_name, runID) +
     (run.running
       ? '<button type="button" class="cancel-run"' +
         data +

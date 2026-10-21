@@ -198,6 +198,34 @@ func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
 `)
 }
 
+// A run page's toolbar has a button per command for the directory holding
+// the basedir, which previews a launch of that command on it.
+func TestWebLaunchOnBasedirParentInBrowser(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	f := newArtifactFixture(t)
+	options := launchOptions(t, f.baseDir,
+		launchCommand("Count", `ls "$ROTARI_LAUNCHER_ARTIFACT" | wc -l`, launcher.TargetDirectory),
+		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile))
+	runLaunchBrowserScript(t, options, f, `
+  const parent = '`+filepath.Dir(f.baseDir)+`';
+  window.basedirParentLaunchButtons('default', runID);
+  await wait(300);
+  const buttons = new window.DOMParser().parseFromString(window.basedirParentLaunchButtons('default', runID), 'text/html').querySelectorAll('button');
+  if ([...buttons].map(button => button.textContent).join() !== 'Count') fail('toolbar buttons', [...buttons].map(button => button.outerHTML));
+  await window.launchOnBasedirParent('default', runID, 'Count');
+  const view = document.getElementById('artifact-view');
+  if (view.hidden || !view.querySelector('.artifact-preview-title').textContent.includes(parent)) fail('title', view.innerHTML);
+  for (const want of ['Count', parent + ' (directory)', 'Working directory' + parent, 'run ' + runID]) {
+    if (!panelText().includes(want)) fail('confirmation lacks ' + want, panelText());
+  }
+  if (panelText().includes('job ')) fail('confirmation names a job', panelText());
+  await window.startArtifactLaunch('basedir_parent', '', 'Count', false);
+  if (!panelText().includes('Started Count.')) fail('start message', panelText());
+`)
+}
+
 func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

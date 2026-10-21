@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // launchWrapperEnv makes the test binary act as `rotari __launch`.
@@ -245,7 +246,7 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 		"cwd":               {`{"name":"Cat","entry":2,"cwd":"/"}`, http.StatusBadRequest, "come only from the launcher file"},
 		"unknown command":   {request("Nope", "data.csv", ""), http.StatusBadRequest, `no command named "Nope"`},
 		"wrong kind":        {request("Cat", "many", ""), http.StatusBadRequest, "does not accept a directory"},
-		"other entry name":  {`{"name":"Cat","entry":"WD"}`, http.StatusBadRequest, `entry must be an index of the listing or "wd"`},
+		"other entry name":  {`{"name":"Cat","entry":"WD"}`, http.StatusBadRequest, `entry must be an index of the listing, "wd", or "basedir_parent"`},
 		"missing entry":     {`{"name":"Cat","project_name":"default","run_id":"` + f.runID + `","job_id":"job-1"}`, http.StatusBadRequest, "entry must name"},
 		"missing on host":   {request("Cat", "gone.csv", ""), http.StatusBadRequest, "does not exist on this host"},
 		"outside roots":     {request("Cat", "secret.txt", ""), http.StatusBadRequest, "outside the allowed roots"},
@@ -288,6 +289,74 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 	}
 	if got := serveJSON(t, handler, http.MethodGet, "/api/launch", ""); got.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("GET /api/launch = %d; page loads must never execute", got.Code)
+	}
+}
+
+// A run's Launch targets the directory holding the basedir, resolved by the
+// server from the run, under the roots its jobs' entries are served from.
+func TestLaunchOnBasedirParent(t *testing.T) {
+	f := newArtifactFixture(t)
+	parent := filepath.Dir(f.baseDir)
+	options := launchOptions(t, f.baseDir, launchCommand("Count", `pwd -P`, launcher.TargetDirectory))
+	handler := Handler(options)
+	request := func(fields map[string]any) string {
+		body := map[string]any{"project_name": "default", "run_id": f.runID, "entry": launchBasedirParentEntry, "name": "Count"}
+		for key, value := range fields {
+			body[key] = value
+		}
+		value, _ := json.Marshal(body)
+		return string(value)
+	}
+	started := serveJSON(t, handler, http.MethodPost, "/api/launch", request(nil))
+	launch := decodeBody[launcher.Launch](t, started)
+	if started.Code != http.StatusOK || launch.Target != parent || launch.Kind != launcher.TargetDirectory ||
+		launch.Labels["run"] != f.runID || launch.Labels["project"] != "default" {
+		t.Fatalf("launch on the basedir's parent = %d %s", started.Code, started.Body.String())
+	}
+	if _, ok := launch.Labels["job"]; ok {
+		t.Fatalf("a run's launch is labeled with a job: %v", launch.Labels)
+	}
+	preview := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=&entry="+launchBasedirParentEntry+"&name=Count", "")
+	if shown := decodeBody[webLaunchPreview](t, preview); preview.Code != http.StatusOK || shown.Target != parent || shown.CWD != parent {
+		t.Fatalf("preview = %d %s", preview.Code, preview.Body.String())
+	}
+
+	for name, test := range map[string]struct {
+		body string
+		want string
+	}{
+		"with a job":    {request(map[string]any{"job_id": "job-1"}), "give project_name and run_id only"},
+		"with a child":  {request(map[string]any{"child": "base"}), "give project_name and run_id only"},
+		"unknown run":   {request(map[string]any{"run_id": "20990101-000000-00000000"}), "run 20990101-000000-00000000 of project default"},
+		"invalid run":   {request(map[string]any{"run_id": "../x"}), "invalid path element"},
+		"other project": {request(map[string]any{"project_name": "nope"}), "nope"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rejected := serveJSON(t, handler, http.MethodPost, "/api/launch", test.body)
+			if body := decodeBody[webLaunchError](t, rejected); rejected.Code != http.StatusBadRequest || !strings.Contains(body.Error, test.want) {
+				t.Fatalf("POST /api/launch %s = %d %s; want 400 containing %q", test.body, rejected.Code, rejected.Body.String(), test.want)
+			}
+		})
+	}
+
+	// When another user could write the run's records, the directory is
+	// launched on only under --artifact-root.
+	paths, err := stateinternal.ResolveProjectPaths(f.baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(paths.RunsDir, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	refused := serveJSON(t, handler, http.MethodPost, "/api/launch", request(nil))
+	if body := decodeBody[webLaunchError](t, refused); refused.Code != http.StatusBadRequest || !strings.Contains(body.Error, parent+" is not served") ||
+		!strings.Contains(body.Error, "writable by group or others") {
+		t.Fatalf("launch for an untrusted run = %d %s", refused.Code, refused.Body.String())
+	}
+	options.ArtifactRoots = []string{parent}
+	allowed := serveJSON(t, Handler(options), http.MethodPost, "/api/launch", request(map[string]any{"new_instance": true}))
+	if got := decodeBody[launcher.Launch](t, allowed); allowed.Code != http.StatusOK || got.Target != parent {
+		t.Fatalf("launch under --artifact-root = %d %s", allowed.Code, allowed.Body.String())
 	}
 }
 

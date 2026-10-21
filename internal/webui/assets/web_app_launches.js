@@ -88,6 +88,93 @@ async function launchOnWorkingDirectory(queue, run, job, attemptID) {
   artifactView().prepend(note);
 }
 
+// basedirParentLaunchers caches the commands that accept the directory
+// holding the basedir, by that directory, for the run toolbar's buttons.
+let basedirParentLaunchers = { parent: "", commands: null };
+
+function basedirParent() {
+  const base = state.base_dir.replace(/\/+$/, "");
+  return base.slice(0, base.lastIndexOf("/")) || "/";
+}
+
+// basedirParentLaunchButtons is a run toolbar button per command that
+// accepts the directory holding the basedir, the experiment directory a
+// run's jobs often share a tracker store or TensorBoard log directory in;
+// a command whose program is missing is shown disabled with the reason.
+// The first call for a directory asks the server and renders again.
+function basedirParentLaunchButtons(project, runID) {
+  if (!launcherAvailability || !launcherAvailability.available) return "";
+  const parent = basedirParent();
+  if (basedirParentLaunchers.parent !== parent) {
+    basedirParentLaunchers = { parent, commands: null };
+    const params = new URLSearchParams({
+      kind: "directory",
+      name: parent.slice(parent.lastIndexOf("/") + 1),
+    });
+    fetch("/api/launchers?" + params)
+      .then((response) => (response.ok ? response.json() : {}))
+      .catch(() => ({}))
+      .then((body) => {
+        if (basedirParentLaunchers.parent !== parent) return;
+        basedirParentLaunchers.commands = body.commands || [];
+        render();
+      });
+    return "";
+  }
+  return (basedirParentLaunchers.commands || [])
+    .map((command) =>
+      command.unavailable
+        ? '<button type="button" class="launch-run" disabled title="' +
+          esc(command.unavailable) +
+          '">' +
+          esc(command.name) +
+          "</button>"
+        : '<button type="button" class="launch-run" title="' +
+          esc("Launch " + command.name + " on " + parent) +
+          '" onclick="launchOnBasedirParent(' +
+          jsArg(project) +
+          "," +
+          jsArg(runID) +
+          "," +
+          jsArg(command.name) +
+          ')">' +
+          esc(command.name) +
+          "</button>",
+    )
+    .join("");
+}
+
+// launchOnBasedirParent shows what launching a command on the directory
+// holding the basedir would run, for confirmation. The server resolves the
+// directory from the run and decides whether it is served.
+async function launchOnBasedirParent(queue, run, name) {
+  const modal = document.getElementById("output-modal");
+  modal.dataset.view = "artifacts";
+  modal.querySelector("strong").textContent = "Launch " + name;
+  if (followTimer) clearInterval(followTimer);
+  followTimer = null;
+  selectedLog = null;
+  const parent = basedirParent();
+  selectedArtifacts = {
+    queue,
+    run,
+    job: "",
+    attemptID: "",
+    listing: null,
+    basedirParent: parent,
+  };
+  selectedOutput = parent;
+  artifactView().innerHTML =
+    '<div id="artifact-preview" class="artifact-preview"><p class="artifact-preview-title"><strong>' +
+    esc(parent) +
+    '</strong> <span class="meta">the directory holding the basedir</span></p>' +
+    '<div id="artifact-launch-panel" class="artifact-launch-panel" data-key="' +
+    esc(BASEDIR_PARENT_ENTRY + "/") +
+    '" data-row="false"></div></div>';
+  openOutputModal(false);
+  await previewArtifactLaunch(BASEDIR_PARENT_ENTRY, "", name);
+}
+
 function artifactLaunchPanel() {
   return document.getElementById("artifact-launch-panel");
 }

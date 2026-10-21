@@ -13,7 +13,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // LaunchOptions enables launching registered commands from artifacts
@@ -191,8 +193,16 @@ type webLaunchRequest struct {
 
 // webLaunchEntry is a launch request's entry: an index of the listing, or
 // artifactWorkingDirectoryEntry, kept as the content requests' entry
-// parameter so both resolve through resolveArtifact. "" means absent.
+// parameter so both resolve through resolveArtifact, or
+// launchBasedirParentEntry. "" means absent.
 type webLaunchEntry string
+
+// launchBasedirParentEntry names, in a launch request with a run and no
+// job, the directory holding the basedir: the experiment directory, where
+// a run's jobs often share one tracker store or TensorBoard log directory.
+// It is launched on under the same roots as an entry (artifactRoots), so
+// only for a trusted run or under --artifact-root.
+const launchBasedirParentEntry = "basedir_parent"
 
 func (entry *webLaunchEntry) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
@@ -204,8 +214,8 @@ func (entry *webLaunchEntry) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var name string
-	if err := json.Unmarshal(data, &name); err != nil || name != artifactWorkingDirectoryEntry {
-		return fmt.Errorf("entry must be an index of the listing or %q", artifactWorkingDirectoryEntry)
+	if err := json.Unmarshal(data, &name); err != nil || (name != artifactWorkingDirectoryEntry && name != launchBasedirParentEntry) {
+		return fmt.Errorf("entry must be an index of the listing, %q, or %q", artifactWorkingDirectoryEntry, launchBasedirParentEntry)
 	}
 	*entry = webLaunchEntry(name)
 	return nil
@@ -322,11 +332,16 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	if request.Entry == "" {
 		return launcher.StartRequest{}, errors.New("entry must name an artifact candidate of the attempt")
 	}
-	query := url.Values{
-		"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
-		"attempt_id": {request.AttemptID}, "entry": {string(request.Entry)}, "child": {request.Child},
+	var served servedArtifact
+	var err error
+	if request.Entry == launchBasedirParentEntry {
+		served, err = s.resolveBasedirParent(baseDir, request)
+	} else {
+		served, err = s.resolveArtifact(baseDir, url.Values{
+			"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
+			"attempt_id": {request.AttemptID}, "entry": {string(request.Entry)}, "child": {request.Child},
+		})
 	}
-	served, err := s.resolveArtifact(baseDir, query)
 	if err != nil {
 		return launcher.StartRequest{}, err
 	}
@@ -340,13 +355,45 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	if name := filepath.Base(filepath.Join(served.root, served.relative)); !command.Matches(name) {
 		return launcher.StartRequest{}, fmt.Errorf("launcher %q accepts only %s, not %s", command.Name, strings.Join(command.Patterns, ", "), name)
 	}
-	labels := map[string]string{"basedir": baseDir, "project": request.ProjectName, "run": request.RunID, "job": request.JobID}
+	labels := map[string]string{"basedir": baseDir, "project": request.ProjectName, "run": request.RunID}
+	if request.JobID != "" {
+		labels["job"] = request.JobID
+	}
 	if request.AttemptID != "" {
 		labels["attempt"] = request.AttemptID
 	}
 	return launcher.StartRequest{
 		Command: command, Target: filepath.Join(served.root, served.relative), Kind: kind, Labels: labels, NewInstance: request.NewInstance,
 	}, nil
+}
+
+// resolveBasedirParent resolves launchBasedirParentEntry for a run of the
+// basedir under the roots its jobs' entries are served from.
+func (s site) resolveBasedirParent(baseDir string, request webLaunchRequest) (servedArtifact, error) {
+	if request.JobID != "" || request.AttemptID != "" || request.Child != "" {
+		return servedArtifact{}, fmt.Errorf("entry %q names the directory holding the basedir: give project_name and run_id only", launchBasedirParentEntry)
+	}
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, request.ProjectName)
+	if err != nil {
+		return servedArtifact{}, err
+	}
+	runDir, err := stateinternal.SafeJoin(paths.RunsDir, request.RunID)
+	if err != nil {
+		return servedArtifact{}, err
+	}
+	if _, err := os.Stat(runDir); err != nil {
+		return servedArtifact{}, fmt.Errorf("run %s of project %s: %w", request.RunID, request.ProjectName, err)
+	}
+	parent, ok := basedirParentRoot(baseDir)
+	if !ok {
+		return servedArtifact{}, fmt.Errorf("%w: the basedir %s is directly under the filesystem root", errNotServed, baseDir)
+	}
+	roots, note := s.artifactRoots(jobstatus.ArtifactListing{}, baseDir, request.ProjectName, request.RunID)
+	root, relative, inside := artifactRootOf(parent, roots)
+	if !inside {
+		return servedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, parent, note)
+	}
+	return servedArtifact{root: root, relative: relative}, nil
 }
 
 func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request webLaunchRequest) {

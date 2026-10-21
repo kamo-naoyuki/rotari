@@ -235,7 +235,16 @@ function artifactURL(path, index, child, extra) {
 // entry index is taken; matches artifactWorkingDirectoryEntry in
 // internal/webui/artifact_files.go.
 const WORKING_DIRECTORY_ENTRY = "wd";
+// BASEDIR_PARENT_ENTRY names, for a launch on a run without a job, the
+// directory holding the basedir; matches launchBasedirParentEntry in
+// internal/webui/launches.go.
+const BASEDIR_PARENT_ENTRY = "basedir_parent";
 function artifactEntry(index) {
+  if (index === BASEDIR_PARENT_ENTRY)
+    return {
+      path: selectedArtifacts.basedirParent,
+      display_path: selectedArtifacts.basedirParent,
+    };
   const listing = selectedArtifacts.listing;
   return index === WORKING_DIRECTORY_ENTRY
     ? { path: listing.working_directory, display_path: "." }

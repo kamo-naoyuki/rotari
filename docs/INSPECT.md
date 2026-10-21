@@ -415,6 +415,10 @@ even when the job definition named no paths:
   page) and choose **Aim** to open the repository beneath that directory.
 - Open `mlflow.db` inside `.` and choose **MLflow (SQLite)**. This file
   appears after MLflow creates it.
+- When the jobs share one store, such as an Aim repository or a TensorBoard
+  log directory in the experiment directory around `.rotari-state`, choose
+  **Aim** or **TensorBoard** in the run page's toolbar to open it for the
+  whole run.
 - A file store such as `mlruns` can be opened with **MLflow** on that
   directory. If the job names a local `file:` or `sqlite:` tracking URI,
   discovery also records its local path; remote tracking URIs are not local
@@ -491,7 +495,13 @@ the working directory row `.`), or of a
 file or directory inside an opened directory; an opened file or directory has
 it in its title line too. On a run page, a finished job's **Launch** button
 (shown when the server allows launching) opens its Artifacts with the
-commands for the working directory already listed. Each row also has **Download** for a file. The list offers only the registered
+commands for the working directory already listed. The run's toolbar has
+a button per command for the directory holding the basedir (for example
+the experiment directory around `.rotari-state`), such as **TensorBoard**,
+**Jupyter Lab**, and **Aim**, where a run's jobs can share one tracker store
+or TensorBoard log directory; choosing one shows what will run, as above. That
+directory is a target under the same roots as the run's artifacts, so only
+for a trusted basedir or under `--artifact-root`. Each row also has **Download** for a file. The list offers only the registered
 commands that accept a file or a directory, whichever is open; without any,
 the Web UI says why and how to change that (launching disabled, read-only
 server, no registered commands, none for this kind of target, or a static

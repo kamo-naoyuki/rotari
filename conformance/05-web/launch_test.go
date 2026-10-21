@@ -379,15 +379,32 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 		t.Fatalf("Cat = %+v, output %q", done, launchOutput(t, e, base, cat.ID))
 	}
 
+	// A run's Launch names the directory holding the basedir, and no job.
+	basedirParent := func(extra map[string]any) string {
+		body := map[string]any{"project_name": "launch", "run_id": f.runID, "entry": "basedir_parent", "name": "List"}
+		for key, value := range extra {
+			body[key] = value
+		}
+		encoded, _ := json.Marshal(body)
+		return string(encoded)
+	}
+	parent := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", basedirParent(nil)))
+	waitLaunch(t, e, base, parent.ID, ended)
+	if got := launchOutput(t, e, base, parent.ID); !strings.Contains(got, "cwd="+filepath.Dir(e.Base)+" token=unset\n") {
+		t.Fatalf("List on the basedir's parent printed %q", got)
+	}
+
 	before := len(listLaunches(t, e, base))
 	for name, body := range map[string]string{
-		"command text":    f.request("Cat", "data", "n.txt", map[string]any{"command": "touch pwned"}),
-		"working dir":     f.request("Cat", "data", "n.txt", map[string]any{"cwd": "/"}),
-		"unknown command": f.request("Basedir", "data", "n.txt", nil),
-		"missing program": f.request("Missing", "data", "n.txt", nil),
-		"wrong kind":      f.request("Cat", "data", "", nil),
-		"absent target":   f.request("Cat", "gone.txt", "", nil),
-		"escaping child":  f.request("Cat", "data", "../data/n.txt", nil),
+		"parent with job":  basedirParent(map[string]any{"job_id": f.jobID}),
+		"parent of no run": basedirParent(map[string]any{"run_id": "20990101-000000-00000000"}),
+		"command text":     f.request("Cat", "data", "n.txt", map[string]any{"command": "touch pwned"}),
+		"working dir":      f.request("Cat", "data", "n.txt", map[string]any{"cwd": "/"}),
+		"unknown command":  f.request("Basedir", "data", "n.txt", nil),
+		"missing program":  f.request("Missing", "data", "n.txt", nil),
+		"wrong kind":       f.request("Cat", "data", "", nil),
+		"absent target":    f.request("Cat", "gone.txt", "", nil),
+		"escaping child":   f.request("Cat", "data", "../data/n.txt", nil),
 	} {
 		if got := api(e, http.MethodPost, base+"/api/launch", body); got.Status != http.StatusBadRequest {
 			t.Errorf("%s: (%d, %s), want 400", name, got.Status, got.Body)

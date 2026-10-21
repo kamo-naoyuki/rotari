@@ -506,7 +506,10 @@ The run page keeps Cancel and Suspend/Resume out of individual job rows.
 The selection buttons and a count of checked jobs sit beside the Jobs heading,
 and the toolbar under it (`runSelectionHTML` and `runActionsHTML` in
 `web_app_core.js`) is rendered with the table.
-The toolbar actions between Report and Delete run operate on the checked jobs:
+The toolbar actions after Report and before the run's own actions (a button
+per command for the directory holding the basedir where launching is
+available, Cancel run while the run is running, and Delete run) operate on
+the checked jobs:
 Cancel includes selected pending, running, and suspended jobs; Suspend targets
 selected running jobs; Resume targets selected suspended jobs. Cancel and
 Suspend stay disabled unless at least one checked job is running, while Resume
@@ -767,14 +770,26 @@ by another user or writable by group or others, or when the file is invalid;
 `rotari config --launchers` writes a template there with mode `0600` and
 `config --list` lists it. `POST /api/launch` accepts only a registered
 command's name, an artifact named as WEB-6 names one (entry index and
-optional child under an allowed root), and whether to start another
+optional child under an allowed root) or, with a project and an existing
+run but no job, attempt, or child, entry `basedir_parent` for the directory
+holding the basedir under the same roots as that run's entries (the run
+page's toolbar has a button per command that accepts it, disabled with the
+reason when its program is missing, `basedirParentLaunchButtons` in
+[web_app_launches.js](../internal/webui/assets/web_app_launches.js)), and
+whether to start another
 instance; any other field is rejected and nothing starts, as are an unknown
 name, a command that does not accept the artifact's kind, and an artifact
 that does not exist on the Web host. The command runs with `/bin/sh -c`,
 empty stdin, `ROTARI_LAUNCHER_ARTIFACT` and `ROTARI_LAUNCHER_CWD` set, and
 without `ROTARI_WEB_AUTH_TOKEN`. Covered by
 `TestWebLaunchRunsOnlyRegisteredCommands` in
-[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go),
+and `basedir_parent` by `TestLaunchOnBasedirParent` in
+[launches_test.go](../internal/webui/launches_test.go), its toolbar buttons
+by `TestWebRunJobsTable` in
+[run_jobs_test.go](../internal/webui/run_jobs_test.go) and
+`TestWebLaunchOnBasedirParentInBrowser` in
+[launch_browser_test.go](../internal/webui/launch_browser_test.go).
 
 **WEB-16** A start while the same command runs on the same target and
 working directory returns that launch, marked reused, unless another instance
