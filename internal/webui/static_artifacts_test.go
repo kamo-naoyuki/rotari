@@ -58,7 +58,10 @@ setTimeout(async () => {
   try {
     await window.showArtifacts('default', runID, 'job-1', '');
     const buttons = view().querySelectorAll('.artifact-table .artifact-open').length;
-    if (buttons !== 9) fail('open buttons', buttons);
+    if (buttons !== 10) fail('open buttons', buttons);
+    const workingDirectoryRow = view().querySelector('.artifact-table tbody tr');
+    if (JSON.stringify([...workingDirectoryRow.children].slice(0, 3).map(cell => cell.textContent)) !== '["directory",".","working directory"]') fail('working directory row', workingDirectoryRow.textContent);
+    if (!workingDirectoryRow.querySelector('.artifact-open') || workingDirectoryRow.querySelector('.artifact-download') || !workingDirectoryRow.querySelector('.artifact-launch-button')) fail('working directory actions', workingDirectoryRow.innerHTML);
 
     let scrolls = 0;
     preview().scrollIntoView = options => {
@@ -72,6 +75,11 @@ setTimeout(async () => {
       await openArtifact(...args);
       if (scrolls !== before + 1) fail('preview not scrolled into view', args);
     };
+
+    await window.openArtifact('wd', '', 'directory');
+    if (![...preview().querySelectorAll('.artifact-open')].some(button => button.textContent === 'plot.png')) fail('working directory preview', preview().textContent);
+    await window.openArtifact('wd', 'data.csv', 'file');
+    if (!preview().textContent.includes('Not included in this static export')) fail('working directory child', preview().textContent);
 
     await window.openArtifact(entries['plot.png'], '', 'file');
     const src = preview().querySelector('img').getAttribute('src');

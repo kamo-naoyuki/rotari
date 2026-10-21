@@ -50,10 +50,12 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const view = document.getElementById('artifact-view');
   if (view.hidden || document.getElementById('modal-log').hidden !== true) fail('view toggling');
   const rows = view.querySelectorAll('.artifact-table tbody tr');
-  if (rows.length !== 13) fail('rows', rows.length);
+  if (rows.length !== 14) fail('rows', rows.length);
   const buttons = [...view.querySelectorAll('.artifact-table .artifact-open')].map(button => button.textContent);
   if (buttons.some(text => text.includes('secret.txt'))) fail('outside entry is openable');
-  if (buttons.length !== 10) fail('buttons', buttons);
+  if (buttons.length !== 11) fail('buttons', buttons);
+  const workingDirectoryRow = rows[0];
+  if (JSON.stringify([...workingDirectoryRow.children].slice(0, 3).map(cell => cell.textContent)) !== '["directory",".","working directory"]') fail('working directory row', workingDirectoryRow.textContent);
   // Each row has Download for a file it can open and Launch with for a file
   // or directory it can open; other rows have empty action cells.
   const listingHeaders = [...view.querySelectorAll('.artifact-table thead th')].map(cell => cell.textContent);
@@ -62,7 +64,7 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const row = [...rows].find(row => row.children[1].textContent.endsWith(name));
     return [!!row.querySelector('.artifact-download'), !!row.querySelector('.artifact-launch-button')];
   };
-  for (const [name, want] of [['plot.png', '[true,true]'], ['many', '[false,true]'], ['secret.txt', '[false,false]'], ['gone.csv', '[false,false]']]) {
+  for (const [name, want] of [['.', '[false,true]'], ['plot.png', '[true,true]'], ['many', '[false,true]'], ['secret.txt', '[false,false]'], ['gone.csv', '[false,false]']]) {
     if (JSON.stringify(rowActions(name)) !== want) fail('row actions of ' + name, rowActions(name));
   }
   const plotDownload = [...rows].find(row => row.children[1].textContent === 'plot.png').querySelector('.artifact-download');
@@ -81,6 +83,11 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     await openArtifact(...args);
     if (scrolls !== before + 1) fail('preview not scrolled into view', args);
   };
+
+  await window.openArtifact('wd', '', 'directory');
+  if (![...preview.querySelectorAll('.artifact-open')].some(button => button.textContent === 'plot.png')) fail('working directory preview', preview.textContent);
+  await window.openArtifact('wd', 'data.csv', 'file');
+  if ([...preview.querySelectorAll('tbody td')].map(cell => cell.textContent).join() !== '1,2') fail('working directory child', preview.textContent);
 
   await window.openArtifact(entries['plot.png'], '', 'file');
   const image = view.querySelector('.artifact-image');
