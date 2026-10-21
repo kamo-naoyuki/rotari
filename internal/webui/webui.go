@@ -694,6 +694,10 @@ func (s site) baseHandler() http.Handler {
 		writeWebJSON(writer, s.webArtifactListingOf(listing, baseDir, projectName, runID))
 	})
 	s.registerLaunchRoutes(mux, baseDir)
+	mux.Handle("/tableview/", http.StripPrefix("/tableview", tableView{
+		resolve:     func(query url.Values) (tableViewSource, error) { return s.artifactTableView(baseDir, query) },
+		stylesheets: []string{"/web_fonts.css", "/web_tokens.css"},
+	}.handler()))
 	s.registerLauncherConfigRoutes(mux)
 	for path, serve := range map[string]func(string, http.ResponseWriter, *http.Request){
 		"/api/artifact-file": s.serveArtifactFile, "/api/artifact-text": s.serveArtifactText, "/api/artifact-directory": s.serveArtifactDirectory,

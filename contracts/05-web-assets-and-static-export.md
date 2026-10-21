@@ -842,6 +842,34 @@ and Generate launcher config use them
 Covered by `TestWebShowsAndGeneratesLauncherConfig` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
+**WEB-19** The live server's Table viewer reads an artifact named as WEB-6
+names one, under the same roots and with the same refusals (403 outside
+them or through an escaping symlink, 404 when missing), at
+`/tableview/?<the content request's query>`. Launch with offers it, as a
+link that opens in a new tab, for files whose names match `*.csv`, `*.tsv`,
+`*.tab`, `*.psv`, `*.txt`, `*.scp`, `*.lst`, `*.list`, or `*.dat` (and
+`*.CSV`, `*.TSV`), on every live server: it runs no command, so it needs no
+`--allow-exec` and is listed in `/api/launchers` as `viewers` whether or not
+launching is available. `/tableview/api/rows` splits the file into records
+on line breaks and cells on `sep`, which must be exactly one character other
+than a double quote or a line break, honoring double quotes as CSV does and
+skipping blank lines; `header=0` keeps the first record as a row (default
+`1`, its column names). It returns `limit` rows (default 100, at most 1000)
+from `offset`, numbered from 1, with the total, cells cut to 4 KiB, and an
+error for a record over 16 MiB; the file is indexed once per version and
+separator, so a page does not reread it from the start.
+`/tableview/api/info` names the file, its size, its download, and the
+separator its extension suggests. The page keeps the separator, header,
+page, and page size in its URL fragment. Implemented by
+[internal/tableview](../internal/tableview/) and
+[internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
+[table_view.js](../internal/webui/assets/table_view.js); covered by
+`TestWebTableViewerReadsArtifacts` in
+[conformance/05-web/table_view_test.go](../conformance/05-web/table_view_test.go), with
+the page checked by `TestTableViewPagesInBrowser` and the Launch with link by
+`TestLaunchWithOpensTheTableViewerInBrowser` in
+[internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.

@@ -16,6 +16,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/launcher"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
 // LaunchOptions enables launching registered commands from artifacts
@@ -61,6 +62,9 @@ type launchAvailability struct {
 	// Unmatched explains, per target kind, that no registered command
 	// accepts it.
 	Unmatched map[launcher.TargetKind]string `json:"unmatched,omitempty"`
+	// Viewers are the Web UI's own viewers that accept the target; they run
+	// no command, so they are listed whether or not launching is available.
+	Viewers []webViewer `json:"viewers,omitempty"`
 	// Host, User, and Shell are where and how launched commands run.
 	Host  string `json:"host,omitempty"`
 	User  string `json:"user,omitempty"`
@@ -126,6 +130,37 @@ func (s site) launchAvailability(kind launcher.TargetKind, name string) launchAv
 		availability.User = current.Username
 	}
 	return availability
+}
+
+// webViewer is a viewer the Web UI provides itself: it opens an artifact in
+// a page of this server and runs no command, so it needs no --allow-exec.
+type webViewer struct {
+	Name string `json:"name"`
+	// Path is the viewer's page on this server; the artifact's content
+	// parameters name what it shows.
+	Path     string                `json:"path"`
+	Targets  []launcher.TargetKind `json:"targets"`
+	Patterns []string              `json:"patterns,omitempty"`
+}
+
+// webViewers are the viewers Launch with offers besides commands.
+var webViewers = []webViewer{{
+	Name: "Table viewer", Path: "/tableview/", Targets: []launcher.TargetKind{launcher.TargetFile},
+	Patterns: []string{"*.csv", "*.CSV", "*.tsv", "*.TSV", "*.tab", "*.psv", "*.txt", "*.scp", "*.lst", "*.list", "*.dat"},
+}}
+
+// viewersFor lists the viewers that accept a target of kind named name, as
+// commands are matched: by kind, then by name pattern.
+func viewersFor(kind launcher.TargetKind, name string) []webViewer {
+	var viewers []webViewer
+	for _, viewer := range webViewers {
+		accepts := launcher.Command{Targets: viewer.Targets, Patterns: viewer.Patterns}
+		if kind != "" && (!accepts.Accepts(kind) || (name != "" && !accepts.Matches(name))) {
+			continue
+		}
+		viewers = append(viewers, viewer)
+	}
+	return viewers
 }
 
 func describeTargets(commands []launcher.Command) string {
@@ -246,7 +281,9 @@ func (s site) registerLaunchRoutes(mux *http.ServeMux, baseDir string) {
 			writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: "kind must be file or directory"})
 			return
 		}
-		writeWebJSON(writer, s.launchAvailability(kind, query.Get("name")))
+		availability := s.launchAvailability(kind, query.Get("name"))
+		availability.Viewers = viewersFor(kind, query.Get("name"))
+		writeWebJSON(writer, availability)
 	})
 	mux.HandleFunc("/api/launch", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -389,7 +426,7 @@ func (s site) resolveBasedirParent(baseDir string, request webLaunchRequest) (se
 		return servedArtifact{}, fmt.Errorf("%w: the basedir %s is directly under the filesystem root", errNotServed, baseDir)
 	}
 	roots, note := s.artifactRoots(jobstatus.ArtifactListing{}, baseDir, request.ProjectName, request.RunID)
-	root, relative, inside := artifactRootOf(parent, roots)
+	root, relative, inside := tableview.RootOf(parent, roots)
 	if !inside {
 		return servedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, parent, note)
 	}

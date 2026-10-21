@@ -532,6 +532,31 @@ daemonizing) is not stopped. At most 16 launches run at once, and the 50 most
 recent finished ones are listed. Launches are not runs: they do not appear in
 a project's history and do not lock it.
 
+### Viewing tables
+
+**Launch with…** on a table file in a job's Artifacts (`.csv`, `.tsv`,
+`.tab`, `.psv`, `.txt`, `.scp`, `.lst`, `.list`, `.dat`) also offers
+**Table viewer**, which opens the file in a new tab. It is part of the Web
+UI and runs no command, so it is offered on every live server, including
+one without `--allow-exec` or a read-only one; it reads the same files a
+preview may, under the same roots.
+
+The viewer pages through the file on the server, so a file with millions of
+rows opens as quickly as a small one after the server has indexed it once:
+
+- **Separator**: comma, tab, semicolon, pipe, space, or any other single
+  character. The file's extension picks the first choice (tab for `.tsv`,
+  space for `.scp`). Cells in double quotes may hold the separator, line
+  breaks, and doubled quotes, as in CSV; blank lines are skipped.
+- **First row is a header**: whether the first record names the columns.
+- The pager moves by page, to a page number, or to the first or last page,
+  with 50 to 500 rows per page. The `#` column numbers rows as they are in
+  the file.
+
+The URL keeps these settings after `#`, so a reload or a shared link opens
+the same view. Cells longer than 4 KiB are shortened; **Download** gets the
+whole file.
+
 ### Interrupted runs
 
 If a runner exits before finalizing its run, `show` reports the interrupted run

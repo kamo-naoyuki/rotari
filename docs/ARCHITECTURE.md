@@ -206,6 +206,7 @@ flowchart TB
   supervisor["supervisor<br/>server request work"]
   webui["webui<br/>Web handlers and assets"]
   launcher["launcher<br/>launched commands<br/>(imports nothing from rotari)"]
+  tableview["tableview<br/>Table viewer reads<br/>(imports nothing from rotari)"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -274,6 +275,7 @@ flowchart TB
   webui --> jobcontrol
   webui --> report
   webui --> joblist
+  webui --> tableview
   config --> state
   resolve --> project
   resolve --> runregistry
@@ -343,8 +345,9 @@ are checked against this graph by
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages; the completion message the client prints is built in `cmd/rotari` from the run's files. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor startup transport: request/acceptance types, inherited startup pipes, the lease and liveness check, and idle shutdown. The pipe is closed after run acceptance; ongoing progress and attachment are file-backed. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
-| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, the auth wrapper, and the launch API, its Host/Origin guard, and the `/_launch/` service proxy. CLI metadata, environment definitions, the config template, and the launcher manager come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `launches.go`, `launch_guard.go`, `launch_proxy.go`, `assets/` |
+| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, the auth wrapper, the launch API, its Host/Origin guard, the `/_launch/` service proxy, and the Table viewer's page and API (`/tableview/`). CLI metadata, environment definitions, the config template, and the launcher manager come in through `Options`. | `webui.go` (`handler`), `options.go`, `artifacts.go`, `artifact_files.go`, `launches.go`, `launch_guard.go`, `launch_proxy.go`, `table_view.go`, `assets/` |
 | [internal/launcher](../internal/launcher/) | Commands a user registered in `launchers.toml` and runs against an artifact from the Web UI: the file's schema and the StrictModes-style check that no other user can change it, the manager of one Web server's launches (start, reuse, stop, limits, rotating output), the `rotari __launch` wrapper that stops a launch's process group when the Web process exits for any reason, and the check that a service port belongs to the launch. Knows nothing of jobs, runs, or HTTP. | `manager.go` (`Manager`), `registry.go` (`LoadRegistry`), `wrapper.go` (`RunWrapper`), `listener.go` (`VerifyListener`) |
+| [internal/tableview](../internal/tableview/) | What the Table viewer reads: a delimited file split on a chosen separator, indexed once per version so a page is read from a nearby checkpoint, and paged. Callers supply a `Target`, the file and the roots it may be read under; every file is opened through `os.Root`. Knows nothing of jobs, runs, or HTTP. | `target.go` (`Target`, `RootOf`, `MediaTypes`), `delimited.go`, `table.go` (`Table`) |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI and Web UI: add, change, remove, copy, deleting runs or a whole project (`DeleteProject`), and adding notes to a run (`AddNote`). Loads and saves the files around `internal/queueedit` through the `internal/project` edit sequence, owns `ValidateJobs`, and builds saved-run command snapshots in memory for `projectrun`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
@@ -401,6 +404,9 @@ internal package.
 - Is it a Web handler, the static export, or a Web asset? `internal/webui`.
 - Does it start or stop a command the user registered for artifacts?
   `internal/launcher`.
+- Does it read, filter, or page what the Table viewer shows?
+  `internal/tableview`; its page and API are `internal/webui`
+  (`table_view.go`).
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
 
 ## Files in cmd/rotari

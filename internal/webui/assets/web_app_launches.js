@@ -225,16 +225,43 @@ async function toggleArtifactLaunch(index, child, type, button) {
     kind,
     target.slice(target.lastIndexOf("/") + 1),
   );
+  // The Web UI's own viewers open in a new tab and run no command, so they
+  // are offered even where launching is not, above why commands are not.
+  const viewers = availability.viewers || [];
+  const viewerChoices = viewers.length
+    ? '<p class="meta">Open in</p><div class="launch-choices launch-viewers">' +
+      viewers
+        .map(
+          (viewer) =>
+            '<a class="launch-viewer" target="_blank" rel="noopener" href="' +
+            esc(
+              appURL(viewer.path) +
+                "?" +
+                artifactParams(selectedArtifacts, {
+                  entry: String(index),
+                  child,
+                }),
+            ) +
+            '">' +
+            esc(viewer.name) +
+            "</a>",
+        )
+        .join("") +
+      "</div>"
+    : "";
   if (!availability.available) {
-    panel.innerHTML = launchExplanation(availability.reason, availability.hint);
+    panel.innerHTML =
+      viewerChoices + launchExplanation(availability.reason, availability.hint);
     return;
   }
   const commands = availability.commands || [];
   if (!commands.length) {
-    panel.innerHTML = launchExplanation((availability.unmatched || {})[kind]);
+    panel.innerHTML =
+      viewerChoices + launchExplanation((availability.unmatched || {})[kind]);
     return;
   }
   panel.innerHTML =
+    viewerChoices +
     '<p class="meta">Launch with</p><div class="launch-choices">' +
     commands
       .map((command) =>

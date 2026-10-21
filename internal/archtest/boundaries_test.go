@@ -85,6 +85,12 @@ var boundaryRules = []boundaryRule{
 		forbidden: []string{"net/http"},
 	},
 	{
+		pkg:       "internal/tableview",
+		reason:    "tableview reads tables and media under roots its callers supply, knowing nothing of jobs, runs, or HTTP",
+		allowed:   []string{},
+		forbidden: []string{"net/http"},
+	},
+	{
 		pkg:    "conformance",
 		reason: "conformance checks the binary and Web API from outside the code",
 		// conformance/support is the conformance packages' own harness,

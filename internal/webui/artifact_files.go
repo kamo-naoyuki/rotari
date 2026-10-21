@@ -17,6 +17,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
 // Limits on what one artifact content request returns. Files have no size
@@ -30,16 +31,6 @@ const (
 	// artifactDirectoryScan bounds the names read from one directory.
 	artifactDirectoryScan = 100000
 )
-
-// artifactInlineTypes are the files served inline: images, audio, and
-// video, which the page shows with img, audio, and video elements.
-var artifactInlineTypes = map[string]string{
-	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-	".gif": "image/gif", ".svg": "image/svg+xml",
-	".wav": "audio/wav", ".mp3": "audio/mpeg", ".flac": "audio/flac",
-	".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".m4a": "audio/mp4",
-	".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
-}
 
 // webArtifactListing is the /api/artifacts response: the listing the CLI
 // prints, and whether the live server serves each entry's content.
@@ -86,19 +77,6 @@ func (s site) artifactRoots(listing jobstatus.ArtifactListing, baseDir, projectN
 	return roots, artifactRootsNote(reason)
 }
 
-// artifactRootOf returns the first root that lexically contains path, and
-// path relative to it. Opening through os.Root then refuses a symlink that
-// leaves the root.
-func artifactRootOf(path string, roots []string) (string, string, bool) {
-	for _, root := range roots {
-		relative, err := filepath.Rel(root, path)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative) {
-			return root, relative, true
-		}
-	}
-	return "", "", false
-}
-
 // webArtifactListingOf adds to a listing what the live server serves of it.
 func (s site) webArtifactListingOf(listing jobstatus.ArtifactListing, baseDir, projectName, runID string) webArtifactListing {
 	roots, note := s.artifactRoots(listing, baseDir, projectName, runID)
@@ -113,7 +91,7 @@ func (s site) webArtifactListingOf(listing jobstatus.ArtifactListing, baseDir, p
 }
 
 func servable(entry jobstatus.ArtifactEntry, roots []string) bool {
-	_, _, inside := artifactRootOf(entry.Path, roots)
+	_, _, inside := tableview.RootOf(entry.Path, roots)
 	return inside && entry.Basis != artifact.BasisUnresolved &&
 		(entry.Type == jobstatus.ArtifactFile || entry.Type == jobstatus.ArtifactDirectory)
 }
@@ -170,29 +148,43 @@ var errNotServed = errors.New("not served")
 // parameter, so only recorded paths and their children can be requested,
 // and only under an allowed root.
 func (s site) resolveArtifact(baseDir string, query url.Values) (servedArtifact, error) {
+	resolved, err := s.resolveArtifactRequest(baseDir, query)
+	return resolved.servedArtifact, err
+}
+
+// resolvedArtifact is what resolveArtifact found, with the listing it came
+// from and the roots it was checked against.
+type resolvedArtifact struct {
+	servedArtifact
+	listing jobstatus.ArtifactListing
+	entry   jobstatus.ArtifactEntry
+	roots   []string
+}
+
+func (s site) resolveArtifactRequest(baseDir string, query url.Values) (resolvedArtifact, error) {
 	listing, err := webArtifacts(s.Store, baseDir, query.Get("project_name"), query.Get("run_id"), query.Get("job_id"), query.Get("attempt_id"))
 	if err != nil {
-		return servedArtifact{}, err
+		return resolvedArtifact{}, err
 	}
 	entry, err := listingEntry(listing, query.Get("entry"))
 	if err != nil {
-		return servedArtifact{}, err
+		return resolvedArtifact{}, err
 	}
 	roots, note := s.artifactRoots(listing, baseDir, query.Get("project_name"), query.Get("run_id"))
-	root, relative, inside := artifactRootOf(entry.Path, roots)
+	root, relative, inside := tableview.RootOf(entry.Path, roots)
 	if entry.Basis == artifact.BasisUnresolved || !inside {
 		if note != "" {
-			return servedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, entry.Path, note)
+			return resolvedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, entry.Path, note)
 		}
-		return servedArtifact{}, fmt.Errorf("%w: %s is outside the allowed roots (the job's working directory, the basedir's parent, and --artifact-root)", errNotServed, entry.Path)
+		return resolvedArtifact{}, fmt.Errorf("%w: %s is outside the allowed roots (the job's working directory, the basedir's parent, and --artifact-root)", errNotServed, entry.Path)
 	}
 	if child := query.Get("child"); child != "" {
 		if filepath.IsAbs(child) || filepath.Clean(child) != child || child == ".." || strings.HasPrefix(child, ".."+string(filepath.Separator)) || strings.ContainsRune(child, 0) {
-			return servedArtifact{}, fmt.Errorf("child must be a relative path inside the directory")
+			return resolvedArtifact{}, fmt.Errorf("child must be a relative path inside the directory")
 		}
 		relative = filepath.Join(relative, child)
 	}
-	return servedArtifact{root: root, relative: relative}, nil
+	return resolvedArtifact{servedArtifact: servedArtifact{root: root, relative: relative}, listing: listing, entry: entry, roots: roots}, nil
 }
 
 // noStore marks an artifact content response as never cached, and keeps a
@@ -228,7 +220,9 @@ func (s site) serveArtifactFile(baseDir string, writer http.ResponseWriter, requ
 		return
 	}
 	noStore(writer)
-	contentType, inline := artifactInlineTypes[strings.ToLower(filepath.Ext(served.name()))]
+	// Images, audio, and video are served inline, for img, audio, and video
+	// elements.
+	contentType, inline := tableview.MediaTypes[strings.ToLower(filepath.Ext(served.name()))]
 	if !inline || request.URL.Query().Get("download") == "1" {
 		contentType = "application/octet-stream"
 		writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(served.name()))
@@ -427,11 +421,12 @@ func childType(mode fs.FileMode) string {
 	return jobstatus.ArtifactOther
 }
 
-// writeArtifactError answers a refused or failed content request: 403 for
-// a path outside the allowed roots or escaping one, 404 for a missing file.
+// writeArtifactError answers a refused or failed content or Table viewer
+// request: 403 for a path outside the allowed roots or escaping one, 404
+// for a missing file.
 func writeArtifactError(writer http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, errNotServed):
+	case errors.Is(err, errNotServed), errors.Is(err, tableview.ErrOutsideRoots):
 		http.Error(writer, err.Error(), http.StatusForbidden)
 	case errors.Is(err, fs.ErrNotExist):
 		http.Error(writer, "artifact not found", http.StatusNotFound)

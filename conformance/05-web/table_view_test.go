@@ -1,0 +1,111 @@
+package web
+
+import (
+	"encoding/json"
+	"net/url"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
+)
+
+func TestWebTableViewerReadsArtifacts(t *testing.T) {
+	covers(t, "WEB-19")
+	e := support.NewEnv(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.tsv"), []byte("secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `printf 'id\tscore\n' > data.tsv; for n in $(seq 1 300); do printf '%d\t"a\tb"\n' "$n" >> data.tsv; done; ln -s "$1" link.tsv`
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "tv", "--", "sh", "-c", script, "sh",
+		filepath.Join(outside, "secret.tsv"), "data.tsv", "link.tsv"))
+	e.MustRotari("run", "-p", "tv", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+		Jobs  []struct {
+			Artifacts struct {
+				Entries []struct {
+					DisplayPath string `json:"display_path"`
+				} `json:"entries"`
+			} `json:"artifacts"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "tv", "-j", jobID, "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	var run struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "tv", "--json").Stdout), &run); err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string]int{}
+	for index, entry := range shown.Jobs[0].Artifacts.Entries {
+		entries[filepath.Base(entry.DisplayPath)] = index
+	}
+	base := e.StartWeb()
+	get := func(route, name string, extra url.Values) support.HTTPResult {
+		query := url.Values{"project_name": {"tv"}, "run_id": {run.RunID}, "job_id": {jobID}, "entry": {strconv.Itoa(entries[name])}}
+		for key, values := range extra {
+			query[key] = values
+		}
+		return e.HTTPGet(base + route + "?" + query.Encode())
+	}
+
+	// Launch with lists the viewer for a table file without --allow-exec.
+	var launchers struct {
+		Available bool `json:"available"`
+		Viewers   []struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"viewers"`
+	}
+	r := e.HTTPGet(base + "/api/launchers?kind=file&name=data.tsv")
+	if err := json.Unmarshal([]byte(r.Body), &launchers); err != nil || launchers.Available || len(launchers.Viewers) != 1 || launchers.Viewers[0].Path != "/tableview/" {
+		t.Fatalf("launchers = (%d, %s)", r.Status, r.Body)
+	}
+	if r := e.HTTPGet(base + "/api/launchers?kind=directory&name=out"); strings.Contains(r.Body, "viewers") {
+		t.Fatalf("a directory was offered the viewer: %s", r.Body)
+	}
+
+	if r := get("/tableview/", "data.tsv", nil); r.Status != 200 || !strings.Contains(r.Body, "table_view.js") {
+		t.Fatalf("page = (%d, %.200s)", r.Status, r.Body)
+	}
+	if r := get("/tableview/api/info", "data.tsv", nil); r.Status != 200 || !strings.Contains(r.Body, `"separator":"\t"`) {
+		t.Fatalf("info = (%d, %s)", r.Status, r.Body)
+	}
+	var page struct {
+		Columns []struct {
+			Name string `json:"name"`
+		} `json:"columns"`
+		Rows []struct {
+			Number int      `json:"number"`
+			Cells  []string `json:"cells"`
+		} `json:"rows"`
+		Total int `json:"total"`
+	}
+	r = get("/tableview/api/rows", "data.tsv", url.Values{"sep": {"\t"}, "offset": {"290"}, "limit": {"20"}})
+	if err := json.Unmarshal([]byte(r.Body), &page); err != nil {
+		t.Fatalf("rows = (%d, %s)", r.Status, r.Body)
+	}
+	if page.Total != 300 || len(page.Columns) != 2 || page.Columns[1].Name != "score" || len(page.Rows) != 10 ||
+		page.Rows[0].Number != 291 || !reflect.DeepEqual(page.Rows[0].Cells, []string{"291", "a\tb"}) {
+		t.Fatalf("rows = %+v", page)
+	}
+	if r := get("/tableview/api/rows", "data.tsv", url.Values{"sep": {"\t"}, "header": {"0"}, "limit": {"1"}}); !strings.Contains(r.Body, `"cells":["id","score"]`) {
+		t.Fatalf("headerless rows = (%d, %s)", r.Status, r.Body)
+	}
+	for name, extra := range map[string]url.Values{
+		"secret.tsv": {"sep": {"\t"}},  // outside every allowed root
+		"link.tsv":   {"sep": {"\t"}},  // a symlink leaving the root
+		"data.tsv":   {"sep": {"\t,"}}, // not one character
+	} {
+		if r := get("/tableview/api/rows", name, extra); r.Status == 200 {
+			t.Fatalf("%s %v was read: %s", name, extra, r.Body)
+		}
+	}
+}

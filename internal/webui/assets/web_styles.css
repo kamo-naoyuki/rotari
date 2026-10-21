@@ -1674,6 +1674,25 @@ pre,
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+/* A viewer opens in a new tab: a link drawn as a button. */
+.launch-viewer {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--link);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 590;
+  text-decoration: none;
+}
+.launch-viewer:hover {
+  background: var(--surface-2);
+}
+.launch-viewers {
+  margin-bottom: 0.75rem;
+}
 .launch-details {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);

@@ -1,0 +1,248 @@
+package webui
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/tableview"
+)
+
+// viewerGet requests a Table viewer route for a fixture entry.
+func (f artifactFixture) viewerGet(t *testing.T, options Options, route, name string, extra url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.get(t, options, "/tableview/"+route, name, extra)
+}
+
+func TestTableViewReadsAnArtifact(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := testOptions(f.baseDir, false)
+
+	recorder := f.viewerGet(t, options, "api/info", "data.csv", nil)
+	var info tableViewInfo
+	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil {
+		t.Fatalf("info = %d %s", recorder.Code, recorder.Body)
+	}
+	if info.Kind != "file" || info.Separator != "," || info.Size != int64(len("a,b\n1,2\n")) || !strings.HasPrefix(info.Download, "../api/artifact-file?") {
+		t.Fatalf("info = %+v", info)
+	}
+	// Media paths resolve from the basedir by default, then the job's
+	// working directory, then the file's own directory.
+	var bases []string
+	for _, base := range info.Bases {
+		bases = append(bases, base.ID)
+	}
+	if !reflect.DeepEqual(bases, []string{"basedir", "wd", tableview.FileBase}) {
+		t.Fatalf("bases = %q", bases)
+	}
+	// The download link is the artifact's own download.
+	link, err := url.Parse("/tableview/" + info.Download)
+	if err != nil {
+		t.Fatal(err)
+	}
+	download := httptest.NewRecorder()
+	Handler(options).ServeHTTP(download, httptest.NewRequest(http.MethodGet, link.ResolveReference(&url.URL{}).String(), nil))
+	if download.Code != http.StatusOK || download.Body.String() != "a,b\n1,2\n" {
+		t.Fatalf("download = %d %q", download.Code, download.Body)
+	}
+
+	for header, want := range map[string][][]string{"1": {{"1", "2"}}, "0": {{"a", "b"}, {"1", "2"}}} {
+		recorder = f.viewerGet(t, options, "api/rows", "data.csv", url.Values{"sep": {","}, "header": {header}})
+		var page tableview.Page
+		if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+			t.Fatalf("rows = %d %s", recorder.Code, recorder.Body)
+		}
+		var rows [][]string
+		for _, row := range page.Rows {
+			rows = append(rows, row.Cells)
+		}
+		if !reflect.DeepEqual(rows, want) {
+			t.Fatalf("header=%s rows = %q, want %q", header, rows, want)
+		}
+	}
+
+	page := f.viewerGet(t, options, "", "data.csv", nil)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `src="table_view.js"`) || !strings.Contains(page.Body.String(), `href="/web_tokens.css"`) {
+		t.Fatalf("page = %d %s", page.Code, page.Body)
+	}
+	for _, asset := range []string{"table_view.js", "table_view.css"} {
+		recorder := httptest.NewRecorder()
+		Handler(options).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/tableview/"+asset, nil))
+		if recorder.Code != http.StatusOK || recorder.Body.Len() == 0 {
+			t.Fatalf("%s = %d", asset, recorder.Code)
+		}
+	}
+}
+
+func TestTableViewRefusesWhatContentRequestsRefuse(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := testOptions(f.baseDir, false)
+	for _, test := range []struct {
+		name   string
+		extra  url.Values
+		status int
+	}{
+		{"secret.txt", url.Values{"sep": {","}}, http.StatusForbidden}, // outside every root
+		{"link.csv", url.Values{"sep": {","}}, http.StatusForbidden},   // a symlink leaving the root
+		{"gone.csv", url.Values{"sep": {","}}, http.StatusNotFound},    // missing
+		{"data.csv", url.Values{"sep": {""}}, http.StatusBadRequest},   // no separator
+		{"data.csv", url.Values{"sep": {",;"}}, http.StatusBadRequest}, // two characters
+		{"data.csv", url.Values{"sep": {`"`}}, http.StatusBadRequest},  // a quote
+		{"data.csv", url.Values{"sep": {","}, "header": {"yes"}}, http.StatusBadRequest},
+		{"data.csv", url.Values{"sep": {","}, "limit": {"5000"}}, http.StatusBadRequest},
+		{"data.csv", url.Values{"sep": {","}, "offset": {"x"}}, http.StatusBadRequest},
+		{"many", url.Values{"sep": {","}}, http.StatusBadRequest}, // a directory read as a file
+	} {
+		if recorder := f.viewerGet(t, options, "api/rows", test.name, test.extra); recorder.Code != test.status {
+			t.Errorf("%s %v = %d %s, want %d", test.name, test.extra, recorder.Code, recorder.Body, test.status)
+		}
+	}
+	if recorder := f.viewerGet(t, options, "", "secret.txt", nil); recorder.Code != http.StatusForbidden {
+		t.Errorf("page of an unserved entry = %d", recorder.Code)
+	}
+}
+
+// The Table viewer is offered for the files it reads, on every live
+// server: it runs no command, so it needs no --allow-exec.
+func TestLaunchersListTheTableViewer(t *testing.T) {
+	f := newArtifactFixture(t)
+	for name, options := range map[string]Options{
+		"read-only":         testOptions(f.baseDir, false),
+		"without launch":    testOptions(f.baseDir, true),
+		"with --allow-exec": launchOptions(t, f.baseDir, launchCommand("Cat", "cat", "file")),
+	} {
+		for query, want := range map[string]int{
+			"kind=file&name=data.csv": 1, "kind=file&name=wav.scp": 1, "kind=file&name=run.log": 0,
+			"kind=directory&name=many": 0, "": 1,
+		} {
+			recorder := httptest.NewRecorder()
+			Handler(options).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/launchers?"+query, nil))
+			var availability launchAvailability
+			if err := json.Unmarshal(recorder.Body.Bytes(), &availability); err != nil {
+				t.Fatal(err)
+			}
+			if len(availability.Viewers) != want || (want == 1 && (availability.Viewers[0].Name != "Table viewer" || availability.Viewers[0].Path != "/tableview/")) {
+				t.Errorf("%s, %s: viewers = %+v, want %d", name, query, availability.Viewers, want)
+			}
+		}
+	}
+}
+
+// runTableViewScript runs script in jsdom on a server, with the Table
+// viewer page of entry name open.
+func runTableViewScript(t *testing.T, options Options, f artifactFixture, name, fragment, script string) {
+	t.Helper()
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	server := httptest.NewServer(Handler(options))
+	defer server.Close()
+	query := url.Values{"project_name": {"default"}, "run_id": {f.runID}, "job_id": {"job-1"}, "entry": {strconv.Itoa(f.entries[name])}}
+	command := exec.Command("node", "-e", `
+const { JSDOM, VirtualConsole } = require('jsdom');
+const pageURL = process.argv[1];
+const fail = (code, detail) => { console.error(code, detail || ''); process.exit(1); };
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+(async () => {
+  const errors = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+  const dom = await JSDOM.fromURL(pageURL, {
+    runScripts: 'dangerously', resources: 'usable', virtualConsole,
+    // jsdom has no fetch; relative URLs resolve against the page, as in a browser.
+    beforeParse(window) {
+      window.fetch = (input, init) => fetch(new URL(String(input), window.location.href), init);
+    },
+  });
+  const window = dom.window;
+  const document = window.document;
+  const until = async (what, check) => {
+    for (let tries = 0; tries < 100; tries++) {
+      if (check()) return;
+      await wait(30);
+    }
+    fail('timed out waiting for ' + what, document.body.innerHTML.slice(0, 2000) + '\n' + errors.join('\n'));
+  };
+  const cells = () => [...document.querySelectorAll('#tv-table tbody tr')].map(row => [...row.children].map(cell => cell.textContent));
+  const headings = () => [...document.querySelectorAll('#tv-table thead th')].map(cell => cell.textContent);
+  const fragment = () => new window.URLSearchParams(window.location.hash.slice(1));
+`+script+`
+  if (errors.length) fail('page errors', errors.join('\n'));
+})().catch(error => fail('exception', error.stack));
+`, server.URL+"/tableview/?"+query.Encode()+fragment)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("browser check failed: %v\n%s", err, output)
+	}
+}
+
+func TestTableViewPagesInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	var content strings.Builder
+	content.WriteString("n|text\n")
+	for n := 1; n <= 120; n++ {
+		fmt.Fprintf(&content, "%d|row %d\n", n, n)
+	}
+	write(t, filepath.Join(f.work, "data.csv"), content.String())
+	options := testOptions(f.baseDir, false)
+	// The fragment chooses the separator and the page size.
+	runTableViewScript(t, options, f, "data.csv", "#sep=%7C&limit=50", `
+  await until('rows', () => cells().length === 50);
+  if (JSON.stringify(headings()) !== '["#","n","text"]') fail('headings', headings());
+  if (JSON.stringify(cells()[0]) !== '["1","1","row 1"]') fail('first row', cells()[0]);
+  const count = () => document.querySelector('.tv-pager-count').textContent;
+  if (!count().includes('Rows 1–50 of 120')) fail('count', count());
+  if (!document.getElementById('tv-summary').textContent.includes('120 rows · 2 columns')) fail('summary', document.getElementById('tv-summary').textContent);
+
+  // Last goes to page 3 of 3, and the fragment keeps it.
+  [...document.querySelectorAll('.tv-pager-buttons button')].find(button => button.textContent === 'Last »').click();
+  await until('last page', () => cells().length === 20);
+  if (JSON.stringify(cells()[19]) !== '["120","120","row 120"]') fail('last row', cells()[19]);
+  if (fragment().get('page') !== '3') fail('fragment page', window.location.hash);
+
+  // Another separator reads the file differently and starts over at page 1.
+  const select = document.querySelector('.tv-toolbar select');
+  select.value = ',';
+  select.dispatchEvent(new window.Event('change'));
+  await until('one column', () => headings().length === 2);
+  if (JSON.stringify(headings()) !== '["#","n|text"]' || fragment().get('page') !== '1' || fragment().get('sep') !== ',') fail('comma', headings(), window.location.hash);
+
+  // A separator that is not one character is refused with an explanation.
+  select.value = 'other';
+  select.dispatchEvent(new window.Event('change'));
+  const other = document.querySelector('.tv-separator-other');
+  if (other.hidden) fail('other input hidden');
+  other.value = '||';
+  other.dispatchEvent(new window.Event('change'));
+  if (!document.getElementById('tv-error').textContent.includes('one character')) fail('two-character separator', document.getElementById('tv-error').textContent);
+  other.value = '|';
+  other.dispatchEvent(new window.Event('change'));
+  await until('pipe again', () => headings().length === 3);
+`)
+}
+
+func TestLaunchWithOpensTheTableViewerInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	runLaunchBrowserScript(t, testOptions(f.baseDir, false), f, `
+  await window.showArtifacts('default', runID, 'job-1', '');
+  const row = [...document.querySelectorAll('.artifact-table tbody tr')].find(row => row.children[1].textContent === 'data.csv');
+  row.querySelector('.artifact-launch-button').click();
+  await wait(300);
+  const link = document.querySelector('#artifact-launch-panel a.launch-viewer');
+  if (!link || link.textContent !== 'Table viewer' || link.target !== '_blank') fail('viewer link', panelText());
+  const href = new URL(link.getAttribute('href'), base);
+  if (href.pathname !== '/tableview/' || href.searchParams.get('entry') !== String(entries['data.csv']) || href.searchParams.get('job_id') !== 'job-1') fail('viewer href', link.getAttribute('href'));
+  // Launching is off on this server: the viewer is offered with the reason
+  // commands are not.
+  if (!panelText().includes('Launching is disabled')) fail('reason', panelText());
+  const page = await fetch(href);
+  if (page.status !== 200) fail('viewer page', page.status);
+`)
+}

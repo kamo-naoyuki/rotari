@@ -489,7 +489,9 @@ command. A command whose program is not installed is shown disabled. See
 [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts).
 A command that serves HTTP, such as TensorBoard, opens through the
 `rotari web` port, so it needs no extra SSH port forward. See
-[Services](CONFIGURATION.md#services).
+[Services](CONFIGURATION.md#services). A CSV or TSV file opens in the built-in
+**Table viewer** from the same menu even without `--allow-exec`; see
+[Viewing tables](INSPECT.md#viewing-tables).
 
 ### What does the Job activity link show?
 

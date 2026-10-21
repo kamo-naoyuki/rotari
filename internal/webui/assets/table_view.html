@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Table viewer · rotari</title>
+    <script>
+      // Apply the theme chosen in the Web UI (web_shell.js) before drawing.
+      try {
+        const theme = localStorage.getItem("rotari-theme");
+        if (theme === "light" || theme === "dark")
+          document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+    __ROTARI_STYLESHEETS__
+    <link rel="stylesheet" href="table_view.css" />
+  </head>
+  <body>
+    <header class="tv-header">
+      <p class="tv-trail" id="tv-trail"></p>
+      <div class="tv-title">
+        <h1 id="tv-name">Table viewer</h1>
+        <span class="tv-kind" id="tv-kind" hidden></span>
+        <a id="tv-download" class="tv-download" hidden download>Download</a>
+        <span class="tv-summary" id="tv-summary"></span>
+      </div>
+    </header>
+    <main class="tv-main">
+      <section class="tv-table-area" aria-label="Table">
+        <div class="tv-toolbar" id="tv-toolbar"></div>
+        <p class="tv-error" id="tv-error" role="alert" hidden></p>
+        <div class="tv-scroll">
+          <table class="tv-table" id="tv-table"></table>
+        </div>
+        <div class="tv-pager" id="tv-pager"></div>
+      </section>
+    </main>
+    <script src="table_view.js"></script>
+  </body>
+</html>
