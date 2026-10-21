@@ -29,6 +29,47 @@ func TestNewWebBaseDirLabelsByParentAndName(t *testing.T) {
 	}
 }
 
+func TestWebShellUsesFullWidth(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	for _, tc := range []struct {
+		name, html, css string
+	}{
+		{"web", testSite().webHTML(), webStylesCSS},
+		{"jobs", jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true, true), webInfoStylesCSS},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			htmlPath := filepath.Join(dir, "index.html")
+			cssPath := filepath.Join(dir, "styles.css")
+			if err := os.WriteFile(htmlPath, []byte(tc.html), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(cssPath, []byte(tc.css+"\n"+webShellCSS), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			script := `
+const fs = require('fs');
+const { JSDOM } = require('jsdom');
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'));
+const style = dom.window.document.createElement('style');
+style.textContent = fs.readFileSync(process.argv[2], 'utf8');
+dom.window.document.head.append(style);
+const main = dom.window.getComputedStyle(dom.window.document.querySelector('main'));
+if (main.width !== '100%' || main.maxWidth !== 'none') {
+  console.error('page frame must fill the viewport without a width cap:', main.width, main.maxWidth);
+  process.exit(1);
+}
+dom.window.close();
+`
+			if output, err := exec.Command("node", "-e", script, htmlPath, cssPath).CombinedOutput(); err != nil {
+				t.Fatalf("page width: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
 // The Settings menu opens from its button and closes on Escape and on a click
 // outside it; the drawer opens from its toggle and closes when a sidebar
 // link is followed or on Escape. Both page kinds run the same shell script.

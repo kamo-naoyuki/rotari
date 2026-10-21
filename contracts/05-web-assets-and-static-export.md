@@ -240,6 +240,10 @@ in that asset rather than duplicating them in the page-specific stylesheets. `Te
 and `TestGenerateStaticWebWritesProjectPages` in
 [internal/webui/webui_test.go](../internal/webui/webui_test.go) cover the shared
 asset and static copies.
+The shared page frame uses the full viewport width without a maximum-width
+cap, including in static exports; content padding and the mobile navigation
+drawer remain in place (`TestWebShellUsesFullWidth` in
+[internal/webui/shell_test.go](../internal/webui/shell_test.go)).
 
 The live Web UI sidebar is hierarchical: registered basedirs (plus the
 startup `--basedir`) contain projects, and projects contain runs. Other than

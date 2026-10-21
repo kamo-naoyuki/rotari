@@ -1,5 +1,10 @@
 /* The page frame shared by the application and Job activity pages: sidebar, top bar, and status pills. */
 
+main {
+  width: 100%;
+  max-width: none;
+}
+
 /*
  * A status pill: one per displayed status on every page. The tone comes from
  * statusTones (internal/webui/status.go); colours from the status tokens.
