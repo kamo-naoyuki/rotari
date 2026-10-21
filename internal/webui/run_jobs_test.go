@@ -9,8 +9,7 @@ import (
 
 // A run's jobs table shows each command under its job name, leaves out
 // columns that are the same for every job until the Columns menu turns them
-// on, and ends each row with its actions: the log, the diagnosis of a failed
-// job, and a menu with the rest. The toolbar and the run's sections around
+// on, and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
 // it keep the viewer's choices.
 func TestWebRunJobsTable(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -86,24 +85,25 @@ setTimeout(() => {
     window.sortTable(table(), 'duration', 'job');
     assert.equal(table().querySelector('tbody tr').dataset.jobId, 'b', 'Duration does not sort by seconds');
 
-    // Actions come last: Log; Diagnosis only on the failed job; Notes when
-    // the job has some; Report, Path, and Artifacts in the menu.
+    // Actions come last, all in the row: Log, Artifacts, Diagnosis only on
+    // the failed job, Notes (disabled without notes), Report, and Path.
     const actions = id => row(id).lastElementChild;
     assert(actions('a').classList.contains('actions'));
     const labels = id => [...actions(id).querySelectorAll('.action-buttons > button')].map(b => b.textContent);
-    assert.deepEqual(labels('a'), ['Log']);
-    assert.deepEqual(labels('b'), ['Log', 'Diagnosis']);
-    assert.deepEqual(labels('c'), ['Log', 'Notes (1)']);
-    const menu = id => actions(id).querySelector('details.row-menu');
-    assert.deepEqual([...menu('a').querySelectorAll('button')].map(b => b.textContent), ['Report', 'Path', 'Artifacts', 'Notes']);
+    assert.deepEqual(labels('a'), ['Log', 'Artifacts', 'Notes', 'Report', 'Path']);
+    assert(actions('a').querySelector('.view-notes').disabled, 'Notes without notes is not disabled');
+    assert.deepEqual(labels('b'), ['Log', 'Artifacts', 'Diagnosis', 'Notes', 'Report', 'Path']);
+    assert.deepEqual(labels('c'), ['Log', 'Artifacts', 'Notes (1)', 'Report', 'Path']);
+    assert(!actions('a').querySelector('details'), 'a row still has a menu');
 
     // An open menu survives a re-render and closes on a press outside.
-    menu('a').open = true;
-    window.setPopupMenuOpen(menu('a').dataset.menuKey, true);
+    const menu = () => document.querySelector('.run-jobs-bar .columns-menu');
+    menu().open = true;
+    window.setPopupMenuOpen(menu().dataset.menuKey, true);
     window.render();
-    assert(menu('a').open, 'the row menu closed on re-render');
+    assert(menu().open, 'the Columns menu closed on re-render');
     document.body.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true }));
-    assert(!menu('a').open, 'the row menu did not close on a press outside');
+    assert(!menu().open, 'the Columns menu did not close on a press outside');
 
     // The toolbar: selection buttons above, actions on the checked jobs
     // below, enabled and counted as jobs are checked.

@@ -460,9 +460,9 @@ attempt ID by its end (`.id-tail` in `web_shell.css`, written by
 and copy button keep the whole ID. Every column stays in the table; a column whose
 values are the same for every job, and Finished, start hidden, and the Columns
 menu above the table turns any column but Job, Status, and Exit on or off,
-remembered per browser. A row ends with its actions: Log, Diagnosis on a
-failed job, Notes when the job has notes, and a "⋯" menu with Report, Path,
-Artifacts, and an empty job's disabled Notes. Covered by
+remembered per browser. A row ends with all its actions as buttons, without a menu: Log, Artifacts
+on a finished job, Diagnosis on a failed job, Notes (disabled when the job
+has none), Report, and Path. Covered by
 `TestWebRunJobsTable` in
 [run_jobs_test.go](../internal/webui/run_jobs_test.go). The project's queue
 table follows the same column rule, implemented once in `columnTable`: Job

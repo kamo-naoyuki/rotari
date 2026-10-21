@@ -2067,8 +2067,8 @@ function runJobCells(q, run, runID, j) {
   };
 }
 // runJobActions is a job row's actions cell, last in the row: the log, the
-// diagnosis of a failed job, the job's notes when it has some, and the rest
-// in a "⋯" menu.
+// artifacts of a finished job, the diagnosis of a failed job, the job's
+// notes, its report, and its path.
 function runJobActions(q, run, runID, j) {
   const result = j.result;
   // A carried job's log and artifacts are asked for in this run without an
@@ -2147,7 +2147,11 @@ function runJobActions(q, run, runID, j) {
       esc(logAttemptID) +
       "')\">Artifacts</button>"
     : "";
-  const more = [
+  return actionsCell([
+    viewLog,
+    artifacts,
+    diagnosisControl,
+    notesControl,
     '<button class="job-ai" title="Prepare job report"' +
       jobData +
       ' onclick="showJobReport(this)">Report</button>',
@@ -2160,22 +2164,6 @@ function runJobActions(q, run, runID, j) {
         "/" +
         j.id,
     ),
-    artifacts,
-    noteLabels.length ? "" : notesControl,
-  ].filter(Boolean);
-  return actionsCell([
-    viewLog,
-    diagnosisControl,
-    noteLabels.length ? notesControl : "",
-    '<details class="popup-menu row-menu"' +
-      popupMenuAttributes(
-        "job-actions:" + q.project_name + "/" + runID + "/" + j.id,
-      ) +
-      '><summary title="More actions" aria-label="More actions for ' +
-      esc(j.name || j.id) +
-      '">⋯</summary><div class="popup-menu-items">' +
-      more.join("") +
-      "</div></details>",
   ]);
 }
 // startedByLabel shows how a run was started as model.StartedBy.Label
