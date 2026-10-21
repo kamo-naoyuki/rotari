@@ -2051,12 +2051,12 @@ function runJobCells(q, run, runID, j) {
         "</span>" +
         copyButtonHTML(j.id, "job ID"),
     },
-    hosts: plain(hosts.join(",")),
+    hosts: plain(hosts.join(","), "hosts"),
     executor: plain(j.executor || "default"),
-    options: plain((j.executor_options || []).join(" ")),
+    options: plain((j.executor_options || []).join(" "), "executor options"),
     stage: plain(j.stage, "stage name"),
     depends: plain(formatDependencies(j)),
-    working_directory: plain(j.working_directory),
+    working_directory: plain(j.working_directory, "working directory"),
     started: runTimeCell(j.submitted_at, run),
     finished: runTimeCell(j.finished_at, run),
     duration: {

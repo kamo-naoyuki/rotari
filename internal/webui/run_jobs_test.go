@@ -9,7 +9,8 @@ import (
 
 // A run's jobs table shows each command under its job name, leaves out
 // columns that are the same for every job until the Columns menu turns them
-// on, starts with Job ID hidden, and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
+// on, starts with Job ID hidden, offers a copy of each host and path value,
+// and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
 // it keep the viewer's choices.
 func TestWebRunJobsTable(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -70,6 +71,13 @@ setTimeout(() => {
     // The command is under the job name.
     assert.equal(cell('a', 'name').querySelector('.job-command').textContent, 'sh -c decode a');
     assert(cell('a', 'name').querySelector('.job-command [title="Copy command"]'), 'the command has no copy button');
+
+    // Hosts and the working directory can be copied; a job without hosts
+    // has nothing to copy.
+    const copy = (id, key) => cell(id, key).querySelector('.identity-copy');
+    assert.equal(copy('a', 'hosts').dataset.copyValue, 'node1');
+    assert.equal(copy('a', 'working_directory').dataset.copyValue, '/work/a');
+    assert.equal(copy('c', 'hosts'), null, 'an empty Hosts cell has a copy button');
 
     // Attempt IDs are shown by their end, with the full ID kept in the text,
     // title, and copy.
