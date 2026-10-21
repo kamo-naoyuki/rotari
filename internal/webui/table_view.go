@@ -18,7 +18,8 @@ import (
 // offers it under Launch with for an artifact and serves it under
 // /tableview/. The page's own query names the source, for an artifact as a
 // content request does; the page passes it through to its API requests and
-// adds its own parameters (sep, header, filters, sort, desc, offset, limit).
+// adds its own parameters (sep, header, filters, sort, desc, offset, limit,
+// base, and for a cell's media, ref).
 
 //go:embed assets/table_view.html
 var tableViewHTML string
@@ -103,13 +104,22 @@ func (view tableView) handler() http.Handler {
 			writeArtifactError(writer, err)
 			return
 		}
-		page, err := table.Page(tableview.Query{Filters: filters, Sort: sort, Offset: intParam(query, "offset"), Limit: intParam(query, "limit")})
+		page, err := table.Page(tableview.Query{Filters: filters, Sort: sort, Offset: intParam(query, "offset"), Limit: intParam(query, "limit"), Base: query.Get("base")})
 		if err != nil {
 			writeArtifactError(writer, err)
 			return
 		}
 		noStore(writer)
 		writeWebJSON(writer, page)
+	})
+	mux.HandleFunc("GET /api/media", func(writer http.ResponseWriter, request *http.Request) {
+		query := request.URL.Query()
+		source, err := view.resolve(query)
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		serveTableViewMedia(writer, request, source, query.Get("base"), query.Get("ref"))
 	})
 	mux.HandleFunc("GET /api/describe", func(writer http.ResponseWriter, request *http.Request) {
 		query := request.URL.Query()
@@ -206,6 +216,35 @@ func openTableView(source tableViewSource, query url.Values) (*tableview.Table, 
 		return nil, fmt.Errorf("header must be 1 or 0")
 	}
 	return tableview.OpenFile(source.target, tableview.Format{Separator: separator, Header: header})
+}
+
+// serveTableViewMedia streams the image, audio, or video file a cell names,
+// inline and with range requests so media can seek, with the same headers
+// as an artifact's content.
+func serveTableViewMedia(writer http.ResponseWriter, request *http.Request, source tableViewSource, base, ref string) {
+	path, err := source.target.ResolveMedia(source.directory, base, ref)
+	if err != nil {
+		writeArtifactError(writer, err)
+		return
+	}
+	file, err := source.target.OpenMedia(path)
+	if err != nil {
+		writeArtifactError(writer, err)
+		return
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		writeArtifactError(writer, err)
+		return
+	}
+	if !info.Mode().IsRegular() {
+		writeWebError(writer, fmt.Errorf("%s is not a regular file", ref))
+		return
+	}
+	noStore(writer)
+	writer.Header().Set(headerContentType, tableview.MediaTypes[strings.ToLower(filepath.Ext(path))])
+	http.ServeContent(writer, request, "", info.ModTime(), file)
 }
 
 // tableViewSort reads sort, a column counted from 0, and desc=1.

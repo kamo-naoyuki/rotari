@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -332,5 +333,84 @@ func TestTableViewFiltersInBrowser(t *testing.T) {
   value2.value = 'high'; value2.dispatchEvent(new window.Event('input'));
   [...bar2.querySelectorAll('button')].find(button => button.textContent === '+ Add').click();
   await until('error', () => document.getElementById('tv-error').textContent.includes('needs a number'));
+`)
+}
+
+func TestTableViewDescribesAndServesMedia(t *testing.T) {
+	f := newArtifactFixture(t)
+	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(f.baseDir, "audio", "a.wav"), string(wav))
+	write(t, filepath.Join(f.work, "audio", "a.wav"), string(wav[:44]))
+	write(t, filepath.Join(f.work, "data.csv"), "id,audio\n1,audio/a.wav\n2,"+filepath.Join(f.outside, "secret.wav")+"\n")
+	write(t, filepath.Join(f.outside, "secret.wav"), string(wav))
+	options := testOptions(f.baseDir, false)
+	media := func(base string) []*tableview.Media {
+		t.Helper()
+		recorder := f.viewerGet(t, options, "api/rows", "data.csv", url.Values{"sep": {","}, "base": {base}})
+		var page tableview.Page
+		if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+			t.Fatalf("rows = %d %s", recorder.Code, recorder.Body)
+		}
+		return []*tableview.Media{page.Rows[0].Media[1], page.Rows[1].Media[1]}
+	}
+	// By default relative paths resolve from the basedir.
+	got := media("")
+	if got[0].Properties == nil || got[0].Properties.Duration != 0.5 || got[1].Error != "Not shown: outside the allowed roots" {
+		t.Fatalf("basedir media = %+v %+v", got[0], got[1])
+	}
+	// From the working directory the same path names a file with no samples.
+	if got := media("wd"); got[0].Properties == nil || got[0].Properties.Duration != 0 || got[0].Base != "wd" {
+		t.Fatalf("working directory media = %+v", got[0])
+	}
+	if recorder := f.viewerGet(t, options, "api/rows", "data.csv", url.Values{"sep": {","}, "base": {"elsewhere"}}); recorder.Code != http.StatusBadRequest {
+		t.Fatalf("unknown base = %d", recorder.Code)
+	}
+
+	served := f.viewerGet(t, options, "api/media", "data.csv", url.Values{"ref": {"audio/a.wav"}})
+	if served.Code != http.StatusOK || served.Body.Len() != len(wav) || served.Header().Get("Content-Type") != "audio/wav" ||
+		served.Header().Get("Cache-Control") != "no-store" || !strings.Contains(served.Header().Get("Content-Security-Policy"), "sandbox") {
+		t.Fatalf("media = %d %v", served.Code, served.Header())
+	}
+	for _, test := range []struct {
+		ref, base string
+		status    int
+	}{
+		{filepath.Join(f.outside, "secret.wav"), "", http.StatusForbidden}, // outside every root
+		{"../../" + filepath.Base(f.outside) + "/secret.wav", "wd", http.StatusForbidden},
+		{"data.csv", "file", http.StatusBadRequest}, // not media
+		{"audio/gone.wav", "", http.StatusNotFound}, // missing
+		{"audio/a.wav", "elsewhere", http.StatusBadRequest},
+	} {
+		if recorder := f.viewerGet(t, options, "api/media", "data.csv", url.Values{"ref": {test.ref}, "base": {test.base}}); recorder.Code != test.status {
+			t.Errorf("%s from %q = %d %s, want %d", test.ref, test.base, recorder.Code, recorder.Body, test.status)
+		}
+	}
+}
+
+func TestTableViewShowsMediaInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(f.work, "audio", "a.wav"), string(wav))
+	write(t, filepath.Join(f.work, "data.csv"), "id,audio\n1,audio/a.wav\n2,audio/gone.wav\n")
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "data.csv", "", `
+  await until('rows', () => cells().length === 2);
+  // From the basedir neither file exists.
+  if (!cells()[0][2].includes('File not found')) fail('basedir', cells()[0]);
+  const base = document.querySelector('select[aria-label="Resolve media paths from"]');
+  if ([...base.options].map(option => option.value).join() !== 'basedir,wd,file') fail('bases', base.innerHTML);
+  base.value = 'wd';
+  base.dispatchEvent(new window.Event('change'));
+  await until('working directory', () => cells()[0][2].includes('WAV PCM 16-bit · 0:00.50 · 16 kHz · 1 ch · 256 kbps · 15.7 KiB'));
+  const link = document.querySelector('#tv-table tbody a.tv-media-path');
+  const href = new URL(link.href);
+  if (href.pathname !== '/tableview/api/media' || href.searchParams.get('ref') !== 'audio/a.wav' || href.searchParams.get('base') !== 'wd') fail('media link', link.href);
+  if ((await fetch(href)).status !== 200) fail('media fetch');
+  if (!cells()[1][2].includes('File not found') || fragment().get('base') !== 'wd') fail('missing file', cells()[1], window.location.hash);
 `)
 }

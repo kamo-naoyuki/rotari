@@ -549,6 +549,15 @@ rows opens as quickly as a small one after the server has indexed it once:
   space for `.scp`). Cells in double quotes may hold the separator, line
   breaks, and doubled quotes, as in CSV; blank lines are skipped.
 - **First row is a header**: whether the first record names the columns.
+- **Media cells**: a cell holding the path of an image, audio, or video file
+  (the types a preview shows) is a link to the file with one line of its
+  properties under it, read from the file's header: format, duration,
+  width × height, sample rate, channels, bitrate, and size, for example
+  `WAV PCM 16-bit · 0:03.12 · 16 kHz · 1 ch · 256 kbps · 97.5 KiB`. A file
+  that is missing or outside the roots a preview may read says so instead.
+  Absolute paths are used as they are; **Resolve media paths from** chooses
+  what a relative path is relative to: the basedir (the default), the job's
+  working directory, or the table's own directory.
 - **Filter**: choose a column, an operator, and a value, then **+ Add**.
   `=` and `≠` compare numbers as numbers (`0.80` equals `0.8`) and other
   cells as text; `<`, `≤`, `>`, and `≥` need a number and skip cells that

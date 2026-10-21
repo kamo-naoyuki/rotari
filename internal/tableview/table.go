@@ -60,6 +60,9 @@ type Query struct {
 	Sort    *Sort
 	Offset  int
 	Limit   int
+	// Base is the ID of the base relative media paths in a file's cells
+	// resolve from; "" is the first.
+	Base string
 }
 
 // Page is one page of a table.
@@ -75,9 +78,12 @@ type Page struct {
 }
 
 // Row is a row of a page; Number counts data rows from 1 in the source.
+// Media describes the cells, by column, that name an image, audio, or
+// video file.
 type Row struct {
-	Number int      `json:"number"`
-	Cells  []string `json:"cells"`
+	Number int            `json:"number"`
+	Cells  []string       `json:"cells"`
+	Media  map[int]*Media `json:"media,omitempty"`
 }
 
 // Page reads the rows a query selects.
@@ -92,6 +98,9 @@ func (table *Table) Page(query Query) (Page, error) {
 		return Page{}, fmt.Errorf("limit must be between 1 and %d", MaxLimit)
 	}
 	columns := table.source.columns()
+	if _, err := table.target.base(table.directory, query.Base); err != nil {
+		return Page{}, err
+	}
 	conditions, err := compileConditions(query.Filters, columns)
 	if err != nil {
 		return Page{}, err
@@ -123,13 +132,19 @@ func (table *Table) Page(query Query) (Page, error) {
 		byNumber[ascending[index]] = row
 	}
 	for _, number := range numbers {
-		row := byNumber[number]
-		for cell, value := range row {
+		row := Row{Number: number + 1, Cells: byNumber[number]}
+		for cell, value := range row.Cells {
+			if ref := mediaRef(value); ref != "" {
+				if row.Media == nil {
+					row.Media = map[int]*Media{}
+				}
+				row.Media[cell] = table.target.describeMedia(table.directory, query.Base, ref)
+			}
 			if len(value) > cellLimit {
-				row[cell], page.Cut = cutUTF8(value, cellLimit), true
+				row.Cells[cell], page.Cut = cutUTF8(value, cellLimit), true
 			}
 		}
-		page.Rows = append(page.Rows, Row{Number: number + 1, Cells: row})
+		page.Rows = append(page.Rows, row)
 	}
 	return page, nil
 }

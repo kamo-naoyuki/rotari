@@ -20,9 +20,21 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(outside, "secret.tsv"), []byte("secret\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// a.wav is one second of 16 kHz mono 16-bit silence, beside a table
+	// that names it and a file outside every root.
+	header := []byte("RIFF\x24\x7d\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x80\x3e\x00\x00\x00\x7d\x00\x00\x02\x00\x10\x00data\x00\x7d\x00\x00")
+	if err := os.WriteFile(filepath.Join(e.Root, "a.wav"), append(header, make([]byte, 32000)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "secret.wav"), header, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(e.Root, "media.csv"), []byte("audio\na.wav\n"+filepath.Join(outside, "secret.wav")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	script := `printf 'id\tscore\n' > data.tsv; for n in $(seq 1 300); do printf '%d\t"a\tb"\n' "$n" >> data.tsv; done; ln -s "$1" link.tsv`
 	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "tv", "--", "sh", "-c", script, "sh",
-		filepath.Join(outside, "secret.tsv"), "data.tsv", "link.tsv"))
+		filepath.Join(outside, "secret.tsv"), "data.tsv", "link.tsv", "media.csv"))
 	e.MustRotari("run", "-p", "tv", "--quiet")
 	var shown struct {
 		RunID string `json:"run_id"`
@@ -108,6 +120,21 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 	r = get("/tableview/api/describe", "data.tsv", url.Values{"sep": {"\t"}, "filters": {filters}})
 	if !strings.Contains(r.Body, `"count":5,"unique":5,"numeric":5,"mean":298`) || !strings.Contains(r.Body, `"sum":1490`) || !strings.Contains(r.Body, `"matched":5,"total":300`) {
 		t.Fatalf("describe = (%d, %s)", r.Status, r.Body)
+	}
+	// A cell naming a media file under the roots gets its properties and
+	// the file is served; one outside them gets neither.
+	r = get("/tableview/api/rows", "media.csv", url.Values{"sep": {","}, "base": {"wd"}})
+	if !strings.Contains(r.Body, `"format":"WAV PCM","size":32044,"duration":1,"sample_rate":16000,"channels":1,"bit_depth":16,"bitrate":256000`) ||
+		!strings.Contains(r.Body, `"error":"Not shown: outside the allowed roots"`) {
+		t.Fatalf("media rows = (%d, %s)", r.Status, r.Body)
+	}
+	if r := get("/tableview/api/media", "media.csv", url.Values{"ref": {"a.wav"}, "base": {"wd"}}); r.Status != 200 || len(r.Body) != 32044 {
+		t.Fatalf("media = (%d, %d bytes)", r.Status, len(r.Body))
+	}
+	for _, ref := range []string{filepath.Join(outside, "secret.wav"), "media.csv", "data.tsv"} {
+		if r := get("/tableview/api/media", "media.csv", url.Values{"ref": {ref}, "base": {"wd"}}); r.Status == 200 {
+			t.Fatalf("%s was served as media", ref)
+		}
 	}
 	for _, refused := range []struct {
 		name  string

@@ -686,8 +686,10 @@ handlers are in [internal/webui/artifact_files.go](../internal/webui/artifact_fi
 and the view in [web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js);
 covered by `TestWebPreviewsArtifactsUnderAllowedRoots` and
 `TestWebServesArtifactsOnlyFromTrustedRecords` in
-[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go);
-the ownership rule is `artifactRecordsTrust` in
+[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+The Table viewer (WEB-19) also serves, inline with the same headers, the
+image, audio, and video files a served table's cells name, only under the
+same roots; the ownership rule is `artifactRecordsTrust` in
 [internal/webui/artifact_trust.go](../internal/webui/artifact_trust.go).
 Opening an entry, including a directory child, scrolls to the rendered preview
 below the listing; loading additional pages does not scroll it. This browser
@@ -872,16 +874,30 @@ cells, for up to 1,000,000 rows. Rows keep their numbers in the file.
 select, as pandas' `describe` does: non-blank cells, distinct values (up to
 100,000, then `unique_over`), and over the cells that read as numbers their
 count, mean, sample standard deviation, minimum, maximum, and sum.
-`/tableview/api/info` names the file, its size, its download, and the
-separator its extension suggests. The page keeps the separator, header,
-filters, sort, Describe, page, and page size in its URL fragment, and drops
+A cell whose trimmed text ends in an image, audio, or video extension (as
+WEB-6 lists them) names a file: absolute as it is, or relative to the base
+`base` names, `basedir` (the default), `wd` (the job's recorded working
+directory), or `file` (the table's own directory). Each such cell of a page
+comes with the file's properties read from its headers without decoding it
+(format; duration, sample rate, channels, and bit depth for WAV, FLAC,
+MP3, Ogg Vorbis and Opus, M4A, MP4, MOV, and WebM; width and height for
+images and video; size; and a bitrate, the format's own for PCM WAV and
+constant-bitrate MP3 and otherwise size over duration), or with why it is
+not shown: outside the roots, through an escaping symlink, or missing.
+`/tableview/api/media?ref=&base=` serves that file under the same roots and
+refusals, and nothing that is not an image, audio, or video file.
+`/tableview/api/info` names the file, its size, its download, the bases,
+and the separator its extension suggests. The page keeps the separator, header,
+media base, filters, sort, Describe, page, and page size in its URL fragment, and drops
 the filters and sort when the separator changes. Implemented by
 [internal/tableview](../internal/tableview/) and
 [internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
 [table_view.js](../internal/webui/assets/table_view.js); covered by
 `TestWebTableViewerReadsArtifacts` in
 [conformance/05-web/table_view_test.go](../conformance/05-web/table_view_test.go), with
-the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go),
+the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go)
+and [internal/tableview/media_test.go](../internal/tableview/media_test.go) (whose
+sample files ffmpeg made, with ffprobe's values),
 the page checked by `TestTableViewPagesInBrowser` and
 `TestTableViewFiltersInBrowser`, and the Launch with link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in

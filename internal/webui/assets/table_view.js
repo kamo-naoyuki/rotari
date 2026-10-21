@@ -49,6 +49,7 @@ let description = null;
 // view holds the settings the fragment keeps. A filter or sort names a
 // column by its position, counted from 0.
 const view = {
+  base: "",
   sep: "",
   header: true,
   page: 1,
@@ -95,6 +96,47 @@ function formatNumber(value) {
   return Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
+// formatDuration writes seconds as m:ss.cc, or h:mm:ss past an hour.
+function formatDuration(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (hours) {
+    return (
+      hours +
+      ":" +
+      String(minutes).padStart(2, "0") +
+      ":" +
+      String(Math.floor(rest)).padStart(2, "0")
+    );
+  }
+  return minutes + ":" + rest.toFixed(2).padStart(5, "0");
+}
+
+function formatRate(rate) {
+  return rate % 1000 ? (rate / 1000).toFixed(1) + " kHz" : rate / 1000 + " kHz";
+}
+
+// formatProperties is one line for a media file, such as
+// "WAV PCM 16-bit · 0:03.12 · 16 kHz · 1 ch · 256 kbps · 97.5 KiB".
+function formatProperties(properties) {
+  const parts = [
+    properties.format +
+      (properties.bit_depth ? " " + properties.bit_depth + "-bit" : ""),
+  ];
+  if (properties.duration) parts.push(formatDuration(properties.duration));
+  if (properties.width && properties.height) {
+    parts.push(properties.width + "×" + properties.height);
+  }
+  if (properties.sample_rate) parts.push(formatRate(properties.sample_rate));
+  if (properties.channels) parts.push(properties.channels + " ch");
+  if (properties.bitrate) {
+    parts.push(Math.round(properties.bitrate / 1000) + " kbps");
+  }
+  parts.push(formatBytes(properties.size));
+  return parts.join(" · ");
+}
+
 function formatBytes(size) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
   let value = size;
@@ -109,6 +151,7 @@ function formatBytes(size) {
 function readView() {
   const fragment = new URLSearchParams(location.hash.slice(1));
   if (fragment.has("sep")) view.sep = fragment.get("sep");
+  if (fragment.has("base")) view.base = fragment.get("base");
   if (fragment.has("header")) view.header = fragment.get("header") !== "0";
   const pageNumber = Number(fragment.get("page"));
   if (Number.isInteger(pageNumber) && pageNumber > 0) view.page = pageNumber;
@@ -130,6 +173,7 @@ function readView() {
 function writeView() {
   const fragment = new URLSearchParams();
   fragment.set("sep", view.sep);
+  if (view.base) fragment.set("base", view.base);
   fragment.set("header", view.header ? "1" : "0");
   fragment.set("page", String(view.page));
   fragment.set("limit", String(view.limit));
@@ -239,9 +283,34 @@ function renderToolbar() {
     },
     "Describe",
   );
-  toolbar.replaceChildren(
+  const bases = info.bases || [];
+  const base = el(
+    "select",
+    {
+      "aria-label": "Resolve media paths from",
+      onchange: (event) => {
+        view.base = event.target.value;
+        loadRows();
+      },
+    },
+    bases.map((base, index) =>
+      el(
+        "option",
+        {
+          value: base.id,
+          selected: view.base ? base.id === view.base : index === 0,
+        },
+        base.label,
+      ),
+    ),
+  );
+  setChildren(
+    toolbar,
     el("label", {}, el("span", {}, "Separator"), select, other),
     el("label", {}, header, el("span", {}, "First row is a header")),
+    bases.length > 1
+      ? el("label", {}, el("span", {}, "Resolve media paths from"), base)
+      : null,
     el("span", { className: "tv-spacer" }),
     describe,
   );
@@ -280,6 +349,7 @@ function pageCount() {
 // and their description.
 function tableParams() {
   return {
+    base: view.base || undefined,
     sep: view.sep,
     header: view.header ? "1" : "0",
     filters: view.filters.length ? JSON.stringify(view.filters) : undefined,
@@ -505,7 +575,15 @@ function renderTable() {
         "tr",
         {},
         el("td", { className: "tv-number" }, formatCount(row.number)),
-        rows.columns.map((_, index) => el("td", {}, row.cells[index] ?? "")),
+        rows.columns.map((_, index) =>
+          el(
+            "td",
+            {},
+            row.media && row.media[index]
+              ? mediaCell(row.media[index])
+              : (row.cells[index] ?? ""),
+          ),
+        ),
       ),
     ),
   );
@@ -523,6 +601,38 @@ function renderTable() {
       ),
     );
   }
+}
+
+// mediaURL requests the file a cell names, as the server resolved it.
+function mediaURL(media) {
+  return apiURL("api/media", { ref: media.ref, base: media.base || undefined });
+}
+
+// mediaCell shows a path that names an image, audio, or video file: the
+// path, which opens the file, and its properties, or why it is not shown.
+function mediaCell(media) {
+  return el(
+    "span",
+    { className: "tv-media" },
+    media.error
+      ? el("span", { className: "tv-media-path" }, media.ref)
+      : el(
+          "a",
+          {
+            className: "tv-media-path",
+            href: mediaURL(media),
+            target: "_blank",
+            rel: "noopener",
+            title: "Open " + media.kind,
+          },
+          media.ref,
+        ),
+    el(
+      "span",
+      { className: media.error ? "tv-media-error" : "tv-media-properties" },
+      media.error || formatProperties(media.properties),
+    ),
+  );
 }
 
 // describeHead is the Describe rows, under the column names.
