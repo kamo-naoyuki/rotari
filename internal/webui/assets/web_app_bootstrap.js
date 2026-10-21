@@ -247,7 +247,10 @@ render = function () {
   focusHistorySearchJob();
 };
 initOrbitGame();
-loadLauncherAvailability();
+// Run pages offer Launch once the server says launching is available.
+loadLauncherAvailability().then(() => {
+  if (state) render();
+});
 window.addEventListener("popstate", () => refresh(true));
 refresh(true);
 setInterval(() => refresh(false), 2000);

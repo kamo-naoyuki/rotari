@@ -411,8 +411,8 @@ at runtime and therefore need not appear among the discovered artifact
 candidates. The Artifacts view includes the working directory as the `.` row,
 even when the job definition named no paths:
 
-- Open **Launch with…** on `.` and choose **Aim** to open the repository
-  beneath that directory.
+- Open **Launch with…** on `.` (or the job's **Launch** button on the run
+  page) and choose **Aim** to open the repository beneath that directory.
 - Open `mlflow.db` inside `.` and choose **MLflow (SQLite)**. This file
   appears after MLflow creates it.
 - A file store such as `mlruns` can be opened with **MLflow** on that
@@ -489,7 +489,9 @@ to the service and does not authenticate other Rotari Web APIs.
 In a job's Artifacts, choose **Launch with…** in the row of an entry (including
 the working directory row `.`), or of a
 file or directory inside an opened directory; an opened file or directory has
-it in its title line too. Each row also has **Download** for a file. The list offers only the registered
+it in its title line too. On a run page, a finished job's **Launch** button
+(shown when the server allows launching) opens its Artifacts with the
+commands for the working directory already listed. Each row also has **Download** for a file. The list offers only the registered
 commands that accept a file or a directory, whichever is open; without any,
 the Web UI says why and how to change that (launching disabled, read-only
 server, no registered commands, none for this kind of target, or a static

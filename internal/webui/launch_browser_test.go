@@ -153,7 +153,7 @@ func TestWebLaunchInBrowser(t *testing.T) {
 
 // A job that names no paths, such as one whose tracker writes its default
 // store, still lists its working directory, so a viewer can be launched on
-// it.
+// it, from Artifacts or from a run page's Launch.
 func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -178,6 +178,23 @@ func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
   rows[0].querySelector('.artifact-launch-button').click();
   await wait(300);
   if (JSON.stringify(choices()) !== '["Count"]') fail('working directory choices', choices());
+
+  // A run page's Launch opens Artifacts with the working directory's
+  // choices listed.
+  await window.launchOnWorkingDirectory('default', runID, 'job-1', '');
+  await wait(300);
+  const holder = document.getElementById('artifact-launch-panel')?.closest('.artifact-launch-row');
+  if (!holder || holder.previousElementSibling.dataset.entry !== 'wd') fail('Launch panel row', document.getElementById('artifact-view').innerHTML);
+  if (JSON.stringify(choices()) !== '["Count"]') fail('Launch choices', choices());
+`)
+	// A working directory missing on the Web server's host is explained.
+	if err := stateinternal.WriteJSON(filepath.Join(attemptDir, stateinternal.ArtifactsFileName), artifact.Record{Version: 7, WorkingDirectory: filepath.Join(f.work, "gone")}); err != nil {
+		t.Fatal(err)
+	}
+	runLaunchBrowserScript(t, options, f, `
+  await window.launchOnWorkingDirectory('default', runID, 'job-2', '');
+  const reason = document.querySelector('#artifact-view .launch-reason')?.textContent || '';
+  if (!reason.includes(work + '/gone is missing on the Web server') || document.getElementById('artifact-launch-panel')) fail('missing working directory', document.getElementById('artifact-view').innerHTML);
 `)
 }
 

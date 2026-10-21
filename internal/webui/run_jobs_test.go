@@ -10,7 +10,8 @@ import (
 // A run's jobs table shows each command under its job name, leaves out
 // columns that are the same for every job until the Columns menu turns them
 // on, starts with Job ID hidden, offers a copy of each host and path value,
-// and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
+// and ends each row with all its actions as buttons, without a menu, Launch
+// among them where launching is available. The toolbar and the run's sections around
 // it keep the viewer's choices.
 func TestWebRunJobsTable(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -37,6 +38,7 @@ const run = {
     job('c', { result: { exit_code: 0 }, submitted_at: '2026-10-12 00:00:01 JST', note_labels: ['n1'] }),
   ],
 };
+let launchers = { available: true };
 const state = { base_dir: '/state', projects: [{ project_name: 'default', queue: { commands: [] }, runs: [run] }] };
 const errors = [];
 const virtualConsole = new VirtualConsole();
@@ -50,11 +52,12 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
     window.setInterval = () => 1;
     window.fetch = async (url) => {
       if (url === '/api/state') return { ok: true, json: async () => state };
+      if (url === '/api/launchers') return { ok: true, json: async () => launchers };
       throw new Error('unexpected fetch: ' + url);
     };
   },
 });
-setTimeout(() => {
+setTimeout(async () => {
   try {
     const window = dom.window, document = window.document;
     const table = () => document.querySelector('#app table.run-jobs');
@@ -93,16 +96,24 @@ setTimeout(() => {
     window.sortTable(table(), 'duration', 'job');
     assert.equal(table().querySelector('tbody tr').dataset.jobId, 'b', 'Duration does not sort by seconds');
 
-    // Actions come last, all in the row: Log, Artifacts, Diagnosis only on
-    // the failed job, Notes (disabled without notes), Report, and Path.
+    // Actions come last, all in the row: Log, Artifacts, Launch where
+    // launching is available, Diagnosis only on the failed job, Notes
+    // (disabled without notes), Report, and Path.
     const actions = id => row(id).lastElementChild;
     assert(actions('a').classList.contains('actions'));
     const labels = id => [...actions(id).querySelectorAll('.action-buttons > button')].map(b => b.textContent);
-    assert.deepEqual(labels('a'), ['Log', 'Artifacts', 'Notes', 'Report', 'Path']);
+    assert.deepEqual(labels('a'), ['Log', 'Artifacts', 'Launch', 'Notes', 'Report', 'Path']);
     assert(actions('a').querySelector('.view-notes').disabled, 'Notes without notes is not disabled');
-    assert.deepEqual(labels('b'), ['Log', 'Artifacts', 'Diagnosis', 'Notes', 'Report', 'Path']);
-    assert.deepEqual(labels('c'), ['Log', 'Artifacts', 'Notes (1)', 'Report', 'Path']);
+    assert.deepEqual(labels('b'), ['Log', 'Artifacts', 'Launch', 'Diagnosis', 'Notes', 'Report', 'Path']);
+    assert.deepEqual(labels('c'), ['Log', 'Artifacts', 'Launch', 'Notes (1)', 'Report', 'Path']);
     assert(!actions('a').querySelector('details'), 'a row still has a menu');
+    launchers = { available: false };
+    await window.loadLauncherAvailability();
+    window.render();
+    assert.deepEqual(labels('a'), ['Log', 'Artifacts', 'Notes', 'Report', 'Path'], 'Launch offered where launching is unavailable');
+    launchers = { available: true };
+    await window.loadLauncherAvailability();
+    window.render();
 
     // An open menu survives a re-render and closes on a press outside.
     const menu = () => document.querySelector('.run-jobs-bar .columns-menu');

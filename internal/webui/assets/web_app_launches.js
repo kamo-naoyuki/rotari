@@ -58,6 +58,36 @@ function artifactLaunchButton(index, child, type) {
   );
 }
 
+// launchOnWorkingDirectory opens a job's Artifacts with the launch choices
+// of its working directory, the `.` row, open; when that row cannot be
+// launched on, the view says why instead.
+async function launchOnWorkingDirectory(queue, run, job, attemptID) {
+  await showArtifacts(queue, run, job, attemptID);
+  const button = artifactView().querySelector(
+    'tr[data-entry="' + WORKING_DIRECTORY_ENTRY + '"] .artifact-launch-button',
+  );
+  if (button) {
+    button.click();
+    return;
+  }
+  const listing = selectedArtifacts.listing;
+  if (!listing) return;
+  const note = document.createElement("p");
+  note.className = "launch-reason";
+  note.textContent = !listing.working_directory_type
+    ? "This attempt recorded no working directory to launch on."
+    : listing.working_directory_type !== "directory"
+      ? "The working directory " +
+        listing.working_directory +
+        " is " +
+        listing.working_directory_type +
+        " on the Web server's host, so nothing can be launched on it."
+      : "The working directory " +
+        listing.working_directory +
+        " is not served here, so nothing can be launched on it.";
+  artifactView().prepend(note);
+}
+
 function artifactLaunchPanel() {
   return document.getElementById("artifact-launch-panel");
 }

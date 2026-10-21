@@ -2067,8 +2067,9 @@ function runJobCells(q, run, runID, j) {
   };
 }
 // runJobActions is a job row's actions cell, last in the row: the log, the
-// artifacts of a finished job, the diagnosis of a failed job, the job's
-// notes, its report, and its path.
+// artifacts of a finished job and, where launching is available, a launch
+// on its working directory, the diagnosis of a failed job, the job's notes,
+// its report, and its path.
 function runJobActions(q, run, runID, j) {
   const result = j.result;
   // A carried job's log and artifacts are asked for in this run without an
@@ -2147,9 +2148,24 @@ function runJobActions(q, run, runID, j) {
       esc(logAttemptID) +
       "')\">Artifacts</button>"
     : "";
+  // Launch opens the same attempt's Artifacts with the commands for its
+  // working directory listed, where a tracker's default store usually is.
+  const launch =
+    result && launcherAvailability && launcherAvailability.available
+      ? '<button class="launch-job" onclick="launchOnWorkingDirectory(' +
+        jsArg(q.project_name) +
+        "," +
+        jsArg(logRun) +
+        "," +
+        jsArg(logJob) +
+        "," +
+        jsArg(logAttemptID) +
+        ')">Launch</button>'
+      : "";
   return actionsCell([
     viewLog,
     artifacts,
+    launch,
     diagnosisControl,
     notesControl,
     '<button class="job-ai" title="Prepare job report"' +

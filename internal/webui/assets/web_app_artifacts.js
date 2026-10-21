@@ -150,7 +150,9 @@ function renderArtifactListing() {
           "</button>"
         : esc(entry.display_path);
       return (
-        "<tr><td>" +
+        '<tr data-entry="' +
+        esc(String(index)) +
+        '"><td>' +
         esc(entry.type) +
         "</td><td>" +
         path +
