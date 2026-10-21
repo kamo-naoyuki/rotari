@@ -648,9 +648,11 @@ writable by group or others (permission bits only; an ACL is not seen):
 whoever can write those can make a job record any working directory and
 path. Otherwise `/api/artifacts` adds `roots_note`, which says why only
 `--artifact-root` is served, and the Web UI shows it.
-`/api/artifacts` adds `previewable` per entry, and
-`working_directory_previewable` for the working directory, which the view
-lists first as `.` (type from `working_directory_type`, which the CLI's
+`/api/artifacts` adds `previewable` per entry (an empty list for a listing
+without candidates; left out only by a static export without copied
+contents), and `working_directory_previewable` for the working directory,
+which the view lists first as `.`, also when there are no candidates (type
+from `working_directory_type`, which the CLI's
 listing JSON carries too) and which is not a candidate: it is served under
 the same roots, so not for an untrusted record without `--artifact-root`;
 a refused request is 403, a

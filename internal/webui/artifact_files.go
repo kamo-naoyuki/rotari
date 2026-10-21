@@ -45,7 +45,11 @@ var artifactInlineTypes = map[string]string{
 // prints, and whether the live server serves each entry's content.
 type webArtifactListing struct {
 	jobstatus.ArtifactListing
-	Previewable []bool `json:"previewable,omitempty"`
+	// Previewable is left out only where nothing is served, a static export
+	// without copied contents; omitzero keeps the empty list of a listing
+	// without candidates, so the Web UI still offers Launch with on its
+	// working directory.
+	Previewable []bool `json:"previewable,omitzero"`
 	// WorkingDirectoryPreviewable reports whether the working directory is
 	// served as entry "wd", to be browsed and launched with like a listed
 	// directory.

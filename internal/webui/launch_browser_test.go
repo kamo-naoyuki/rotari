@@ -3,11 +3,14 @@ package webui
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // runLaunchBrowserScript runs script in jsdom against a server and fails the
@@ -145,6 +148,36 @@ func TestWebLaunchInBrowser(t *testing.T) {
   if (!served.startsWith('path=' + open.getAttribute('href') + 'page')) fail('proxied page', served);
   await window.showLaunches();
   if (!view.querySelector('.launch-open')) fail('Open in Launches', view.innerHTML);
+`)
+}
+
+// A job that names no paths, such as one whose tracker writes its default
+// store, still lists its working directory, so a viewer can be launched on
+// it.
+func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	f := newArtifactFixture(t)
+	paths, err := stateinternal.ResolveProjectPaths(f.baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	attemptDir := filepath.Join(paths.RunsDir, f.runID, "job-2", "attempts", stateinternal.MakeAttemptID(f.runID, "job-2", 0))
+	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(filepath.Join(attemptDir, stateinternal.ArtifactsFileName), artifact.Record{Version: 7, WorkingDirectory: f.work}); err != nil {
+		t.Fatal(err)
+	}
+	options := launchOptions(t, f.baseDir, launchCommand("Count", `ls "$ROTARI_LAUNCHER_ARTIFACT" | wc -l`, launcher.TargetDirectory))
+	runLaunchBrowserScript(t, options, f, `
+  await window.showArtifacts('default', runID, 'job-2', '');
+  const rows = [...document.querySelectorAll('#artifact-view .artifact-table tbody tr')];
+  if (rows.length !== 1 || rows[0].children[1].textContent !== '.') fail('working directory row', document.getElementById('artifact-view').innerHTML);
+  rows[0].querySelector('.artifact-launch-button').click();
+  await wait(300);
+  if (JSON.stringify(choices()) !== '["Count"]') fail('working directory choices', choices());
 `)
 }
 

@@ -40,7 +40,11 @@ async function showArtifacts(queue, run, job, attemptID) {
     if (!response.ok) throw new Error(await response.text());
     selectedArtifacts.listing = await response.json();
     selectedOutput = formatArtifactListing(selectedArtifacts.listing);
-    if ((selectedArtifacts.listing.entries || []).length) {
+    // The working directory is a row even without candidates.
+    if (
+      (selectedArtifacts.listing.entries || []).length ||
+      selectedArtifacts.listing.working_directory_type
+    ) {
       renderArtifactListing();
     } else {
       showArtifactText();
@@ -110,7 +114,7 @@ function formatArtifactListing(listing) {
 }
 function renderArtifactListing() {
   const listing = selectedArtifacts.listing;
-  const entries = listing.entries;
+  const entries = listing.entries || [];
   const previewable = listing.previewable || [];
   // Download and Launch with need the live server or copied contents.
   const actions = !!listing.previewable;

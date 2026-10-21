@@ -15,9 +15,10 @@ import (
 )
 
 func TestWebShowsArtifactCandidates(t *testing.T) {
-	covers(t, "WEB-5")
+	covers(t, "WEB-5", "WEB-6")
 	e := support.NewEnv(t)
 	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "art", "--", "sh", "-c", "echo x > out.txt; exit 3", "sh", "missing.csv"))
+	bareJobID := support.AddedJobID(t, e.MustRotari("add", "-p", "art", "--", "true"))
 	e.Rotari("run", "-p", "art", "--quiet")
 	var shown struct {
 		RunID string `json:"run_id"`
@@ -65,6 +66,18 @@ func TestWebShowsArtifactCandidates(t *testing.T) {
 	if !strings.Contains(response.Body, `"display_path":"out.txt","basis":"working_directory","type":"file"`) ||
 		!strings.Contains(response.Body, `"display_path":"missing.csv","basis":"working_directory","type":"missing"`) {
 		t.Fatalf("listing lacks the expected entries: %s", response.Body)
+	}
+	// A job that names no paths still has its working directory, so the
+	// live server says it serves entries, of which there are none (WEB-6).
+	query.Set("job_id", bareJobID)
+	bare := e.HTTPGet(base + "/api/artifacts?" + query.Encode())
+	var bareListing map[string]any
+	if err := json.Unmarshal([]byte(bare.Body), &bareListing); err != nil || bare.Status != 200 {
+		t.Fatalf("/api/artifacts for a job without candidates = (%d, %s)", bare.Status, bare.Body)
+	}
+	if previewable, ok := bareListing["previewable"].([]any); !ok || len(previewable) != 0 || bareListing["entries"] != nil ||
+		bareListing["working_directory_previewable"] != true {
+		t.Fatalf("listing without candidates = %s", bare.Body)
 	}
 	query.Set("job_id", "nope")
 	if rejected := e.HTTPGet(base + "/api/artifacts?" + query.Encode()); rejected.Status == 200 {
