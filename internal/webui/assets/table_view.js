@@ -704,6 +704,8 @@ function renderTable() {
     table.replaceChildren();
     return;
   }
+  // A stems view's rows open all their files side by side.
+  const rowActions = info.kind === "directory" && view.listing === "stems";
   const head = el(
     "thead",
     {},
@@ -711,6 +713,7 @@ function renderTable() {
       "tr",
       {},
       el("th", { className: "tv-number", scope: "col" }, "#"),
+      rowActions ? el("th", { scope: "col" }, "") : null,
       rows.columns.map((column, index) => {
         const sorted = view.sort && view.sort.column === index;
         const order = sorted
@@ -735,7 +738,7 @@ function renderTable() {
         );
       }),
     ),
-    describeHead(),
+    describeHead(rowActions),
   );
   const body = el(
     "tbody",
@@ -745,6 +748,7 @@ function renderTable() {
         "tr",
         {},
         el("td", { className: "tv-number" }, formatCount(row.number)),
+        rowActions ? el("td", {}, openRowButton(row)) : null,
         rows.columns.map((_, index) =>
           el(
             "td",
@@ -765,12 +769,36 @@ function renderTable() {
         {},
         el(
           "td",
-          { className: "tv-empty", colSpan: rows.columns.length + 1 },
+          {
+            className: "tv-empty",
+            colSpan: rows.columns.length + (rowActions ? 2 : 1),
+          },
           "No rows.",
         ),
       ),
     );
   }
+}
+
+// openRowButton opens a row's files in panes side by side, to compare them.
+function openRowButton(row) {
+  const media = Object.keys(row.media || {})
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((index) => row.media[index])
+    .filter((media) => !media.error);
+  return media.length
+    ? el(
+        "button",
+        {
+          type: "button",
+          className: "tv-open-row",
+          title: "Open this row's files in panes side by side",
+          onclick: () => openMediaRow(media),
+        },
+        "Open row",
+      )
+    : null;
 }
 
 // cellContent is a cell that names no media: a path of a stems view's
@@ -804,7 +832,20 @@ function mediaCell(media) {
             href: mediaURL(media),
             target: "_blank",
             rel: "noopener",
-            title: "Open " + media.kind,
+            title: "Open in the active pane",
+            // A plain click opens the file in a pane; with a modifier the
+            // browser opens the link as usual.
+            onclick: (event) => {
+              if (
+                event.ctrlKey ||
+                event.metaKey ||
+                event.shiftKey ||
+                event.button
+              )
+                return;
+              event.preventDefault();
+              openMedia(media);
+            },
           },
           media.ref,
         ),
@@ -817,13 +858,14 @@ function mediaCell(media) {
 }
 
 // describeHead is the Describe rows, under the column names.
-function describeHead() {
+function describeHead(rowActions) {
   if (!view.describe || !description) return null;
   return describeRows.map(([name, show]) =>
     el(
       "tr",
       { className: "tv-describe" },
       el("th", { className: "tv-number", scope: "row" }, name),
+      rowActions ? el("td", {}) : null,
       rows.columns.map((_, index) => {
         const stats = description.columns[index];
         return el("td", {}, stats ? show(stats, rows.columns[index]) : "–");
@@ -925,6 +967,7 @@ async function start() {
     return;
   }
   if (!view.sep) view.sep = info.separator || ",";
+  startPanesHandle();
   renderHeader();
   renderToolbar();
   await loadRows();

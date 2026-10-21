@@ -26,6 +26,17 @@
       </div>
     </header>
     <main class="tv-main">
+      <section class="tv-panes" id="tv-panes" aria-label="Open files" hidden>
+        <div class="tv-pane-toolbar" id="tv-pane-toolbar"></div>
+        <div class="tv-pane-root" id="tv-pane-root"></div>
+      </section>
+      <div
+        class="tv-panes-handle"
+        id="tv-panes-handle"
+        role="separator"
+        aria-orientation="horizontal"
+        hidden
+      ></div>
       <section class="tv-table-area" aria-label="Table">
         <div class="tv-toolbar" id="tv-toolbar"></div>
         <div class="tv-filterbar" id="tv-filterbar"></div>
@@ -36,6 +47,7 @@
         <div class="tv-pager" id="tv-pager"></div>
       </section>
     </main>
+    <script src="table_view_panes.js"></script>
     <script src="table_view.js"></script>
   </body>
 </html>

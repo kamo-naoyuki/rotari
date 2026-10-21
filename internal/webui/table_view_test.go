@@ -495,15 +495,16 @@ func TestTableViewGroupsStemsInBrowser(t *testing.T) {
 
   // Group by stem lines up the first-level directories under eval/.
   [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Group by stem').click();
-  await until('stems', () => headings().length === 3);
-  if (JSON.stringify(headings()) !== '["#","stem","eval/"]') fail('stem headings', headings());
+  // A stems view's rows start with Open row.
+  await until('stems', () => headings().length === 4);
+  if (JSON.stringify(headings()) !== '["#","","stem","eval/"]') fail('stem headings', headings());
   const group = document.querySelector('select[aria-label="Groups from"]');
   group.value = 'parent';
   group.dispatchEvent(new window.Event('change'));
-  await until('parents', () => headings().length === 4);
-  if (JSON.stringify(headings()) !== '["#","stem","eval/hyp/","eval/ref/"]') fail('parent headings', headings());
-  const u2 = cells().find(row => row[1] === 'u2');
-  if (!u2 || u2[2] !== '— missing' || !u2[3].includes('eval/ref/u2.wav')) fail('missing cell', u2);
+  await until('parents', () => headings().length === 5);
+  if (JSON.stringify(headings()) !== '["#","","stem","eval/hyp/","eval/ref/"]') fail('parent headings', headings());
+  const u2 = cells().find(row => row[2] === 'u2');
+  if (!u2 || u2[1] !== 'Open row' || u2[3] !== '— missing' || !u2[4].includes('eval/ref/u2.wav')) fail('missing cell', u2);
   if (fragment().get('listing') !== 'stems' || fragment().get('group') !== 'parent') fail('fragment', window.location.hash);
 
   // Only incomplete stems, and Describe of the stems view.
@@ -514,4 +515,102 @@ func TestTableViewGroupsStemsInBrowser(t *testing.T) {
   document.querySelector('.tv-describe-toggle').click();
   await until('describe', () => document.querySelectorAll('tr.tv-describe').length === 7);
 `)
+}
+
+func TestTableViewOpensFilesInPanesInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"eval/ref/u1.wav", "eval/hyp/u1.wav", "eval/ref/u2.wav"} {
+		write(t, filepath.Join(f.work, filepath.FromSlash(name)), string(wav))
+	}
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav", `
+  await until('files', () => cells().length === 3);
+  const panesArea = document.getElementById('tv-panes');
+  if (!panesArea.hidden) fail('panes shown before a file is opened');
+  const link = path => [...document.querySelectorAll('#tv-table a.tv-media-path')].find(a => a.textContent === path);
+  const paneList = () => [...document.querySelectorAll('.tv-pane')];
+  const tabNames = pane => [...pane.querySelectorAll('.tv-tab-name')].map(button => button.textContent);
+  const active = () => document.querySelector('.tv-pane-active');
+
+  // A click opens the file in a tab of a new pane; again, it does not add
+  // a second tab.
+  link('eval/hyp/u1.wav').click();
+  link('eval/hyp/u1.wav').click();
+  if (panesArea.hidden || paneList().length !== 1 || JSON.stringify(tabNames(paneList()[0])) !== '["audiou1.wav"]') fail('first open', panesArea.innerHTML);
+  if (!active().textContent.includes('Files open here')) fail('active label');
+  const view = active().querySelector('.tv-tab-view');
+  if (!view.textContent.includes('eval/hyp/u1.wav') || !view.textContent.includes('WAV PCM 16-bit') || !view.querySelector('audio')) fail('tab view', view.innerHTML);
+  if (view.querySelector('.tv-waveform-box').hidden || view.querySelector('.tv-spectrogram-box').hidden) fail('plots hidden');
+  // jsdom cannot decode audio; the view says so instead of drawing.
+  await until('status', () => view.querySelector('.tv-analysis-status').textContent.includes('Cannot draw'));
+
+  // Waveform and Spectrogram toggle their plots.
+  const toggle = name => [...view.querySelectorAll('.tv-audio-controls button')].find(button => button.textContent === name);
+  toggle('Spectrogram').click();
+  if (!view.querySelector('.tv-spectrogram-box').hidden || toggle('Spectrogram').getAttribute('aria-pressed') !== 'false') fail('spectrogram toggle');
+
+  // Split right copies the current file into a new pane, which becomes
+  // active; the next file opens there.
+  active().querySelector('button[aria-label="Split right"]').click();
+  if (paneList().length !== 2 || active() !== paneList()[1] || JSON.stringify(tabNames(paneList()[1])) !== '["audiou1.wav"]') fail('split', panesArea.innerHTML);
+  if (!document.querySelector('.tv-split-row')) fail('row split');
+  link('eval/ref/u2.wav').click();
+  if (JSON.stringify(tabNames(paneList()[1])) !== '["audiou1.wav","audiou2.wav"]' || JSON.stringify(tabNames(paneList()[0])) !== '["audiou1.wav"]') fail('open in active', tabNames(paneList()[0]), tabNames(paneList()[1]));
+
+  // Clicking in the first pane makes it active; a split down nests.
+  paneList()[0].dispatchEvent(new window.Event('pointerdown'));
+  if (active() !== paneList()[0]) fail('activate by click');
+  active().querySelector('button[aria-label="Split down"]').click();
+  if (paneList().length !== 3 || !document.querySelector('.tv-split-row .tv-split-column')) fail('split down', panesArea.innerHTML);
+
+  // Closing a pane makes its neighbour active; closing the last tab of the
+  // last pane hides the panes.
+  active().querySelector('button[aria-label="Close pane"]').click();
+  if (paneList().length !== 2 || !active()) fail('close pane');
+  for (const pane of paneList().reverse()) {
+    while (pane.isConnected && pane.querySelector('.tv-tab-close')) pane.querySelector('.tv-tab-close').click();
+  }
+  for (let tries = 0; paneList().length && tries < 5; tries++) paneList()[0].querySelector('.tv-tab-close').click();
+  if (!panesArea.hidden || paneList().length) fail('all closed', panesArea.innerHTML);
+
+  // A stems row opens its files side by side.
+  [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Group by stem').click();
+  const group = await (async () => { await until('stems', () => document.querySelector('select[aria-label="Groups from"]')); return document.querySelector('select[aria-label="Groups from"]'); })();
+  group.value = 'parent';
+  group.dispatchEvent(new window.Event('change'));
+  await until('rows', () => cells().some(row => row[2] === 'u1'));
+  const u1 = [...document.querySelectorAll('#tv-table tbody tr')].find(row => row.children[2].textContent === 'u1');
+  u1.querySelector('.tv-open-row').click();
+  if (paneList().length !== 2 || JSON.stringify(paneList().map(pane => pane.querySelector('.tv-tab-view strong').textContent)) !== '["eval/hyp/u1.wav","eval/ref/u1.wav"]') fail('open row', panesArea.innerHTML);
+`)
+}
+
+// The spectrogram's FFT finds a tone in its bin, and its colour scale runs
+// from viridis' first stop to its last; jsdom has no canvas to draw them.
+func TestSpectrogramFindsATone(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	command := exec.Command("node", "-e", `
+const vm = require('vm');
+const context = vm.createContext({ Math, Float32Array, Uint32Array, Uint8Array, Map });
+vm.runInContext(process.argv[1] + '; this.magnitudes = magnitudes; this.viridisTable = viridisTable;', context);
+const rate = 16000, size = 512, samples = new Float32Array(4096);
+for (let index = 0; index < samples.length; index++) samples[index] = Math.sin(2 * Math.PI * 1000 * index / rate);
+const out = new Float32Array(size / 2);
+context.magnitudes(samples, 1000, size, out);
+const peak = out.indexOf(Math.max(...out));
+if (peak !== 1000 / rate * size) { console.error('peak bin', peak); process.exit(1); }
+// Past the end of the samples the window reads silence.
+context.magnitudes(samples, samples.length, size, out);
+if (Math.max(...out) !== 0) { console.error('silence', Math.max(...out)); process.exit(1); }
+const table = context.viridisTable;
+if ([...table.slice(0, 3)].join() !== '68,1,84' || [...table.slice(255 * 3)].join() !== '253,231,37') { console.error('colours', table.slice(0, 3), table.slice(255 * 3)); process.exit(1); }
+`, tableViewPanesJS)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("spectrogram check failed: %v\n%s", err, output)
+	}
 }

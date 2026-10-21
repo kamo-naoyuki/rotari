@@ -907,13 +907,16 @@ out, or that the listing was cut short. A directory's media paths are
 relative to it. A file's parameters are refused for a directory and a
 directory's for a file, rather than ignored.
 `/tableview/api/info` names the file or directory, a file's size, download,
-and the separator its extension suggests, and the bases. The page keeps the separator, header, media
+and the separator its extension suggests, and the bases. The page opens a cell's media in tabs of the active pane of panes
+split right or down, one pane always active; audio shows a waveform and a
+spectrogram the browser computes from the decoded samples. The page keeps the separator, header, media
 base, directory listing, filters, sort, Describe, page, and page size in its
 URL fragment, and drops
 the filters and sort when the separator or the listing changes. Implemented by
 [internal/tableview](../internal/tableview/) and
 [internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
-[table_view.js](../internal/webui/assets/table_view.js); covered by
+[table_view.js](../internal/webui/assets/table_view.js) and
+[table_view_panes.js](../internal/webui/assets/table_view_panes.js); covered by
 `TestWebTableViewerReadsArtifacts` in
 [conformance/05-web/table_view_test.go](../conformance/05-web/table_view_test.go), with
 the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go),
@@ -921,8 +924,9 @@ the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_te
 and [internal/tableview/media_test.go](../internal/tableview/media_test.go) (whose
 sample files ffmpeg made, with ffprobe's values),
 the page checked by `TestTableViewPagesInBrowser` and
-`TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`, and
-`TestTableViewGroupsStemsInBrowser`, and the Launch with link by
+`TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`,
+`TestTableViewGroupsStemsInBrowser`, `TestTableViewOpensFilesInPanesInBrowser`,
+and `TestSpectrogramFindsATone`, and the Launch with link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 

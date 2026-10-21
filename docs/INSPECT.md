@@ -558,6 +558,19 @@ rows opens as quickly as a small one after the server has indexed it once:
   Absolute paths are used as they are; **Resolve media paths from** chooses
   what a relative path is relative to: the basedir (the default), the job's
   working directory, or the table's own directory.
+- **Panes**: clicking a media path opens the file above the table, in a tab
+  of the active pane (Ctrl- or Cmd-click opens it in a browser tab
+  instead). An image or video shows as it is; audio has a player, its
+  **Waveform**, and its **Spectrogram**, which the browser computes from
+  the decoded samples (the first 10 minutes of a file up to 512 MiB).
+  Click a plot to seek, drag across it to zoom to that range, and scroll
+  the wheel to move along; **−**, **+**, and **Fit** zoom the active pane.
+  **Split right** and **Split down** open a pane beside one with its file,
+  and make the new pane active, so the next file clicked opens beside the
+  first: one pane is always active, outlined and marked **Files open
+  here**, and clicking in a pane makes it active. Drag the borders between
+  panes, or the bar under them, to resize. In **Group by stem**, a row's
+  **Open row** opens its files side by side, one pane each.
 - **Filter**: choose a column, an operator, and a value, then **+ Add**.
   `=` and `≠` compare numbers as numbers (`0.80` equals `0.8`) and other
   cells as text; `<`, `≤`, `>`, and `≥` need a number and skip cells that
