@@ -59,6 +59,7 @@ jobs:
           }
 
           run_example basic.sh "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0"
+          run_example artifacts.sh "Open the evaluation table" results/metrics.csv results/eval.csv results/audio/u1.wav
           run_example array.sh "Job status: success: 3, failed: 0, blocked: 0, cancelled: 0"
           run_example matrix.sh "Job status: success: 4, failed: 0, blocked: 0, cancelled: 0"
           run_example retry.sh "Job status: success: 2, failed: 0, blocked: 0, cancelled: 0"

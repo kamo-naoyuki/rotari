@@ -20,7 +20,7 @@ the recovery instructions from `rotari show` or the [inspection guide](../docs/I
 | --- | --- | --- |
 | Commands, `sh -c`, and command options | `./examples/basic.sh` | rotari |
 | Jobs with dependencies | `./examples/dependencies.sh` | rotari |
-| Working directories and artifact candidates | `./examples/artifacts.sh` | rotari |
+| Working directories, artifact candidates, and a table of audio for the Table viewer | `./examples/artifacts.sh` | rotari |
 | Local array tasks | `./examples/array.sh` | rotari |
 | Matrix of independent jobs | `./examples/matrix.sh` | rotari |
 | Retry only failed work | `./examples/retry.sh` | rotari |
