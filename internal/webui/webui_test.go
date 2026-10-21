@@ -994,6 +994,11 @@ for (const [path, want] of [['/project/default', 'unreadable'], ['/project/defau
 	}
 }
 
+// A run page counts its failures by cause in the Failure causes card and
+// lists each cause in the Failure causes section: its count, exit codes,
+// evidence, fix, and jobs, a Select button that checks exactly its jobs, and,
+// for the project's latest finished run only, the retry preview that selects
+// it.
 func TestWebRunPageShowsFailureCauses(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -1010,14 +1015,30 @@ func TestWebRunPageShowsFailureCauses(t *testing.T) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
 		{ID: "tr", Name: "train", Command: []string{"./train.sh"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+		{ID: "ev", Name: "eval", Command: []string{"./eval.sh"}},
+		{ID: "ok", Name: "report", Command: []string{"./report.sh"}},
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"}}
-	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{
+	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory", Suggestion: "Reduce batch size."}}
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, StartedAt: "2026-09-27T00:00:00Z", FinishedAt: "2026-09-27T00:01:00Z", Results: []model.JobResult{
 		{ID: "tr-1", ExitCode: 1, Diagnoses: oom},
 		{ID: "tr-2", ExitCode: 124, Error: "timed out after 5s"},
-		{ID: "tr-3", ExitCode: 1, Diagnoses: oom},
+		{ID: "tr-3", ExitCode: 2, Diagnoses: oom},
+		{ID: "ev", ExitCode: 3},
+		{ID: "ok", ExitCode: 0},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	olderID := "20260926-000000-00000000"
+	olderDir := filepath.Join(paths.RunsDir, olderID)
+	if err := stateinternal.WriteJSON(filepath.Join(olderDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "old", Command: []string{"./old.sh"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(filepath.Join(olderDir, "summary.json"), model.RunSummary{RunID: olderID, Status: "failed", ExitCode: 1, StartedAt: "2026-09-26T00:00:00Z", FinishedAt: "2026-09-26T00:01:00Z", Results: []model.JobResult{
+		{ID: "old", ExitCode: 5},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -1039,37 +1060,78 @@ func TestWebRunPageShowsFailureCauses(t *testing.T) {
 	}
 	script := `
 const fs = require('fs');
+const assert = require('node:assert/strict');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const html = fs.readFileSync(process.argv[1], 'utf8');
 const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const errors = [];
-const virtualConsole = new VirtualConsole();
-virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
-const dom = new JSDOM(html, {
-  runScripts: 'dangerously',
-  url: 'http://127.0.0.1/project/default/run/' + process.argv[3],
-  virtualConsole,
-  beforeParse(window) {
-    window.fetch = async () => ({ok: true, json: async () => state});
-    window.setInterval = () => 1;
-  },
-});
-setTimeout(() => {
-  if (errors.length) {
-    console.error(errors.join('\n'));
+const [runID, olderID] = [process.argv[3], process.argv[4]];
+function open(id) {
+  const errors = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    url: 'http://127.0.0.1/project/default/run/' + id,
+    virtualConsole,
+    beforeParse(window) {
+      window.fetch = async () => ({ok: true, json: async () => state});
+      window.setInterval = () => 1;
+    },
+  });
+  return new Promise(resolve => setTimeout(() => resolve({ dom, errors }), 50));
+}
+(async () => {
+  try {
+    let { dom, errors } = await open(runID);
+    let document = dom.window.document;
+    // The run's Failure causes card counts them and lists each cause.
+    const card = [...document.querySelectorAll('.run-card')].find(item => item.querySelector('.run-card-label').textContent === 'Failure causes');
+    assert((card ? card.textContent : '').includes('Failure causes4 CUDA/GPU memory exhausted 2 · '), card && card.textContent);
+    const graphics = [...document.querySelectorAll('#app section.run-graphic')];
+    const section = graphics[0];
+    assert(section.classList.contains('failure-causes'), 'Failure causes is not the first section');
+    assert(!section.classList.contains('collapsed'), 'Failure causes does not start open');
+    assert.equal(section.querySelector('.graphic-heading .graphic-note').textContent, '4 jobs · 3 causes');
+    const items = [...section.querySelectorAll('.failure-cause')];
+    const item = cause => items.find(entry => entry.querySelector('.failure-cause-name').textContent === cause);
+    assert.deepEqual(items.map(entry => entry.querySelector('.failure-cause-count').textContent), ['2', '1', '1']);
+    const oom = items[0];
+    assert.equal(oom.querySelector('.failure-cause-name').textContent, 'CUDA/GPU memory exhausted');
+    assert.equal(oom.querySelector('.failure-cause-head .graphic-note').textContent, 'exit 1,2');
+    assert.equal(oom.querySelector('.failure-cause-evidence').textContent, 'CUDA out of memory');
+    assert.equal(oom.querySelector('.failure-cause-fix').textContent, 'Fix: Reduce batch size.');
+    const jobs = [...oom.querySelectorAll('.failure-cause-jobs button')];
+    assert.deepEqual(jobs.map(button => button.textContent), ['train[1]', 'train[3]']);
+    const retry = entry => entry.querySelector('.command-guide').dataset.copyText;
+    assert(retry(oom).endsWith("rotari retry -r '" + runID + "' --filter-diagnosis 'CUDA/GPU memory exhausted' --dry-run"), retry(oom));
+    assert(retry(item('timeout')).endsWith(" --filter-failure-kind 'timeout' --dry-run"), retry(item('timeout')));
+    assert(retry(item('error')).endsWith(" --filter-failure-kind 'error' --dry-run"), retry(item('error')));
+    let focused = '';
+    dom.window.focusMatrixJob = id => { focused = id; };
+    jobs[1].click();
+    assert.equal(focused, 'tr-3');
+    const checked = () => [...document.querySelectorAll('tr[data-job-id]')].filter(row => row.querySelector('.job-selection').checked).map(row => row.dataset.jobId);
+    oom.querySelector('.failure-cause-select').click();
+    assert.deepEqual(checked(), ['tr-1', 'tr-3']);
+    assert.equal(document.querySelector('.selection-count').textContent, '2 selected');
+    item('error').querySelector('.failure-cause-select').click();
+    assert.deepEqual(checked(), ['ev'], 'Select does not replace the earlier selection');
+    if (errors.length) throw new Error(errors.join('\n'));
+    // An older run lists its causes but no retry, which acts on the latest run.
+    ({ dom, errors } = await open(olderID));
+    document = dom.window.document;
+    const older = document.querySelector('#app section.run-graphic.failure-causes');
+    assert(older && older.querySelector('.failure-cause'), 'the older run has no failure causes');
+    assert(!older.querySelector('.command-guide'), 'the older run offers a retry');
+    if (errors.length) throw new Error(errors.join('\n'));
+  } catch (error) {
+    console.error(error.stack || String(error));
     process.exit(1);
   }
-  // The run's Failure causes card counts them and lists each cause.
-  const card = [...dom.window.document.querySelectorAll('.run-card')].find(item => item.querySelector('.run-card-label').textContent === 'Failure causes');
-  const summary = card ? card.textContent : '';
-  const want = 'Failure causes3 CUDA/GPU memory exhausted 2 · timeout 1';
-  if (!summary.includes(want)) {
-    console.error('failure causes card does not show ' + want + ': ' + summary);
-    process.exit(2);
-  }
-}, 50);
+  process.exit(0);
+})();
 `
-	if output, err := exec.Command("node", "-e", script, htmlPath, statePath, runID).CombinedOutput(); err != nil {
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath, runID, olderID).CombinedOutput(); err != nil {
 		t.Fatalf("web runtime check failed: %v\n%s", err, output)
 	}
 }

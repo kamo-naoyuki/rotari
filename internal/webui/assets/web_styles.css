@@ -2287,6 +2287,49 @@ pre,
   margin: 4px 7px;
   line-height: 1.15;
 }
+.failure-causes {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+}
+.failure-cause {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--s-bad);
+}
+.failure-cause-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.failure-cause-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.failure-cause-select {
+  margin-left: auto;
+}
+.failure-cause-evidence {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.failure-cause-fix {
+  margin: 6px 0 0;
+}
+.failure-cause-jobs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-top: 6px;
+}
+.failure-cause .command-guide {
+  margin: 8px 0 0;
+}
 
 /* Paging below a long table (paginateTable); shown only when needed. */
 .table-pagination {

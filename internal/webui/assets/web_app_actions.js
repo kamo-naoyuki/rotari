@@ -212,6 +212,19 @@ function selectJobsByStatus(statuses) {
   });
   updateSelectedRunJobs();
 }
+// selectRunJobIDs checks exactly the rows of ids, as a failure cause's
+// Select button asks, and brings the jobs table into view.
+/** @param {string[]} ids */
+function selectRunJobIDs(ids) {
+  document.querySelectorAll("tr[data-job-id]").forEach((row) => {
+    const input = row.querySelector(".job-selection");
+    if (input) input.checked = ids.includes(row.dataset.jobId);
+  });
+  updateSelectedRunJobs();
+  const bar = document.querySelector(".run-jobs-bar");
+  if (bar && bar.scrollIntoView)
+    bar.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 function selectAllRunJobs() {
   document
     .querySelectorAll(".job-selection")

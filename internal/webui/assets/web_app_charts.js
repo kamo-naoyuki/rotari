@@ -18,10 +18,11 @@ function runLoadSummary(run) {
   );
 }
 
-// The run page's sections: job timeline, load average, and output word
-// cloud. renderRunGraphics draws them whole, above the jobs
-// table. The job timeline starts open and the others closed; a section the
-// viewer opens or closes stays so in this browser (runSectionOpen).
+// The run page's sections: failure causes, job timeline, load average, and
+// output word cloud. renderRunGraphics draws them whole, above the jobs
+// table. Failure causes and the job timeline start open and the others
+// closed; a section the viewer opens or closes stays so in this browser
+// (runSectionOpen).
 /**
  * @param {string} kind the section's class, which also keys its open state
  * @param {string} title
@@ -68,7 +69,9 @@ function storedRunSections() {
 function runSectionOpen(kind) {
   if (kind in expandedRunGraphics) return expandedRunGraphics[kind];
   const stored = storedRunSections()[kind];
-  return typeof stored === "boolean" ? stored : kind === "job-timeline";
+  return typeof stored === "boolean"
+    ? stored
+    : kind === "job-timeline" || kind === "failure-causes";
 }
 /**
  * @param {string} kind
@@ -696,6 +699,123 @@ function outputWordCloudSection(queue, runID) {
   }
   return section;
 }
+// failureGroupMemberLimit caps the jobs a failure cause lists by name; the
+// CLI's failureMemberLimit does the same.
+const failureGroupMemberLimit = 10;
+// failureRetryFilter is the retry option that selects one failure cause's
+// jobs, as cmd/rotari's failureRetryHints chooses it: --filter-diagnosis for
+// a rule diagnosis and --filter-failure-kind otherwise.
+/** @param {WebFailureGroup} group */
+function failureRetryFilter(group) {
+  return group.kind === "diagnosis"
+    ? "--filter-diagnosis " + shellQuote(group.cause)
+    : "--filter-failure-kind " + shellQuote(group.kind);
+}
+// The failure causes section lists the run's failed and blocked jobs grouped
+// by cause (runlineage.FailureGroups, in lineage_summary): each cause's count
+// and exit codes, its first job's evidence line and the suggested fix, its
+// jobs, which show their row in the table, and a button that selects them
+// for the table's actions. For the project's latest run once it has
+// finished, a cause also shows the command that previews a retry of its
+// jobs, in the form of the run page's retry command. It is drawn only when
+// the run has a failure.
+/**
+ * @param {WebRun} run
+ * @param {string} runID
+ * @param {boolean} latest whether run is the project's latest run
+ */
+function failureCausesSection(run, runID, latest) {
+  const groups = (run.lineage_summary && run.lineage_summary.failures) || [];
+  if (!groups.length) return null;
+  const total = groups.reduce((sum, group) => sum + group.count, 0);
+  const section = runGraphicSection(
+    "failure-causes",
+    "Failure causes",
+    graphicNote(
+      total +
+        (total === 1 ? " job · " : " jobs · ") +
+        groups.length +
+        (groups.length === 1 ? " cause" : " causes"),
+    ),
+  );
+  const list = document.createElement("div");
+  list.className = "failure-causes";
+  groups.forEach((group) => {
+    const item = document.createElement("div");
+    item.className = "failure-cause";
+    const head = document.createElement("div");
+    head.className = "failure-cause-head";
+    const count = document.createElement("span");
+    count.className = "failure-cause-count";
+    count.textContent = String(group.count);
+    const cause = document.createElement("strong");
+    cause.className = "failure-cause-name";
+    cause.textContent = group.cause;
+    const facts = [];
+    if ((group.exit_codes || []).length)
+      facts.push("exit " + group.exit_codes.join(","));
+    if (group.carried) facts.push(group.carried + " carried");
+    head.append(count, cause);
+    if (facts.length) head.append(graphicNote(facts.join(" · ")));
+    const select = document.createElement("button");
+    select.type = "button";
+    select.className = "failure-cause-select";
+    select.textContent =
+      group.count === 1 ? "Select job" : "Select " + group.count + " jobs";
+    select.title = "Select this cause's jobs in the table";
+    select.onclick = () =>
+      selectRunJobIDs((group.jobs || []).map((member) => member.id));
+    head.append(select);
+    item.append(head);
+    if (group.example && group.example.evidence) {
+      const evidence = document.createElement("code");
+      evidence.className = "failure-cause-evidence";
+      evidence.textContent = group.example.evidence;
+      evidence.title = group.example.evidence;
+      item.append(evidence);
+    }
+    if (group.suggestion) {
+      const fix = document.createElement("p");
+      fix.className = "failure-cause-fix meta";
+      fix.textContent = "Fix: " + group.suggestion;
+      item.append(fix);
+    }
+    const members = document.createElement("div");
+    members.className = "failure-cause-jobs";
+    const jobs = group.jobs || [];
+    jobs.slice(0, failureGroupMemberLimit).forEach((member) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "lane-label";
+      button.textContent = member.name || member.id;
+      button.title =
+        "Show " +
+        (member.name || member.id) +
+        " in the table" +
+        (member.carried ? " (carried from an earlier run)" : "");
+      button.onclick = () => focusMatrixJob(member.id);
+      members.append(button);
+    });
+    const rest = jobs.length - failureGroupMemberLimit;
+    if (rest > 0) members.append(graphicNote("+" + rest + " more"));
+    item.append(members);
+    if (latest && !run.running) {
+      const command = document.createElement("div");
+      command.innerHTML = commandGuideHTML(
+        (run.cwd && run.cwd !== "-" ? "cd " + shellQuote(run.cwd) + "\n" : "") +
+          "rotari retry -r " +
+          shellQuote(runID) +
+          " " +
+          failureRetryFilter(group) +
+          " --dry-run",
+      );
+      item.append(...command.childNodes);
+    }
+    list.append(item);
+  });
+  section.append(list);
+  return section;
+}
 function renderRunGraphics() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
@@ -706,11 +826,13 @@ function renderRunGraphics() {
   const run = queue && queue.runs.find((item) => item.run_id === runID);
   const app = document.getElementById("app");
   if (!run || !app || app.querySelector(".run-graphic")) return;
+  const latest = latestRun(queue.runs);
   const sections = [
+    failureCausesSection(run, runID, !!latest && latest.run_id === runID),
     jobTimelineSection(run),
     loadAverageSection(run),
     outputWordCloudSection(queue, runID),
-  ];
+  ].filter((section) => section !== null);
   const table =
     app.querySelector(".run-jobs-bar") || app.querySelector("table.runs");
   if (table) sections.forEach((section) => app.insertBefore(section, table));

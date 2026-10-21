@@ -230,6 +230,14 @@ selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
 --json` carries the same groups, with every job ID, as `failures`; so do
 `lineage RUN_ID --json` and the Web UI's run summary.
 
+The Web run page lists the same groups in its `Failure causes` section,
+above the job timeline: each cause's count, exit codes, example line, and
+suggestion, with its jobs, which scroll to their rows in the jobs table. A
+cause's `Select` button checks exactly its jobs, so the table's `Create
+queue`, `Append to queue`, and `Report` act on them. On the project's latest
+run once it has finished, each cause also shows the command that previews a
+retry of only its jobs.
+
 ### Logs
 
 Showing one job or attempt includes its logs. To view logs for several jobs,

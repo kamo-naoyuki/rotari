@@ -52,11 +52,24 @@ interface WebLoadAverage {
 interface WebLoadSample extends WebLoadAverage {
   at: string;
 }
+// WebFailureGroup is runlineage.FailureGroup.
+interface WebFailureGroup {
+  kind: string;
+  cause: string;
+  suggestion?: string;
+  count: number;
+  carried?: number;
+  exit_codes: number[];
+  example: { job_id: string; attempt_id?: string; evidence?: string };
+  jobs: { id: string; name?: string; array_task_id?: number; carried?: boolean }[];
+}
 interface WebRun {
   run_id: string;
   run_name?: string;
   running?: boolean;
+  cwd?: string;
   jobs?: WebJob[];
+  lineage_summary?: { failures?: WebFailureGroup[] };
   timeline?: WebTimelinePoint[];
   lanes?: WebJobLane[];
   context?: {

@@ -210,8 +210,14 @@ arguments in `data-` attributes. The cell is last in a row, except on the
 project's queue table, where it comes first beside the row's editors. No later render step renames,
 moves, or restyles a table's columns, and the run page's sections are drawn
 whole by `renderRunGraphics` in `web_app_charts.js`. Of those sections the
-job timeline starts open and the others closed; one the viewer opens or closes
-stays so in that browser (`runSectionOpen`). Layout lives in the
+failure causes section and the job timeline start open and the others closed;
+one the viewer opens or closes stays so in that browser (`runSectionOpen`).
+The failure causes section is drawn only for a run with failed or blocked
+jobs and shows the run's `lineage_summary.failures` groups (CLI-4) as they
+come: it does not regroup jobs. A cause's Select button checks exactly that
+cause's jobs, and only the project's latest run, once finished, shows each
+cause's retry preview, selected as the CLI's `retry:` hint selects it
+(`TestWebRunPageShowsFailureCauses`). Layout lives in the
 stylesheets; only data-driven sizes and colours are set inline.
 
 The static export bootstrap is kept separately in `web_static_bootstrap.js`
