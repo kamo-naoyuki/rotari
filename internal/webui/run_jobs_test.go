@@ -9,7 +9,7 @@ import (
 
 // A run's jobs table shows each command under its job name, leaves out
 // columns that are the same for every job until the Columns menu turns them
-// on, and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
+// on, starts with Job ID hidden, and ends each row with all its actions as buttons, without a menu. The toolbar and the run's sections around
 // it keep the viewer's choices.
 func TestWebRunJobsTable(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
@@ -62,9 +62,9 @@ setTimeout(() => {
     const row = id => document.querySelector('tr[data-job-id="' + id + '"]');
     const cell = (id, key) => row(id).children[headers().findIndex(th => th.dataset.sort === key)];
 
-    // Executor is the same for every job; Finished starts hidden; the rest
-    // differ or are always shown.
-    assert.deepEqual(shown(), ['name', 'status', 'exit', 'attempt', 'id', 'hosts', 'working_directory', 'started', 'duration']);
+    // Executor is the same for every job; Job ID and Finished start hidden;
+    // the rest differ or are always shown.
+    assert.deepEqual(shown(), ['name', 'status', 'exit', 'attempt', 'hosts', 'working_directory', 'started', 'duration']);
     assert.equal(cell('a', 'executor').hidden, true, 'a hidden column keeps its cells, hidden');
 
     // The command is under the job name.

@@ -1697,7 +1697,7 @@ const runJobColumns = [
   { key: "status", label: "Status", show: "fixed" },
   { key: "exit", label: "Exit", show: "fixed" },
   { key: "attempt", label: "Attempt", show: "shown" },
-  { key: "id", label: "Job ID", show: "auto" },
+  { key: "id", label: "Job ID", show: "hidden" },
   { key: "hosts", label: "Hosts", show: "shown" },
   { key: "executor", label: "Executor", show: "auto" },
   { key: "options", label: "Executor options", show: "auto" },
