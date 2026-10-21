@@ -318,6 +318,16 @@ function renderPane(pane) {
         "aria-selected": String(tab.id === pane.current),
         "data-tab": tab.id,
         title: tab.media.ref,
+        draggable: true,
+        ondragstart: (event) => {
+          dragging = { pane: pane.id, tab: tab.id };
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", tab.media.ref);
+        },
+        ondragend: () => {
+          dragging = null;
+          clearDropMarks();
+        },
       },
       el(
         "button",
@@ -353,8 +363,42 @@ function renderPane(pane) {
     iconButton("Split down", splitDownIcon, () => splitPane(pane, "column")),
     iconButton("Close pane", closeIcon, () => closePane(pane)),
   );
+  // A tab dropped on the strip moves into this pane at that place.
+  strip.addEventListener("dragover", (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    clearDropMarks();
+    strip.classList.add("tv-drop-strip");
+  });
+  strip.addEventListener("drop", (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    const before = [...strip.querySelectorAll(".tv-tab")].findIndex((tab) => {
+      const box = tab.getBoundingClientRect();
+      return event.clientX < box.left + box.width / 2;
+    });
+    dropTab(
+      dragging,
+      pane.id,
+      "center",
+      before < 0 ? pane.tabs.length : before,
+    );
+  });
   const current = pane.tabs.find((tab) => tab.id === pane.current);
   const body = el("div", { className: "tv-pane-body" });
+  // A tab dropped on the body moves here, or near an edge splits this pane
+  // that way and opens in the new pane.
+  body.addEventListener("dragover", (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    clearDropMarks();
+    body.dataset.drop = dropZone(event, body);
+  });
+  body.addEventListener("drop", (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    dropTab(dragging, pane.id, dropZone(event, body), pane.tabs.length);
+  });
   if (current) {
     let view = tabViews.get(current.id);
     if (!view) {
@@ -394,6 +438,155 @@ function renderPane(pane) {
     if (typeof renderPaneToolbar === "function") renderPaneToolbar();
   });
   return section;
+}
+
+// dragging is the tab being dragged: its pane and tab IDs.
+let dragging = null;
+
+function clearDropMarks() {
+  document
+    .querySelectorAll("[data-drop]")
+    .forEach((node) => delete node.dataset.drop);
+  document
+    .querySelectorAll(".tv-drop-strip")
+    .forEach((node) => node.classList.remove("tv-drop-strip"));
+}
+
+// dropZone names where in a pane's body the pointer is: an edge quarter
+// ("left", "right", "top", "bottom") or the middle ("center").
+function dropZone(event, body) {
+  const box = body.getBoundingClientRect();
+  const x = box.width ? (event.clientX - box.left) / box.width : 0.5;
+  const y = box.height ? (event.clientY - box.top) / box.height : 0.5;
+  const edges = [
+    ["left", x],
+    ["right", 1 - x],
+    ["top", y],
+    ["bottom", 1 - y],
+  ].sort((a, b) => a[1] - b[1]);
+  return edges[0][1] < 0.25 ? edges[0][0] : "center";
+}
+
+// dropTab moves a dragged tab into a pane at index, or, for an edge zone,
+// into a new pane split off that side. The pane it lands in becomes active;
+// a pane left without tabs closes.
+function dropTab(source, targetID, zone, index) {
+  dragging = null;
+  clearDropMarks();
+  const from = findPane(source.pane);
+  let target = findPane(targetID);
+  const tab = from && from.tabs.find((tab) => tab.id === source.tab);
+  if (!tab || !target) return;
+  if (zone !== "center" && from === target && from.tabs.length === 1) {
+    renderPanes();
+    return;
+  }
+  if (zone !== "center") {
+    const created = newPane();
+    created.wave = from.wave;
+    created.spec = from.spec;
+    const dir = zone === "left" || zone === "right" ? "row" : "column";
+    insertBeside(target, created, dir, zone === "left" || zone === "top");
+    target = created;
+    index = 0;
+  }
+  const at = from.tabs.indexOf(tab);
+  from.tabs.splice(at, 1);
+  if (from === target && at < index) index--;
+  target.tabs.splice(Math.min(index, target.tabs.length), 0, tab);
+  if (from !== target) {
+    target.range = null;
+    if (from.current === tab.id) {
+      from.current = from.tabs.length
+        ? from.tabs[Math.max(0, at - 1)].id
+        : null;
+      from.range = null;
+    }
+  }
+  target.current = tab.id;
+  panes.active = target.id;
+  if (!from.tabs.length) removeNode(from);
+  renderPanes();
+}
+
+// link is the shared view of linked panes: the time range in view, or
+// null for every file's whole length, and the playback time.
+const link = { on: false, range: null, time: 0 };
+
+function linkToggle() {
+  return el(
+    "button",
+    {
+      type: "button",
+      className: "tv-link-toggle",
+      "aria-pressed": String(link.on),
+      title: "Show the same time range and playback position in every pane",
+      onclick: () => setLinked(!link.on),
+    },
+    "Link time & zoom",
+  );
+}
+
+// setLinked links or unlinks the panes. Linking starts from the active
+// pane's range and playback time.
+function setLinked(on) {
+  const pane = activePane();
+  const view = pane && tabViews.get(pane.current);
+  link.on = on;
+  link.range = on && pane && pane.range ? pane.range : null;
+  link.time = on && view && view.player ? view.player.currentTime : 0;
+  tabViews.forEach((other) => other.redraw());
+  renderPaneToolbar();
+}
+
+// linkedRange is the range every linked pane shows, or null when unlinked.
+function linkedRange() {
+  if (!link.on) return null;
+  if (link.range) return link.range;
+  let longest = 0;
+  tabViews.forEach((view) => {
+    if (view.player && view.root.isConnected)
+      longest = Math.max(longest, view.duration());
+  });
+  return { start: 0, end: longest || 1 };
+}
+
+// setLinkedRange shows a range in every linked pane; false when unlinked.
+function setLinkedRange(range) {
+  if (!link.on) return false;
+  link.range = range;
+  tabViews.forEach((view) => view.redraw());
+  renderPaneToolbar();
+  return true;
+}
+
+function linkedTime() {
+  return link.on ? link.time : null;
+}
+
+// playbackMoved shares a pane's playback position with the others. Playing
+// one pane pauses the others and starts from the shared time, so the line
+// stays at the same second in every pane.
+function playbackMoved(view, name, time) {
+  if (!link.on) return;
+  if (name === "play") {
+    tabViews.forEach((other) => {
+      if (other !== view && other.player && !other.player.paused)
+        other.player.pause();
+    });
+    if (
+      Math.abs(view.player.currentTime - link.time) > 0.05 &&
+      link.time < view.duration()
+    ) {
+      view.player.currentTime = link.time;
+    }
+    return;
+  }
+  if (name === "pause" || name === "loadedmetadata") return;
+  link.time = time ?? view.player.currentTime;
+  tabViews.forEach((other) => {
+    if (other !== view) other.drawOverlays();
+  });
 }
 
 // The radix-2 FFT of one window, reused across columns of one size.
@@ -1063,14 +1256,16 @@ function renderPaneToolbar() {
   );
 }
 
-// zoomActive zooms the active pane's audio by a factor, or fits it for 0.
+// zoomActive zooms the active pane's audio, or the linked panes, by a
+// factor, or fits it for 0.
 function zoomActive(factor) {
   const pane = activePane();
   const view = pane && tabViews.get(pane.current);
   if (!view || !view.player) return;
   if (factor) {
     view.zoom(factor);
-  } else {
+  } else if (!setLinkedRange(null)) {
+    // Linked panes fit the longest file; one pane fits its own.
     view.setRange({ start: 0, end: view.duration() || 1 });
   }
   renderPaneToolbar();

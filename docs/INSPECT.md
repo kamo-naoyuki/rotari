@@ -569,8 +569,14 @@ rows opens as quickly as a small one after the server has indexed it once:
   and make the new pane active, so the next file clicked opens beside the
   first: one pane is always active, outlined and marked **Files open
   here**, and clicking in a pane makes it active. Drag the borders between
-  panes, or the bar under them, to resize. In **Group by stem**, a row's
-  **Open row** opens its files side by side, one pane each.
+  panes, or the bar under them, to resize. Drag a tab to another pane's
+  tabs or its middle to move it there, or near a pane's edge to split
+  that pane on that side with the tab in the new half. **Link time &
+  zoom** shows the same time range and playback line in every pane, in
+  seconds: zooming or scrolling one moves them all, and playing one pane
+  pauses the others and starts from the shared time, to compare
+  recordings of different lengths. In **Group by stem**, a row's
+  **Open row** opens its files side by side, one pane each, linked.
 - **Filter**: choose a column, an operator, and a value, then **+ Add**.
   `=` and `≠` compare numbers as numbers (`0.80` equals `0.8`) and other
   cells as text; `<`, `≤`, `>`, and `≥` need a number and skip cells that

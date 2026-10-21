@@ -239,9 +239,39 @@ a:hover {
   stroke-width: 1.3;
 }
 .tv-pane-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+.tv-tab[draggable="true"] {
+  cursor: grab;
+}
+.tv-drop-strip {
+  outline: 2px dashed var(--link);
+  outline-offset: -2px;
+}
+/* Where a dragged tab would land: the whole pane, or the half split off. */
+.tv-pane-body[data-drop]::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background: var(--highlight);
+  border: 2px dashed var(--link);
+  pointer-events: none;
+}
+.tv-pane-body[data-drop="left"]::after {
+  right: 50%;
+}
+.tv-pane-body[data-drop="right"]::after {
+  left: 50%;
+}
+.tv-pane-body[data-drop="top"]::after {
+  bottom: 50%;
+}
+.tv-pane-body[data-drop="bottom"]::after {
+  top: 50%;
 }
 .tv-tab-view {
   height: 100%;

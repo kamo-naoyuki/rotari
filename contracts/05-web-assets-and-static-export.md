@@ -908,8 +908,10 @@ relative to it. A file's parameters are refused for a directory and a
 directory's for a file, rather than ignored.
 `/tableview/api/info` names the file or directory, a file's size, download,
 and the separator its extension suggests, and the bases. The page opens a cell's media in tabs of the active pane of panes
-split right or down, one pane always active; audio shows a waveform and a
-spectrogram the browser computes from the decoded samples. The page keeps the separator, header, media
+split right or down, one pane always active; tabs move between panes by
+drag and drop, a drop near an edge splitting that pane; audio shows a
+waveform and a spectrogram the browser computes from the decoded samples,
+and linked panes share one time range and playback time. The page keeps the separator, header, media
 base, directory listing, filters, sort, Describe, page, and page size in its
 URL fragment, and drops
 the filters and sort when the separator or the listing changes. Implemented by
@@ -926,7 +928,8 @@ sample files ffmpeg made, with ffprobe's values),
 the page checked by `TestTableViewPagesInBrowser` and
 `TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`,
 `TestTableViewGroupsStemsInBrowser`, `TestTableViewOpensFilesInPanesInBrowser`,
-and `TestSpectrogramFindsATone`, and the Launch with link by
+`TestTableViewMovesTabsAndLinksPanesInBrowser`, and
+`TestSpectrogramFindsATone`, and the Launch with link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 

@@ -614,3 +614,51 @@ if ([...table.slice(0, 3)].join() !== '68,1,84' || [...table.slice(255 * 3)].joi
 		t.Fatalf("spectrogram check failed: %v\n%s", err, output)
 	}
 }
+
+func TestTableViewMovesTabsAndLinksPanesInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"a.wav", "b.wav", "c.wav"} {
+		write(t, filepath.Join(f.work, "set", name), string(wav))
+	}
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=set%2F*.wav", `
+  await until('files', () => cells().length === 3);
+  const link = path => [...document.querySelectorAll('#tv-table a.tv-media-path')].find(a => a.textContent === path);
+  const paneList = () => [...document.querySelectorAll('.tv-pane')];
+  const tabs = pane => [...pane.querySelectorAll('.tv-tab')].map(tab => tab.title);
+  const layout = () => JSON.stringify(paneList().map(tabs));
+  for (const path of ['set/a.wav', 'set/b.wav', 'set/c.wav']) link(path).click();
+  const first = () => paneList()[0];
+  const source = (pane, ref) => ({ pane: pane.dataset.pane, tab: [...pane.querySelectorAll('.tv-tab')].find(tab => tab.title === ref).dataset.tab });
+
+  // Tabs are draggable; a drop in the middle of the strip reorders them.
+  if (!first().querySelector('.tv-tab').draggable) fail('not draggable');
+  window.dropTab(source(first(), 'set/c.wav'), first().dataset.pane, 'center', 0);
+  if (layout() !== '[["set/c.wav","set/a.wav","set/b.wav"]]') fail('reorder', layout());
+
+  // A drop near the right edge splits the pane and moves the tab into the
+  // new pane, which becomes active.
+  window.dropTab(source(first(), 'set/b.wav'), first().dataset.pane, 'right', 0);
+  if (layout() !== '[["set/c.wav","set/a.wav"],["set/b.wav"]]' || !paneList()[1].classList.contains('tv-pane-active')) fail('split right', layout());
+  window.dropTab(source(first(), 'set/a.wav'), paneList()[1].dataset.pane, 'top', 0);
+  if (layout() !== '[["set/c.wav"],["set/a.wav"],["set/b.wav"]]' || !document.querySelector('.tv-split-row .tv-split-column')) fail('split top', layout(), document.getElementById('tv-pane-root').innerHTML);
+
+  // Moving the last tab out of a pane closes it; dropping a pane's only tab
+  // on its own edge changes nothing.
+  window.dropTab(source(first(), 'set/c.wav'), paneList()[2].dataset.pane, 'center', 1);
+  if (layout() !== '[["set/a.wav"],["set/b.wav","set/c.wav"]]') fail('close emptied', layout());
+  window.dropTab(source(first(), 'set/a.wav'), first().dataset.pane, 'left', 0);
+  if (layout() !== '[["set/a.wav"],["set/b.wav","set/c.wav"]]') fail('own edge', layout());
+
+  // Link time & zoom is one toggle for every pane.
+  const toggle = () => document.querySelector('.tv-link-toggle');
+  if (!toggle() || toggle().getAttribute('aria-pressed') !== 'false') fail('link toggle', document.getElementById('tv-pane-toolbar').innerHTML);
+  toggle().click();
+  if (toggle().getAttribute('aria-pressed') !== 'true') fail('linked');
+  toggle().click();
+  if (toggle().getAttribute('aria-pressed') !== 'false') fail('unlinked');
+`)
+}
