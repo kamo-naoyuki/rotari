@@ -628,6 +628,20 @@ opens the same view; choosing another separator clears the filters and the
 sort, since the columns change. Cells longer than 4 KiB are shortened; **Download** gets the
 whole file.
 
+`rotari tableview PATH` opens the same viewer for any CSV or TSV file or
+directory, outside any project, and prints its address:
+
+```sh
+rotari tableview metadata.csv
+rotari tableview eval/ --port 8090
+```
+
+It reads only under that directory, or the file's, and resolves relative
+media paths from there. It listens on `127.0.0.1` (port 8788, or the next
+free one); on a remote host, forward the port with `ssh -L 8788:localhost:8788
+HOST`. Set `ROTARI_WEB_AUTH_TOKEN` or `--auth-token` to require a token, as
+for `rotari web`.
+
 ### Interrupted runs
 
 If a runner exits before finalizing its run, `show` reports the interrupted run

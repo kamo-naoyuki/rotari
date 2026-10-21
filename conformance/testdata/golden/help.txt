@@ -34,6 +34,7 @@ Commands:
   retry       run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too
   server      manage the background server
   web         serve the web status UI
+  tableview   view a CSV or TSV file, or a directory's files, in the Web UI's Table viewer
   mcp         serve rotari's tools for agents over MCP on stdio
   completion  print shell completion script
   schema      print the CLI schema as JSON

@@ -87,7 +87,7 @@ included in the saved merged file-config snapshot. See
 | `ROTARI_WEB_PORT` | yes | no | no | --port default for web. |
 | `ROTARI_WEB_STATIC_DIR` | yes | no | no | --static-dir default for web. |
 | `ROTARI_WEB_ALLOW_CONTROL` | yes | no | no | --allow-control default for web. |
-| `ROTARI_WEB_AUTH_TOKEN` | yes | no | no | --auth-token default for web; never exposed by the Web UI. |
+| `ROTARI_WEB_AUTH_TOKEN` | yes | no | no | --auth-token default for web and tableview; never exposed by the Web UI. |
 | `ROTARI_WEB_NOTIFICATIONS` | yes | no | no | --notifications default for web. |
 | `ROTARI_WEBHOOK_URL` | no | no | no | Webhook URL; overrides webhook.url in notifications.toml. |
 | `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |

@@ -340,7 +340,20 @@ func (e *Env) CreateFinishedRun() FinishedRun {
 
 func (e *Env) StartWeb(args ...string) string {
 	e.T.Helper()
-	cmd := e.command(append([]string{"web", "--port", "0"}, args...)...)
+	return e.startServer(append([]string{"web", "--port", "0"}, args...)...)
+}
+
+// StartTableView starts rotari tableview on path and returns its URL.
+func (e *Env) StartTableView(path string, args ...string) string {
+	e.T.Helper()
+	return e.startServer(append(append([]string{"tableview", "--port", "0"}, args...), path)...)
+}
+
+// startServer starts a rotari command that serves HTTP until killed and
+// returns the URL it reports listening at.
+func (e *Env) startServer(args ...string) string {
+	e.T.Helper()
+	cmd := e.command(args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		e.T.Fatal(err)
@@ -364,7 +377,7 @@ func (e *Env) StartWeb(args ...string) string {
 	case url := <-found:
 		return url
 	case <-time.After(10 * time.Second):
-		e.T.Fatal("rotari web did not report its address")
+		e.T.Fatalf("rotari %s did not report its address", args[0])
 		return ""
 	}
 }

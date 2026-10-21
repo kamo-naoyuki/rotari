@@ -72,7 +72,7 @@ func dispatch(args []string) int {
 	}
 	// A CLI command prints commands for the user who ran it, so it omits an
 	// implicit --basedir (CLI-22). Servers print for readers elsewhere.
-	if args[0] != "__server" && args[0] != "web" && args[0] != "mcp" {
+	if args[0] != "__server" && args[0] != "web" && args[0] != "mcp" && args[0] != "tableview" {
 		project.SetCommandLocation(hintLocation)
 	}
 
@@ -137,6 +137,8 @@ func dispatch(args []string) int {
 		return cmdWeb(args[1:])
 	case "mcp":
 		return cmdMCP(args[1:])
+	case "tableview":
+		return cmdTableView(args[1:])
 	case "env":
 		return cmdEnvironment(args[1:])
 	case "bug-report":

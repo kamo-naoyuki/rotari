@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -346,4 +347,44 @@ func (s site) artifactTableView(baseDir string, query url.Values) (tableViewSour
 		source.download = "../api/artifact-file?" + download.Encode()
 	}
 	return source, nil
+}
+
+// TableViewPort is the port rotari tableview listens on unless told
+// otherwise, next to the Web UI's.
+const TableViewPort = DefaultPort + 1
+
+// TableViewHandler serves the Table viewer for one delimited file or
+// directory named on the command line (rotari tableview), with the fonts
+// and design tokens its page links. It reads only under that directory, or
+// the file's: the only root, and the only base media paths resolve from.
+func TableViewHandler(path string) (http.Handler, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return nil, err
+	}
+	root := absolute
+	if !info.IsDir() {
+		root = filepath.Dir(absolute)
+	}
+	source := tableViewSource{target: tableview.Target{Path: absolute, Roots: []string{root}}, directory: info.IsDir(), name: path}
+	view := tableView{
+		resolve:     func(url.Values) (tableViewSource, error) { return source, nil },
+		stylesheets: []string{"/web_fonts.css", "/web_tokens.css"},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/", view.handler())
+	mux.HandleFunc("/fonts/", serveWebFont)
+	mux.HandleFunc("/web_fonts.css", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set(headerContentType, "text/css; charset=utf-8")
+		_, _ = writer.Write([]byte(fontFaceCSS("/fonts/")))
+	})
+	mux.HandleFunc("/web_tokens.css", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set(headerContentType, "text/css; charset=utf-8")
+		_, _ = writer.Write([]byte(webTokensCSS))
+	})
+	return mux, nil
 }

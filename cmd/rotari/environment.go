@@ -143,7 +143,7 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envWebPort, CLIDefault: true, Description: "--port default for web."},
 		{Name: envWebStaticDir, CLIDefault: true, Description: "--static-dir default for web."},
 		{Name: envWebAllowControl, CLIDefault: true, Description: "--allow-control default for web."},
-		{Name: envWebAuthToken, CLIDefault: true, Description: "--auth-token default for web; never exposed by the Web UI."},
+		{Name: envWebAuthToken, CLIDefault: true, Description: "--auth-token default for web and tableview; never exposed by the Web UI."},
 		{Name: envWebNotifications, CLIDefault: true, Description: "--notifications default for web."},
 		{Name: envWebhookURL, Description: "Webhook URL; overrides webhook.url in notifications.toml."},
 		{Name: envPrivateState, Description: "set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state)."},

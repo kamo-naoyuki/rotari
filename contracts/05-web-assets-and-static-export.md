@@ -934,6 +934,21 @@ the page checked by `TestTableViewPagesInBrowser` and
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 
+**WEB-20** `rotari tableview PATH` serves the Table viewer (WEB-19) for one
+delimited file or directory outside any project: the directory, or the
+file's, is the only root anything is read under and the only base its
+relative media paths resolve from, through `os.Root`, with the same
+refusals. It listens on `--host` (default `127.0.0.1`) and `--port`
+(default 8788, or the next free port when `--port` is not given), prints
+`rotari tableview listening at http://ADDR`, serves the page's fonts and
+design tokens itself, and, with `--auth-token` or `ROTARI_WEB_AUTH_TOKEN`,
+requires the token as `rotari web` does. A missing path or no path fails
+before listening. Implemented by
+[cmd/rotari/tableview.go](../cmd/rotari/tableview.go) and `TableViewHandler`
+in [internal/webui/table_view.go](../internal/webui/table_view.go); covered by
+`TestTableViewCommandServesOnePath` in
+[conformance/05-web/tableview_command_test.go](../conformance/05-web/tableview_command_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.

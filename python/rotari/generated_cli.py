@@ -3469,6 +3469,35 @@ CLI_SCHEMA: dict[str, Any] = {
             "name": "web",
         },
         {
+            "description": "view a CSV or TSV file, or a directory's files, in the "
+            "Web UI's Table viewer",
+            "flags": [
+                {
+                    "command_line_only": True,
+                    "description": "HTTP listen host",
+                    "name": "host",
+                    "value_name": "HOST",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "HTTP listen port; without it, the next free "
+                    "port after the default",
+                    "name": "port",
+                    "value_name": "PORT",
+                },
+                {
+                    "description": "require this token in Authorization: Bearer "
+                    "or X-Rotari-Token; prefer "
+                    "ROTARI_WEB_AUTH_TOKEN for secrets",
+                    "environment": "ROTARI_WEB_AUTH_TOKEN",
+                    "name": "auth-token",
+                    "value_name": "TOKEN",
+                },
+            ],
+            "name": "tableview",
+            "positional": "PATH",
+        },
+        {
             "description": "serve rotari's tools for agents over MCP on stdio",
             "flags": [
                 {
@@ -3994,7 +4023,8 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "array": False,
             "cli_default": True,
-            "description": "--auth-token default for web; never exposed by the Web UI.",
+            "description": "--auth-token default for web and tableview; never "
+            "exposed by the Web UI.",
             "job": False,
             "name": "ROTARI_WEB_AUTH_TOKEN",
         },

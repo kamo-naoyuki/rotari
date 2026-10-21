@@ -459,6 +459,16 @@ var cliCommandSpecs = []cliCommandSpec{
 		),
 	},
 	{
+		Name:        "tableview",
+		Description: "view a CSV or TSV file, or a directory's files, in the Web UI's Table viewer",
+		Positional:  "PATH",
+		Flags: []cliFlagSpec{
+			{Name: "host", Description: "HTTP listen host", ValueName: "HOST", CommandLineOnly: true},
+			{Name: "port", Description: "HTTP listen port; without it, the next free port after the default", ValueName: "PORT", CommandLineOnly: true},
+			{Name: "auth-token", Description: "require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets", ValueName: "TOKEN"},
+		},
+	},
+	{
 		Name:        "mcp",
 		Description: "serve rotari's tools for agents over MCP on stdio",
 		Flags: []cliFlagSpec{

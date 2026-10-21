@@ -770,6 +770,18 @@ serve the web status UI
 | `--allow-exec` | `` | `CLI only` | let the Web UI run the commands registered in the global launchers.toml against artifacts; requires job control and a token (generated and printed when none is set); cannot be combined with --static-dir |
 | `--allowed-host` | `NAME (repeatable)` | `CLI only` | with --allow-exec, also accept this Host name besides localhost, 127.0.0.1, ::1, and a specific --host (may be repeated) |
 
+### `rotari tableview`
+
+view a CSV or TSV file, or a directory's files, in the Web UI's Table viewer
+
+Usage: `rotari tableview PATH`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--host` | `HOST` | `CLI only` | HTTP listen host |
+| `--port` | `PORT` | `CLI only` | HTTP listen port; without it, the next free port after the default |
+| `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
+
 ### `rotari mcp`
 
 serve rotari's tools for agents over MCP on stdio
