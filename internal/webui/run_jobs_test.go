@@ -156,7 +156,8 @@ setTimeout(async () => {
     assert.equal(count(), '1 selected');
     assert(row('b').querySelector('.job-selection').checked);
     button('Select all').click();
-    assert.equal(count(), '3 selected');
+    assert.equal(count(), '5 selected');
+    assert.deepEqual([...table().querySelectorAll('tbody tr')].filter(tr => tr.querySelector('.job-selection').checked).map(tr => tr.dataset.jobId).sort(), ['a', 'b', 'c', 'd', 'e']);
     assert(!button('Create queue').disabled && !button('Append to queue').disabled && !button('Report').disabled);
     button('Unselect all').click();
     assert(button('Create queue').disabled && count() === '');
