@@ -246,3 +246,91 @@ func TestLaunchWithOpensTheTableViewerInBrowser(t *testing.T) {
   if (page.status !== 200) fail('viewer page', page.status);
 `)
 }
+
+func TestTableViewFiltersSortsAndDescribes(t *testing.T) {
+	f := newArtifactFixture(t)
+	write(t, filepath.Join(f.work, "data.csv"), "id,score\na,3\nb,1\nc,x\nd,2\n")
+	options := testOptions(f.baseDir, false)
+	filters := `[{"column":1,"op":">=","value":"2"}]`
+	recorder := f.viewerGet(t, options, "api/rows", "data.csv", url.Values{"sep": {","}, "filters": {filters}, "sort": {"1"}, "desc": {"1"}})
+	var page tableview.Page
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatalf("rows = %d %s", recorder.Code, recorder.Body)
+	}
+	var got []string
+	for _, row := range page.Rows {
+		got = append(got, row.Cells[0])
+	}
+	if !reflect.DeepEqual(got, []string{"a", "d"}) || page.Matched != 2 || page.Total != 4 {
+		t.Fatalf("rows = %q matched %d of %d", got, page.Matched, page.Total)
+	}
+	recorder = f.viewerGet(t, options, "api/describe", "data.csv", url.Values{"sep": {","}, "filters": {filters}})
+	var description tableview.Description
+	if err := json.Unmarshal(recorder.Body.Bytes(), &description); err != nil {
+		t.Fatalf("describe = %d %s", recorder.Code, recorder.Body)
+	}
+	if description.Matched != 2 || *description.Columns[1].Sum != 5 || description.Columns[0].Unique != 2 {
+		t.Fatalf("describe = %s", recorder.Body)
+	}
+	for _, extra := range []url.Values{
+		{"filters": {`{"column":1}`}},
+		{"filters": {`[{"column":9,"op":"="}]`}},
+		{"filters": {`[{"column":1,"op":">","value":"high"}]`}},
+		{"sort": {"x"}},
+		{"sort": {"1"}, "desc": {"yes"}},
+		{"desc": {"1"}},
+	} {
+		extra.Set("sep", ",")
+		if recorder := f.viewerGet(t, options, "api/rows", "data.csv", extra); recorder.Code != http.StatusBadRequest {
+			t.Errorf("%v = %d %s", extra, recorder.Code, recorder.Body)
+		}
+	}
+}
+
+func TestTableViewFiltersInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	write(t, filepath.Join(f.work, "data.csv"), "id,score,text\na,0.9,meeting room\nb,0.75,notes\nc,,thanks\nd,10,meeting\n")
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "data.csv", "", `
+  await until('rows', () => cells().length === 4);
+  const bar = document.getElementById('tv-filterbar');
+  const [column, operator] = bar.querySelectorAll('select');
+  const value = bar.querySelector('.tv-filter-value');
+  const add = [...bar.querySelectorAll('button')].find(button => button.textContent === '+ Add');
+  column.value = '1'; column.dispatchEvent(new window.Event('change'));
+  operator.value = '>='; operator.dispatchEvent(new window.Event('change'));
+  value.value = '0.8'; value.dispatchEvent(new window.Event('input'));
+  add.click();
+  await until('filtered', () => cells().length === 2);
+  if (JSON.stringify(cells().map(row => row[1])) !== '["a","d"]') fail('filtered rows', cells());
+  const chip = () => document.querySelector('.tv-chip');
+  if (!chip() || !chip().textContent.includes('score') || !chip().textContent.includes('≥') || !chip().textContent.includes('0.8')) fail('chip', chip() && chip().textContent);
+  if (!document.querySelector('.tv-pager-count').textContent.includes('of 2 matching (4 in all)')) fail('count', document.querySelector('.tv-pager-count').textContent);
+  if (JSON.parse(fragment().get('filters'))[0].value !== '0.8') fail('fragment filters', window.location.hash);
+
+  // Describe summarizes the matching rows under the column names.
+  document.querySelector('.tv-describe-toggle').click();
+  await until('describe', () => document.querySelectorAll('tr.tv-describe').length === 7);
+  const stat = name => [...document.querySelectorAll('tr.tv-describe')].find(row => row.children[0].textContent === name);
+  if (stat('count').children[2].textContent !== '2' || stat('sum').children[2].textContent !== '10.9' || stat('mean').children[1].textContent !== '–') fail('describe', [...document.querySelectorAll('tr.tv-describe')].map(row => row.textContent));
+  if (fragment().get('describe') !== '1') fail('fragment describe', window.location.hash);
+
+  // A column heading sorts, ascending and then descending.
+  const sortBy = () => [...document.querySelectorAll('#tv-table thead tr:first-child .tv-sort')][1];
+  sortBy().click();
+  await until('ascending', () => cells()[0] && cells()[0][1] === 'a');
+  sortBy().click();
+  await until('descending', () => cells()[0] && cells()[0][1] === 'd');
+  if (document.querySelectorAll('#tv-table thead th')[2].getAttribute('aria-sort') !== 'descending' || fragment().get('desc') !== '1') fail('sort state', window.location.hash);
+
+  // Removing the condition shows every row again; a bad value is explained.
+  chip().querySelector('button').click();
+  await until('unfiltered', () => cells().length === 4);
+  const bar2 = document.getElementById('tv-filterbar');
+  const [, operator2] = bar2.querySelectorAll('select');
+  operator2.value = '>'; operator2.dispatchEvent(new window.Event('change'));
+  const value2 = bar2.querySelector('.tv-filter-value');
+  value2.value = 'high'; value2.dispatchEvent(new window.Event('input'));
+  [...bar2.querySelectorAll('button')].find(button => button.textContent === '+ Add').click();
+  await until('error', () => document.getElementById('tv-error').textContent.includes('needs a number'));
+`)
+}

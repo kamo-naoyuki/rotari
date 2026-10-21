@@ -2,6 +2,7 @@ package tableview
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -52,10 +53,13 @@ const (
 	cellLimit = 4096
 )
 
-// Query selects a page of rows.
+// Query selects a page of rows: those every filter matches, in the sort's
+// order or the source's.
 type Query struct {
-	Offset int
-	Limit  int
+	Filters []Condition
+	Sort    *Sort
+	Offset  int
+	Limit   int
 }
 
 // Page is one page of a table.
@@ -87,23 +91,45 @@ func (table *Table) Page(query Query) (Page, error) {
 	if query.Limit < 1 || query.Limit > MaxLimit {
 		return Page{}, fmt.Errorf("limit must be between 1 and %d", MaxLimit)
 	}
-	total := table.source.len()
-	page := Page{Columns: table.source.columns(), Rows: []Row{}, Offset: query.Offset, Matched: total, Total: total}
-	var numbers []int
-	for number := query.Offset; number < min(total, query.Offset+query.Limit); number++ {
-		numbers = append(numbers, number)
-	}
-	cells, err := table.source.rows(numbers)
+	columns := table.source.columns()
+	conditions, err := compileConditions(query.Filters, columns)
 	if err != nil {
 		return Page{}, err
 	}
+	selected, err := table.selection(conditions, query.Sort)
+	if err != nil {
+		return Page{}, err
+	}
+	total := table.source.len()
+	page := Page{Columns: columns, Rows: []Row{}, Offset: query.Offset, Matched: total, Total: total}
+	var numbers []int
+	if selected == nil {
+		for number := query.Offset; number < min(total, query.Offset+query.Limit); number++ {
+			numbers = append(numbers, number)
+		}
+	} else {
+		page.Matched = len(selected)
+		numbers = selected[min(query.Offset, len(selected)):min(query.Offset+query.Limit, len(selected))]
+	}
+	// The source reads ascending numbers; a sorted page is put back in
+	// order after.
+	ascending := slices.Sorted(slices.Values(numbers))
+	cells, err := table.source.rows(ascending)
+	if err != nil {
+		return Page{}, err
+	}
+	byNumber := make(map[int][]string, len(cells))
 	for index, row := range cells {
+		byNumber[ascending[index]] = row
+	}
+	for _, number := range numbers {
+		row := byNumber[number]
 		for cell, value := range row {
 			if len(value) > cellLimit {
 				row[cell], page.Cut = cutUTF8(value, cellLimit), true
 			}
 		}
-		page.Rows = append(page.Rows, Row{Number: numbers[index] + 1, Cells: row})
+		page.Rows = append(page.Rows, Row{Number: number + 1, Cells: row})
 	}
 	return page, nil
 }

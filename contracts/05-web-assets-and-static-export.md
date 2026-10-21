@@ -857,16 +857,33 @@ skipping blank lines; `header=0` keeps the first record as a row (default
 `1`, its column names). It returns `limit` rows (default 100, at most 1000)
 from `offset`, numbered from 1, with the total, cells cut to 4 KiB, and an
 error for a record over 16 MiB; the file is indexed once per version and
-separator, so a page does not reread it from the start.
+separator, so a page does not reread it from the start. `filters`, a JSON
+list of `{column, op, value}` with columns counted from 0, keeps the rows
+every condition matches: `=` and `!=` compare numbers when the cell and the
+value both read as finite numbers and text otherwise, `<`, `<=`, `>`, `>=`
+need a number and match only cells that read as one, `contains` and
+`not_contains` compare text case-sensitively, and `empty` and `not_empty`
+test for a blank cell (a short row's missing cells are blank); a column out
+of range, an unknown operator, or an ordering against a non-number is
+refused. `sort` (a column) and `desc=1` order the selected rows, numbers by
+value before other cells by text, keeping the file's order among equal
+cells, for up to 1,000,000 rows. Rows keep their numbers in the file.
+`/tableview/api/describe` summarizes each column over the rows the filters
+select, as pandas' `describe` does: non-blank cells, distinct values (up to
+100,000, then `unique_over`), and over the cells that read as numbers their
+count, mean, sample standard deviation, minimum, maximum, and sum.
 `/tableview/api/info` names the file, its size, its download, and the
 separator its extension suggests. The page keeps the separator, header,
-page, and page size in its URL fragment. Implemented by
+filters, sort, Describe, page, and page size in its URL fragment, and drops
+the filters and sort when the separator changes. Implemented by
 [internal/tableview](../internal/tableview/) and
 [internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
 [table_view.js](../internal/webui/assets/table_view.js); covered by
 `TestWebTableViewerReadsArtifacts` in
 [conformance/05-web/table_view_test.go](../conformance/05-web/table_view_test.go), with
-the page checked by `TestTableViewPagesInBrowser` and the Launch with link by
+the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go),
+the page checked by `TestTableViewPagesInBrowser` and
+`TestTableViewFiltersInBrowser`, and the Launch with link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 

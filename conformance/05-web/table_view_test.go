@@ -99,13 +99,27 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 	if r := get("/tableview/api/rows", "data.tsv", url.Values{"sep": {"\t"}, "header": {"0"}, "limit": {"1"}}); !strings.Contains(r.Body, `"cells":["id","score"]`) {
 		t.Fatalf("headerless rows = (%d, %s)", r.Status, r.Body)
 	}
-	for name, extra := range map[string]url.Values{
-		"secret.tsv": {"sep": {"\t"}},  // outside every allowed root
-		"link.tsv":   {"sep": {"\t"}},  // a symlink leaving the root
-		"data.tsv":   {"sep": {"\t,"}}, // not one character
+	// Filters, a sort, and Describe cover the whole file, not one page.
+	filters := `[{"column":0,"op":">","value":"295"}]`
+	r = get("/tableview/api/rows", "data.tsv", url.Values{"sep": {"\t"}, "filters": {filters}, "sort": {"0"}, "desc": {"1"}, "limit": {"2"}})
+	if !strings.Contains(r.Body, `"matched":5`) || !strings.Contains(r.Body, `"number":300,"cells":["300"`) || !strings.Contains(r.Body, `"number":299`) {
+		t.Fatalf("filtered and sorted rows = (%d, %s)", r.Status, r.Body)
+	}
+	r = get("/tableview/api/describe", "data.tsv", url.Values{"sep": {"\t"}, "filters": {filters}})
+	if !strings.Contains(r.Body, `"count":5,"unique":5,"numeric":5,"mean":298`) || !strings.Contains(r.Body, `"sum":1490`) || !strings.Contains(r.Body, `"matched":5,"total":300`) {
+		t.Fatalf("describe = (%d, %s)", r.Status, r.Body)
+	}
+	for _, refused := range []struct {
+		name  string
+		extra url.Values
+	}{
+		{"secret.tsv", url.Values{"sep": {"\t"}}},                                                      // outside every allowed root
+		{"link.tsv", url.Values{"sep": {"\t"}}},                                                        // a symlink leaving the root
+		{"data.tsv", url.Values{"sep": {"\t,"}}},                                                       // not one character
+		{"data.tsv", url.Values{"sep": {"\t"}, "filters": {`[{"column":0,"op":">","value":"high"}]`}}}, // an ordering needs a number
 	} {
-		if r := get("/tableview/api/rows", name, extra); r.Status == 200 {
-			t.Fatalf("%s %v was read: %s", name, extra, r.Body)
+		if r := get("/tableview/api/rows", refused.name, refused.extra); r.Status == 200 {
+			t.Fatalf("%s %v was read: %s", refused.name, refused.extra, r.Body)
 		}
 	}
 }

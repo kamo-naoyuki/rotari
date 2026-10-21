@@ -18,7 +18,7 @@ import (
 // offers it under Launch with for an artifact and serves it under
 // /tableview/. The page's own query names the source, for an artifact as a
 // content request does; the page passes it through to its API requests and
-// adds its own parameters (sep, header, offset, limit).
+// adds its own parameters (sep, header, filters, sort, desc, offset, limit).
 
 //go:embed assets/table_view.html
 var tableViewHTML string
@@ -93,13 +93,48 @@ func (view tableView) handler() http.Handler {
 			writeArtifactError(writer, err)
 			return
 		}
-		page, err := table.Page(tableview.Query{Offset: intParam(query, "offset"), Limit: intParam(query, "limit")})
+		filters, err := tableview.ParseConditions(query.Get("filters"))
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		sort, err := tableViewSort(query)
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		page, err := table.Page(tableview.Query{Filters: filters, Sort: sort, Offset: intParam(query, "offset"), Limit: intParam(query, "limit")})
 		if err != nil {
 			writeArtifactError(writer, err)
 			return
 		}
 		noStore(writer)
 		writeWebJSON(writer, page)
+	})
+	mux.HandleFunc("GET /api/describe", func(writer http.ResponseWriter, request *http.Request) {
+		query := request.URL.Query()
+		source, err := view.resolve(query)
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		table, err := openTableView(source, query)
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		filters, err := tableview.ParseConditions(query.Get("filters"))
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		description, err := table.Describe(filters)
+		if err != nil {
+			writeArtifactError(writer, err)
+			return
+		}
+		noStore(writer)
+		writeWebJSON(writer, description)
 	})
 	return mux
 }
@@ -171,6 +206,27 @@ func openTableView(source tableViewSource, query url.Values) (*tableview.Table, 
 		return nil, fmt.Errorf("header must be 1 or 0")
 	}
 	return tableview.OpenFile(source.target, tableview.Format{Separator: separator, Header: header})
+}
+
+// tableViewSort reads sort, a column counted from 0, and desc=1.
+func tableViewSort(query url.Values) (*tableview.Sort, error) {
+	if query.Get("sort") == "" {
+		if query.Get("desc") != "" {
+			return nil, fmt.Errorf("desc needs sort")
+		}
+		return nil, nil
+	}
+	column, err := strconv.Atoi(query.Get("sort"))
+	if err != nil {
+		return nil, fmt.Errorf("sort must be a column number")
+	}
+	switch query.Get("desc") {
+	case "", "0":
+		return &tableview.Sort{Column: column}, nil
+	case "1":
+		return &tableview.Sort{Column: column, Descending: true}, nil
+	}
+	return nil, fmt.Errorf("desc must be 1 or 0")
 }
 
 // intParam is an integer query parameter; a malformed one is -1, which

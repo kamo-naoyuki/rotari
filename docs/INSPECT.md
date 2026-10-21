@@ -549,12 +549,29 @@ rows opens as quickly as a small one after the server has indexed it once:
   space for `.scp`). Cells in double quotes may hold the separator, line
   breaks, and doubled quotes, as in CSV; blank lines are skipped.
 - **First row is a header**: whether the first record names the columns.
+- **Filter**: choose a column, an operator, and a value, then **+ Add**.
+  `=` and `≠` compare numbers as numbers (`0.80` equals `0.8`) and other
+  cells as text; `<`, `≤`, `>`, and `≥` need a number and skip cells that
+  are not one; **contains** and **does not contain** match text
+  case-sensitively; **is empty** and **is not empty** test for blank cells.
+  A row must match every condition. Remove one with its ×, or all with
+  **Clear all**.
+- **Sort**: click a column name to sort ascending, again for descending,
+  and a third time for the file's order. Numbers sort by value, before
+  other cells.
+- **Describe** adds rows under the column names summarizing each column
+  over the matching rows, as pandas' `describe()` does: count of non-blank
+  cells, distinct values (shown as `100,000+` past that), and the mean,
+  standard deviation, minimum, maximum, and sum of the cells that are
+  numbers.
 - The pager moves by page, to a page number, or to the first or last page,
   with 50 to 500 rows per page. The `#` column numbers rows as they are in
-  the file.
+  the file, also when filtered or sorted.
 
-The URL keeps these settings after `#`, so a reload or a shared link opens
-the same view. Cells longer than 4 KiB are shortened; **Download** gets the
+Filters, sorting, and Describe cover the whole file, not just the page
+shown. The URL keeps these settings after `#`, so a reload or a shared link
+opens the same view; choosing another separator clears the filters and the
+sort, since the columns change. Cells longer than 4 KiB are shortened; **Download** gets the
 whole file.
 
 ### Interrupted runs
