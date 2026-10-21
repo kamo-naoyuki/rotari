@@ -578,7 +578,31 @@ rows opens as quickly as a small one after the server has indexed it once:
   the file, also when filtered or sorted.
 
 Filters, sorting, and Describe cover the whole file, not just the page
-shown. The URL keeps these settings after `#`, so a reload or a shared link
+shown. A directory opens in the viewer too, from **Launch with…** on its row
+(including the working directory `.`). Its files become the rows:
+
+- **Pattern** chooses files by their path inside the directory: `*` matches
+  within a name, `**` any number of directories, and `{wav,png}` either
+  alternative, so `**/*.{wav,png}` is every WAV and PNG file. The default,
+  `**/*`, is every file. Directory symlinks are not followed, and at most
+  100,000 entries are read.
+- **Files** has one row per file with its path, format, duration, sample
+  rate, channels, bitrate, width, height, size, and modification time. A
+  filter on `duration` takes seconds or `m:ss`, and one on `size` takes
+  values such as `10M` or `1.5G`; Describe on `duration` gives the total
+  and mean length of the audio.
+- **Group by stem** puts files that share a name in one row, with a column
+  per group, to compare outputs side by side and find missing ones:
+  `ref/u1.wav`, `hyp/u1.wav`, and `plots/u1.png` become the row `u1` under
+  `ref/`, `hyp/`, and `plots/`. **Groups from** chooses how a path splits:
+  the first-level directory, the parent directory, the file extension (for
+  `a.wav` and `a.png` in one directory), or the suffix after a separator
+  (for `a_ref.wav` and `a_hyp.wav`); automatic uses the extension when no
+  file is in a subdirectory and the first-level directory otherwise. A
+  group without the stem's file shows **— missing**, and **Only stems
+  missing in some group** lists just those.
+
+The URL keeps these settings after `#`, so a reload or a shared link
 opens the same view; choosing another separator clears the filters and the
 sort, since the columns change. Cells longer than 4 KiB are shortened; **Download** gets the
 whole file.

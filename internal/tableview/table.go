@@ -7,9 +7,11 @@ import (
 	"unicode/utf8"
 )
 
-// Column is one column of a table.
+// Column is one column of a table. Type tells how its cells read
+// (TypePath and the others); a delimited file's columns are untyped.
 type Column struct {
 	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
 }
 
 // source is where a table's rows come from: a delimited file read from
@@ -18,6 +20,9 @@ type source interface {
 	// key identifies the source's contents, for caching what is computed
 	// from them.
 	key() string
+	// notesOf says what the reader of the table should know about how it
+	// was read, such as a listing cut short.
+	notesOf() []string
 	columns() []Column
 	len() int
 	// scan visits every row in order until visit returns false.
@@ -74,7 +79,8 @@ type Page struct {
 	Matched int `json:"matched"`
 	Total   int `json:"total"`
 	// Cut reports cells shortened to cellLimit bytes.
-	Cut bool `json:"cut,omitempty"`
+	Cut   bool     `json:"cut,omitempty"`
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Row is a row of a page; Number counts data rows from 1 in the source.
@@ -110,7 +116,7 @@ func (table *Table) Page(query Query) (Page, error) {
 		return Page{}, err
 	}
 	total := table.source.len()
-	page := Page{Columns: columns, Rows: []Row{}, Offset: query.Offset, Matched: total, Total: total}
+	page := Page{Columns: columns, Rows: []Row{}, Offset: query.Offset, Matched: total, Total: total, Notes: table.source.notesOf()}
 	var numbers []int
 	if selected == nil {
 		for number := query.Offset; number < min(total, query.Offset+query.Limit); number++ {
@@ -134,6 +140,11 @@ func (table *Table) Page(query Query) (Page, error) {
 	for _, number := range numbers {
 		row := Row{Number: number + 1, Cells: byNumber[number]}
 		for cell, value := range row.Cells {
+			// A directory's paths are in its path columns; a file's may be in
+			// any cell.
+			if table.directory && (cell >= len(columns) || columns[cell].Type != TypePath) {
+				continue
+			}
 			if ref := mediaRef(value); ref != "" {
 				if row.Media == nil {
 					row.Media = map[int]*Media{}

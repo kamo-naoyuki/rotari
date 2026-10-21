@@ -144,9 +144,12 @@ type webViewer struct {
 }
 
 // webViewers are the viewers Launch with offers besides commands.
+// The Table viewer reads table files by name, and any directory.
 var webViewers = []webViewer{{
 	Name: "Table viewer", Path: "/tableview/", Targets: []launcher.TargetKind{launcher.TargetFile},
 	Patterns: []string{"*.csv", "*.CSV", "*.tsv", "*.TSV", "*.tab", "*.psv", "*.txt", "*.scp", "*.lst", "*.list", "*.dat"},
+}, {
+	Name: "Table viewer", Path: "/tableview/", Targets: []launcher.TargetKind{launcher.TargetDirectory},
 }}
 
 // viewersFor lists the viewers that accept a target of kind named name, as

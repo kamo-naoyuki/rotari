@@ -123,6 +123,27 @@ a:hover {
 .tv-toolbar label > span:first-child {
   color: var(--text-2);
 }
+.tv-segmented {
+  display: inline-flex;
+}
+.tv-segmented button {
+  border-radius: 0;
+}
+.tv-segmented button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.tv-segmented button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.tv-pattern {
+  width: 12em;
+  font-family: var(--font-mono);
+}
+.tv-missing {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--s-bad);
+}
 .tv-spacer {
   flex-grow: 1;
 }

@@ -36,11 +36,19 @@ const describeRows = [
     "unique",
     (stats) => formatCount(stats.unique) + (stats.unique_over ? "+" : ""),
   ],
-  ["mean", (stats) => formatNumber(stats.mean)],
-  ["std", (stats) => formatNumber(stats.std)],
-  ["min", (stats) => formatNumber(stats.min)],
-  ["max", (stats) => formatNumber(stats.max)],
-  ["sum", (stats) => formatNumber(stats.sum)],
+  ["mean", (stats, column) => formatValue(stats.mean, column)],
+  ["std", (stats, column) => formatValue(stats.std, column)],
+  ["min", (stats, column) => formatValue(stats.min, column)],
+  ["max", (stats, column) => formatValue(stats.max, column)],
+  ["sum", (stats, column) => formatValue(stats.sum, column)],
+];
+// How a directory is split into a stems view's groups.
+const groupChoices = [
+  { value: "", label: "automatic" },
+  { value: "top", label: "first-level directory" },
+  { value: "parent", label: "parent directory" },
+  { value: "extension", label: "file extension" },
+  { value: "suffix", label: "suffix after a separator" },
 ];
 
 let info = null;
@@ -51,6 +59,12 @@ let description = null;
 const view = {
   base: "",
   sep: "",
+  // A directory's listing.
+  listing: "files",
+  pattern: "**/*",
+  group: "",
+  suffixSep: "_",
+  incomplete: false,
   header: true,
   page: 1,
   limit: 100,
@@ -94,6 +108,27 @@ function formatCount(value) {
 function formatNumber(value) {
   if (value === undefined || value === null) return "–";
   return Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
+// formatValue writes a number in its column's units.
+function formatValue(value, column) {
+  if (value === undefined || value === null) return "–";
+  if (column && column.type === "duration") return formatDuration(value);
+  if (column && column.type === "bytes") return formatBytes(Math.round(value));
+  return formatNumber(value);
+}
+
+// formatCell writes a cell of a typed column for reading: durations,
+// sizes, and times; other cells are shown as they are.
+function formatCell(text, column) {
+  if (text === "" || !column || !column.type) return text;
+  if (column.type === "time") return text.replace("T", " ").replace("Z", "");
+  const value = Number(text);
+  if (!Number.isFinite(value)) return text;
+  if (column.type === "duration") return formatDuration(value);
+  if (column.type === "bytes") return formatBytes(value);
+  if (column.type === "number") return formatCount(value);
+  return text;
 }
 
 // formatDuration writes seconds as m:ss.cc, or h:mm:ss past an hour.
@@ -151,6 +186,11 @@ function formatBytes(size) {
 function readView() {
   const fragment = new URLSearchParams(location.hash.slice(1));
   if (fragment.has("sep")) view.sep = fragment.get("sep");
+  if (fragment.get("listing") === "stems") view.listing = "stems";
+  if (fragment.has("pattern")) view.pattern = fragment.get("pattern");
+  if (fragment.has("group")) view.group = fragment.get("group");
+  if (fragment.has("suffix_sep")) view.suffixSep = fragment.get("suffix_sep");
+  view.incomplete = fragment.get("incomplete") === "1";
   if (fragment.has("base")) view.base = fragment.get("base");
   if (fragment.has("header")) view.header = fragment.get("header") !== "0";
   const pageNumber = Number(fragment.get("page"));
@@ -172,9 +212,19 @@ function readView() {
 
 function writeView() {
   const fragment = new URLSearchParams();
-  fragment.set("sep", view.sep);
-  if (view.base) fragment.set("base", view.base);
-  fragment.set("header", view.header ? "1" : "0");
+  if (info.kind === "directory") {
+    fragment.set("listing", view.listing);
+    fragment.set("pattern", view.pattern);
+    if (view.listing === "stems") {
+      if (view.group) fragment.set("group", view.group);
+      if (view.group === "suffix") fragment.set("suffix_sep", view.suffixSep);
+      if (view.incomplete) fragment.set("incomplete", "1");
+    }
+  } else {
+    fragment.set("sep", view.sep);
+    if (view.base) fragment.set("base", view.base);
+    fragment.set("header", view.header ? "1" : "0");
+  }
   fragment.set("page", String(view.page));
   fragment.set("limit", String(view.limit));
   if (view.filters.length)
@@ -229,14 +279,135 @@ function renderSummary() {
   const parts = [];
   if (info.kind === "file") parts.push(formatBytes(info.size));
   if (rows) {
-    parts.push(formatCount(rows.total) + " rows");
+    const noun =
+      info.kind === "file"
+        ? " rows"
+        : view.listing === "stems"
+          ? " stems"
+          : " files";
+    parts.push(formatCount(rows.total) + noun);
     parts.push(formatCount(rows.columns.length) + " columns");
   }
   document.getElementById("tv-summary").textContent = parts.join(" · ");
 }
 
+// describeToggle is the button that shows or hides Describe.
+function describeToggle() {
+  return el(
+    "button",
+    {
+      type: "button",
+      className: "tv-describe-toggle",
+      "aria-pressed": String(view.describe),
+      title: "Summarize each column over the matching rows",
+      onclick: () => {
+        view.describe = !view.describe;
+        renderToolbar();
+        loadRows();
+      },
+    },
+    "Describe",
+  );
+}
+
+// changeListing applies a change to how a directory is listed, which makes
+// other columns: filters and sort name them by position.
+function changeListing(change) {
+  Object.assign(view, change);
+  view.page = 1;
+  view.filters = [];
+  view.sort = null;
+  renderToolbar();
+  loadRows();
+}
+
+// renderDirectoryToolbar lays out a directory's choices: files or stems,
+// the pattern, and how stems are grouped.
+function renderDirectoryToolbar(toolbar) {
+  const listingButton = (value, label) =>
+    el(
+      "button",
+      {
+        type: "button",
+        "aria-pressed": String(view.listing === value),
+        onclick: () => changeListing({ listing: value }),
+      },
+      label,
+    );
+  const pattern = el("input", {
+    type: "text",
+    className: "tv-pattern",
+    "aria-label": "Pattern",
+    value: view.pattern,
+    title: "* matches within a name, ** any directories, {a,b} either",
+    onchange: (event) =>
+      changeListing({ pattern: event.target.value || "**/*" }),
+  });
+  const stems = view.listing === "stems";
+  const group = el(
+    "select",
+    {
+      "aria-label": "Groups from",
+      onchange: (event) => changeListing({ group: event.target.value }),
+    },
+    groupChoices.map((choice) =>
+      el(
+        "option",
+        { value: choice.value, selected: choice.value === view.group },
+        choice.label,
+      ),
+    ),
+  );
+  const suffix = el("input", {
+    type: "text",
+    className: "tv-separator-other",
+    "aria-label": "Suffix separator",
+    value: view.suffixSep,
+    onchange: (event) =>
+      changeListing({ suffixSep: event.target.value || "_" }),
+  });
+  const incomplete = el("input", {
+    type: "checkbox",
+    checked: view.incomplete,
+    onchange: (event) => changeListing({ incomplete: event.target.checked }),
+  });
+  setChildren(
+    toolbar,
+    el(
+      "span",
+      { className: "tv-segmented", role: "group", "aria-label": "View" },
+      listingButton("files", "Files"),
+      listingButton("stems", "Group by stem"),
+    ),
+    el("label", {}, el("span", {}, "Pattern"), pattern),
+    stems
+      ? el(
+          "label",
+          {},
+          el("span", {}, "Groups from"),
+          group,
+          view.group === "suffix" ? suffix : null,
+        )
+      : null,
+    stems
+      ? el(
+          "label",
+          {},
+          incomplete,
+          el("span", {}, "Only stems missing in some group"),
+        )
+      : null,
+    el("span", { className: "tv-spacer" }),
+    describeToggle(),
+  );
+}
+
 function renderToolbar() {
   const toolbar = document.getElementById("tv-toolbar");
+  if (info.kind === "directory") {
+    renderDirectoryToolbar(toolbar);
+    return;
+  }
   const known = separatorChoices.some((choice) => choice.value === view.sep);
   const select = el(
     "select",
@@ -268,21 +439,6 @@ function renderToolbar() {
       loadRows();
     },
   });
-  const describe = el(
-    "button",
-    {
-      type: "button",
-      className: "tv-describe-toggle",
-      "aria-pressed": String(view.describe),
-      title: "Summarize each column over the matching rows",
-      onclick: () => {
-        view.describe = !view.describe;
-        renderToolbar();
-        loadRows();
-      },
-    },
-    "Describe",
-  );
   const bases = info.bases || [];
   const base = el(
     "select",
@@ -312,7 +468,7 @@ function renderToolbar() {
       ? el("label", {}, el("span", {}, "Resolve media paths from"), base)
       : null,
     el("span", { className: "tv-spacer" }),
-    describe,
+    describeToggle(),
   );
 }
 
@@ -348,11 +504,25 @@ function pageCount() {
 // tableParams are the parameters that choose the rows, for both the rows
 // and their description.
 function tableParams() {
+  const filters = view.filters.length
+    ? JSON.stringify(view.filters)
+    : undefined;
+  if (info.kind === "directory") {
+    const stems = view.listing === "stems";
+    return {
+      view: view.listing,
+      pattern: view.pattern,
+      group: stems && view.group ? view.group : undefined,
+      suffix_sep: stems && view.group === "suffix" ? view.suffixSep : undefined,
+      incomplete: stems && view.incomplete ? "1" : undefined,
+      filters,
+    };
+  }
   return {
     base: view.base || undefined,
     sep: view.sep,
     header: view.header ? "1" : "0",
-    filters: view.filters.length ? JSON.stringify(view.filters) : undefined,
+    filters,
   };
 }
 
@@ -581,7 +751,7 @@ function renderTable() {
             {},
             row.media && row.media[index]
               ? mediaCell(row.media[index])
-              : (row.cells[index] ?? ""),
+              : cellContent(row.cells[index] ?? "", rows.columns[index]),
           ),
         ),
       ),
@@ -601,6 +771,17 @@ function renderTable() {
       ),
     );
   }
+}
+
+// cellContent is a cell that names no media: a path of a stems view's
+// group that has no file for the stem says so.
+function cellContent(text, column) {
+  if (column.type === "path") {
+    return text
+      ? el("span", { className: "tv-media-path" }, text)
+      : el("span", { className: "tv-missing" }, "— missing");
+  }
+  return formatCell(text, column);
 }
 
 // mediaURL requests the file a cell names, as the server resolved it.
@@ -645,7 +826,7 @@ function describeHead() {
       el("th", { className: "tv-number", scope: "row" }, name),
       rows.columns.map((_, index) => {
         const stats = description.columns[index];
-        return el("td", {}, stats ? show(stats) : "–");
+        return el("td", {}, stats ? show(stats, rows.columns[index]) : "–");
       }),
     ),
   );
@@ -681,6 +862,9 @@ function renderPager() {
     rows.cut
       ? el("span", { className: "tv-muted" }, " · long cells are shortened")
       : null,
+    (rows.notes || []).map((note) =>
+      el("span", { className: "tv-muted" }, " · " + note),
+    ),
   );
   const pages = pageCount();
   const button = (label, target, disabled) =>

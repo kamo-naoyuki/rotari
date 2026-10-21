@@ -1,7 +1,8 @@
 // Package tableview reads what the Table viewer shows: a delimited text file
-// as rows of cells, a page at a time, and the image, audio, and video files
-// its cells name. It knows nothing of jobs, runs, or HTTP: callers supply a
-// Target, the file and the roots whose files may be read.
+// or a directory's files as rows of cells, a page at a time, and the image,
+// audio, and video files its cells name. It knows nothing of jobs, runs, or
+// HTTP: callers supply a Target, the file or directory and the roots whose
+// files may be read.
 package tableview
 
 import (

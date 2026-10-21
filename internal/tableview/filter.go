@@ -51,6 +51,8 @@ type condition struct {
 	Condition
 	number  float64
 	numeric bool
+	// text orders by text: a time column's RFC 3339 cells.
+	text bool
 }
 
 func compileConditions(conditions []Condition, columns []Column) ([]condition, error) {
@@ -60,10 +62,14 @@ func compileConditions(conditions []Condition, columns []Column) ([]condition, e
 			return nil, fmt.Errorf("a filter names column %d; columns are counted from 0 and the table has %d", given.Column, len(columns))
 		}
 		check := condition{Condition: given}
-		check.number, check.numeric = parseNumber(given.Value)
+		check.number, check.numeric = parseValue(columns[given.Column].Type, given.Value)
+		check.text = columns[given.Column].Type == TypeTime
 		switch given.Op {
 		case OpEqual, OpNotEqual, OpContains, OpNotContains:
 		case OpLess, OpLessEqual, OpGreater, OpGreaterEqual:
+			if check.text && given.Value != "" {
+				break
+			}
 			if !check.numeric {
 				return nil, fmt.Errorf("%s %s needs a number, not %q", columns[given.Column].Name, given.Op, given.Value)
 			}
@@ -75,6 +81,36 @@ func compileConditions(conditions []Condition, columns []Column) ([]condition, e
 		compiled = append(compiled, check)
 	}
 	return compiled, nil
+}
+
+// parseValue reads a filter's value as a number in a column's units: a size
+// may carry a binary suffix (K, M, G, T, with an optional "iB" or "B"),
+// and a duration may be h:mm:ss or m:ss as well as seconds.
+func parseValue(columnType, text string) (float64, bool) {
+	text = strings.TrimSpace(text)
+	switch columnType {
+	case TypeBytes:
+		upper := strings.TrimSuffix(strings.TrimSuffix(strings.ToUpper(text), "B"), "I")
+		for power, suffix := range []string{"K", "M", "G", "T"} {
+			if number, ok := strings.CutSuffix(upper, suffix); ok {
+				value, ok := parseNumber(number)
+				return value * math.Pow(1024, float64(power+1)), ok
+			}
+		}
+	case TypeDuration:
+		if strings.Contains(text, ":") {
+			seconds := 0.0
+			for _, part := range strings.Split(text, ":") {
+				value, ok := parseNumber(part)
+				if !ok || value < 0 {
+					return 0, false
+				}
+				seconds = seconds*60 + value
+			}
+			return seconds, true
+		}
+	}
+	return parseNumber(text)
 }
 
 // parseNumber reads a finite number, ignoring surrounding spaces.
@@ -100,6 +136,19 @@ func (check condition) matches(cells []string) bool {
 		return strings.Contains(cell, check.Value)
 	case OpNotContains:
 		return !strings.Contains(cell, check.Value)
+	}
+	if check.text {
+		order := strings.Compare(cell, check.Value)
+		switch check.Op {
+		case OpLess:
+			return cell != "" && order < 0
+		case OpLessEqual:
+			return cell != "" && order <= 0
+		case OpGreater:
+			return order > 0
+		case OpGreaterEqual:
+			return order >= 0
+		}
 	}
 	number, numeric := parseNumber(cell)
 	switch check.Op {

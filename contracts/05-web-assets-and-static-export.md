@@ -848,9 +848,9 @@ Covered by `TestWebShowsAndGeneratesLauncherConfig` in
 names one, under the same roots and with the same refusals (403 outside
 them or through an escaping symlink, 404 when missing), at
 `/tableview/?<the content request's query>`. Launch with offers it, as a
-link that opens in a new tab, for files whose names match `*.csv`, `*.tsv`,
-`*.tab`, `*.psv`, `*.txt`, `*.scp`, `*.lst`, `*.list`, or `*.dat` (and
-`*.CSV`, `*.TSV`), on every live server: it runs no command, so it needs no
+link that opens in a new tab, for every directory and for files whose names
+match `*.csv`, `*.tsv`, `*.tab`, `*.psv`, `*.txt`, `*.scp`, `*.lst`,
+`*.list`, or `*.dat` (and `*.CSV`, `*.TSV`), on every live server: it runs no command, so it needs no
 `--allow-exec` and is listed in `/api/launchers` as `viewers` whether or not
 launching is available. `/tableview/api/rows` splits the file into records
 on line breaks and cells on `sep`, which must be exactly one character other
@@ -886,20 +886,43 @@ constant-bitrate MP3 and otherwise size over duration), or with why it is
 not shown: outside the roots, through an escaping symlink, or missing.
 `/tableview/api/media?ref=&base=` serves that file under the same roots and
 refusals, and nothing that is not an image, audio, or video file.
-`/tableview/api/info` names the file, its size, its download, the bases,
-and the separator its extension suggests. The page keeps the separator, header,
-media base, filters, sort, Describe, page, and page size in its URL fragment, and drops
-the filters and sort when the separator changes. Implemented by
+A directory is read as a table instead, through the same roots without
+following directory symlinks and reading at most 100,000 entries, of the
+files `pattern` matches by their slash-separated path inside it (`*` within
+a name, `**` any number of directories, `{a,b}` alternatives; default
+`**/*`), sorted by path, and listed again after 10 seconds. `view=files`
+(the default) has one row per file with its path, format, duration,
+sample rate, channels, bitrate, width, height, size, and modification time
+in typed columns: a filter on a duration takes seconds or `m:ss`, on a size
+a binary suffix such as `10M`, and on a time compares RFC 3339 text.
+`view=stems` has one row per stem and one column per group, `group` naming
+how a path splits: `top` (the first directory; the stem is the rest
+without its extension), `parent` (the file's directory and its name without
+the extension), `extension`, or `suffix` (the name's end after the last
+`suffix_sep`); without `group`, `extension` when no matched file is in a
+subdirectory and `top` otherwise. A group without the stem's file has a
+blank cell; `incomplete=1` keeps the stems with one; only the first file of
+a stem in a group is listed, and the page's `notes` say how many were left
+out, or that the listing was cut short. A directory's media paths are
+relative to it. A file's parameters are refused for a directory and a
+directory's for a file, rather than ignored.
+`/tableview/api/info` names the file or directory, a file's size, download,
+and the separator its extension suggests, and the bases. The page keeps the separator, header, media
+base, directory listing, filters, sort, Describe, page, and page size in its
+URL fragment, and drops
+the filters and sort when the separator or the listing changes. Implemented by
 [internal/tableview](../internal/tableview/) and
 [internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
 [table_view.js](../internal/webui/assets/table_view.js); covered by
 `TestWebTableViewerReadsArtifacts` in
 [conformance/05-web/table_view_test.go](../conformance/05-web/table_view_test.go), with
-the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go)
+the rules in [internal/tableview/filter_test.go](../internal/tableview/filter_test.go),
+[internal/tableview/directory_test.go](../internal/tableview/directory_test.go),
 and [internal/tableview/media_test.go](../internal/tableview/media_test.go) (whose
 sample files ffmpeg made, with ffprobe's values),
 the page checked by `TestTableViewPagesInBrowser` and
-`TestTableViewFiltersInBrowser`, and the Launch with link by
+`TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`, and
+`TestTableViewGroupsStemsInBrowser`, and the Launch with link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 

@@ -109,6 +109,8 @@ func buildDelimitedIndex(target Target, format Format) (*delimitedIndex, error) 
 
 func (table *delimitedTable) key() string { return table.id }
 
+func (table *delimitedTable) notesOf() []string { return nil }
+
 func (table *delimitedTable) headerRecords() int {
 	if table.format.Header && table.index.records > 0 {
 		return 1

@@ -3,6 +3,7 @@ package webui
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,9 +18,17 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
-// viewerGet requests a Table viewer route for a fixture entry.
+// viewerGet requests a Table viewer route for a fixture entry, or for the
+// working directory, "wd".
 func (f artifactFixture) viewerGet(t *testing.T, options Options, route, name string, extra url.Values) *httptest.ResponseRecorder {
 	t.Helper()
+	if name == "wd" {
+		extra = maps.Clone(extra)
+		if extra == nil {
+			extra = url.Values{}
+		}
+		extra.Set("entry", "wd")
+	}
 	return f.get(t, options, "/tableview/"+route, name, extra)
 }
 
@@ -111,8 +120,8 @@ func TestTableViewRefusesWhatContentRequestsRefuse(t *testing.T) {
 	}
 }
 
-// The Table viewer is offered for the files it reads, on every live
-// server: it runs no command, so it needs no --allow-exec.
+// The Table viewer is offered for the files it reads and any directory, on
+// every live server: it runs no command, so it needs no --allow-exec.
 func TestLaunchersListTheTableViewer(t *testing.T) {
 	f := newArtifactFixture(t)
 	for name, options := range map[string]Options{
@@ -122,7 +131,7 @@ func TestLaunchersListTheTableViewer(t *testing.T) {
 	} {
 		for query, want := range map[string]int{
 			"kind=file&name=data.csv": 1, "kind=file&name=wav.scp": 1, "kind=file&name=run.log": 0,
-			"kind=directory&name=many": 0, "": 1,
+			"kind=directory&name=many": 1, "": 2,
 		} {
 			recorder := httptest.NewRecorder()
 			Handler(options).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/launchers?"+query, nil))
@@ -130,7 +139,7 @@ func TestLaunchersListTheTableViewer(t *testing.T) {
 			if err := json.Unmarshal(recorder.Body.Bytes(), &availability); err != nil {
 				t.Fatal(err)
 			}
-			if len(availability.Viewers) != want || (want == 1 && (availability.Viewers[0].Name != "Table viewer" || availability.Viewers[0].Path != "/tableview/")) {
+			if len(availability.Viewers) != want || (want > 0 && (availability.Viewers[0].Name != "Table viewer" || availability.Viewers[0].Path != "/tableview/")) {
 				t.Errorf("%s, %s: viewers = %+v, want %d", name, query, availability.Viewers, want)
 			}
 		}
@@ -146,7 +155,11 @@ func runTableViewScript(t *testing.T, options Options, f artifactFixture, name, 
 	}
 	server := httptest.NewServer(Handler(options))
 	defer server.Close()
-	query := url.Values{"project_name": {"default"}, "run_id": {f.runID}, "job_id": {"job-1"}, "entry": {strconv.Itoa(f.entries[name])}}
+	entry := name // the working directory, "wd"
+	if index, ok := f.entries[name]; ok {
+		entry = strconv.Itoa(index)
+	}
+	query := url.Values{"project_name": {"default"}, "run_id": {f.runID}, "job_id": {"job-1"}, "entry": {entry}}
 	command := exec.Command("node", "-e", `
 const { JSDOM, VirtualConsole } = require('jsdom');
 const pageURL = process.argv[1];
@@ -412,5 +425,93 @@ func TestTableViewShowsMediaInBrowser(t *testing.T) {
   if (href.pathname !== '/tableview/api/media' || href.searchParams.get('ref') !== 'audio/a.wav' || href.searchParams.get('base') !== 'wd') fail('media link', link.href);
   if ((await fetch(href)).status !== 200) fail('media fetch');
   if (!cells()[1][2].includes('File not found') || fragment().get('base') !== 'wd') fail('missing file', cells()[1], window.location.hash);
+`)
+}
+
+func TestTableViewListsADirectory(t *testing.T) {
+	f := newArtifactFixture(t)
+	options := testOptions(f.baseDir, false)
+	recorder := f.viewerGet(t, options, "api/info", "many", nil)
+	var info tableViewInfo
+	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil || info.Kind != "directory" || info.Download != "" || len(info.Bases) != 1 || info.Bases[0].ID != tableview.DirectoryBase {
+		t.Fatalf("info = %d %s", recorder.Code, recorder.Body)
+	}
+	recorder = f.viewerGet(t, options, "api/rows", "many", url.Values{"pattern": {"f00*.txt"}})
+	var page tableview.Page
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatalf("rows = %d %s", recorder.Code, recorder.Body)
+	}
+	if page.Total != 10 || page.Rows[0].Cells[0] != "f000.txt" || page.Rows[0].Cells[8] != "1" {
+		t.Fatalf("rows = %+v", page)
+	}
+	// The working directory lists its media with their properties; the
+	// symlink out of it is not followed.
+	recorder = f.viewerGet(t, options, "api/rows", "wd", url.Values{"pattern": {"**/*.{wav,png}"}})
+	page = tableview.Page{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
+		t.Fatalf("working directory rows = %d %s", recorder.Code, recorder.Body)
+	}
+	var paths []string
+	for _, row := range page.Rows {
+		paths = append(paths, row.Cells[0])
+	}
+	if !reflect.DeepEqual(paths, []string{"clip.wav", "plot.png"}) || page.Rows[0].Media[0] == nil || page.Rows[0].Media[0].Properties == nil {
+		t.Fatalf("working directory = %q %s", paths, recorder.Body)
+	}
+	if served := f.viewerGet(t, options, "api/media", "wd", url.Values{"ref": {"plot.png"}, "base": {tableview.DirectoryBase}}); served.Code != http.StatusOK || served.Body.String() != "\x89PNG-bytes" {
+		t.Fatalf("media = %d %q", served.Code, served.Body)
+	}
+	for _, extra := range []url.Values{
+		{"sep": {","}},     // a file's parameter
+		{"view": {"tree"}}, // no such view
+		{"view": {"stems"}, "group": {"color"}},
+		{"view": {"files"}, "incomplete": {"1"}},
+		{"pattern": {"["}},
+		{"base": {"basedir"}}, // a file's base
+	} {
+		if recorder := f.viewerGet(t, options, "api/rows", "many", extra); recorder.Code != http.StatusBadRequest {
+			t.Errorf("%v = %d %s", extra, recorder.Code, recorder.Body)
+		}
+	}
+	if recorder := f.viewerGet(t, options, "api/rows", "data.csv", url.Values{"sep": {","}, "view": {"files"}}); recorder.Code != http.StatusBadRequest {
+		t.Errorf("a directory's parameter on a file = %d", recorder.Code)
+	}
+}
+
+func TestTableViewGroupsStemsInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"eval/ref/u1.wav", "eval/ref/u2.wav", "eval/hyp/u1.wav"} {
+		write(t, filepath.Join(f.work, filepath.FromSlash(name)), string(wav))
+	}
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav", `
+  await until('files', () => cells().length === 3);
+  if (JSON.stringify(headings().slice(0, 4)) !== '["#","path","format","duration"]') fail('file headings', headings());
+  if (cells()[0][3] !== '0:00.50' || !cells()[0][1].includes('eval/hyp/u1.wav') || !cells()[0][1].includes('WAV PCM')) fail('file row', cells()[0]);
+  if (!document.getElementById('tv-summary').textContent.includes('3 files')) fail('summary', document.getElementById('tv-summary').textContent);
+
+  // Group by stem lines up the first-level directories under eval/.
+  [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Group by stem').click();
+  await until('stems', () => headings().length === 3);
+  if (JSON.stringify(headings()) !== '["#","stem","eval/"]') fail('stem headings', headings());
+  const group = document.querySelector('select[aria-label="Groups from"]');
+  group.value = 'parent';
+  group.dispatchEvent(new window.Event('change'));
+  await until('parents', () => headings().length === 4);
+  if (JSON.stringify(headings()) !== '["#","stem","eval/hyp/","eval/ref/"]') fail('parent headings', headings());
+  const u2 = cells().find(row => row[1] === 'u2');
+  if (!u2 || u2[2] !== '— missing' || !u2[3].includes('eval/ref/u2.wav')) fail('missing cell', u2);
+  if (fragment().get('listing') !== 'stems' || fragment().get('group') !== 'parent') fail('fragment', window.location.hash);
+
+  // Only incomplete stems, and Describe of the stems view.
+  const incomplete = [...document.querySelectorAll('.tv-toolbar input[type=checkbox]')][0];
+  incomplete.checked = true;
+  incomplete.dispatchEvent(new window.Event('change'));
+  await until('incomplete', () => cells().length === 1);
+  document.querySelector('.tv-describe-toggle').click();
+  await until('describe', () => document.querySelectorAll('tr.tv-describe').length === 7);
 `)
 }

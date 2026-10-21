@@ -80,8 +80,11 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 	if err := json.Unmarshal([]byte(r.Body), &launchers); err != nil || launchers.Available || len(launchers.Viewers) != 1 || launchers.Viewers[0].Path != "/tableview/" {
 		t.Fatalf("launchers = (%d, %s)", r.Status, r.Body)
 	}
-	if r := e.HTTPGet(base + "/api/launchers?kind=directory&name=out"); strings.Contains(r.Body, "viewers") {
-		t.Fatalf("a directory was offered the viewer: %s", r.Body)
+	if r := e.HTTPGet(base + "/api/launchers?kind=directory&name=out"); !strings.Contains(r.Body, `"viewers":[{"name":"Table viewer"`) {
+		t.Fatalf("a directory was not offered the viewer: %s", r.Body)
+	}
+	if r := e.HTTPGet(base + "/api/launchers?kind=file&name=run.log"); strings.Contains(r.Body, "viewers") {
+		t.Fatalf("a log was offered the viewer: %s", r.Body)
 	}
 
 	if r := get("/tableview/", "data.tsv", nil); r.Status != 200 || !strings.Contains(r.Body, "table_view.js") {
@@ -135,6 +138,26 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 		if r := get("/tableview/api/media", "media.csv", url.Values{"ref": {ref}, "base": {"wd"}}); r.Status == 200 {
 			t.Fatalf("%s was served as media", ref)
 		}
+	}
+	// The working directory lists its files, with media properties, and as
+	// stems grouped by extension when it has no subdirectories in the
+	// pattern.
+	wd := func(route string, extra url.Values) support.HTTPResult {
+		query := url.Values{"project_name": {"tv"}, "run_id": {run.RunID}, "job_id": {jobID}, "entry": {"wd"}}
+		for key, values := range extra {
+			query[key] = values
+		}
+		return e.HTTPGet(base + route + "?" + query.Encode())
+	}
+	if r := wd("/tableview/api/rows", url.Values{"pattern": {"*.wav"}}); !strings.Contains(r.Body, `"cells":["a.wav","WAV PCM","1","16000","1","256000","","","32044"`) {
+		t.Fatalf("working directory files = (%d, %s)", r.Status, r.Body)
+	}
+	if r := wd("/tableview/api/rows", url.Values{"view": {"stems"}, "pattern": {"{a.wav,data.tsv,link.tsv}"}}); !strings.Contains(r.Body, `"columns":[{"name":"stem"},{"name":".tsv","type":"path"},{"name":".wav","type":"path"}]`) ||
+		!strings.Contains(r.Body, `"cells":["a","","a.wav"]`) || !strings.Contains(r.Body, `"cells":["data","data.tsv",""]`) {
+		t.Fatalf("working directory stems = (%d, %s)", r.Status, r.Body)
+	}
+	if r := wd("/tableview/api/rows", url.Values{"sep": {","}}); r.Status == 200 {
+		t.Fatalf("a file's separator was accepted for a directory: %s", r.Body)
 	}
 	for _, refused := range []struct {
 		name  string

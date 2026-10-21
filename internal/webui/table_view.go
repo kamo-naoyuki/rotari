@@ -14,12 +14,14 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
-// The Table viewer shows a delimited file as a paged table. rotari web
+// The Table viewer shows a delimited file, or a directory's files, as a
+// paged table. rotari web
 // offers it under Launch with for an artifact and serves it under
 // /tableview/. The page's own query names the source, for an artifact as a
 // content request does; the page passes it through to its API requests and
-// adds its own parameters (sep, header, filters, sort, desc, offset, limit,
-// base, and for a cell's media, ref).
+// adds its own parameters (sep and header for a file; view, pattern, group,
+// suffix_sep, and incomplete for a directory; filters, sort, desc, offset,
+// limit, base, and for a cell's media, ref).
 
 //go:embed assets/table_view.html
 var tableViewHTML string
@@ -198,10 +200,30 @@ func suggestedSeparator(path string) string {
 	return ","
 }
 
-// openTableView reads a source as its query asks.
+// openTableView reads a source as its query asks: a directory with view,
+// pattern, group, suffix_sep, and incomplete, a file with sep and header.
+// Parameters for the other kind are refused, not ignored.
 func openTableView(source tableViewSource, query url.Values) (*tableview.Table, error) {
+	directoryParams, fileParams := []string{"view", "pattern", "group", "suffix_sep", "incomplete"}, []string{"sep", "header"}
+	given, other := fileParams, directoryParams
 	if source.directory {
-		return nil, fmt.Errorf("%s is a directory; the viewer reads delimited files", source.name)
+		given, other = directoryParams, fileParams
+	}
+	for _, name := range other {
+		if query.Has(name) {
+			return nil, fmt.Errorf("%s does not apply to a %s; it takes %s", name, map[bool]string{true: "directory", false: "file"}[source.directory], strings.Join(given, ", "))
+		}
+	}
+	if source.directory {
+		listing := tableview.Listing{Pattern: query.Get("pattern"), View: query.Get("view"), Group: query.Get("group"), SuffixSeparator: query.Get("suffix_sep")}
+		switch query.Get("incomplete") {
+		case "", "0":
+		case "1":
+			listing.Incomplete = true
+		default:
+			return nil, fmt.Errorf("incomplete must be 1 or 0")
+		}
+		return tableview.OpenDirectory(source.target, listing)
 	}
 	separator, size := utf8.DecodeRuneInString(query.Get("sep"))
 	if size == 0 || size != len(query.Get("sep")) {
