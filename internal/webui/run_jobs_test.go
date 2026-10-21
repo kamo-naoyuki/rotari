@@ -37,6 +37,8 @@ const run = {
     job('a', { result: { exit_code: 0, hosts: ['node1'] } }),
     job('b', { result: { exit_code: 2, hosts: ['node2'], diagnosis_status: 'final', diagnoses: [{ name: 'oom' }] }, elapsed: '5s' }),
     job('c', { result: { exit_code: 0 }, submitted_at: '2026-10-12 00:00:01 JST', note_labels: ['n1'] }),
+    job('d', { finished_at: '', elapsed: '' }),
+    job('e', { attempt_id: '', submitted_at: '', finished_at: '', elapsed: '' }),
   ],
 };
 let launchers = { available: true };
@@ -110,6 +112,15 @@ setTimeout(async () => {
     assert(actions('a').querySelector('.view-notes').disabled, 'Notes without notes is not disabled');
     assert.deepEqual(labels('b'), ['Log', 'Artifacts', 'Launch', 'Diagnosis', 'Notes', 'Report', 'Path']);
     assert.deepEqual(labels('c'), ['Log', 'Artifacts', 'Launch', 'Notes (1)', 'Report', 'Path']);
+    // A running job offers Artifacts and Launch for its current attempt; a
+    // job that has not started shows both disabled with the reason.
+    const actionButton = (id, cls) => actions(id).querySelector('.' + cls);
+    assert.equal(actionButton('d', 'view-artifacts').disabled, false);
+    assert(actionButton('d', 'view-artifacts').getAttribute('onclick').includes(run.jobs[3].attempt_id), 'Artifacts of a running job is not its attempt');
+    assert(actionButton('d', 'launch-job').getAttribute('onclick').includes(run.jobs[3].attempt_id), 'Launch of a running job is not its attempt');
+    for (const cls of ['view-artifacts', 'launch-job']) {
+      assert(actionButton('e', cls).disabled && actionButton('e', cls).title === 'Job has not started yet', cls + ' of a pending job is not disabled');
+    }
     assert(!actions('a').querySelector('details'), 'a row still has a menu');
     // The toolbar has a button per command for the directory holding the
     // basedir; one whose program is missing is disabled with the reason.

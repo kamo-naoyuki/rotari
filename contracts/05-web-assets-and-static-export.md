@@ -462,8 +462,9 @@ directory have a copy button when not empty. Every column stays in the table; a 
 values are the same for every job, and Job ID and Finished, start hidden, and the Columns
 menu above the table turns any column but Job, Status, and Exit on or off,
 remembered per browser. A row ends with all its actions as buttons, without a menu, in lines of
-four: Log, Artifacts on a finished job, Launch on a finished job where the
-server allows launching (it opens Artifacts with the commands for the
+four: Log, Artifacts (on a job that has started, for the attempt Log shows;
+disabled before), Launch where the
+server allows launching (likewise) (it opens Artifacts with the commands for the
 working directory listed, `launchOnWorkingDirectory` in
 [web_app_launches.js](../internal/webui/assets/web_app_launches.js), or says
 why the working directory cannot be launched on), Diagnosis on a failed job,

@@ -2140,7 +2140,12 @@ function runJobActions(q, run, runID, j) {
       noteLabels.length +
       ")</button>"
     : '<button class="view-notes" disabled title="No notes on this job; add one with rotari note ATTEMPT_ID TEXT">Notes</button>';
-  const artifacts = result
+  // An unfinished job's artifacts are its current attempt's, as its log is;
+  // its record exists once the attempt has started.
+  const artifactAttemptID = result ? logAttemptID : j.attempt_id || "";
+  const artifactsReady = !!result || !!j.submitted_at;
+  const notStarted = ' disabled title="Job has not started yet"';
+  const artifacts = artifactsReady
     ? '<button class="view-artifacts" onclick="showArtifacts(\'' +
       esc(q.project_name) +
       "','" +
@@ -2148,13 +2153,15 @@ function runJobActions(q, run, runID, j) {
       "','" +
       esc(logJob) +
       "','" +
-      esc(logAttemptID) +
+      esc(artifactAttemptID) +
       "')\">Artifacts</button>"
-    : "";
+    : '<button class="view-artifacts"' + notStarted + ">Artifacts</button>";
   // Launch opens the same attempt's Artifacts with the commands for its
   // working directory listed, where a tracker's default store usually is.
-  const launch =
-    result && launcherAvailability && launcherAvailability.available
+  const launchAvailable = launcherAvailability && launcherAvailability.available;
+  const launch = !launchAvailable
+    ? ""
+    : artifactsReady
       ? '<button class="launch-job" onclick="launchOnWorkingDirectory(' +
         jsArg(q.project_name) +
         "," +
@@ -2162,9 +2169,9 @@ function runJobActions(q, run, runID, j) {
         "," +
         jsArg(logJob) +
         "," +
-        jsArg(logAttemptID) +
+        jsArg(artifactAttemptID) +
         ')">Launch</button>'
-      : "";
+      : '<button class="launch-job"' + notStarted + ">Launch</button>";
   return actionsCell([
     viewLog,
     artifacts,

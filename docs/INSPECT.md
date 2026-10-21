@@ -379,7 +379,9 @@ discovery notes instead of logs; `show -j JOB --json` includes them as
 A carried job shows candidates from the attempt that produced its result.
 
 In the live Web UI, a job row's Artifacts button opens the listing for the
-attempt shown by Log. Files under the job's working directory, or under the
+attempt shown by Log, also while the job is still running (disabled until it
+has started), so a tracker store or TensorBoard log directory can be opened
+live; reopen the listing to see new files. Files under the job's working directory, or under the
 directory holding its basedir (for example the experiment directory around
 `.rotari-state`), can be previewed in supported formats (including images,
 audio/video, NumPy arrays, CSV/TSV, and text) or downloaded; directories show
@@ -493,7 +495,7 @@ to the service and does not authenticate other Rotari Web APIs.
 In a job's Artifacts, choose **Launch with…** in the row of an entry (including
 the working directory row `.`), or of a
 file or directory inside an opened directory; an opened file or directory has
-it in its title line too. On a run page, a finished job's **Launch** button
+it in its title line too. On a run page, a started job's **Launch** button
 (shown when the server allows launching) opens its Artifacts with the
 commands for the working directory already listed. The run's toolbar has
 a button per command for the directory holding the basedir (for example
