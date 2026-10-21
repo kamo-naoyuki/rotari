@@ -409,6 +409,7 @@ Usage: `rotari show [SELECTOR]`
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-failure-cause` | `CAUSE (repeatable)` | `CLI only` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `--filter-changed` | `` | `CLI only` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `CLI only` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `CLI only` | select jobs run on a matching host; may be repeated |
@@ -566,6 +567,7 @@ Usage: `rotari copy [RUN_ID]`
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-failure-cause` | `CAUSE (repeatable)` | `CLI only` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `CLI only` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `CLI only` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `CLI only` | select jobs started before this time |
@@ -639,6 +641,7 @@ Usage: `rotari run [RUN_ID]`
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-failure-cause` | `CAUSE (repeatable)` | `CLI only` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `--filter-changed` | `` | `CLI only` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `CLI only` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `CLI only` | select jobs run on a matching host; may be repeated |
@@ -714,6 +717,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--filter-exit-code` | `N (repeatable)` | `CLI only` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `CLI only` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `CLI only` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-failure-cause` | `CAUSE (repeatable)` | `CLI only` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `--filter-changed` | `` | `CLI only` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `CLI only` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `CLI only` | select jobs run on a matching host; may be repeated |

@@ -16,25 +16,10 @@ type Rule struct {
 	Suggestion string
 }
 
-// RuleID returns a stable selector ID derived from the public rule name.
+// RuleID returns a stable selector ID derived from the public rule name; see
+// model.FailureCauseID.
 func RuleID(rule Rule) string {
-	value := strings.ToLower(rule.Name)
-	var builder strings.Builder
-	separator := false
-	for _, character := range value {
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
-			builder.WriteRune(character)
-			separator = false
-			continue
-		}
-		if builder.Len() > 0 {
-			separator = true
-		}
-		if separator && !strings.HasSuffix(builder.String(), "-") {
-			builder.WriteByte('-')
-		}
-	}
-	return strings.Trim(builder.String(), "-")
+	return model.FailureCauseID(rule.Name)
 }
 
 // ResolveRuleSelectors validates diagnosis filter values. A slug ID is

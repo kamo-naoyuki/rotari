@@ -702,23 +702,15 @@ function outputWordCloudSection(queue, runID) {
 // failureGroupMemberLimit caps the jobs a failure cause lists by name; the
 // CLI's failureMemberLimit does the same.
 const failureGroupMemberLimit = 10;
-// failureRetryFilter is the retry option that selects one failure cause's
-// jobs, as cmd/rotari's failureRetryHints chooses it: --filter-diagnosis for
-// a rule diagnosis and --filter-failure-kind otherwise.
-/** @param {WebFailureGroup} group */
-function failureRetryFilter(group) {
-  return group.kind === "diagnosis"
-    ? "--filter-diagnosis " + shellQuote(group.cause)
-    : "--filter-failure-kind " + shellQuote(group.kind);
-}
 // The failure causes section lists the run's failed and blocked jobs grouped
 // by cause (runlineage.FailureGroups, in lineage_summary): each cause's count
 // and exit codes, its first job's evidence line and the suggested fix, its
 // jobs, which show their row in the table, and a button that selects them
 // for the table's actions. For the project's latest run once it has
 // finished, a cause also shows the command that previews a retry of its
-// jobs, in the form of the run page's retry command. It is drawn only when
-// the run has a failure.
+// jobs, in the form of the run page's retry command, selected by
+// --filter-failure-cause as the CLI's retry hint selects them. It is drawn
+// only when the run has a failure.
 /**
  * @param {WebRun} run
  * @param {string} runID
@@ -805,8 +797,8 @@ function failureCausesSection(run, runID, latest) {
         (run.cwd && run.cwd !== "-" ? "cd " + shellQuote(run.cwd) + "\n" : "") +
           "rotari retry -r " +
           shellQuote(runID) +
-          " " +
-          failureRetryFilter(group) +
+          " --filter-failure-cause " +
+          shellQuote(group.cause) +
           " --dry-run",
       );
       item.append(...command.childNodes);

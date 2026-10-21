@@ -33,6 +33,8 @@ produced it. Saved results are not recomputed when rotari's rules change.
 `show`, reports, and the Web UI note when a saved result came from earlier
 rules. `--filter-diagnosis` always evaluates the current rules against the job's
 error and output, so it can select a job whose saved result differs.
+`--filter-failure-cause` instead reads the saved result, as failure summaries
+do; see [Filtering jobs and inspecting failures](INSPECT.md#filtering-jobs-and-inspecting-failures).
 
 View saved diagnoses in the CLI with `rotari show --run-id RUN_ID --job-id
 JOB_ID`. The Web UI always shows a `Diagnosis` button beside each job's log

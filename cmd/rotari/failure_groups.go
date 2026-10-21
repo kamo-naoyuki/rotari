@@ -124,10 +124,10 @@ func truncateText(text string, limit int) string {
 }
 
 // failureRetryHints returns, for runID, a function that gives the command
-// that previews a retry of one failure group's jobs, as printed: groups of a
-// rule diagnosis select by --filter-diagnosis, and the others by
-// --filter-failure-kind. retry acts on a project's last run, so it returns
-// nil unless runID is the project's last run and has finished.
+// that previews a retry of one failure group's jobs, as printed: it selects
+// them by --filter-failure-cause, which classifies each job as the groups
+// do. retry acts on a project's last run, so it returns nil unless runID is
+// the project's last run and has finished.
 func failureRetryHints(paths state.ProjectPaths, runID string) func(runlineage.FailureGroup) string {
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil || meta.LastRunID != runID {
@@ -138,9 +138,6 @@ func failureRetryHints(paths state.ProjectPaths, runID string) func(runlineage.F
 	}
 	target := "rotari retry " + hintLocation(paths)
 	return func(group runlineage.FailureGroup) string {
-		if group.Kind == runlineage.FailureKindDiagnosis {
-			return fmt.Sprintf("%s --filter-diagnosis %s --dry-run", target, executor.ShellQuote(group.Cause))
-		}
-		return fmt.Sprintf("%s --filter-failure-kind %s --dry-run", target, executor.ShellQuote(group.Kind))
+		return fmt.Sprintf("%s --filter-failure-cause %s --dry-run", target, executor.ShellQuote(group.Cause))
 	}
 }

@@ -242,6 +242,18 @@ and specifying both dimensions narrows by both. Annotations such as
   combine with OR, and result and state filters combine with AND.
 - `--filter-exit-code N` matches jobs whose resolved exit code equals N; repeated values combine with OR.
 - `--filter-failure-kind KIND` matches jobs whose result falls into one of the failure kinds (`timeout`, `cancelled`, `blocked`, `oom`, `signal`, `error`); repeated values combine with OR.
+- `--filter-failure-cause CAUSE` matches failed jobs that failure summaries
+  (CLI-4) group under CAUSE: a block, cancellation, or timeout rotari
+  recorded, else the job's latest saved rule diagnosis, else its first other
+  failure kind, decided once by `model.FailureCause`. CAUSE is a failure
+  kind or a diagnosis rule name, compared by its slug ID, so case and
+  punctuation do not matter and the rule's slug ID also works. Because a
+  saved diagnosis can name a rule from an earlier rule set, CAUSE is not
+  checked against the current rules; a value without letters or digits is
+  rejected. Repeated values combine with OR. Unlike `--filter-failure-kind`
+  and `--filter-diagnosis`, which match any of a job's kinds or current
+  diagnoses, it selects each job by one cause, so it selects exactly one
+  failure group's jobs.
 - `--filter-diagnosis VALUE` recomputes the latest attempt's diagnosis with
   the current rules and matches failed jobs. A rule slug ID is matched first;
   otherwise VALUE is a case-insensitive substring of the rule name. Repeated

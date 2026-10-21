@@ -990,6 +990,10 @@
           "value_name": "VALUE"
         },
         {
+          "name": "filter-failure-cause",
+          "value_name": "CAUSE"
+        },
+        {
           "name": "filter-changed"
         },
         {
@@ -1440,6 +1444,10 @@
           "value_name": "VALUE"
         },
         {
+          "name": "filter-failure-cause",
+          "value_name": "CAUSE"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -1723,6 +1731,10 @@
         {
           "name": "filter-diagnosis",
           "value_name": "VALUE"
+        },
+        {
+          "name": "filter-failure-cause",
+          "value_name": "CAUSE"
         },
         {
           "name": "filter-changed"
@@ -2014,6 +2026,10 @@
         {
           "name": "filter-diagnosis",
           "value_name": "VALUE"
+        },
+        {
+          "name": "filter-failure-cause",
+          "value_name": "CAUSE"
         },
         {
           "name": "filter-changed"

@@ -114,6 +114,7 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_failure_cause` | `Sequence[str]` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
@@ -189,6 +190,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_failure_cause` | `Sequence[str]` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
@@ -274,6 +276,7 @@ Show details for a project, run, job, or attempt.
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_failure_cause` | `Sequence[str]` | select failed jobs that failure summaries group under this cause; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |

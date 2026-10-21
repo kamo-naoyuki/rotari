@@ -147,7 +147,7 @@ func (f PairFixture) Sample(t *testing.T, flag PairFlag) []string {
 		"masterdir": f.E.Master, "run-id": f.Run, "job-id": f.Bad, "job-name": "bad",
 		"stage": "training", "filter-stage": "training", "matrix": "train", "filter-matrix": "train",
 		"filter-not-stage": "setup", "filter-not-matrix": "train", "filter-command": "exit 3",
-		"filter-exit-code": "7", "filter-failure-kind": "error",
+		"filter-exit-code": "7", "filter-failure-kind": "error", "filter-failure-cause": "error",
 		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*", "filter-started-after": "2000-01-01T00:00:00Z",
 		"filter-started-before": "2000-01-01T00:00:00Z", "filter-finished-after": "2000-01-01T00:00:00Z",
 		"filter-finished-before": "2000-01-01T00:00:00Z", "filter-longer-than": "1h", "filter-shorter-than": "1h",

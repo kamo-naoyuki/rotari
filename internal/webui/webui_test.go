@@ -1103,9 +1103,9 @@ function open(id) {
     const jobs = [...oom.querySelectorAll('.failure-cause-jobs button')];
     assert.deepEqual(jobs.map(button => button.textContent), ['train[1]', 'train[3]']);
     const retry = entry => entry.querySelector('.command-guide').dataset.copyText;
-    assert(retry(oom).endsWith("rotari retry -r '" + runID + "' --filter-diagnosis 'CUDA/GPU memory exhausted' --dry-run"), retry(oom));
-    assert(retry(item('timeout')).endsWith(" --filter-failure-kind 'timeout' --dry-run"), retry(item('timeout')));
-    assert(retry(item('error')).endsWith(" --filter-failure-kind 'error' --dry-run"), retry(item('error')));
+    assert(retry(oom).endsWith("rotari retry -r '" + runID + "' --filter-failure-cause 'CUDA/GPU memory exhausted' --dry-run"), retry(oom));
+    assert(retry(item('timeout')).endsWith(" --filter-failure-cause 'timeout' --dry-run"), retry(item('timeout')));
+    assert(retry(item('error')).endsWith(" --filter-failure-cause 'error' --dry-run"), retry(item('error')));
     let focused = '';
     dom.window.focusMatrixJob = id => { focused = id; };
     jobs[1].click();

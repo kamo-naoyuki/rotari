@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -169,6 +170,52 @@ func TestFailureGroupsSuggestAFixForCausesRotariRecords(t *testing.T) {
 	for _, group := range groups {
 		if !strings.Contains(group.Suggestion, want[group.Kind]) {
 			t.Errorf("%s group suggestion = %q, want one mentioning %q", group.Kind, group.Suggestion, want[group.Kind])
+		}
+	}
+}
+
+// Each failure group's cause, given to --filter-failure-cause by its name or
+// its ID, selects exactly the group's jobs, however a job's facts overlap
+// another cause's: an OOM diagnosis whose failure kind is error, like a plain
+// exit; two diagnoses, grouped by the later one; a timeout that also matched
+// a rule; an OOM error that also died by a signal.
+func TestFailureCauseFilterSelectsEachGroupExactly(t *testing.T) {
+	twoDiagnoses := diagnosed(4, "Disk space or quota exhausted", "No space left on device", "Free space.")
+	twoDiagnoses.Diagnoses = append(twoDiagnoses.Diagnoses, model.RuleDiagnosis{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"})
+	timedOut := diagnosed(model.TimeoutExitCode, "CUDA/GPU memory exhausted", "CUDA out of memory", "Reduce batch size.")
+	timedOut.Error = "timed out after 5s"
+	run := Run{Jobs: []Job{
+		failedTask(1, StatusSuccess, model.JobResult{}),
+		failedTask(2, StatusFailed, diagnosed(1, "CUDA/GPU memory exhausted", "CUDA out of memory", "Reduce batch size.")),
+		failedTask(3, StatusFailed, twoDiagnoses),
+		failedTask(4, StatusFailed, model.JobResult{ExitCode: 3, Error: "exit status 3", DiagnosisStatus: model.DiagnosisNoMatch}),
+		failedTask(5, StatusFailed, timedOut),
+		failedTask(6, StatusFailed, model.JobResult{ExitCode: 137, Error: "out of memory"}),
+		failedTask(7, StatusFailed, model.JobResult{ExitCode: 139, Error: "exit status 139"}),
+		failedTask(8, StatusFailed, model.JobResult{ExitCode: 1, Error: "cancelled"}),
+		failedTask(9, StatusBlocked, model.JobResult{ExitCode: 1, Error: "blocked by failed dependency"}),
+		failedTask(10, StatusFailed, diagnosed(1, "Python exception", "KeyError: 'lr'", "Inspect.")),
+	}}
+	groups := FailureGroups(run)
+	if len(groups) != 9 {
+		t.Fatalf("FailureGroups = %d groups, want one per failed job:\n%+v", len(groups), groups)
+	}
+	for _, group := range groups {
+		var want []string
+		for _, member := range group.Jobs {
+			want = append(want, member.ID)
+		}
+		for _, value := range []string{group.Cause, strings.ToUpper(group.Cause), model.FailureCauseID(group.Cause)} {
+			filter := jobfilter.Filter{FailureCauses: []string{value}}
+			var got []string
+			for _, job := range run.Jobs {
+				if filter.Selects("", jobfilter.Job{ID: job.Spec.ID, Result: job.Result, Finished: true}) {
+					got = append(got, job.Spec.ID)
+				}
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("--filter-failure-cause %q selects %v, want the %s group %v", value, got, group.Cause, want)
+			}
 		}
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 // FailureKindDiagnosis marks a failure group whose cause is a saved rule
 // diagnosis. Other groups use the model.FailureKind* values.
-const FailureKindDiagnosis = "diagnosis"
+const FailureKindDiagnosis = model.FailureCauseDiagnosis
 
 // FailureGroup is the failed and blocked jobs of a run that share one cause.
 type FailureGroup struct {
@@ -123,25 +123,19 @@ var recordedCauseSuggestions = map[string]string{
 	model.FailureKindBlocked:   "The job never ran because a dependency failed. Fix that dependency; a retry then runs this job with it.",
 }
 
-// classifyFailure returns a failed job's cause, the suggestion for it, and
-// the line that shows it. Causes rotari records itself (blocked, cancelled,
-// timeout) come first because they are certain; then the latest saved rule
-// diagnosis; then the remaining failure kinds.
+// classifyFailure returns a failed job's cause, as model.FailureCause
+// decides it, the suggestion for it, and the line that shows it.
 func classifyFailure(job Job) (failureCause, string, string) {
 	result := job.Result
-	kinds := model.FailureKinds(result)
-	for _, kind := range []string{model.FailureKindBlocked, model.FailureKindCancelled, model.FailureKindTimeout} {
-		if slices.Contains(kinds, kind) {
-			return failureCause{kind: kind, name: kind}, recordedCauseSuggestions[kind], result.Error
-		}
+	kind, name := model.FailureCause(result)
+	// A job counted as failed has a nonzero exit code; error covers any
+	// other.
+	if kind == "" {
+		kind, name = model.FailureKindError, model.FailureKindError
 	}
-	if len(result.Diagnoses) > 0 {
+	if kind == FailureKindDiagnosis {
 		diagnosis := result.Diagnoses[0]
-		return failureCause{kind: FailureKindDiagnosis, name: diagnosis.Name}, diagnosis.Suggestion, diagnosis.Evidence
+		return failureCause{kind: kind, name: name}, diagnosis.Suggestion, diagnosis.Evidence
 	}
-	kind := model.FailureKindError
-	if len(kinds) > 0 {
-		kind = kinds[0]
-	}
-	return failureCause{kind: kind, name: kind}, "", result.Error
+	return failureCause{kind: kind, name: name}, recordedCauseSuggestions[kind], result.Error
 }

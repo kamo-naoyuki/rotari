@@ -215,7 +215,7 @@ the IDs, this table, and those calls disagree.
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
-| CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupRetryHintsWork`, `TestFailureGroupsAgreeAcrossViews` |
+| CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes, and each group's retry hint selects only its jobs | conformance | `TestFailureGroupRetryHintsWork`, `TestFailureGroupsAgreeAcrossViews` |
 | CLI-5 | `projects` lists each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since`, `runs --since`, and the Web jobs page take a Go duration or whole days such as `7d`; CLI listings default to `1d` and keep unfinished/active work visible | conformance | `TestJobsWindowAcceptsDays`, `TestRunsWindowFiltersSettledHistoryButKeepsActiveRun` |
 | CLI-27 | Result filters have discoverable named options and short forms; `jobs` combines named result and execution-state filters | conformance | `TestJobsNamedResultFilters`, `TestJobsFilterRunningState` |

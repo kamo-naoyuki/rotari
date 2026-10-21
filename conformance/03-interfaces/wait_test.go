@@ -80,7 +80,7 @@ func TestCompletionMessageGroupsFailuresByCause(t *testing.T) {
 		"Carried: 2",
 		"Failures by cause:",
 		"2 (1 carried) error (exit 3,4): broken other",
-		"retry: rotari retry --project-name '" + project + "' --filter-failure-kind 'error' --dry-run",
+		"retry: rotari retry --project-name '" + project + "' --filter-failure-cause 'error' --dry-run",
 		"Inspect run:",
 	} {
 		if !strings.Contains(completion, want) {

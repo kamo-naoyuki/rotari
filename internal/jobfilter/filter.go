@@ -24,6 +24,7 @@ type Filter struct {
 	Command        string          `json:"command,omitempty"`
 	ExitCodes      []int           `json:"exit_codes,omitempty"`
 	FailureKinds   []string        `json:"failure_kinds,omitempty"`
+	FailureCauses  []string        `json:"failure_causes,omitempty"`
 	Diagnoses      []string        `json:"diagnoses,omitempty"`
 	Changed        bool            `json:"changed,omitempty"`
 	New            bool            `json:"new,omitempty"`
@@ -63,7 +64,7 @@ func ParseTimestamp(value string) (time.Time, error) {
 
 // Empty reports whether no condition is set.
 func (filter Filter) Empty() bool {
-	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.Diagnoses) == 0 && !filter.Changed && !filter.New && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
+	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.FailureCauses) == 0 && len(filter.Diagnoses) == 0 && !filter.Changed && !filter.New && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
 }
 
 // MatchesDefinition reports whether an ID satisfies changed/new conditions.
@@ -161,7 +162,7 @@ func (filter Filter) Selects(selection string, job Job) bool {
 	if selection != "" && selection != "all" && !model.ResultSelectionMatches(selection, job.Finished, job.Result.ExitCode) {
 		return false
 	}
-	if (len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0) && !filter.matchesResult(job.Result, job.Finished) {
+	if (len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0 || len(filter.FailureCauses) > 0) && !filter.matchesResult(job.Result, job.Finished) {
 		return false
 	}
 	if !filter.MatchesDefinition(job.ID) || filter.hasAttributeConditions() && !filter.MatchesAttributes(job.ExecutionAttributes()) {
@@ -193,12 +194,14 @@ func (filter Filter) SelectsArray(selection string, tasks []Job) bool {
 // HasRunConditions reports whether the filter has a condition on a job's
 // result or execution, which only a run records.
 func (filter Filter) HasRunConditions() bool {
-	return len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0 || len(filter.Diagnoses) > 0 || len(filter.Hosts) > 0 || filter.StartedAfter != nil || filter.StartedBefore != nil || filter.FinishedAfter != nil || filter.FinishedBefore != nil || filter.LongerThan > 0 || filter.ShorterThan > 0
+	return len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0 || len(filter.FailureCauses) > 0 || len(filter.Diagnoses) > 0 || len(filter.Hosts) > 0 || filter.StartedAfter != nil || filter.StartedBefore != nil || filter.FinishedAfter != nil || filter.FinishedBefore != nil || filter.LongerThan > 0 || filter.ShorterThan > 0
 }
 
 // matchesResult reports whether a finished job's result satisfies the value
-// filters. An unfinished result never matches any exit-code or failure-kind
-// filter, even when the zero value would otherwise satisfy one.
+// filters. An unfinished result never matches any exit-code, failure-kind,
+// or failure-cause filter, even when the zero value would otherwise satisfy
+// one. A failure cause matches by its model.FailureCauseID, so a diagnosis
+// is named by its rule name in any case or by the rule's slug ID.
 func (filter Filter) matchesResult(result model.JobResult, finished bool) bool {
 	if !finished {
 		return false
@@ -224,6 +227,14 @@ func (filter Filter) matchesResult(result model.JobResult, finished bool) bool {
 			}
 		}
 		if !matched {
+			return false
+		}
+	}
+	if len(filter.FailureCauses) > 0 {
+		_, name := model.FailureCause(result)
+		if name == "" || !slices.ContainsFunc(filter.FailureCauses, func(cause string) bool {
+			return model.FailureCauseID(cause) == model.FailureCauseID(name)
+		}) {
 			return false
 		}
 	}

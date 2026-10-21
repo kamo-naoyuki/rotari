@@ -230,6 +230,23 @@ selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
 --json` carries the same groups, with every job ID, as `failures`; so do
 `lineage RUN_ID --json` and the Web UI's run summary.
 
+`--filter-failure-cause CAUSE` selects one group's jobs by the same
+classification, in `show`, `copy`, `run`, and `retry`. CAUSE is the cause as
+printed, such as `timeout` or `'CUDA/GPU memory exhausted'`, or the rule's
+slug ID such as `cuda-gpu-memory-exhausted`. For the project's last finished
+run, each group also prints a `retry:` command that previews rerunning only
+its jobs:
+
+```sh
+rotari show --filter-failure-cause timeout
+rotari retry --filter-failure-cause cuda-gpu-memory-exhausted --dry-run
+```
+
+`--filter-failure-kind` and `--filter-diagnosis` match any of a job's
+failure kinds or current-rule diagnoses instead, so they can also select
+jobs of another group: a job grouped by its OOM diagnosis still has the
+failure kind `error`.
+
 The Web run page lists the same groups in its `Failure causes` section,
 above the job timeline: each cause's count, exit codes, example line, and
 suggestion, with its jobs, which scroll to their rows in the jobs table. A

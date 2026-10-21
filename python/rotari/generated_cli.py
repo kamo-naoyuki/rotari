@@ -1549,6 +1549,14 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
+                    "description": "select failed jobs that failure summaries "
+                    "group under this cause; may be repeated",
+                    "name": "filter-failure-cause",
+                    "repeated": True,
+                    "value_name": "CAUSE",
+                },
+                {
+                    "command_line_only": True,
                     "description": "select queued jobs whose definition changed "
                     "from the reference run",
                     "name": "filter-changed",
@@ -2277,6 +2285,14 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "command_line_only": True,
+                    "description": "select failed jobs that failure summaries "
+                    "group under this cause; may be repeated",
+                    "name": "filter-failure-cause",
+                    "repeated": True,
+                    "value_name": "CAUSE",
+                },
+                {
+                    "command_line_only": True,
                     "description": "select jobs run on a matching host; may be "
                     "repeated",
                     "name": "filter-host",
@@ -2733,6 +2749,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "filter-diagnosis",
                     "repeated": True,
                     "value_name": "VALUE",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select failed jobs that failure summaries "
+                    "group under this cause; may be repeated",
+                    "name": "filter-failure-cause",
+                    "repeated": True,
+                    "value_name": "CAUSE",
                 },
                 {
                     "command_line_only": True,
@@ -3198,6 +3222,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "filter-diagnosis",
                     "repeated": True,
                     "value_name": "VALUE",
+                },
+                {
+                    "command_line_only": True,
+                    "description": "select failed jobs that failure summaries "
+                    "group under this cause; may be repeated",
+                    "name": "filter-failure-cause",
+                    "repeated": True,
+                    "value_name": "CAUSE",
                 },
                 {
                     "command_line_only": True,

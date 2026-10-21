@@ -157,6 +157,7 @@ func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 			cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated", ValueName: "KIND", Values: model.FailureKindValues(), Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-failure-cause", Description: "select failed jobs that failure summaries group under this cause; may be repeated", ValueName: "CAUSE", Repeated: true, CommandLineOnly: true},
 		)
 	}
 	if set == queueRunJobFilters {
@@ -203,6 +204,7 @@ type jobFilterOptions struct {
 	exitCodes                     *intSliceFlag
 	failureKinds                  *failureKindFlag
 	diagnoses                     diagnosisFlag
+	failureCauses                 failureCauseFlag
 	changed, new                  *bool
 	hosts                         stringSliceFlag
 	startedAfter, startedBefore   *timeFlag
@@ -222,6 +224,7 @@ func cliJobFilterOptions(fs *flag.FlagSet, set jobFilterSet) *jobFilterOptions {
 		options.failureKinds = new(failureKindFlag)
 		fs.Var(options.failureKinds, "filter-failure-kind", "select jobs of this failure kind; may be repeated")
 		cliValue(fs, &options.diagnoses, "filter-diagnosis")
+		cliValue(fs, &options.failureCauses, "filter-failure-cause")
 		options.finishedAfter = new(timeFlag)
 		fs.Var(options.finishedAfter, "filter-finished-after", "select jobs finished at or after this time")
 		options.finishedBefore = new(timeFlag)
@@ -303,7 +306,7 @@ func (options *jobFilterOptions) filter() jobfilter.Filter {
 	if options.failureKinds != nil {
 		failureKinds = append([]string(nil), (*options.failureKinds)...)
 	}
-	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, Diagnoses: append([]string(nil), options.diagnoses...), Changed: options.changed != nil && *options.changed, New: options.new != nil && *options.new, Hosts: append([]string(nil), options.hosts...)}
+	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, FailureCauses: append([]string(nil), options.failureCauses...), Diagnoses: append([]string(nil), options.diagnoses...), Changed: options.changed != nil && *options.changed, New: options.new != nil && *options.new, Hosts: append([]string(nil), options.hosts...)}
 	if options.startedAfter != nil && options.startedAfter.set {
 		filter.StartedAfter = &options.startedAfter.value
 	}
@@ -368,6 +371,26 @@ func (flag *diagnosisFlag) String() string {
 func (flag *diagnosisFlag) Set(value string) error {
 	if err := diagnose.ResolveRuleSelectors([]string{value}); err != nil {
 		return err
+	}
+	*flag = append(*flag, value)
+	return nil
+}
+
+// failureCauseFlag holds --filter-failure-cause values. A cause can name a
+// rule saved by an earlier rule set, so values are not checked against the
+// current rules.
+type failureCauseFlag []string
+
+func (flag *failureCauseFlag) String() string {
+	if flag == nil {
+		return ""
+	}
+	return strings.Join(*flag, ",")
+}
+
+func (flag *failureCauseFlag) Set(value string) error {
+	if model.FailureCauseID(value) == "" {
+		return fmt.Errorf("failure cause %q names no cause", value)
 	}
 	*flag = append(*flag, value)
 	return nil

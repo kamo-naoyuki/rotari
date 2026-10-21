@@ -247,11 +247,16 @@ does not promise to detect a lost remote client.
   job's latest saved rule diagnosis, then its remaining failure kind. Groups
   list the most frequent cause first. In text, each group of the project's last
   finished run also prints a `retry:` command that previews a rerun of only
-  that group's jobs, by `--filter-diagnosis` for a rule diagnosis and by
-  `--filter-failure-kind` otherwise; it works as printed. `show` groups only the jobs its table
-  lists. The rule is implemented once in
+  that group's jobs, by `--filter-failure-cause` (SEL-11), which classifies
+  each job as the groups do; it works as printed, also when the jobs of one
+  group have another group's failure kind or diagnosis. The Web run page's
+  Failure causes section shows the same command. `show` groups only the jobs its table
+  lists. A job's cause is decided once, by `model.FailureCause` in
+  [`internal/model/failure_cause.go`](../internal/model/failure_cause.go);
+  the groups are built in
   [`internal/runlineage/failures.go`](../internal/runlineage/failures.go)
-  (`FailureGroups`); the CLI text is in
+  (`FailureGroups`, with `TestFailureCauseFilterSelectsEachGroupExactly`
+  checking them against the filter); the CLI text is in
   [`cmd/rotari/failure_groups.go`](../cmd/rotari/failure_groups.go), and the
   end-to-end check is
   [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).

@@ -30,7 +30,7 @@ func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string 
 		"pbs-concurrency": "2", "pbs-options": "-q debug", "pbs-submit-interval": "1s", "pbs-submit-retry-limit": "2",
 		"lsf-concurrency": "2", "lsf-options": "-q debug", "lsf-submit-interval": "1s", "lsf-submit-retry-limit": "2",
 		"sge-concurrency": "2", "sge-options": "-q debug", "sge-submit-interval": "1s", "sge-submit-retry-limit": "2",
-		"filter-exit-code": "3", "filter-failure-kind": "error",
+		"filter-exit-code": "3", "filter-failure-kind": "error", "filter-failure-cause": "error",
 		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*",
 		"filter-started-after": "2000-01-01T00:00:00Z", "filter-started-before": "2000-01-01T00:00:00Z",
 		"filter-finished-after": "2000-01-01T00:00:00Z", "filter-finished-before": "2000-01-01T00:00:00Z",

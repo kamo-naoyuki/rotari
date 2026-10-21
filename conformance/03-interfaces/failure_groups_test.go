@@ -89,15 +89,21 @@ esac`)
 	}
 }
 
-// TestFailureGroupRetryHintsWork runs a project whose jobs fail for two
-// causes, a timeout and an error exit, and runs each failure group's retry
-// hint that lineage prints, as printed: each previews a rerun of only that
-// group's job.
+// TestFailureGroupRetryHintsWork runs a project whose jobs fail for four
+// causes and runs each failure group's retry hint that lineage prints, as
+// printed: each previews a rerun of only that group's job. The causes
+// overlap the way a job's facts do: the out-of-memory job's failure kind is
+// error, like the plain error exit's, and the job that runs out of memory
+// and then of disk space is grouped by its later diagnosis, so a hint that
+// selected by failure kind or by any diagnosis would take another group's
+// job too.
 func TestFailureGroupRetryHintsWork(t *testing.T) {
 	covers(t, "CLI-4")
 	e := support.NewEnv(t)
 	e.MustRotari("add", "-p", "hints", "--job-name", "slow", "--timeout", "1s", "--", "sleep", "10")
 	e.MustRotari("add", "-p", "hints", "--job-name", "broken", "--", "sh", "-c", "exit 3")
+	e.MustRotari("add", "-p", "hints", "--job-name", "oom", "--", "sh", "-c", `echo "torch.OutOfMemoryError: CUDA out of memory" >&2; exit 1`)
+	e.MustRotari("add", "-p", "hints", "--job-name", "full", "--", "sh", "-c", `echo "torch.OutOfMemoryError: CUDA out of memory" >&2; echo "OSError: [Errno 28] No space left on device" >&2; exit 4`)
 	e.MustRotari("add", "-p", "hints", "--job-name", "fine", "--", "true")
 	e.Rotari("run", "-p", "hints", "--quiet")
 	var shown struct {
@@ -113,13 +119,35 @@ func TestFailureGroupRetryHintsWork(t *testing.T) {
 			hints = append(hints, shellFields(hint))
 		}
 	}
-	if len(hints) != 2 {
+	if len(hints) != 4 {
 		t.Fatalf("lineage prints %d retry hints, want one per failure group:\n%s", len(hints), out)
 	}
 	for _, hint := range hints {
 		preview := e.MustRotari(hint...).Stdout
-		if !strings.Contains(preview, "would execute 1 of 3 job(s)") {
+		if !strings.Contains(preview, "would execute 1 of 5 job(s)") {
 			t.Errorf("hint %v previews more or less than its group's job:\n%s", hint, preview)
+		}
+	}
+	// show lists each group's job alone when it selects by that cause; it
+	// groups only the jobs its table lists.
+	var lineage struct {
+		Failures failureGroupsView `json:"failures"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("lineage", "-p", "hints", "--json", shown.RunID).Stdout), &lineage); err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range lineage.Failures {
+		text := e.MustRotari("show", "-p", "hints", "--filter-failure-cause", group.Cause).Stdout
+		_, section, _ := strings.Cut(text, "Failures by cause:\n")
+		section, _, _ = strings.Cut(section, "\n\n")
+		var entries []string
+		for _, line := range strings.Split(section, "\n") {
+			if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "   ") {
+				entries = append(entries, strings.TrimSpace(line))
+			}
+		}
+		if len(entries) != 1 || !strings.HasPrefix(entries[0], "1 "+group.Cause+" (") {
+			t.Errorf("show --filter-failure-cause %q lists causes %q, want only its own:\n%s", group.Cause, entries, text)
 		}
 	}
 }
