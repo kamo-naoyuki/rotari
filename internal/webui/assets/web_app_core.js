@@ -2158,7 +2158,8 @@ function runJobActions(q, run, runID, j) {
     : '<button class="view-artifacts"' + notStarted + ">Artifacts</button>";
   // Launch opens the same attempt's Artifacts with the commands for its
   // working directory listed, where a tracker's default store usually is.
-  const launchAvailable = launcherAvailability && launcherAvailability.available;
+  const launchAvailable =
+    launcherAvailability && launcherAvailability.available;
   const launch = !launchAvailable
     ? ""
     : artifactsReady
