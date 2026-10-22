@@ -323,6 +323,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "matrix", Description: "show jobs of this matrix only, named by its base job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "logs", Description: "print output logs for all jobs"},
 			cliFlagSpec{Name: "failed-logs", Description: "print output logs for failed jobs"},
+			cliFlagSpec{Name: "no-logs", Description: "show one job or attempt's details without logs or automatic following"},
 			cliFlagSpec{Name: "stream", Description: "show both streams or select stdout/stderr", ValueName: "STREAM"},
 			cliFlagSpec{Name: "tail", Description: "print only the last N lines of each log, with --logs, --failed-logs, or a job's output", ValueName: "N"},
 			cliFlagSpec{Name: "follow", Description: "follow one selected log stream until the run completes"},

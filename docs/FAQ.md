@@ -162,6 +162,13 @@ jobs until the requested resources become available.
 
 Use `rotari projects` to list projects. `show` inspects the selected project, run, job, or attempt; use `--project-name/-p` for a project, `--run-id` for a run, and `--run-id latest` for the latest run.
 
+### How do I read a running job's details without following its output?
+
+Use `rotari show JOB_ID --no-logs` (or `rotari show ATTEMPT_ID --no-logs`).
+It shows the status, timestamps, command, notes, and artifacts without log
+contents or automatic following. `--no-pager` only disables the pager; it
+does not disable automatic following.
+
 ### Why does `show` prefer a run over the queue when a project is running or interrupted?
 
 Because the queue is only the active work target while the project is `idle`.

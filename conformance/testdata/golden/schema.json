@@ -935,6 +935,9 @@
           "name": "failed-logs"
         },
         {
+          "name": "no-logs"
+        },
+        {
           "name": "stream",
           "value_name": "STREAM"
         },

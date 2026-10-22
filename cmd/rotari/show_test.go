@@ -750,7 +750,7 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 		}
 	}
 	var stderrOnly bytes.Buffer
-	if code := showJobAttempt(&stderrOnly, paths, runID, jobID, "", 0, state.StderrFileName); code != 0 {
+	if code := showJobAttempt(&stderrOnly, paths, runID, jobID, "", 0, false, state.StderrFileName); code != 0 {
 		t.Fatalf("showJobAttempt(stderr) exit code = %d", code)
 	}
 	if !strings.Contains(stderrOnly.String(), "warning") || strings.Contains(stderrOnly.String(), "completed") {
@@ -1490,7 +1490,7 @@ func TestShowJobOlderAttemptIgnoresLatestSummary(t *testing.T) {
 	}
 
 	var older bytes.Buffer
-	if code := showJobAttempt(&older, paths, runID, "job-a", first, 0); code != 0 {
+	if code := showJobAttempt(&older, paths, runID, "job-a", first, 0, false); code != 0 {
 		t.Fatalf("showJobAttempt(older) code=%d output=%q", code, older.String())
 	}
 	text := older.String()
@@ -1504,7 +1504,7 @@ func TestShowJobOlderAttemptIgnoresLatestSummary(t *testing.T) {
 	}
 
 	var latest bytes.Buffer
-	if code := showJobAttempt(&latest, paths, runID, "job-a", second, 0); code != 0 || !strings.Contains(latest.String(), "latest-host") || !strings.Contains(latest.String(), "latest-diagnosis") {
+	if code := showJobAttempt(&latest, paths, runID, "job-a", second, 0, false); code != 0 || !strings.Contains(latest.String(), "latest-host") || !strings.Contains(latest.String(), "latest-diagnosis") {
 		t.Fatalf("showJobAttempt(latest) code=%d output=%q, want summary hosts and diagnoses", code, latest.String())
 	}
 }

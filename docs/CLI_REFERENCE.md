@@ -395,6 +395,7 @@ Usage: `rotari show [SELECTOR]`
 | `--matrix` | `NAME` | `ROTARI_SHOW_MATRIX` | show jobs of this matrix only, named by its base job name |
 | `--logs` | `` | `ROTARI_SHOW_LOGS` | print output logs for all jobs |
 | `--failed-logs` | `` | `ROTARI_SHOW_FAILED_LOGS` | print output logs for failed jobs |
+| `--no-logs` | `` | `ROTARI_SHOW_NO_LOGS` | show one job or attempt's details without logs or automatic following |
 | `--stream` | `STREAM` | `ROTARI_SHOW_STREAM` | show both streams or select stdout/stderr |
 | `--tail` | `N` | `ROTARI_SHOW_TAIL` | print only the last N lines of each log, with --logs, --failed-logs, or a job's output |
 | `--follow` | `` | `ROTARI_SHOW_FOLLOW` | follow one selected log stream until the run completes |

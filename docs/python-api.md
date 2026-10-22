@@ -263,6 +263,7 @@ Show details for a project, run, job, or attempt.
 | `matrix` | `str` | show jobs of this matrix only, named by its base job name |
 | `logs` | `bool` | print output logs for all jobs |
 | `failed_logs` | `bool` | print output logs for failed jobs |
+| `no_logs` | `bool` | show one job or attempt's details without logs or automatic following |
 | `stream` | `str` | show both streams or select stdout/stderr |
 | `tail` | `str` | print only the last N lines of each log, with --logs, --failed-logs, or a job's output |
 | `follow` | `bool` | follow one selected log stream until the run completes |

@@ -1453,6 +1453,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "failed-logs",
                 },
                 {
+                    "description": "show one job or attempt's details without "
+                    "logs or automatic following",
+                    "environment": "ROTARI_SHOW_NO_LOGS",
+                    "name": "no-logs",
+                },
+                {
                     "description": "show both streams or select stdout/stderr",
                     "environment": "ROTARI_SHOW_STREAM",
                     "name": "stream",
@@ -4386,6 +4392,13 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Default for rotari show --failed-logs.",
             "job": False,
             "name": "ROTARI_SHOW_FAILED_LOGS",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "Default for rotari show --no-logs.",
+            "job": False,
+            "name": "ROTARI_SHOW_NO_LOGS",
         },
         {
             "array": False,

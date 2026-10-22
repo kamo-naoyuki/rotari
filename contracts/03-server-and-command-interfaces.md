@@ -531,6 +531,16 @@ does not promise to detect a lost remote client.
 - `show` uses a lazy pager. `--no-pager` and non-TTY output go directly to
   stdout. On a TTY, output of at most 24 lines is direct; longer output uses
   `$PAGER`, defaulting to `less -R`. Pager failure falls back to stdout.
+- **CLI-29** `show --no-logs` shows one job or attempt's normal details,
+  including notes and artifacts, without log contents or automatic log
+  following, including on a TTY during an active run. It works for array
+  tasks, matrix members, older attempts, and carried results; queued jobs
+  show their definition. It rejects a project, run, or whole-array target
+  and combinations with `--logs`, `--failed-logs`, `--follow`, `--stream`,
+  `--tail`, `--json`, `--report`, `--artifacts`, or `--wide`.
+  Implemented in [`cmd/rotari/show.go`](../cmd/rotari/show.go), tested in
+  [`cmd/rotari/show_no_logs_test.go`](../cmd/rotari/show_no_logs_test.go) and
+  [`conformance/03-interfaces/show_no_logs_test.go`](../conformance/03-interfaces/show_no_logs_test.go).
 - **CLI-20** Every command option has a corresponding CLI-default environment
   variable, named by its explicit mapping or `ROTARI_<COMMAND>_<OPTION>`.
   Options marked `CommandLineOnly` in the CLI specification are the only

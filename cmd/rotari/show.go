@@ -36,6 +36,7 @@ const (
 	statusJSONName     = "status.json"
 	runNotFoundMessage = "run %q not found"
 	jobNotFoundMessage = "job %q not found in run %q"
+	noLogsJobError     = "--no-logs requires --job-id, a job selector, or an attempt ID selecting one job or task, not a project, run, or whole array"
 )
 
 func resolveShowJobTargets(scope resolve.Scope, cliProjectName, runID, selector string, byName bool) ([]resolve.Job, error) {
@@ -81,6 +82,7 @@ func cmdShow(args []string) int {
 	filterOptions := cliJobFilterOptions(fs, queueRunJobFilters)
 	showLogs := cliBool(fs, "logs", false)
 	showFailedLogs := cliBool(fs, "failed-logs", false)
+	noLogs := cliBool(fs, "no-logs", false)
 	followLogs := cliBool(fs, "follow", false)
 	streamOption := cliString(fs, "stream", "both")
 	tailLines := cliInt(fs, "tail", 0)
@@ -90,6 +92,10 @@ func cmdShow(args []string) int {
 	artifactsOutput := cliBool(fs, "artifacts", false)
 	wide := cliBool(fs, "wide", false)
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *noLogs && (*showLogs || *showFailedLogs || *followLogs || cliOptionSet(fs, "stream") || cliOptionSet(fs, "tail") || *jsonOutput || *reportOutput || *artifactsOutput || *wide) {
+		printError("--no-logs cannot be combined with --logs, --failed-logs, --follow, --stream, --tail, --json, --report, --artifacts, or --wide")
 		return 1
 	}
 	if *wide && (*jsonOutput || *reportOutput || *showLogs || *showFailedLogs || *followLogs || *artifactsOutput) {
@@ -258,6 +264,10 @@ func cmdShow(args []string) int {
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
+	if *noLogs && *jobIDOption == "" {
+		printError(noLogsJobError)
+		return 1
+	}
 	if *artifactsOutput {
 		if *jobIDOption == "" {
 			printError("--artifacts requires --job-id, a job selector, or an attempt ID")
@@ -317,6 +327,10 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
+			if *noLogs {
+				printError(noLogsJobError)
+				return 1
+			}
 			return showQueue(paths, queue, arrayScope, jobfilter.Filter{}, *wide)
 		}
 		if *jobIDOption != "" {
@@ -361,6 +375,10 @@ func cmdShow(args []string) int {
 			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || *artifactsOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
+					if *noLogs {
+						printError(noLogsJobError)
+						return 1
+					}
 					return showQueue(paths, queue, arrayScope, jobfilter.Filter{}, *wide)
 				}
 				if *jobIDOption != "" {
@@ -394,6 +412,10 @@ func cmdShow(args []string) int {
 	}
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
+			if *noLogs {
+				printError(noLogsJobError)
+				return 1
+			}
 			if *artifactsOutput {
 				printErrorf("--artifacts requires --job-id of one task, not of the array %q", *jobIDOption)
 				return 1
@@ -431,7 +453,7 @@ func cmdShow(args []string) int {
 			printErrorf("failed to check queue state: %v", err)
 			return 1
 		}
-		if shouldFollowLogs(*followLogs, running, isTerminal(os.Stdout)) {
+		if !*noLogs && shouldFollowLogs(*followLogs, running, isTerminal(os.Stdout)) {
 			stream := *streamOption
 			if stream == "both" {
 				stream = "stdout"
@@ -439,7 +461,7 @@ func cmdShow(args []string) int {
 			return followJobLog(os.Stdout, paths, runID, *jobIDOption, attemptID, stream)
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *tailLines, *streamOption)
+			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *tailLines, *noLogs, *streamOption)
 		})
 	}
 	if *followLogs {
@@ -1498,10 +1520,10 @@ func runJobSpecs(runDir string, queue model.Queue, queueErr error) (map[string]m
 }
 
 func showJob(writer io.Writer, paths state.ProjectPaths, runID, jobID string) int {
-	return showJobAttempt(writer, paths, runID, jobID, "", 0)
+	return showJobAttempt(writer, paths, runID, jobID, "", 0, false)
 }
 
-func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, tail int, selectedStreams ...string) int {
+func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, tail int, noLogs bool, selectedStreams ...string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -1537,10 +1559,10 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 				// details below keep the original attempt and exit code.
 				fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
 				fmt.Fprintf(writer, "%s manually accepted from run %s attempt %s (no re-execution)\n\n", cyan("Note:"), origin.RunID, origin.AttemptID)
-				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID, tail, selectedStreams...)
+				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID, tail, noLogs, selectedStreams...)
 			}
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "", tail, selectedStreams...)
+			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "", tail, noLogs, selectedStreams...)
 		}
 		if !inRun || attemptID != "" {
 			printErrorf(jobNotFoundMessage, jobID, runID)
@@ -1659,12 +1681,16 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		}
 	}
 	if neverRan {
-		fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
+		if !noLogs {
+			fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
+		}
 		return 0
 	}
 	listing := jobstatus.ListArtifacts(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID, AttemptID: selectedAttemptID})
 	writeArtifactListing(writer, listing, shownArtifacts, "rotari show -j "+selectedAttemptID+" --artifacts")
-	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...), tail)
+	if !noLogs {
+		printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...), tail)
+	}
 	return 0
 }
 

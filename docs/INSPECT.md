@@ -281,6 +281,20 @@ cannot be distinguished. `--log-mode separate` stores them independently, and
 `--stream` chooses which one to follow. Output buffered by the job itself
 appears only after that program flushes it.
 
+To read a job or attempt's details without its output, use `--no-logs`:
+
+```sh
+rotari show JOB_ID --no-logs
+rotari show ATTEMPT_ID --no-logs
+```
+
+This keeps the status, timestamps, command, notes, and artifact listing, but
+omits all log streams and disables automatic following even on a terminal.
+It requires one job or attempt (an array task or matrix member is also one
+job), not a project, run, or whole array. It cannot be combined with `--logs`,
+`--failed-logs`, `--follow`, `--stream`, `--tail`, `--json`, `--report`,
+`--artifacts`, or `--wide`. Queued jobs still show their definition.
+
 When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
