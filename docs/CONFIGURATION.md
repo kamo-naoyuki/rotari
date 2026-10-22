@@ -217,18 +217,22 @@ restart. Generate a commented template with:
 rotari config --launchers
 ```
 
-The Web UI's Settings menu does the same with **Generate launcher config**,
-and **Launcher config** shows the file, why `rotari web --allow-exec` would
-refuse it, and the commands a restart would load, including whether each one's
-program is installed. Neither edits the file's commands; edit it in a text
-editor. It is written with mode `0600` in a `0700` directory. Rotari refuses the file,
-and `rotari web --allow-exec` does not start, unless no other user can change
-it: the file and every directory above it, following symlinks, must be owned
-by you or root and not writable by group or others (a sticky directory such as
-`/tmp` is allowed). The error names the offending path and the `chmod` that
-fixes it. A missing file only means that only the built-in services are available; any
-unknown key, duplicate name, or setting that does not apply to an entry's mode
-is an error. `rotari config --list` shows the file when it exists.
+The Web UI's Settings menu does the same with **Generate launcher config**.
+**Launcher config** shows the file, why `rotari web --allow-exec` would refuse
+it, and the commands a restart would load, including whether each one's
+program is installed. With `--allow-control`, the same view can edit and save
+an existing trusted file; the Web UI validates the TOML and asks you to restart
+`rotari web --allow-exec` before changes take effect. Saving is disabled on a
+read-only server. A run's launcher config is still this server-wide file, not
+part of the run's config snapshot. The generated file has mode `0600` in a
+`0700` directory. Rotari refuses the file, and `rotari web --allow-exec` does
+not start, unless no other user can change it: the file and every directory
+above it, following symlinks, must be owned by you or root and not writable by
+group or others (a sticky directory such as `/tmp` is allowed). The error names
+the offending path and the `chmod` that fixes it. A missing file only means
+that only the built-in services are available; any unknown key, duplicate
+name, or setting that does not apply to an entry's mode is an error.
+`rotari config --list` shows the file when it exists.
 
 A command whose first program cannot be found on the Web server's `PATH` (or
 whose absolute path is not executable) is shown disabled in the Web UI with

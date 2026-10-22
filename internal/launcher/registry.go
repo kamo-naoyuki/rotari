@@ -280,6 +280,61 @@ func ParseCommands(data []byte) ([]Command, error) {
 	return commands, nil
 }
 
+// ErrConfigChanged reports that the launcher file changed since the editor
+// loaded it.
+var ErrConfigChanged = errors.New("launcher config changed since it was loaded")
+
+// SaveConfig validates and atomically replaces an existing trusted launcher
+// file only when its current contents still match expected.
+func SaveConfig(path string, expected, contents []byte) error {
+	if len(contents) > maxRegistryBytes {
+		return fmt.Errorf("launcher file is larger than %d bytes", maxRegistryBytes)
+	}
+	if _, err := ParseCommands(contents); err != nil {
+		return fmt.Errorf("invalid launcher config: %w", err)
+	}
+	resolved, err := resolveTrusted(path, os.Getuid())
+	if err != nil {
+		return fmt.Errorf("launcher file %s: %w", path, err)
+	}
+	file, err := OpenTrustedFile(path)
+	if err != nil {
+		return fmt.Errorf("launcher file %s: %w", path, err)
+	}
+	current, readErr := io.ReadAll(io.LimitReader(file, maxRegistryBytes+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return fmt.Errorf("read launcher file %s: %w", path, readErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close launcher file %s: %w", path, closeErr)
+	}
+	if len(current) > maxRegistryBytes {
+		return fmt.Errorf("launcher file %s is larger than %d bytes", path, maxRegistryBytes)
+	}
+	if !bytes.Equal(current, expected) {
+		return ErrConfigChanged
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(resolved), ".launchers-*.toml")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(contents); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, resolved)
+}
+
 func (entry rawCommand) command() (Command, error) {
 	if entry.Name == nil || strings.TrimSpace(*entry.Name) == "" {
 		return Command{}, errors.New("name is required")

@@ -609,7 +609,7 @@ func TestLaunchUnavailableCommand(t *testing.T) {
 	}
 }
 
-func TestLauncherConfigViewAndGenerate(t *testing.T) {
+func TestLauncherConfigViewGenerateAndSave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config", "rotari", launcher.FileName)
 	options := testOptions(t.TempDir(), true)
 	options.LauncherFile = path
@@ -622,7 +622,7 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 	// No file: only the built-in TensorBoard would be registered.
 	got := view()
 	builtins := len(launcher.BuiltinCommands())
-	if got.Path != path || got.Exists || got.Enabled || got.Error != "" || len(got.Commands) != builtins || !got.Commands[0].Builtin {
+	if got.Path != path || got.Exists || got.Enabled || got.Editable || got.Error != "" || len(got.Commands) != builtins || !got.Commands[0].Builtin {
 		t.Fatalf("missing file view = %+v", got)
 	}
 
@@ -635,8 +635,41 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 		t.Fatalf("generated file = %v, %v; want mode 0600", info, err)
 	}
 	got = view()
-	if !got.Exists || got.Content != string(launcher.Template()) || got.Error != "" || len(got.Commands) != builtins {
+	if !got.Exists || !got.Editable || got.Content != string(launcher.Template()) || got.Error != "" || len(got.Commands) != builtins {
 		t.Fatalf("generated file view = %+v", got)
+	}
+	updated := []byte("[[launcher]]\nname = \"Plot\"\ncommand = \"plot\"\ntargets = [\"file\"]\nmode = \"command\"\n")
+	saveBody, err := json.Marshal(map[string]string{"expected": got.Content, "content": string(updated)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := serveJSON(t, handler, http.MethodPost, "/api/save-launcher-config", string(saveBody))
+	if saved.Code != http.StatusOK || !strings.Contains(saved.Body.String(), "restart rotari web --allow-exec") {
+		t.Fatalf("save = %d %s", saved.Code, saved.Body.String())
+	}
+	got = view()
+	if got.Content != string(updated) || len(got.Commands) != builtins+1 || got.Commands[builtins].Name != "Plot" {
+		t.Fatalf("saved file view = %+v", got)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("saved file = %v, %v; want mode 0600", info, err)
+	}
+	staleBody, err := json.Marshal(map[string]string{"expected": string(launcher.Template()), "content": string(updated)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stale := serveJSON(t, handler, http.MethodPost, "/api/save-launcher-config", string(staleBody)); stale.Code != http.StatusConflict {
+		t.Fatalf("stale save = %d %s; want 409", stale.Code, stale.Body.String())
+	}
+	invalidBody, err := json.Marshal(map[string]string{"expected": string(updated), "content": "[[launcher]]\nname = \"broken\"\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invalid := serveJSON(t, handler, http.MethodPost, "/api/save-launcher-config", string(invalidBody)); invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid save = %d %s; want 400", invalid.Code, invalid.Body.String())
+	}
+	if got := view(); got.Content != string(updated) {
+		t.Fatalf("invalid save changed the file: %+v", got)
 	}
 	if again := serveJSON(t, handler, http.MethodPost, "/api/generate-launcher-config", ""); again.Code != http.StatusConflict {
 		t.Fatalf("second generate = %d %s; want 409 and the file kept", again.Code, again.Body.String())
@@ -653,17 +686,27 @@ func TestLauncherConfigViewAndGenerate(t *testing.T) {
 	if err := os.Chmod(path, 0o664); err != nil {
 		t.Fatal(err)
 	}
-	if got = view(); !strings.Contains(got.Error, "writable by group or others") || !strings.Contains(got.Content, `name = "Plot"`) {
+	if got = view(); !strings.Contains(got.Error, "writable by group or others") || !strings.Contains(got.Content, `name = "Plot"`) || got.Editable {
 		t.Fatalf("untrusted file view = %+v", got)
 	}
 
 	readOnly := testOptions(t.TempDir(), false)
-	readOnly.LauncherFile = filepath.Join(t.TempDir(), launcher.FileName)
-	if refused := serveJSON(t, Handler(readOnly), http.MethodPost, "/api/generate-launcher-config", ""); refused.Code != http.StatusForbidden {
+	readOnly.LauncherFile = filepath.Join(t.TempDir(), "rotari", launcher.FileName)
+	if err := launcher.WriteTemplate(readOnly.LauncherFile); err != nil {
+		t.Fatal(err)
+	}
+	readOnlyHandler := Handler(readOnly)
+	if got := decodeBody[webLauncherConfig](t, serveJSON(t, readOnlyHandler, http.MethodGet, "/api/launcher-config", "")); got.Editable {
+		t.Fatal("a read-only server exposed an editable launcher config")
+	}
+	if refused := serveJSON(t, readOnlyHandler, http.MethodPost, "/api/generate-launcher-config", ""); refused.Code != http.StatusForbidden {
 		t.Fatalf("generate on a read-only server = %d", refused.Code)
 	}
-	if _, err := os.Stat(readOnly.LauncherFile); err == nil {
-		t.Fatal("a read-only server wrote the launcher file")
+	if refused := serveJSON(t, readOnlyHandler, http.MethodPost, "/api/save-launcher-config", `{"expected":"","content":""}`); refused.Code != http.StatusForbidden {
+		t.Fatalf("save on a read-only server = %d", refused.Code)
+	}
+	if data, err := os.ReadFile(readOnly.LauncherFile); err != nil || string(data) != string(launcher.Template()) {
+		t.Fatalf("a read-only server changed the launcher file: %q, %v", data, err)
 	}
 }
 

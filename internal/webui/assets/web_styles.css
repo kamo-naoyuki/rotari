@@ -21,6 +21,24 @@
   overflow: auto;
   position: relative;
 }
+.launcher-config-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.launcher-config-editor textarea {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  font: 13px/1.5 var(--font-mono);
+}
+.launcher-config-editor textarea.dirty {
+  border-color: var(--s-warn);
+  background: var(--s-warn-bg);
+}
+.launcher-config-editor button {
+  justify-self: end;
+}
 .command-example {
   text-align: left;
 }
@@ -499,6 +517,18 @@ section {
 .modal-config-path > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.config-readonly-note {
+  margin: 0 0 10px;
+  border-left: 3px solid var(--s-warn);
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--s-warn-bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+.config-readonly-note[hidden] {
+  display: none;
 }
 .output-box {
   position: relative;

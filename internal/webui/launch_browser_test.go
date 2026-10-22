@@ -281,15 +281,31 @@ func TestWebLauncherConfigInBrowser(t *testing.T) {
 	runLaunchBrowserScript(t, options, f, `
   const settings = [...document.querySelectorAll('#settings-actions button')].map(button => button.textContent);
   if (!settings.includes('Launcher config') || !settings.includes('Generate launcher config')) fail('settings buttons', settings);
+  window.history.pushState({}, '', '/project/default/run/' + runID);
+  window.addConfigButton();
+  const runSettings = [...document.querySelectorAll('#settings-actions button')].map(button => button.textContent);
+  if (!runSettings.includes('Launcher config') || !runSettings.includes('Generate launcher config')) fail('run page settings buttons', runSettings);
+  window.history.pushState({}, '', '/');
+  window.addConfigButton();
   await window.showLauncherConfig();
   const view = document.getElementById('launch-view');
   if (view.hidden || !document.getElementById('modal-log').hidden) fail('launcher config view toggling');
   if (view.querySelector('.launch-table thead').textContent.trim() !== 'NameTargetsModeNotesCommand') fail('launcher config table headings', view.querySelector('.launch-table thead').textContent);
   if (!view.textContent.includes('(does not exist)') || !view.textContent.includes('TensorBoard') || !view.textContent.includes('built in') ||
       !view.textContent.includes('start rotari web --allow-exec')) fail('missing file view', view.textContent);
+  const generate = view.querySelector('.launch-choices button');
+  if (!generate || generate.textContent !== 'Generate launcher config') fail('missing-file action placement', view.innerHTML);
   await window.generateLauncherConfig();
   if (!view.textContent.includes('launcher config generated') || view.textContent.includes('(does not exist)') ||
-      !view.querySelector('.launcher-config-text').textContent.includes('# TensorBoard is built in')) fail('generated view', view.textContent);
+      !view.querySelector('.launcher-config-editor textarea').value.includes('# TensorBoard is built in')) fail('generated view', view.textContent);
+  const editor = view.querySelector('.launcher-config-editor textarea');
+  editor.value += '\n[[launcher]]\nname = "Count"\ncommand = "wc -l"\ntargets = ["file"]\nmode = "command"\n';
+  editor.dispatchEvent(new window.Event('input'));
+  const save = view.querySelector('.launcher-config-editor button');
+  if (!save || save.disabled) fail('launcher config save not enabled');
+  await save.onclick();
+  if (!view.textContent.includes('launcher config saved') ||
+      !view.querySelector('.launcher-config-editor textarea').value.includes('name = "Count"')) fail('saved launcher config view', view.textContent);
   await window.generateLauncherConfig();
   if (!view.textContent.includes('launcher file already exists')) fail('second generate', view.textContent);
 `)

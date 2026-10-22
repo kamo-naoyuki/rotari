@@ -719,6 +719,7 @@ func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
 		Content  string `json:"content"`
 		Error    string `json:"error"`
 		Enabled  bool   `json:"enabled"`
+		Editable bool   `json:"editable"`
 		Commands []struct {
 			Name    string `json:"name"`
 			Builtin bool   `json:"builtin"`
@@ -733,7 +734,7 @@ func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
 		return got
 	}
 	// Launching is off; the file is still shown, with the built-in command.
-	if got := read(); got.Path != path || got.Exists || got.Enabled || len(got.Commands) != 6 || got.Commands[0].Name != "TensorBoard" || !got.Commands[0].Builtin {
+	if got := read(); got.Path != path || got.Exists || got.Enabled || got.Editable || len(got.Commands) != 6 || got.Commands[0].Name != "TensorBoard" || !got.Commands[0].Builtin {
 		t.Fatalf("view without a file = %+v", got)
 	}
 	if generated := e.HTTPPostJSON(base+"/api/generate-launcher-config", map[string]any{}); generated.Status != http.StatusOK {
@@ -749,7 +750,7 @@ func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := read(); !got.Exists || got.Content != string(template) || got.Error != "" {
+	if got := read(); !got.Exists || !got.Editable || got.Content != string(template) || got.Error != "" {
 		t.Fatalf("view of the generated file = %+v, want the config --launchers template", got)
 	}
 	if err := os.WriteFile(path, []byte("# mine\n"), 0o600); err != nil {
@@ -761,9 +762,38 @@ func TestWebShowsAndGeneratesLauncherConfig(t *testing.T) {
 	if data, _ := os.ReadFile(path); string(data) != "# mine\n" {
 		t.Fatalf("generate replaced the file: %q", data)
 	}
+	content := "[[launcher]]\nname = \"Count\"\ncommand = \"wc -l\"\ntargets = [\"file\"]\nmode = \"command\"\n"
+	saved := e.HTTPPostJSON(base+"/api/save-launcher-config", map[string]string{
+		"expected": "# mine\n",
+		"content":  content,
+	})
+	if saved.Status != http.StatusOK || !strings.Contains(saved.Body, "restart rotari web --allow-exec") {
+		t.Fatalf("save = (%d, %s)", saved.Status, saved.Body)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != content {
+		t.Fatalf("saved file = %q, %v", data, err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("saved file = %v, %v; want mode 0600", info, err)
+	}
+	if stale := e.HTTPPostJSON(base+"/api/save-launcher-config", map[string]string{
+		"expected": "# mine\n",
+		"content":  content,
+	}); stale.Status != http.StatusConflict {
+		t.Fatalf("stale save = (%d, %s)", stale.Status, stale.Body)
+	}
+	if invalid := e.HTTPPostJSON(base+"/api/save-launcher-config", map[string]string{
+		"expected": content,
+		"content":  "[[launcher]]\nname = \"broken\"\n",
+	}); invalid.Status != http.StatusBadRequest {
+		t.Fatalf("invalid save = (%d, %s)", invalid.Status, invalid.Body)
+	}
 	readOnly := support.NewEnv(t)
 	readOnlyBase := readOnly.StartWeb("--allow-control=false")
 	if refused := readOnly.HTTPPostJSON(readOnlyBase+"/api/generate-launcher-config", map[string]any{}); refused.Status != http.StatusForbidden {
 		t.Fatalf("generate on a read-only server = (%d, %s)", refused.Status, refused.Body)
+	}
+	if refused := readOnly.HTTPPostJSON(readOnlyBase+"/api/save-launcher-config", map[string]string{"expected": "", "content": ""}); refused.Status != http.StatusForbidden {
+		t.Fatalf("save on a read-only server = (%d, %s)", refused.Status, refused.Body)
 	}
 }

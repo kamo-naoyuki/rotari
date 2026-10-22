@@ -832,11 +832,14 @@ setTimeout(() => {
 	(async () => {
 		await dom.window.showConfig();
 		const configPath = dom.window.document.getElementById('modal-config-paths');
+		const readOnlyNote = dom.window.document.getElementById('config-readonly-note');
+		if (readOnlyNote.hidden || !readOnlyNote.textContent.includes('Read only') || !readOnlyNote.textContent.includes('saved with this run')) process.exit(66);
 		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/runs/run-1/configs/config.yaml') || configPath.textContent.includes('notifications.toml')) process.exit(52);
 		if (configPath.querySelector('[data-copy-value="/state/projects/demo/runs/run-1/configs/config.yaml"]') === null) process.exit(53);
 		if (dom.window.document.querySelector('.output-box').textContent.includes('notifications.toml')) process.exit(59);
 		await snapshotButton.onclick();
 		if (modal.querySelector('strong').textContent !== 'Notification config' || !dom.window.document.getElementById('modal-log').textContent.includes('[webhook]')) process.exit(61);
+		if (readOnlyNote.hidden) process.exit(67);
 		if (!editor.hidden || !dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('copy-modal').hidden) process.exit(62);
 		if (!dom.window.document.getElementById('notification-config-save').hidden || !dom.window.document.getElementById('notification-config-reload').hidden || configPath.textContent.includes('config.yaml')) process.exit(63);
 		let copiedSnapshot = '';

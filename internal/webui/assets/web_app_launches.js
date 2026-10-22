@@ -617,9 +617,8 @@ async function stopLaunch(id) {
   renderLaunches();
 }
 
-// addLauncherConfigButtons adds Launcher config and Generate launcher config
-// to the Settings menu. The launcher file is the server's global one, so
-// they appear on every page of the live server; a static export has none.
+// addLauncherConfigButtons adds the server-wide launcher config controls to
+// Settings on every page; launcher config is not part of a run snapshot.
 function addLauncherConfigButtons(toolbar) {
   if (typeof rewriteStaticLinks === "function") return;
   const view = document.createElement("button");
@@ -702,10 +701,54 @@ async function showLauncherConfig(message) {
         "</tbody></table>"
       : "") +
     (config.exists
-      ? '<pre class="log launcher-config-text">' +
-        esc(config.content) +
-        "</pre>"
+      ? config.editable
+        ? '<div class="launcher-config-editor"></div>'
+        : '<pre class="log launcher-config-text">' +
+          esc(config.content) +
+          "</pre>"
       : '<div class="launch-choices"><button type="button" onclick="generateLauncherConfig()">Generate launcher config</button></div>');
+  if (config.exists && config.editable) {
+    const editor = document.createElement("div");
+    editor.className = "launcher-config-editor";
+    const textarea = document.createElement("textarea");
+    textarea.setAttribute("aria-label", "Launcher config contents");
+    textarea.value = config.content || "";
+    textarea.dataset.initial = textarea.value;
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "Save launcher config";
+    save.disabled = true;
+    textarea.oninput = () => {
+      save.disabled = textarea.value === textarea.dataset.initial;
+      textarea.classList.toggle("dirty", !save.disabled);
+    };
+    save.onclick = async () => {
+      save.disabled = true;
+      try {
+        const response = await fetch("/api/save-launcher-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expected: textarea.dataset.initial,
+            content: textarea.value,
+          }),
+        });
+        const text = await response.text();
+        if (!response.ok)
+          throw new Error(text.trim() || "HTTP " + response.status);
+        const result = JSON.parse(text);
+        await showLauncherConfig(result.message);
+      } catch (error) {
+        save.disabled = textarea.value === textarea.dataset.initial;
+        view.insertAdjacentHTML(
+          "afterbegin",
+          launchExplanation("Cannot save the launcher config: " + error.message),
+        );
+      }
+    };
+    editor.append(textarea, save);
+    view.querySelector(".launcher-config-editor").replaceWith(editor);
+  }
 }
 
 // generateLauncherConfig writes the template where the server reads the
