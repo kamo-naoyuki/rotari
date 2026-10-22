@@ -570,7 +570,24 @@ It shows the saved runner lock and the supervisor's PID record. It is not a live
 
 ### Is `rotari web` safe to expose beyond `127.0.0.1`?
 
-Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. Do not expose the UI without a token. The browser shows a sign-in form; use `rotari` as the user name and the token as the password. After sign-in, a 12-hour session cookie keeps the Web UI authenticated. API clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; Basic authentication is not supported. This is authentication, not encryption. Environment variable values are never exposed; the UI shows only whether each variable is set.
+Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`). Browser login requires HTTPS;
+API token authentication may be used only on a trusted network or over HTTPS. Do not expose the UI without a token. The browser shows a sign-in form; use `rotari` as the user name and the token as the password. After sign-in, a 12-hour session cookie keeps the Web UI authenticated. API clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; Basic authentication is not supported. This is authentication, not encryption. Environment variable values are never exposed; the UI shows only whether each variable is set.
+
+### Why does Chrome warn that my Web token was found in a data breach?
+
+That warning comes from Chrome's password check, not from rotari reporting a
+breach. The token entered on the sign-in page is treated as a password. If it
+was reused elsewhere or matches a credential Chrome knows about, replace it
+with a unique random token; do not try to hide or ignore the warning. For
+example, generate one with
+`python3 -c 'import secrets; print(secrets.token_hex(32))'`, set it as
+`ROTARI_WEB_AUTH_TOKEN`, and restart `rotari web`. Keep the token out of
+source control and update or remove Chrome's saved rotari credential.
+
+When `--allow-exec` is used without a configured token, rotari generates a
+new cryptographically random token at startup and prints it to stderr. If
+Chrome still warns for that generated token, check which saved credential
+Chrome is warning about and whether it belongs to this rotari server.
 
 ### Do notifications work in VS Code's internal browser?
 

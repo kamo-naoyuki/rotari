@@ -742,7 +742,9 @@ async function showLauncherConfig(message) {
         save.disabled = textarea.value === textarea.dataset.initial;
         view.insertAdjacentHTML(
           "afterbegin",
-          launchExplanation("Cannot save the launcher config: " + error.message),
+          launchExplanation(
+            "Cannot save the launcher config: " + error.message,
+          ),
         );
       }
     };
