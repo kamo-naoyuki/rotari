@@ -253,4 +253,4 @@ rotari web
 
 See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
-mode, see the [FAQ](FAQ.md#web-ui) and [Security model](OPERATIONS.md#security-model).
+mode, see the [Web UI guide](WEB.md), the [FAQ](FAQ.md#web-ui), and [Security model](OPERATIONS.md#security-model).
