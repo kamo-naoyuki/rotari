@@ -39,7 +39,10 @@ printf '123.headnode\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(runDir, job.ID)
+	jobDir, err := state.AttemptJobDir(runDir, job)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, want := range []string{"-N\nrotari show att_run-1-abc123-0 (echo hello)", "-o\n" + filepath.Join(jobDir, state.StdoutFileName), "-e\n" + filepath.Join(jobDir, state.StderrFileName)} {
 		if !strings.Contains(string(arguments), want+"\n") {
 			t.Errorf("qsub arguments = %q, want %q", arguments, want)
@@ -48,14 +51,14 @@ printf '123.headnode\n'
 	if !strings.Contains(string(arguments), "-V\n") {
 		t.Fatalf("qsub arguments = %q, want default -V", arguments)
 	}
-	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "pbs-wrapper.sh"))
+	wrapper, err := os.ReadFile(filepath.Join(jobDir, "pbs-wrapper.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(wrapper), "echo") {
 		t.Fatalf("wrapper does not contain command: %s", wrapper)
 	}
-	data, err := os.ReadFile(filepath.Join(runDir, "abc123", "job.json"))
+	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,14 +34,18 @@ printf 'Job <123> is submitted to default queue.\n'
 	if metadata.LSFJobID != "123" {
 		t.Fatalf("job id = %q, want 123", metadata.LSFJobID)
 	}
-	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "lsf-wrapper.sh"))
+	jobDir, err := state.AttemptJobDir(runDir, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper, err := os.ReadFile(filepath.Join(jobDir, "lsf-wrapper.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(wrapper), "#BSUB -o") || !strings.Contains(string(wrapper), "echo") {
 		t.Fatalf("wrapper is missing LSF directives or command: %s", wrapper)
 	}
-	if !strings.Contains(string(wrapper), "#BSUB -o '"+filepath.Join(runDir, job.ID, state.StdoutFileName)+"'\n") || !strings.Contains(string(wrapper), "#BSUB -e '"+filepath.Join(runDir, job.ID, state.StderrFileName)+"'\n") {
+	if !strings.Contains(string(wrapper), "#BSUB -o '"+filepath.Join(jobDir, state.StdoutFileName)+"'\n") || !strings.Contains(string(wrapper), "#BSUB -e '"+filepath.Join(jobDir, state.StderrFileName)+"'\n") {
 		t.Fatalf("LSF wrapper does not separate stream files: %s", wrapper)
 	}
 	arguments, err := os.ReadFile(argumentsPath)

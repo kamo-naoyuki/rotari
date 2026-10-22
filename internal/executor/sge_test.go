@@ -33,15 +33,19 @@ func TestSubmitSGEJobWithFakeGridEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"-terse", "-N\nrotari show att_run-1-job-1-0 (echo hello)", "-o\n" + filepath.Join(runDir, "job-1", state.StdoutFileName), "-e\n" + filepath.Join(runDir, "job-1", state.StderrFileName), "-q\nshort", "-V"} {
+	jobDir, err := state.AttemptJobDir(runDir, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"-terse", "-N\nrotari show att_run-1-job-1-0 (echo hello)", "-o\n" + filepath.Join(jobDir, state.StdoutFileName), "-e\n" + filepath.Join(jobDir, state.StderrFileName), "-q\nshort", "-V"} {
 		if !strings.Contains(string(args), want) {
 			t.Errorf("qsub args %q do not include %q", args, want)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(runDir, "job-1", "sge-wrapper.sh")); err != nil {
+	if _, err := os.Stat(filepath.Join(jobDir, "sge-wrapper.sh")); err != nil {
 		t.Fatalf("wrapper was not created: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(runDir, "job-1", "job.json"))
+	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
