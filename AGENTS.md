@@ -18,6 +18,8 @@ behavior from names alone.
 * Use Jujutsu (`jj`) for status, diffs, commits, and history changes, even
   when a colocated Git repository exists. Do not use Git to stage, commit,
   check out, or rewrite changes.
+* Do not add `Co-authored-by` trailers to commit messages unless the user
+  explicitly requests them.
 * Before editing, run `jj status` and `jj workspace list`. For concurrent
   threads, use separate workspaces with explicit base revisions; do not edit
   another thread's workspace or rewrite its changes without coordination.
