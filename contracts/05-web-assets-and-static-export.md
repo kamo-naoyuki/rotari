@@ -342,14 +342,16 @@ and [`TestWebListsBasedirsRegisteredAfterStart`](../conformance/05-web/basedir_r
 - `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` protects every live Web route with
   a login form and a revocable 12-hour session cookie; API clients authenticate
   with `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`. Basic
-  authentication is not supported. This is authentication only and does not
-  encrypt HTTP traffic. The notification
+  authentication is not supported. Browser login requires HTTPS, and its
+  session cookie always has the `Secure` attribute. API token authentication
+  does not encrypt HTTP traffic and must only be used over a trusted network
+  or HTTPS. The notification
   settings form masks a saved webhook URL in its input and never returns that
   URL in the read API response, but masking is only a visual safeguard: a URL
   entered in the form is sent to the Web server over the current HTTP
-  connection when saved. Use loopback or a trusted network, or terminate HTTPS
-  at a trusted reverse proxy; do not treat the password-style field or auth
-  token as transport encryption.
+  connection when saved. Use HTTPS through a trusted reverse proxy for browser
+  sessions; do not treat the password-style field or auth token as transport
+  encryption.
 - A non-loopback listener also exposes registered basedir paths; the warning
   without an auth token includes that path information.
 - `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata for each project: `running.lock` fields and,
@@ -758,14 +760,20 @@ it, and both are rejected with `--static-dir` (WEB-3). With it, every route
 requires the Web token, on loopback listeners too: without
 `--auth-token` or `ROTARI_WEB_AUTH_TOKEN`, the server generates one and
 prints it on stderr; it always prints the sign-in user name and never prints a
-configured token. Browser users sign in through the login form and receive a
-revocable 12-hour session cookie; API callers continue to use bearer or
-`X-Rotari-Token` credentials. Session-cookie mutations require a same-origin
-request, and signing out revokes the session. Without it,
+configured token. Browser users sign in through the login form over HTTPS and
+receive a revocable 12-hour `Secure` session cookie; login over plain HTTP is
+refused. API callers continue to use bearer or `X-Rotari-Token` credentials.
+Session-cookie mutations require a same-origin request, and signing out
+revokes the session. Without it,
 `GET /api/launchers` reports launching unavailable with the server's reason
 and enabling hint, and the launch API answers 403 with the same text. Covered
 by `TestWebLaunchRequiresOptInAndToken` in
-[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go),
+and the login-cookie requirements by
+`TestWebLoginFormCreatesAndRevokesSession` and
+`TestWebSessionCookieAlwaysUsesSecureAttribute` in
+[webui_test.go](../internal/webui/webui_test.go), implemented in
+[auth.go](../internal/webui/auth.go).
 
 **WEB-14** While launching is enabled, a request whose `Host` is not
 `localhost`, `127.0.0.1`, `[::1]` (any port), a specific `--host`, or an

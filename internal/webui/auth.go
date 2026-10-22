@@ -25,7 +25,7 @@ type webSessions struct {
 	expiries map[string]time.Time
 }
 
-func (sessions *webSessions) issue(writer http.ResponseWriter, request *http.Request) bool {
+func (sessions *webSessions) issue(writer http.ResponseWriter) bool {
 	var id [32]byte
 	if _, err := rand.Read(id[:]); err != nil {
 		http.Error(writer, "could not create login session", http.StatusInternalServerError)
@@ -54,7 +54,7 @@ func (sessions *webSessions) issue(writer http.ResponseWriter, request *http.Req
 		Expires:  expires,
 		MaxAge:   int(webSessionLifetime.Seconds()),
 		HttpOnly: true,
-		Secure:   secureAuthCookie(request),
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 	return true
@@ -105,7 +105,7 @@ func WithAuthToken(next http.Handler, token string) http.Handler {
 		}
 		tokenAuthenticated := len(provided) == len(token) &&
 			subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
-		sessionAuthenticated := sessions.accepts(request, time.Now())
+		sessionAuthenticated := isSecureAuthRequest(request) && sessions.accepts(request, time.Now())
 		launchRequest := strings.HasPrefix(request.URL.Path, launchProxyPrefix)
 		launchSessionAuthenticated := launchRequest && launchSession.accepts(request, time.Now())
 		authenticated := tokenAuthenticated || sessionAuthenticated || launchSessionAuthenticated
@@ -143,6 +143,10 @@ func WithAuthToken(next http.Handler, token string) http.Handler {
 
 func handleWebLogin(writer http.ResponseWriter, request *http.Request, token string, sessions *webSessions) {
 	noCacheAuthResponse(writer)
+	if !isSecureAuthRequest(request) {
+		http.Error(writer, "browser login requires HTTPS", http.StatusForbidden)
+		return
+	}
 	nextPath := safeWebReturnPath(request.URL.Query().Get("next"))
 	switch request.Method {
 	case http.MethodGet, http.MethodHead:
@@ -170,7 +174,7 @@ func handleWebLogin(writer http.ResponseWriter, request *http.Request, token str
 			serveWebLoginPageStatus(writer, nextPath, "Sign-in failed. Check your user name and token.", http.StatusUnauthorized)
 			return
 		}
-		if !sessions.issue(writer, request) {
+		if !sessions.issue(writer) {
 			return
 		}
 		http.Redirect(writer, request, nextPath, http.StatusSeeOther)
@@ -199,7 +203,7 @@ func handleWebLogout(writer http.ResponseWriter, request *http.Request, sessions
 		Expires:  time.Unix(1, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureAuthCookie(request),
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(writer, &http.Cookie{
@@ -209,7 +213,7 @@ func handleWebLogout(writer http.ResponseWriter, request *http.Request, sessions
 		Expires:  time.Unix(1, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureAuthCookie(request),
+		Secure:   isSecureAuthRequest(request),
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.Redirect(writer, request, webLoginPath, http.StatusSeeOther)
@@ -228,13 +232,13 @@ func sameOriginFormPost(request *http.Request) bool {
 		return false
 	}
 	scheme := "http"
-	if secureAuthCookie(request) {
+	if isSecureAuthRequest(request) {
 		scheme = "https"
 	}
 	return origin.Scheme == scheme
 }
 
-func secureAuthCookie(request *http.Request) bool {
+func isSecureAuthRequest(request *http.Request) bool {
 	return request.TLS != nil || strings.EqualFold(strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")), "https")
 }
 

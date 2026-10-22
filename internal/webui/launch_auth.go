@@ -35,7 +35,7 @@ func (auth launchAuth) cookie(request *http.Request, now time.Time) *http.Cookie
 		Expires:  expires,
 		MaxAge:   int(launchAuthLifetime.Seconds()),
 		HttpOnly: true,
-		Secure:   secureAuthCookie(request),
+		Secure:   isSecureAuthRequest(request),
 		SameSite: http.SameSiteStrictMode,
 	}
 }

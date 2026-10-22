@@ -2156,8 +2156,24 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 		t.Fatalf("unauthenticated page request = %d, location = %q", pageRecorder.Code, pageRecorder.Header().Get("Location"))
 	}
 
+	insecureLoginPage := httptest.NewRecorder()
+	handler.ServeHTTP(insecureLoginPage, httptest.NewRequest(http.MethodGet, "http://localhost"+webLoginPath, nil))
+	if insecureLoginPage.Code != http.StatusForbidden {
+		t.Fatalf("insecure login page = %d, want 403", insecureLoginPage.Code)
+	}
+	insecureLoginPost := httptest.NewRequest(http.MethodPost, "http://localhost"+webLoginPath, strings.NewReader(url.Values{
+		"username": {"rotari"}, "password": {"secret"},
+	}.Encode()))
+	insecureLoginPost.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	insecureLoginPost.Header.Set("Origin", "http://localhost")
+	insecureLoginRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(insecureLoginRecorder, insecureLoginPost)
+	if insecureLoginRecorder.Code != http.StatusForbidden ||
+		!strings.Contains(insecureLoginRecorder.Body.String(), "browser login requires HTTPS") {
+		t.Fatalf("insecure login POST = %d, %s", insecureLoginRecorder.Code, insecureLoginRecorder.Body.String())
+	}
 	loginPage := httptest.NewRecorder()
-	handler.ServeHTTP(loginPage, httptest.NewRequest(http.MethodGet, "http://localhost"+webLoginPath, nil))
+	handler.ServeHTTP(loginPage, httptest.NewRequest(http.MethodGet, "https://localhost"+webLoginPath, nil))
 	if loginPage.Code != http.StatusOK || !strings.Contains(loginPage.Body.String(), `name="username" value="rotari"`) ||
 		!strings.Contains(loginPage.Body.String(), `name="password" autocomplete="current-password"`) {
 		t.Fatalf("login page = %d, %s", loginPage.Code, loginPage.Body.String())
@@ -2165,7 +2181,7 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 
 	post := func(username, password, nextPath, origin string) *httptest.ResponseRecorder {
 		values := url.Values{"username": {username}, "password": {password}, "next": {nextPath}}
-		request := httptest.NewRequest(http.MethodPost, "http://localhost"+webLoginPath, strings.NewReader(values.Encode()))
+		request := httptest.NewRequest(http.MethodPost, "https://localhost"+webLoginPath, strings.NewReader(values.Encode()))
 		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		if origin != "" {
 			request.Header.Set("Origin", origin)
@@ -2174,16 +2190,16 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 		handler.ServeHTTP(recorder, request)
 		return recorder
 	}
-	for _, origin := range []string{"http://attacker.example", "https://localhost"} {
+	for _, origin := range []string{"https://attacker.example", "http://localhost"} {
 		if got := post("rotari", "secret", "/", origin); got.Code != http.StatusForbidden {
 			t.Errorf("login from origin %q = %d, want 403", origin, got.Code)
 		}
 	}
-	if got := post("rotari", "wrong", "/", "http://localhost"); got.Code != http.StatusUnauthorized ||
+	if got := post("rotari", "wrong", "/", "https://localhost"); got.Code != http.StatusUnauthorized ||
 		!strings.Contains(got.Body.String(), "Sign-in failed") {
 		t.Fatalf("wrong token login = %d, %s", got.Code, got.Body.String())
 	}
-	loggedIn := post("rotari", "secret", "/activity/?range=7d", "http://localhost")
+	loggedIn := post("rotari", "secret", "/activity/?range=7d", "https://localhost")
 	if loggedIn.Code != http.StatusSeeOther || loggedIn.Header().Get("Location") != "/activity/?range=7d" {
 		t.Fatalf("valid login = %d, location = %q", loggedIn.Code, loggedIn.Header().Get("Location"))
 	}
@@ -2192,12 +2208,12 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 		t.Fatalf("login set %d cookies, want one", len(cookies))
 	}
 	cookie := cookies[0]
-	if cookie.Name != webSessionCookie || cookie.Path != "/" || !cookie.HttpOnly ||
+	if cookie.Name != webSessionCookie || cookie.Path != "/" || !cookie.HttpOnly || !cookie.Secure ||
 		cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge != int(webSessionLifetime.Seconds()) {
 		t.Fatalf("unsafe login cookie: %+v", cookie)
 	}
 
-	authenticated := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	authenticated := httptest.NewRequest(http.MethodGet, "https://localhost/api/state", nil)
 	authenticated.AddCookie(cookie)
 	authenticatedRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(authenticatedRecorder, authenticated)
@@ -2205,26 +2221,54 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 		t.Fatalf("session request = %d, want 204", authenticatedRecorder.Code)
 	}
 
-	crossOriginMutation := httptest.NewRequest(http.MethodPost, "http://localhost/api/change", nil)
+	proxyLoginValues := url.Values{"username": {"rotari"}, "password": {"secret"}}
+	proxyLogin := httptest.NewRequest(http.MethodPost, "http://localhost"+webLoginPath, strings.NewReader(proxyLoginValues.Encode()))
+	proxyLogin.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	proxyLogin.Header.Set("Origin", "https://localhost")
+	proxyLogin.Header.Set("X-Forwarded-Proto", "https")
+	proxyLoginRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(proxyLoginRecorder, proxyLogin)
+	proxyCookies := proxyLoginRecorder.Result().Cookies()
+	if proxyLoginRecorder.Code != http.StatusSeeOther || len(proxyCookies) != 1 || !proxyCookies[0].Secure {
+		t.Fatalf("TLS-proxy login = %d, cookies = %v", proxyLoginRecorder.Code, proxyCookies)
+	}
+	proxySession := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	proxySession.Header.Set("X-Forwarded-Proto", "https")
+	proxySession.AddCookie(proxyCookies[0])
+	proxySessionRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(proxySessionRecorder, proxySession)
+	if proxySessionRecorder.Code != http.StatusNoContent {
+		t.Fatalf("TLS-proxy session request = %d, want 204", proxySessionRecorder.Code)
+	}
+
+	insecureAuthenticated := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	insecureAuthenticated.AddCookie(cookie)
+	insecureAuthenticatedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(insecureAuthenticatedRecorder, insecureAuthenticated)
+	if insecureAuthenticatedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("insecure session request = %d, want 401", insecureAuthenticatedRecorder.Code)
+	}
+
+	crossOriginMutation := httptest.NewRequest(http.MethodPost, "https://localhost/api/change", nil)
 	crossOriginMutation.AddCookie(cookie)
-	crossOriginMutation.Header.Set("Origin", "http://attacker.example")
+	crossOriginMutation.Header.Set("Origin", "https://attacker.example")
 	crossOriginRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(crossOriginRecorder, crossOriginMutation)
 	if crossOriginRecorder.Code != http.StatusForbidden {
 		t.Fatalf("cross-origin cookie mutation = %d, want 403", crossOriginRecorder.Code)
 	}
-	wrongSchemeMutation := httptest.NewRequest(http.MethodPost, "http://localhost/api/change", nil)
+	wrongSchemeMutation := httptest.NewRequest(http.MethodPost, "https://localhost/api/change", nil)
 	wrongSchemeMutation.AddCookie(cookie)
-	wrongSchemeMutation.Header.Set("Origin", "https://localhost")
+	wrongSchemeMutation.Header.Set("Origin", "http://localhost")
 	wrongSchemeRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(wrongSchemeRecorder, wrongSchemeMutation)
 	if wrongSchemeRecorder.Code != http.StatusForbidden {
 		t.Fatalf("wrong-scheme cookie mutation = %d, want 403", wrongSchemeRecorder.Code)
 	}
 
-	logout := httptest.NewRequest(http.MethodPost, "http://localhost"+webLogoutPath, nil)
+	logout := httptest.NewRequest(http.MethodPost, "https://localhost"+webLogoutPath, nil)
 	logout.AddCookie(cookie)
-	logout.Header.Set("Origin", "http://localhost")
+	logout.Header.Set("Origin", "https://localhost")
 	logoutRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(logoutRecorder, logout)
 	if logoutRecorder.Code != http.StatusSeeOther || logoutRecorder.Header().Get("Location") != webLoginPath {
@@ -2241,7 +2285,7 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 	if !cleared[webSessionCookie] || !cleared[launchAuthCookie] {
 		t.Fatalf("logout did not expire both session cookies: %v", logoutCookies)
 	}
-	revoked := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	revoked := httptest.NewRequest(http.MethodGet, "https://localhost/api/state", nil)
 	revoked.AddCookie(cookie)
 	revokedRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(revokedRecorder, revoked)
@@ -2250,27 +2294,14 @@ func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
 	}
 }
 
-func TestWebSessionCookieUsesSecureTransport(t *testing.T) {
-	for _, test := range []struct {
-		name, target, forwardedProto string
-	}{
-		{name: "direct TLS", target: "https://localhost/"},
-		{name: "TLS reverse proxy", target: "http://localhost/", forwardedProto: "https"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, test.target, nil)
-			if test.forwardedProto != "" {
-				request.Header.Set("X-Forwarded-Proto", test.forwardedProto)
-			}
-			recorder := httptest.NewRecorder()
-			if !new(webSessions).issue(recorder, request) {
-				t.Fatal("session cookie was not created")
-			}
-			cookies := recorder.Result().Cookies()
-			if len(cookies) != 1 || !cookies[0].Secure {
-				t.Fatalf("session cookie = %v, want Secure", cookies)
-			}
-		})
+func TestWebSessionCookieAlwaysUsesSecureAttribute(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	if !new(webSessions).issue(recorder) {
+		t.Fatal("session cookie was not created")
+	}
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("session cookie = %v, want Secure", cookies)
 	}
 }
 

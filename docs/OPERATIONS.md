@@ -357,12 +357,15 @@ provides HTTP authentication, not encryption.
   records its PID in `server.pid` next to it; a failed start is recorded in
   `<basedir>/server.log`.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
-  `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
-  the environment variable so the token does not appear in the process list.
-  Environment variable values are never exposed over HTTP, but project and run
-  pages show raw global/workspace/basedir/project config sources and saved
-  merged run file-config snapshots, which may contain secrets. Static exports
-  include those contents as well; share them only with trusted readers.
+  `127.0.0.1`; with a token, use HTTPS through a trusted reverse proxy for
+  browser login and session cookies. Browser login is refused over plain HTTP.
+  API token credentials are also unencrypted over HTTP, so use them only on a
+  trusted network or over HTTPS. Prefer the environment variable so the token
+  does not appear in the process list. Environment variable values are never
+  exposed over HTTP, but project and run pages show raw
+  global/workspace/basedir/project config sources and saved merged run
+  file-config snapshots, which may contain secrets. Static exports include
+  those contents as well; share them only with trusted readers.
   The notification
   settings UI visually masks a saved webhook URL and does not return it from
   its read API, but this does not encrypt the connection: a replacement URL is

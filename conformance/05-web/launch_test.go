@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -123,6 +125,31 @@ func (f launchFixture) request(name, entry, child string, extra map[string]any) 
 
 func api(e *support.Env, method, address, body string) support.HTTPResult {
 	return e.HTTPDo(method, address, map[string]string{"X-Rotari-Token": launchToken}, body)
+}
+
+func startTLSReverseProxy(t *testing.T, target string) *httptest.Server {
+	t.Helper()
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	externalHost := listener.Addr().String()
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	director := proxy.Director
+	proxy.Director = func(request *http.Request) {
+		director(request)
+		request.Header.Set("X-Forwarded-Proto", "https")
+		request.Host = externalHost
+	}
+	server := httptest.NewUnstartedServer(proxy)
+	server.Listener = listener
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	return server
 }
 
 type launchRecord struct {
@@ -299,14 +326,17 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	browser := &http.Client{Jar: jar, Timeout: 10 * time.Second}
+	proxy := startTLSReverseProxy(t, base)
+	browser := proxy.Client()
+	browser.Jar = jar
+	browser.Timeout = 10 * time.Second
 	values := url.Values{"username": {"rotari"}, "password": {launchToken}, "next": {"/"}}
-	request, err := http.NewRequest(http.MethodPost, base+"/_auth/login", strings.NewReader(values.Encode()))
+	request, err := http.NewRequest(http.MethodPost, proxy.URL+"/_auth/login", strings.NewReader(values.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Header.Set("Origin", base)
+	request.Header.Set("Origin", proxy.URL)
 	response, err := browser.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -315,7 +345,11 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("login form = %d, want 200 after redirect", response.StatusCode)
 	}
-	if cookies := jar.Cookies(&url.URL{Scheme: "http", Host: strings.TrimPrefix(base, "http://")}); len(cookies) != 1 || cookies[0].Name != "rotari_web_session" {
+	proxyURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cookies := jar.Cookies(proxyURL); len(cookies) != 1 || cookies[0].Name != "rotari_web_session" {
 		t.Fatalf("login session cookies = %v", cookies)
 	}
 }
@@ -624,19 +658,22 @@ func TestWebLaunchServesServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	browser := &http.Client{Jar: jar, Timeout: 10 * time.Second}
-	address := base + viewer.BasePath + "/data/runs?run=a%20b"
+	proxy := startTLSReverseProxy(t, base)
+	browser := proxy.Client()
+	browser.Jar = jar
+	browser.Timeout = 10 * time.Second
+	address := proxy.URL + viewer.BasePath + "/data/runs?run=a%20b"
 	loginValues := url.Values{
 		"username": {"rotari"},
 		"password": {launchToken},
 		"next":     {viewer.BasePath + "/data/runs?run=a%20b"},
 	}
-	request, err := http.NewRequest(http.MethodPost, base+"/_auth/login", strings.NewReader(loginValues.Encode()))
+	request, err := http.NewRequest(http.MethodPost, proxy.URL+"/_auth/login", strings.NewReader(loginValues.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Header.Set("Origin", base)
+	request.Header.Set("Origin", proxy.URL)
 	response, err := browser.Do(request)
 	if err != nil {
 		t.Fatal(err)
