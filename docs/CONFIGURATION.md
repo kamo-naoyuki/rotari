@@ -143,12 +143,20 @@ context is the Web server's startup cwd, not a viewed job's working directory.
 Live and static views use the same source-selection UI; static writes remain
 disabled.
 
+On a run page, **Settings** still edits the current settings of its project,
+just as on the project page, including configuration generation and
+notification settings. These changes apply to future runs, not the saved run.
+Use **View config snapshot** in the run action toolbar, next to **Cancel run**
+(while running) and **Delete run**, to inspect the configuration saved with
+that run. It shows both ordinary and notification config as read-only text,
+and is disabled when no snapshot was recorded.
+
 Every run saves one canonical merged **file configuration** as
 `configs/config.toml`, from values captured by the client. It excludes CLI
 options, environment overrides, and built-in defaults, and does not reread
 sources when the supervisor starts. Source paths/scopes are recorded separately
-in `context.json`, independently of the snapshot file list. Run `View config`
-remains read-only and reads the saved copy, including older YAML/JSON snapshots.
+in `context.json`, independently of the snapshot file list. **View config
+snapshot** reads the saved copy, including older YAML/JSON snapshots.
 A retry is a new invocation using its current configuration, not the old run's.
 
 ## Environment variables
@@ -187,7 +195,8 @@ scopes. Unlike ordinary command configuration, it has **no workspace scope**
 and does **not inherit** lower-file settings. A project notification file
 replaces the global file entirely: an omitted webhook URL does not inherit a
 global destination; omitted fields use notification built-in defaults.
-Notification snapshots and their read-only run viewer remain separate.
+Notification snapshots remain separate files and are included in the run's
+read-only **View config snapshot** view.
 Generate one with:
 
 ```sh

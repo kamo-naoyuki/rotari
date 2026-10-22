@@ -384,8 +384,10 @@ function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
   const readOnlyNote = document.getElementById("config-readonly-note");
-  if (readOnlyNote)
-    readOnlyNote.hidden = view !== "config" || pageParts()[2] !== "run";
+  if (readOnlyNote) readOnlyNote.hidden = view !== "config-snapshot";
+  document.getElementById("config-current-note").hidden =
+    (view !== "config" && view !== "notification-config") ||
+    pageParts()[2] !== "run";
   const configSource = document.getElementById("config-source-select");
   if (configSource) configSource.hidden = view !== "config";
   const editingConfig = view === "config" && modal.dataset.editing === "true";
@@ -394,7 +396,9 @@ function openOutputModal(compact) {
     view === "generate-config" || view === "notification-config-generate";
   const configPaths = document.getElementById("modal-config-paths");
   configPaths.hidden =
-    (view !== "config" && view !== "notification-config") ||
+    (view !== "config" &&
+      view !== "config-snapshot" &&
+      view !== "notification-config") ||
     configPaths.childElementCount === 0;
   document
     .querySelector(".output-box")

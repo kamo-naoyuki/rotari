@@ -33,6 +33,7 @@ const job = (id, extra) => ({
 });
 const run = {
   run_id: 'run-1', status: 'failed', lifecycle: 'failed', started_at: '2026-10-11 05:52:20 JST',
+  context: { config_snapshot_paths: ['/state/projects/default/runs/run-1/configs/config.toml'] },
   jobs: [
     job('a', { result: { exit_code: 0, hosts: ['node1'] } }),
     job('b', { result: { exit_code: 2, hosts: ['node2'], diagnosis_status: 'final', diagnoses: [{ name: 'oom' }] }, elapsed: '5s' }),
@@ -149,6 +150,27 @@ setTimeout(async () => {
     // The toolbar: selection buttons above, actions on the checked jobs
     // below, enabled and counted as jobs are checked.
     const button = label => [...document.querySelectorAll('#app .toolbar button')].find(b => b.textContent === label);
+    const snapshotButton = button('View config snapshot');
+    assert(snapshotButton.closest('.run-toolbar'), 'snapshot action is not in the run action toolbar');
+    assert.equal(snapshotButton.previousElementSibling.className, 'toolbar-gap', 'snapshot is not separated from launchers');
+    assert.equal(snapshotButton.nextElementSibling, button('Delete run'));
+    window.eval("state.projects[0].runs[0].running = true");
+    window.render();
+    assert.equal(button('View config snapshot').nextElementSibling, button('Cancel run'));
+    window.eval("state.projects[0].runs[0].running = false");
+    window.render();
+    assert(!snapshotButton.disabled, 'snapshot action needs no job selection');
+    const originalShowConfig = window.showConfig;
+    let snapshotRequested = false;
+    window.showConfig = snapshot => { snapshotRequested = snapshot; };
+    snapshotButton.click();
+    assert.equal(snapshotRequested, true);
+    window.showConfig = originalShowConfig;
+    window.eval("state.projects[0].runs[0].context.config_snapshot_paths = []");
+    window.render();
+    assert(button('View config snapshot').disabled, 'missing snapshot must be disabled');
+    window.eval("state.projects[0].runs[0].context.config_snapshot_paths = ['/state/projects/default/runs/run-1/configs/config.toml']");
+    window.render();
     const count = () => document.querySelector('.run-jobs-bar .selection-count').textContent;
     assert(button('Create queue').disabled && button('Unselect all').disabled && count() === '');
     assert(!button('Delete run').disabled && !button('Cancel run'), 'a finished run can be deleted, not cancelled');

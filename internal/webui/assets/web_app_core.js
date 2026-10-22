@@ -801,15 +801,7 @@ function setModalConfigPaths(paths) {
   }
   container.hidden = !paths?.length;
 }
-function isNotificationConfigPath(path) {
-  const value = String(path || "");
-  const separator = String.fromCodePoint(92);
-  const basename = value.slice(
-    Math.max(value.lastIndexOf("/"), value.lastIndexOf(separator)) + 1,
-  );
-  return basename === "notifications.toml";
-}
-function pageConfigPaths(notifications = false) {
+function pageConfigPaths() {
   const parts = pageParts();
   if (parts[0] !== "project")
     return (
@@ -820,20 +812,12 @@ function pageConfigPaths(notifications = false) {
     (item) => item.project_name === decodeURIComponent(parts[1]),
   );
   if (!project) return [];
-  if (parts[2] === "run") {
-    const run = project.runs.find(
-      (item) => item.run_id === decodeURIComponent(parts[3]),
-    );
-    return (run?.context?.config_snapshot_paths || []).filter(
-      (path) => isNotificationConfigPath(path) === notifications,
-    );
-  }
   return (
     project.config_sources?.map((source) => source.path) ||
     (project.config_path ? [project.config_path] : [])
   );
 }
-async function showConfig(notifications = false) {
+async function showConfig(snapshot = false) {
   const modal = document.getElementById("output-modal");
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
@@ -851,7 +835,7 @@ async function showConfig(notifications = false) {
   const params = new URLSearchParams();
   if (parts[0] === "project")
     params.set("project_name", decodeURIComponent(parts[1]));
-  if (parts[2] === "run") params.set("run_id", decodeURIComponent(parts[3]));
+  if (snapshot) params.set("run_id", decodeURIComponent(parts[3]));
   const response = await fetch("/api/config?" + params);
   const text = await response.text();
   if (!response.ok) {
@@ -859,11 +843,7 @@ async function showConfig(notifications = false) {
     return;
   }
   const payload = JSON.parse(text);
-  const isRunPage = parts[0] === "project" && parts[2] === "run";
-  const files = (payload.configs || []).filter(
-    (file) =>
-      !isRunPage || isNotificationConfigPath(file.path) === notifications,
-  );
+  const files = payload.configs || [];
   setModalConfigPaths(files.map((file) => file.path));
   const content = files
     .map((item) => "# " + item.path + "\n" + item.content)
@@ -875,12 +855,6 @@ async function showConfig(notifications = false) {
     if (!file) return;
     setModalConfigPaths([file.path]);
     selectedOutput = file.content;
-    if (project === null) {
-      delete modal.dataset.editing;
-      output.hidden = false;
-      output.textContent = "# " + file.path + "\n" + file.content;
-      return;
-    }
     output.hidden = true;
     editor.hidden = false;
     const textarea = editor.querySelector("textarea");
@@ -916,7 +890,7 @@ async function showConfig(notifications = false) {
     };
     modal.dataset.editing = "true";
   };
-  if (isRunPage) {
+  if (snapshot) {
     delete modal.dataset.editing;
     output.textContent = content;
   } else {
@@ -939,10 +913,10 @@ async function showConfig(notifications = false) {
     }
     displayFile(files[0]);
   }
-  modal.querySelector("strong").textContent = notifications
-    ? "Notification config"
+  modal.querySelector("strong").textContent = snapshot
+    ? "Run config snapshot"
     : "Config";
-  modal.dataset.view = "config";
+  modal.dataset.view = snapshot ? "config-snapshot" : "config";
   openOutputModal(false);
 }
 function updateConfigSaveState(editor) {
@@ -953,7 +927,6 @@ function updateConfigSaveState(editor) {
 }
 function configGenerationProject() {
   const parts = pageParts();
-  if (parts[2] === "run") return null;
   return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
 }
 function notificationConfigProject() {
@@ -974,7 +947,6 @@ function showGenerateConfig() {
   generator.hidden = false;
   delete modal.dataset.editing;
   generator.replaceChildren();
-  if (project === null) return;
   generator.textContent = "Loading config locations...";
   const params = new URLSearchParams();
   if (project) params.set("project_name", project);
@@ -1350,41 +1322,24 @@ function addConfigButton() {
   viewButton.title = paths.length ? "View config" : "No config file";
   if (paths.length) viewButton.onclick = () => showConfig();
   toolbar.append(viewButton);
-  if (configGenerationProject() === null) {
-    const notificationPaths = pageConfigPaths(true);
-    const notificationButton = document.createElement("button");
-    notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notification config";
-    notificationButton.disabled = !notificationPaths.length;
-    notificationButton.title = notificationPaths.length
-      ? "View the notification config copied for this run"
-      : "No notification config snapshot";
-    notificationButton.onclick = () => showConfig(true);
-    toolbar.append(notificationButton);
-    addLauncherConfigButtons(toolbar);
-    return;
-  }
   const generateConfigButton = document.createElement("button");
   generateConfigButton.className = "generate-config-button";
   generateConfigButton.textContent = "Generate config";
   generateConfigButton.title = "Generate or replace a config template";
   generateConfigButton.onclick = showGenerateConfig;
   toolbar.append(generateConfigButton);
-  if (notificationConfigProject() !== null) {
-    const notificationButton = document.createElement("button");
-    notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notification config";
-    notificationButton.onclick = showNotificationConfig;
-    toolbar.append(notificationButton);
-    const generateNotificationButton = document.createElement("button");
-    generateNotificationButton.className =
-      "notification-generate-config-button";
-    generateNotificationButton.textContent = "Generate notification config";
-    generateNotificationButton.title =
-      "Generate or replace a notifications.toml template";
-    generateNotificationButton.onclick = showGenerateNotificationConfig;
-    toolbar.append(generateNotificationButton);
-  }
+  const notificationButton = document.createElement("button");
+  notificationButton.className = "notification-config-button";
+  notificationButton.textContent = "Notification config";
+  notificationButton.onclick = showNotificationConfig;
+  toolbar.append(notificationButton);
+  const generateNotificationButton = document.createElement("button");
+  generateNotificationButton.className = "notification-generate-config-button";
+  generateNotificationButton.textContent = "Generate notification config";
+  generateNotificationButton.title =
+    "Generate or replace a notifications.toml template";
+  generateNotificationButton.onclick = showGenerateNotificationConfig;
+  toolbar.append(generateNotificationButton);
   addLauncherConfigButtons(toolbar);
 }
 function openRequestedConfigAction() {
@@ -1883,6 +1838,7 @@ function runSelectionHTML() {
 function runActionsHTML(q, run, runID) {
   const data =
     ' data-project="' + esc(q.project_name) + '" data-run="' + esc(runID) + '"';
+  const launchButtons = basedirParentLaunchButtons(q.project_name, runID);
   return (
     '<div class="toolbar web-copy-controls run-toolbar">' +
     '<button type="button" class="create-selected" disabled' +
@@ -1897,7 +1853,12 @@ function runActionsHTML(q, run, runID) {
     '<button type="button" class="cancel-selected-jobs" disabled onclick="controlSelectedRunJobs(\'cancel\')">Cancel selected</button>' +
     '<button type="button" class="suspend-resume-selected-jobs" disabled onclick="controlSelectedRunJobs(\'suspend-resume\')">Suspend selected</button>' +
     '<span class="toolbar-gap"></span>' +
-    basedirParentLaunchButtons(q.project_name, runID) +
+    (launchButtons ? launchButtons + '<span class="toolbar-gap"></span>' : "") +
+    '<button type="button" class="run-config-snapshot" onclick="showConfig(true)"' +
+    (run.context?.config_snapshot_paths?.length
+      ? ' title="View the configuration saved with this run"'
+      : ' disabled title="No config snapshot"') +
+    ">View config snapshot</button>" +
     (run.running
       ? '<button type="button" class="cancel-run"' +
         data +

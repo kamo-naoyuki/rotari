@@ -300,13 +300,17 @@ Implemented by [internal/config/layers.go](../internal/config/layers.go),
   atomically write only that source. Workspace context is server startup cwd,
   not viewed-job cwd. Generation uses the same scope-aware CLI templates.
   Live and static exports retain the same source-selection UI, with static
-  writes refused. Run pages retain separate read-only command and notification
-  snapshot viewers.
+  writes refused. Settings on a run page use the same current sources and
+  editing/generation actions as its project page; changes do not alter the
+  saved run. The run action toolbar's **View config snapshot** opens the saved
+  command and notification configuration together as read-only text, separate
+  from Settings, and is disabled when no snapshot was recorded.
   Implemented by `loadWebConfigFiles`, `saveSelectedConfig`, `loadRunConfigFiles`,
   and `generateWebConfig` in
   [internal/webui/webui.go](../internal/webui/webui.go), tested by
   [workspace source tests](../internal/webui/workspace_config_test.go) and
-  [legacy/static config tests](../internal/webui/webui_test.go).
+  [legacy/static config tests](../internal/webui/webui_test.go) and
+  [run toolbar tests](../internal/webui/run_jobs_test.go).
 
 ## Notification configuration
 

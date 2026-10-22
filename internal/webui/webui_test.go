@@ -792,24 +792,40 @@ setTimeout(() => {
 	if (dom.window.document.getElementById('modal-log').hidden) process.exit(9);
 	if (modal.querySelector('strong').textContent !== 'Job path') process.exit(10);
 	dom.window.history.pushState({}, '', '/project/default/run/run-1');
-	dom.window.eval("state.projects = [{project_name: 'default', runs: [{run_id: 'run-1', context: {config_snapshot_paths: ['/state/projects/default/runs/run-1/configs/config.yaml', '/state/projects/default/runs/run-1/configs/notifications.toml']}}]}];");
-	if (JSON.stringify(dom.window.pageConfigPaths()) !== JSON.stringify(['/state/projects/default/runs/run-1/configs/config.yaml'])) process.exit(58);
+	dom.window.eval("state.projects = [{project_name: 'default', config_path: '/state/projects/default/config.toml', runs: [{run_id: 'run-1', context: {config_snapshot_paths: ['/state/projects/default/runs/run-1/configs/config.yaml', '/state/projects/default/runs/run-1/configs/notifications.toml']}}]}];");
+	if (JSON.stringify(dom.window.pageConfigPaths()) !== JSON.stringify(['/state/projects/default/config.toml'])) process.exit(58);
 	dom.window.addConfigButton();
-	if (dom.window.document.querySelector('.generate-config-button') || dom.window.document.querySelector('.notification-generate-config-button')) { console.error('run page must not offer config generation'); process.exit(43); }
-	const snapshotButton = dom.window.document.querySelector('.notification-config-button');
-	if (!snapshotButton || snapshotButton.disabled || snapshotButton.textContent !== 'Notification config') process.exit(60);
+	if (!dom.window.document.querySelector('.generate-config-button') || !dom.window.document.querySelector('.notification-generate-config-button')) { console.error('run Settings must offer project config generation'); process.exit(43); }
+	const currentConfigButton = dom.window.document.querySelector('.config-button');
+	if (!currentConfigButton || currentConfigButton.disabled) process.exit(60);
+	const runSettingsNames = [...dom.window.document.querySelectorAll('#settings-actions > button')].map(button => button.className);
+	dom.window.history.pushState({}, '', '/project/default');
+	dom.window.addConfigButton();
+	if (JSON.stringify([...dom.window.document.querySelectorAll('#settings-actions > button')].map(button => button.className)) !== JSON.stringify(runSettingsNames)) process.exit(69);
+	dom.window.history.pushState({}, '', '/project/default/run/run-1');
+	dom.window.addConfigButton();
 	let notificationConfigReads = 0;
 	let generatedNotificationRequest = null;
 	const notificationSaveRequests = [];
 	dom.window.confirm = () => true;
 	dom.window.fetch = async (url, options = {}) => {
 		if (String(url).startsWith('/api/config?')) {
+			if (!String(url).includes('project_name=default')) throw new Error('wrong project config request: ' + url);
+			if (!String(url).includes('run_id=')) return {ok: true, text: async () => JSON.stringify({configs: [
+				{scope: 'project', path: '/state/projects/default/config.toml', content: 'quiet = true\n'},
+			]})};
 			return {ok: true, text: async () => JSON.stringify({configs: [
 				{path: '/state/projects/demo/runs/run-1/configs/config.yaml', content: 'run: {}\n'},
 				{path: '/state/projects/demo/runs/run-1/configs/notifications.toml', content: '[webhook]\nrun_failure = true\n'},
 			]})};
 		}
+		if (url === '/api/save-config') {
+			const saved = JSON.parse(options.body);
+			if (saved.project_name !== 'default' || saved.path !== '/state/projects/default/config.toml' || saved.scope !== 'project') throw new Error('wrong config save target');
+			return {ok: true, text: async () => JSON.stringify({path: saved.path})};
+		}
 		if (String(url).startsWith('/api/notification-config')) {
+			if (!String(url).includes('project_name=default')) throw new Error('wrong notification project: ' + url);
 			notificationConfigReads++;
 			const payload = notificationConfigReads === 1
 				? { path: '', targets: [{ location: 'basedir', path: '/state/notifications.toml' }] }
@@ -830,25 +846,32 @@ setTimeout(() => {
 		throw new Error('unexpected request: ' + url);
 	};
 	(async () => {
-		await dom.window.showConfig();
+		await dom.window.showConfig(true);
 		const configPath = dom.window.document.getElementById('modal-config-paths');
 		const readOnlyNote = dom.window.document.getElementById('config-readonly-note');
 		if (readOnlyNote.hidden || !readOnlyNote.textContent.includes('Read only') || !readOnlyNote.textContent.includes('saved with this run')) process.exit(66);
-		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/runs/run-1/configs/config.yaml') || configPath.textContent.includes('notifications.toml')) process.exit(52);
+		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/runs/run-1/configs/config.yaml') || !configPath.textContent.includes('notifications.toml')) process.exit(52);
 		if (configPath.querySelector('[data-copy-value="/state/projects/demo/runs/run-1/configs/config.yaml"]') === null) process.exit(53);
-		if (dom.window.document.querySelector('.output-box').textContent.includes('notifications.toml')) process.exit(59);
-		await snapshotButton.onclick();
-		if (modal.querySelector('strong').textContent !== 'Notification config' || !dom.window.document.getElementById('modal-log').textContent.includes('[webhook]')) process.exit(61);
-		if (readOnlyNote.hidden) process.exit(67);
+		if (!dom.window.document.querySelector('.output-box').textContent.includes('notifications.toml')) process.exit(59);
+		if (modal.querySelector('strong').textContent !== 'Run config snapshot' || !dom.window.document.getElementById('modal-log').textContent.includes('[webhook]')) process.exit(61);
 		if (!editor.hidden || !dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('copy-modal').hidden) process.exit(62);
-		if (!dom.window.document.getElementById('notification-config-save').hidden || !dom.window.document.getElementById('notification-config-reload').hidden || configPath.textContent.includes('config.yaml')) process.exit(63);
+		if (!dom.window.document.getElementById('notification-config-save').hidden || !dom.window.document.getElementById('notification-config-reload').hidden) process.exit(63);
 		let copiedSnapshot = '';
 		dom.window.copyText = async text => { copiedSnapshot = text; };
 		await dom.window.copyModalOutput(dom.window.document.getElementById('copy-modal'));
-		if (!copiedSnapshot.includes('[webhook]') || copiedSnapshot.includes('config.yaml')) process.exit(65);
+		if (!copiedSnapshot.includes('[webhook]') || !copiedSnapshot.includes('config.yaml')) process.exit(65);
+		await currentConfigButton.onclick();
+		if (!readOnlyNote.hidden || editor.hidden || textarea.value !== 'quiet = true\n' || !configPath.textContent.includes('/state/projects/default/config.toml')) process.exit(67);
+		if (dom.window.document.getElementById('config-current-note').hidden) process.exit(68);
+		textarea.value = 'quiet = false\n';
+		textarea.oninput();
+		const originalRefresh = dom.window.refresh;
+		dom.window.refresh = async () => {};
+		await save.onclick();
+		dom.window.refresh = originalRefresh;
 		dom.window.eval("state.projects[0].runs[0].context.config_snapshot_paths = []");
 		dom.window.addConfigButton();
-		if (!dom.window.document.querySelector('.notification-config-button').disabled) process.exit(64);
+		if (dom.window.document.querySelector('.notification-config-button').disabled) process.exit(64);
 		await dom.window.showGenerateNotificationConfig();
 		if (modal.querySelector('strong').textContent !== 'Generate notification config') process.exit(31);
 		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);
@@ -857,7 +880,7 @@ setTimeout(() => {
 		const targets = generator.querySelectorAll('.config-target-options button');
 		if (targets.length !== 1 || targets[0].textContent !== '/state/notifications.toml' || targets[0].title !== 'Generate notifications.toml in basedir') process.exit(32);
 		await targets[0].onclick();
-		if (!generatedNotificationRequest || generatedNotificationRequest.location !== 'basedir') process.exit(33);
+		if (!generatedNotificationRequest || generatedNotificationRequest.project_name !== 'default' || generatedNotificationRequest.location !== 'basedir') process.exit(33);
 		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notification config') process.exit(34);
 		const notificationPath = dom.window.document.getElementById('modal-config-paths');
 		if (notificationPath.hidden || !notificationPath.textContent.includes('/state/notifications.toml')) process.exit(54);
@@ -1376,6 +1399,22 @@ setTimeout(() => {
 						console.error(errors.join('\n'));
 						process.exit(1);
 					}
+					(async () => {
+						dom.window.history.pushState({}, '', '/project/default/run/run-1/');
+						await dom.window.showConfig();
+						if (editor.hidden || textarea.value !== 'name = "static demo"\n') throw Error('static run Settings did not load current project config');
+						if (!dom.window.document.getElementById('config-readonly-note').hidden) throw Error('current settings labeled as snapshot');
+						const snapshot = '# saved run settings\n';
+						dom.window.__ROTARI_STATIC_CONFIGS__[dom.window.staticConfigKey('default', 'run-1')] = [
+							{path: '/saved/config.toml', content: snapshot},
+							{path: '/saved/notifications.toml', content: '[browser]\nrun_success = true\n'},
+						];
+						await dom.window.showConfig(true);
+						const output = dom.window.document.getElementById('modal-log');
+						if (!editor.hidden || output.hidden || !output.textContent.includes(snapshot) || !output.textContent.includes('[browser]')) throw Error('static snapshot content or read-only mode');
+						if (dom.window.document.getElementById('config-readonly-note').hidden) throw Error('static snapshot missing read-only note');
+						if (!dom.window.document.getElementById('config-current-note').hidden) throw Error('snapshot labeled as current settings');
+					})().catch(error => { console.error(error); process.exit(10); });
 				}, 0);
 			}, 0);
 		}, 0);
@@ -2394,7 +2433,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function setCrumbs(trail, copyPath)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run?.context?.config_snapshot_paths"} {
+	for _, want := range []string{"function setCrumbs(trail, copyPath)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run.context?.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
