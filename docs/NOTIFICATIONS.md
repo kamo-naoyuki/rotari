@@ -1,6 +1,6 @@
 # Notifications
 
-Rotari supports local browser desktop notifications and outbound Webhook
+Rotari supports local in-page and browser desktop notifications and outbound Webhook
 notifications. Both channels are configured in `notifications.toml` and use
 the same event and field vocabulary, while keeping independent settings.
 
@@ -20,10 +20,27 @@ from a run's merged command configuration.
 
 ## Browser notifications
 
-The Web UI can show a desktop notification when a run finishes or a job reaches
+The Web UI records an in-page notification when a run finishes or a job reaches
 its final result while the page is open. Opening a run that had already
 finished does not notify about its jobs. This is entirely local and never sends
 data to an external service.
+
+### In-page inbox
+
+The live Web UI and Job activity page have an **Inbox (N)** button. The number
+is the unread count; opening the inbox marks its entries read. New entries
+are also announced to screen readers. The inbox keeps the latest 50 entries
+in memory for the current page; navigating away or reloading clears them.
+Use **Clear notifications** to remove all entries, or Escape to close the inbox.
+
+This works without the desktop Notification API or its permission, including
+in embedded browsers such as VS Code's internal browser and over HTTP.
+Desktop notification permissions, the desktop on/off toggle, and
+`--notifications=false` do not disable the inbox. Project browser event and
+field settings still apply on the main Web UI; Job activity uses its existing
+job-result notifications and selected basedirs.
+The page must remain open and polling; this is not a background notification
+service. A supported browser can additionally show desktop notifications.
 
 ### Enabling browser notifications
 

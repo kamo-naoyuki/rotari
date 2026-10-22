@@ -7,6 +7,76 @@ import (
 	"testing"
 )
 
+func TestNotificationInboxWithoutDesktopAPI(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(String(error)));
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously', url: 'http://example.test/', virtualConsole,
+  beforeParse(window) {
+    window.Notification = undefined;
+    window.isSecureContext = false;
+    window.localStorage.setItem('rotari-notifications-enabled', 'false');
+    window.setInterval = () => 1;
+    window.fetch = async () => { throw new Error('offline'); };
+  },
+});
+setTimeout(() => {
+  try {
+    const w = dom.window, d = w.document;
+    const emit = () => {
+      if (typeof w.notifyRunEvent === 'function')
+        w.notifyRunEvent({projectName: '<project>', runID: 'run', basedirID: 'other', run: {exit_code: 1}},
+          [], [], true, {fields: ['project', 'link']});
+      else w.notifyJobsActivity({state: 'failed', project: '<project>', job: 'job', runURL: '/other/run'});
+    };
+    emit();
+    const button = d.querySelector('.notification-inbox > button');
+    const panel = d.getElementById('notification-inbox-panel');
+    if (!button || button.textContent !== 'Inbox (1)' || !panel.hidden) throw Error('missing unread badge');
+    if (!panel.textContent.includes('<project>') || panel.querySelector('project')) throw Error('unsafe content');
+    const link = panel.querySelector('a');
+    if (!link || (typeof w.notifyRunEvent === 'function' && !link.href.includes('/_basedir/other/project/')))
+      throw Error('missing exact basedir link');
+    button.click();
+    if (panel.hidden || button.textContent !== 'Inbox (0)') throw Error('not marked read');
+    emit();
+    if (button.textContent !== 'Inbox (0)') throw Error('open inbox became unread');
+    d.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape'}));
+    if (!panel.hidden || button.getAttribute('aria-expanded') !== 'false') throw Error('Escape failed');
+    for (let i = 0; i < 60; i++) emit();
+    if (panel.querySelectorAll('article').length !== 50 || button.textContent !== 'Inbox (50)')
+      throw Error('inbox not bounded');
+    button.click();
+    panel.querySelector('button').click();
+    if (panel.querySelector('article') || button.textContent !== 'Inbox (0)') throw Error('clear failed');
+    if (errors.length) throw Error(errors.join('\n'));
+    dom.window.close();
+  } catch (error) { console.error(error); process.exit(1); }
+}, 50);
+`
+	for name, page := range map[string]string{
+		"application":  testSite().webHTML(),
+		"job activity": jobsHTML("/", nil, nil, "", true, true),
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "index.html")
+			if err := os.WriteFile(path, []byte(page), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if output, err := exec.Command("node", "-e", script, path).CombinedOutput(); err != nil {
+				t.Fatalf("notification inbox: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
 // Browser notifications report what happened while the page watched: a run
 // that finished, or a job that ended, since the previous poll. A run or job
 // that only appears because the page loaded it, such as an older run opened
@@ -82,6 +152,7 @@ setTimeout(async () => {
 	const failures = [];
 	for (const test of cases) {
 		shown.length = 0;
+		dom.window.document.querySelector('#notification-inbox-panel > button').click();
 		try {
 			await dom.window.checkRunNotifications(test.before, test.after, '');
 		} catch (error) {
@@ -91,6 +162,9 @@ setTimeout(async () => {
 		const titles = shown.map(text => text.split(' | ')[0]);
 		if (JSON.stringify(titles) !== JSON.stringify(test.want))
 			failures.push(test.name + ': notified ' + JSON.stringify(titles) + ', want ' + JSON.stringify(test.want));
+		const inboxTitles = [...dom.window.document.querySelectorAll('.notification-inbox-list article > a, .notification-inbox-list article > strong')].map(node => node.textContent);
+		if (JSON.stringify(inboxTitles) !== JSON.stringify(test.want))
+			failures.push(test.name + ': inbox notified ' + JSON.stringify(inboxTitles));
 	}
 	if (errors.length) failures.push(...errors);
 	if (failures.length) {

@@ -565,6 +565,16 @@ It shows the saved runner lock and the supervisor's PID record. It is not a live
 
 Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. Do not expose the UI without a token. The browser shows a sign-in form; use `rotari` as the user name and the token as the password. After sign-in, a 12-hour session cookie keeps the Web UI authenticated. API clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; Basic authentication is not supported. This is authentication, not encryption. Environment variable values are never exposed; the UI shows only whether each variable is set.
 
+### Do notifications work in VS Code's internal browser?
+
+The live Web UI's **Inbox (N)** works without browser notification permission,
+including in embedded browsers. It shows an unread count and the latest 50
+events while the page stays open; opening the inbox marks them read.
+Reloading or navigating clears the list. Desktop popups additionally require
+a browser that supports the Notification API and grants permission; use an
+external browser if the embedded one does not. See
+[Notifications](NOTIFICATIONS.md#in-page-inbox).
+
 ### Can I run the Web UI read-only?
 
 Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, logs, job activity, and docs pages available and returns `403 Forbidden` for control and file-write APIs.

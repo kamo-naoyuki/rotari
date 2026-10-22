@@ -303,7 +303,7 @@ polls `/api/state` for its mounted basedir and `/api/active-runs` for each
 other selected basedir; the server-rendered Job activity page polls the Job
 activity endpoint. A newly selected basedir is
 initialized from its current state, so existing completed jobs do not produce
-retroactive notifications. Notifications remain controlled by the global
+retroactive notifications. Desktop notifications remain controlled by the global
 notification permission and on/off toggle.
 
 **WEB-12** `rotari web` reads the registered basedir list at startup and
@@ -374,6 +374,19 @@ rest of config handling in
 [01-resolution-and-config.md](01-resolution-and-config.md#configuration-files).
 
 ## Desktop notifications
+
+**WEB-21** The live main and Job activity pages also keep an in-page inbox, implemented
+once in [web_shell.js](../internal/webui/assets/web_shell.js). It retains the
+latest 50 notifications in page memory, shows an unread count, marks entries
+read on opening, and supports clearing and Escape to close. It works without
+the desktop API, permission, secure context, or desktop on/off setting.
+Reloading or navigating clears the inbox. Main-page entries share the event
+selection and fields below; links retain the event's basedir. Job activity
+uses its existing selected-basedir job-result detection. Static exports have
+no inbox. Covered by `TestNotificationInboxWithoutDesktopAPI` in
+[run_notifications_test.go](../internal/webui/run_notifications_test.go).
+The built binary is checked by `TestWebNotificationInboxWithoutDesktopPermission`
+in [notifications_test.go](../conformance/05-web/notifications_test.go).
 
 `internal/webui/assets/web_app_notifications.js` shows a browser `Notification`
 when a run finishes or a job fails. It is entirely client-side: no server

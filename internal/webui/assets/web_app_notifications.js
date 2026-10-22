@@ -251,12 +251,6 @@ function notifyRunEvent(
   runFinished,
   settings,
 ) {
-  if (
-    !notificationsSupported() ||
-    Notification.permission !== "granted" ||
-    !notificationsEnabled()
-  )
-    return;
   const jobCountText =
     failedJobs.length + " job" + (failedJobs.length > 1 ? "s" : "") + " failed";
   let title;
@@ -289,6 +283,22 @@ function notifyRunEvent(
     if (lines.length) sections.push(lines.join("\n"));
   }
   const body = truncateNotificationBody(sections.join("\n\n"));
+  const url = (settings.fields || []).includes("link")
+    ? (info.basedirID
+        ? basedirURL(info.basedirID, "/project/")
+        : appURL("/project/")) +
+      encodeURIComponent(info.projectName) +
+      "/run/" +
+      encodeURIComponent(info.runID)
+    : "";
+  window.addInboxNotification?.(title, body, url);
+  if (
+    !notificationsSupported() ||
+    notificationUnavailableReason() ||
+    Notification.permission !== "granted" ||
+    !notificationsEnabled()
+  )
+    return;
   const notification = new Notification(title, {
     body,
     icon: notificationIconURL,
@@ -296,11 +306,7 @@ function notifyRunEvent(
   if ((settings.fields || []).includes("link"))
     notification.onclick = () => {
       window.focus();
-      location.href =
-        appURL("/project/") +
-        encodeURIComponent(info.projectName) +
-        "/run/" +
-        encodeURIComponent(info.runID);
+      location.href = url;
     };
 }
 // Job failures and a run's own completion that occur in the same poll are
@@ -342,6 +348,7 @@ async function checkRunNotifications(previousState, nextState, basedirID) {
   };
   const events = new Map();
   nextRuns.forEach((info, runKey) => {
+    info.basedirID = resolvedBasedirID;
     if (!info.running && watched(runKey, info)) {
       const settings = settingsByProject.get(
         notificationSettingsKey(info.projectName, resolvedBasedirID),
@@ -450,3 +457,5 @@ refresh = async function (forceProject = true) {
   await refreshOtherBasedirNotifications();
 };
 updateNotifyToggleLabel();
+if (typeof rewriteStaticLinks !== "function")
+  window.initializeNotificationInbox();

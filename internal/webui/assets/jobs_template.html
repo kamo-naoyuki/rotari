@@ -284,20 +284,23 @@
       }
 
       function notifyJobsActivity(job) {
+        const title =
+          job.state === "failed"
+            ? "rotari: job failed"
+            : "rotari: job finished";
+        const body = job.project + " / " + job.job;
+        window.addInboxNotification?.(title, body, job.runURL);
         if (
           typeof Notification === "undefined" ||
+          notificationUnavailableReason() ||
           Notification.permission !== "granted" ||
           !jobsNotificationsEnabled()
         )
           return;
-        const failed = job.state === "failed";
-        const notification = new Notification(
-          failed ? "rotari: job failed" : "rotari: job finished",
-          {
-            body: job.project + " / " + job.job,
-            icon: jobsNotificationIcon,
-          },
-        );
+        const notification = new Notification(title, {
+          body,
+          icon: jobsNotificationIcon,
+        });
         notification.onclick = () => {
           window.focus();
           location.href = job.runURL;
@@ -430,6 +433,7 @@
 
       restoreJobsNotificationTargets();
       updateJobsNotifyToggleLabel();
+      if (jobsPageIsLive) window.initializeNotificationInbox();
       if (jobsPageIsLive) setInterval(pollJobsActivity, 2000);
     </script>
   </body>

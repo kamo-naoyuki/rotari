@@ -39,6 +39,77 @@
     setMenuOpen(document.getElementById("settings-panel")?.hidden ?? false);
   window.closeSettingsMenu = () => setMenuOpen(false);
 
+  const inbox = [];
+  let inboxPanel;
+  let inboxButton;
+  window.initializeNotificationInbox = () => {
+    const toggle = document.getElementById("notify-toggle");
+    if (!toggle || inboxButton) return;
+    const container = document.createElement("div");
+    container.className = "notification-inbox";
+    inboxButton = document.createElement("button");
+    inboxButton.type = "button";
+    inboxButton.textContent = "Inbox (0)";
+    inboxButton.setAttribute("aria-expanded", "false");
+    inboxButton.setAttribute("aria-controls", "notification-inbox-panel");
+    inboxPanel = document.createElement("section");
+    inboxPanel.id = "notification-inbox-panel";
+    inboxPanel.hidden = true;
+    inboxPanel.setAttribute("aria-label", "Notifications");
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.textContent = "Clear notifications";
+    const list = document.createElement("div");
+    list.className = "notification-inbox-list";
+    const announcement = document.createElement("span");
+    announcement.className = "notification-announcement";
+    announcement.setAttribute("role", "status");
+    container.append(inboxButton, inboxPanel, announcement);
+    inboxPanel.append(clear, list);
+    toggle.before(container);
+    const render = () => {
+      const unread = inbox.filter((item) => !item.read).length;
+      inboxButton.textContent = "Inbox (" + unread + ")";
+      inboxButton.classList.toggle("notifications-on", unread > 0);
+      list.replaceChildren();
+      if (!inbox.length) list.textContent = "No notifications yet.";
+      for (const item of inbox) {
+        const entry = document.createElement("article");
+        const title = document.createElement(item.url ? "a" : "strong");
+        title.textContent = item.title;
+        if (item.url) title.href = item.url;
+        const body = document.createElement("p");
+        body.textContent = item.body;
+        entry.append(title, body);
+        list.append(entry);
+      }
+    };
+    inboxButton.onclick = () => {
+      inboxPanel.hidden = !inboxPanel.hidden;
+      inboxButton.setAttribute("aria-expanded", String(!inboxPanel.hidden));
+      if (!inboxPanel.hidden) inbox.forEach((item) => (item.read = true));
+      render();
+    };
+    clear.onclick = () => {
+      inbox.length = 0;
+      render();
+    };
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !inboxPanel.hidden) {
+        inboxPanel.hidden = true;
+        inboxButton.setAttribute("aria-expanded", "false");
+        inboxButton.focus();
+      }
+    });
+    window.addInboxNotification = (title, body, url) => {
+      inbox.unshift({ title, body, url, read: !inboxPanel.hidden });
+      inbox.length = Math.min(inbox.length, 50);
+      announcement.textContent = title;
+      render();
+    };
+    render();
+  };
+
   // Below 760px the sidebar is a drawer over the page.
   const setDrawerOpen = (open) => {
     document.body.classList.toggle("drawer-open", open);
