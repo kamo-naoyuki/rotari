@@ -17,6 +17,27 @@ import (
 
 const pbsAccountingWait = 60 * time.Second
 const pbsCommandTimeout = 30 * time.Second
+const pbsMaxJobNameBytes = 15
+
+func pbsJobName(job model.JobSpec) string {
+	const prefix = "rotari-"
+	const suffixBytes = pbsMaxJobNameBytes - len(prefix)
+
+	var suffix strings.Builder
+	for _, r := range job.ID {
+		if suffix.Len() == suffixBytes {
+			break
+		}
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			r = '-'
+		}
+		suffix.WriteRune(r)
+	}
+	if suffix.Len() == 0 {
+		return "rotari"
+	}
+	return prefix + suffix.String()
+}
 
 type pbsJobMetadata struct {
 	Executor    string   `json:"executor"`
@@ -144,7 +165,7 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	if job.EffectiveLogMode() == model.LogModeMerge {
 		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
 	}
-	args := []string{"-N", schedulerJobName(job), "-o", stdoutPath, "-e", stderrPath}
+	args := []string{"-N", pbsJobName(job), "-o", stdoutPath, "-e", stderrPath}
 	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return pbsJobMetadata{}, err

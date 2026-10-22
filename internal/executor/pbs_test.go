@@ -27,7 +27,7 @@ printf '123.headnode\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := model.JobSpec{ID: "abc123", AttemptID: "att_run-1-abc123-0", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
+	job := model.JobSpec{ID: "abc123def", AttemptID: "att_run-1-abc123-0", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
 	metadata, err := submitPBSJob(testStore(), testLogf, runDir, job, []string{"-l select=1:ncpus=2"})
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ printf '123.headnode\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"-N\nrotari show att_run-1-abc123-0 (echo hello)", "-o\n" + filepath.Join(jobDir, state.StdoutFileName), "-e\n" + filepath.Join(jobDir, state.StderrFileName)} {
+	for _, want := range []string{"-N\nrotari-abc123de", "-o\n" + filepath.Join(jobDir, state.StdoutFileName), "-e\n" + filepath.Join(jobDir, state.StderrFileName)} {
 		if !strings.Contains(string(arguments), want+"\n") {
 			t.Errorf("qsub arguments = %q, want %q", arguments, want)
 		}
