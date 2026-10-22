@@ -764,7 +764,8 @@ configured token. Browser users sign in through the login form over HTTPS and
 receive a revocable 12-hour `Secure` session cookie; login over plain HTTP is
 refused. API callers continue to use bearer or `X-Rotari-Token` credentials.
 Session-cookie mutations require a same-origin request, and signing out
-revokes the session. Without it,
+revokes the session and expires both Web and launch cookies with `Secure`
+set, regardless of the logout request's transport. Without it,
 `GET /api/launchers` reports launching unavailable with the server's reason
 and enabling hint, and the launch API answers 403 with the same text. Covered
 by `TestWebLaunchRequiresOptInAndToken` in
@@ -774,6 +775,9 @@ and the login-cookie requirements by
 `TestWebSessionCookieAlwaysUsesSecureAttribute` in
 [webui_test.go](../internal/webui/webui_test.go), implemented in
 [auth.go](../internal/webui/auth.go).
+Logout cookie attributes across HTTP, TLS, and TLS proxies are checked by
+`TestWebLogoutCookiesAlwaysSecure` in
+[launch_auth_test.go](../internal/webui/launch_auth_test.go).
 
 **WEB-14** While launching is enabled, a request whose `Host` is not
 `localhost`, `127.0.0.1`, `[::1]` (any port), a specific `--host`, or an

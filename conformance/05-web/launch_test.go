@@ -322,6 +322,38 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 		t.Fatalf("unexpected configured-token notice:\n%s", printed)
 	}
 
+	t.Run("logout cookie security", func(t *testing.T) {
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		request, err := http.NewRequest(http.MethodPost, base+"/_auth/logout", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("X-Rotari-Token", launchToken)
+		request.Header.Set("Origin", base)
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusSeeOther {
+			t.Fatalf("logout = %d, want 303", response.StatusCode)
+		}
+		cookies := response.Cookies()
+		if len(cookies) != 2 {
+			t.Fatalf("logout cookies = %v, want both sessions", cookies)
+		}
+		for _, cookie := range cookies {
+			if !cookie.Secure || cookie.MaxAge != -1 || cookie.Value != "" {
+				t.Fatalf("unsafe logout cookie: %+v", cookie)
+			}
+		}
+	})
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		t.Fatal(err)

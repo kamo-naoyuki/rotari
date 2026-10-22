@@ -213,7 +213,7 @@ func handleWebLogout(writer http.ResponseWriter, request *http.Request, sessions
 		Expires:  time.Unix(1, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   isSecureAuthRequest(request),
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.Redirect(writer, request, webLoginPath, http.StatusSeeOther)

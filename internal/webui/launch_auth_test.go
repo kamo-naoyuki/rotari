@@ -7,6 +7,46 @@ import (
 	"time"
 )
 
+func TestWebLogoutCookiesAlwaysSecure(t *testing.T) {
+	for _, test := range []struct {
+		name, target, origin, forwardedProto string
+	}{
+		{"HTTP", "http://localhost", "http://localhost", ""},
+		{"TLS", "https://localhost", "https://localhost", ""},
+		{"TLS proxy", "http://localhost", "https://localhost", "https"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler := WithAuthToken(http.NotFoundHandler(), "secret")
+			request := httptest.NewRequest(http.MethodPost, test.target+webLogoutPath, nil)
+			request.Header.Set("X-Rotari-Token", "secret")
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("X-Forwarded-Proto", test.forwardedProto)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusSeeOther || recorder.Header().Get("Location") != webLoginPath {
+				t.Fatalf("logout = %d, location = %q", recorder.Code, recorder.Header().Get("Location"))
+			}
+			cookies := recorder.Result().Cookies()
+			if len(cookies) != 2 {
+				t.Fatalf("logout cookies = %v, want both sessions", cookies)
+			}
+			paths := map[string]string{webSessionCookie: "/", launchAuthCookie: launchProxyPrefix}
+			for _, cookie := range cookies {
+				path, ok := paths[cookie.Name]
+				if !ok || cookie.Path != path || cookie.Value != "" || cookie.MaxAge != -1 ||
+					!cookie.Expires.Before(time.Now()) || !cookie.HttpOnly || !cookie.Secure ||
+					cookie.SameSite != http.SameSiteStrictMode {
+					t.Fatalf("unsafe logout cookie: %+v", cookie)
+				}
+				delete(paths, cookie.Name)
+			}
+			if len(paths) != 0 {
+				t.Fatalf("logout did not clear cookies: %v", paths)
+			}
+		})
+	}
+}
+
 func TestLaunchAuthenticationWithServiceAuthorization(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
