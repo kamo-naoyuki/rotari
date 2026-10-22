@@ -10,6 +10,22 @@ prose. At the beginning of an English sentence, capitalize it as `Rotari`.
 Before making changes, inspect the relevant existing implementation and tests.
 Do not assume behavior from names alone.
 
+## Version control and workspaces
+
+* This repository is managed with Jujutsu (`jj`), including when a colocated
+  Git repository is present. Use `jj` for status, diffs, commits, and history
+  changes; do not use Git commands to stage, commit, check out, or rewrite
+  changes.
+* Before editing, run `jj status` and `jj workspace list` to identify the
+  current workspace and any existing work. Jujutsu automatically snapshots
+  working-copy changes; there is no Git staging area in this workflow.
+* For concurrent threads, prefer one `jj workspace` and a distinct
+  working-copy change per thread. Choose the base revision explicitly when
+  creating a workspace. Do not edit another thread's workspace or rewrite
+  its changes without coordination.
+* Workspaces isolate files, not repository history: bookmarks, operations,
+  and changes are shared. Coordinate integration and history rewrites.
+
 ## General rules
 
 * Keep changes focused on the requested task.
@@ -176,9 +192,9 @@ When fixing a bug:
 1. Write a test that reproduces it, and confirm the test fails for the
    reported reason before fixing the code.
 2. When a test is added after the fix, show that it catches the bug: run it
-   against the pre-fix commit in a temporary worktree
-   (`git worktree add --detach "$TMPDIR/wt" COMMIT`), then remove the
-   worktree.
+   against the pre-fix commit in a temporary `jj workspace` created with an
+   explicit base revision. After verification, forget that workspace and
+   remove only its temporary directory.
 3. Add a conformance row as well when the bug is visible through the binary
    or the Web API, so the bug is covered for every command that shares the
    rule, not only the one where it was found.
@@ -235,10 +251,13 @@ Before reporting a task as complete:
 
 ## Commits
 
-* After finishing work, commit each work item separately.
+* After finishing work, record each work item separately with `jj`.
+  When the current change contains only this thread's work, use `jj commit`
+  with a description to finalize it and start a new working-copy change.
 * Include only changes from the current thread. Other work may be in progress
-  in the same working tree; leave unrelated files and hunks unstaged, even in
-  a file this thread also edited.
+  in the same workspace; preserve unrelated files and hunks and keep them
+  out of this thread's commit. Do not commit the entire working copy when
+  it also contains unrelated work; separate the changes first.
 
 ## Scope
 
