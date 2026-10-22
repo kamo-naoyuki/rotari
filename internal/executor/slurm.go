@@ -192,14 +192,14 @@ func slurmJobName(job model.JobSpec) string {
 	if command == "" {
 		return truncateSlurmJobName(prefix)
 	}
-	if len(prefix)+1+len(command) <= slurmMaxJobNameBytes {
-		return prefix + " " + command
+	if len(prefix)+3+len(command) <= slurmMaxJobNameBytes {
+		return prefix + " (" + command + ")"
 	}
-	commandBytes := slurmMaxJobNameBytes - len(prefix) - 1 - len("...")
+	commandBytes := slurmMaxJobNameBytes - len(prefix) - 3 - len("...")
 	if commandBytes <= 0 {
 		return truncateSlurmJobName(prefix)
 	}
-	return prefix + " " + truncateUTF8(command, commandBytes) + "..."
+	return prefix + " (" + truncateUTF8(command, commandBytes) + "...)"
 }
 
 func truncateSlurmJobName(value string) string {

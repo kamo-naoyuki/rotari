@@ -53,7 +53,7 @@ printf '12345;fake-host\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantShowCommand := "--job-name=rotari show att_run-1-abc123-0 echo hello"
+	wantShowCommand := "--job-name=rotari show att_run-1-abc123-0 (echo hello)"
 	if !strings.Contains(string(arguments), wantShowCommand+"\n") {
 		t.Fatalf("sbatch arguments = %q, want %q", arguments, wantShowCommand)
 	}
@@ -89,7 +89,7 @@ func TestSlurmJobNameTruncatesCommandToSchedulerLimit(t *testing.T) {
 	if !utf8.ValidString(got) {
 		t.Fatalf("job name is not valid UTF-8: %q", got)
 	}
-	if !strings.HasPrefix(got, "rotari show "+job.AttemptID+" python ") || !strings.HasSuffix(got, "...") {
+	if !strings.HasPrefix(got, "rotari show "+job.AttemptID+" (python ") || !strings.HasSuffix(got, "...)") {
 		t.Fatalf("job name = %q, want attempt, command preview, and truncation marker", got)
 	}
 }
