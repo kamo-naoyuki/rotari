@@ -144,7 +144,7 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	if job.EffectiveLogMode() == model.LogModeMerge {
 		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
 	}
-	args := []string{"-o", stdoutPath, "-e", stderrPath}
+	args := []string{"-N", schedulerJobName(job), "-o", stdoutPath, "-e", stderrPath}
 	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return pbsJobMetadata{}, err

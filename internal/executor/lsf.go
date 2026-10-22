@@ -150,7 +150,7 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	if err != nil {
 		return lsfJobMetadata{}, err
 	}
-	args := append([]string{"bsub"}, expandedOptions...)
+	args := append([]string{"bsub", "-J", schedulerJobName(job)}, expandedOptions...)
 	if job.EnvMode == model.EnvModeNone {
 		args = append(args, "-env", "none")
 	} else {

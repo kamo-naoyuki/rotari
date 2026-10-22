@@ -26,7 +26,7 @@ printf 'Job <123> is submitted to default queue.\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := model.JobSpec{ID: "abc123", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
+	job := model.JobSpec{ID: "abc123", AttemptID: "att_run-1-abc123-0", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
 	metadata, err := submitLSFJob(testStore(), testLogf, runDir, job, []string{"-q short", "-n 2"})
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ printf 'Job <123> is submitted to default queue.\n'
 		t.Fatalf("LSF wrapper does not separate stream files: %s", wrapper)
 	}
 	arguments, err := os.ReadFile(argumentsPath)
-	if err != nil || !strings.Contains(string(arguments), "-env\nall\n") {
+	if err != nil || !strings.Contains(string(arguments), "-env\nall\n") || !strings.Contains(string(arguments), "-J\nrotari show att_run-1-abc123-0 (echo hello)\n") {
 		t.Fatalf("ALL bsub arguments = %q, err=%v; want -env all", arguments, err)
 	}
 	job.ID = "none-job"

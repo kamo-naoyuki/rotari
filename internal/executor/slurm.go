@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -150,7 +149,7 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 	if job.EffectiveLogMode() == model.LogModeMerge {
 		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
 	}
-	args := []string{"--parsable", "--job-name=" + slurmJobName(job), "--output=" + stdoutPath, "--error=" + stderrPath}
+	args := []string{"--parsable", "--job-name=" + schedulerJobName(job), "--output=" + stdoutPath, "--error=" + stderrPath}
 	expandedOptions, err := ExpandShellOptions(executorOptions)
 	if err != nil {
 		return slurmJobMetadata{}, err
@@ -182,42 +181,6 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 	}
 	logf("[%s] submit job=%s slurm_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, slurmJobID, strings.Join(job.Command, " "))
 	return metadata, nil
-}
-
-const slurmMaxJobNameBytes = 128
-
-func slurmJobName(job model.JobSpec) string {
-	prefix := "rotari show " + job.AttemptID
-	command := strings.Join(job.Command, " ")
-	if command == "" {
-		return truncateSlurmJobName(prefix)
-	}
-	if len(prefix)+3+len(command) <= slurmMaxJobNameBytes {
-		return prefix + " (" + command + ")"
-	}
-	commandBytes := slurmMaxJobNameBytes - len(prefix) - 3 - len("...")
-	if commandBytes <= 0 {
-		return truncateSlurmJobName(prefix)
-	}
-	return prefix + " (" + truncateUTF8(command, commandBytes) + "...)"
-}
-
-func truncateSlurmJobName(value string) string {
-	if len(value) <= slurmMaxJobNameBytes {
-		return value
-	}
-	return truncateUTF8(value, slurmMaxJobNameBytes-len("...")) + "..."
-}
-
-func truncateUTF8(value string, maxBytes int) string {
-	var result strings.Builder
-	for _, r := range value {
-		if result.Len()+utf8.RuneLen(r) > maxBytes {
-			break
-		}
-		result.WriteRune(r)
-	}
-	return result.String()
 }
 
 func submitSlurmArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {

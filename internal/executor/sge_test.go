@@ -20,7 +20,7 @@ func TestSubmitSGEJobWithFakeGridEngine(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	runDir := t.TempDir()
-	job := model.JobSpec{ID: "job-1", Command: []string{"echo", "hello"}, LogMode: model.LogModeSeparate}
+	job := model.JobSpec{ID: "job-1", AttemptID: "att_run-1-job-1-0", Command: []string{"echo", "hello"}, LogMode: model.LogModeSeparate}
 	policy := sgeSubmissionPolicy{retry: schedulerSubmissionRetryPolicy{}, spacing: newSchedulerSubmissionGate(0)}
 	metadata, err := submitSGEJobWithPolicies(testStore(), testLogf, runDir, job, []string{"-q short"}, policy)
 	if err != nil {
@@ -33,7 +33,7 @@ func TestSubmitSGEJobWithFakeGridEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"-terse", "-o\n" + filepath.Join(runDir, "job-1", state.StdoutFileName), "-e\n" + filepath.Join(runDir, "job-1", state.StderrFileName), "-q\nshort", "-V"} {
+	for _, want := range []string{"-terse", "-N\nrotari show att_run-1-job-1-0 (echo hello)", "-o\n" + filepath.Join(runDir, "job-1", state.StdoutFileName), "-e\n" + filepath.Join(runDir, "job-1", state.StderrFileName), "-q\nshort", "-V"} {
 		if !strings.Contains(string(args), want) {
 			t.Errorf("qsub args %q do not include %q", args, want)
 		}

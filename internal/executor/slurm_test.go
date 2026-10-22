@@ -82,9 +82,9 @@ func TestSlurmJobNameTruncatesCommandToSchedulerLimit(t *testing.T) {
 		AttemptID: "att_run-1-job-0",
 		Command:   []string{"python", strings.Repeat("あ", 80)},
 	}
-	got := slurmJobName(job)
-	if len(got) > slurmMaxJobNameBytes {
-		t.Fatalf("job name length = %d bytes, want at most %d: %q", len(got), slurmMaxJobNameBytes, got)
+	got := schedulerJobName(job)
+	if len(got) > schedulerMaxJobNameBytes {
+		t.Fatalf("job name length = %d bytes, want at most %d: %q", len(got), schedulerMaxJobNameBytes, got)
 	}
 	if !utf8.ValidString(got) {
 		t.Fatalf("job name is not valid UTF-8: %q", got)

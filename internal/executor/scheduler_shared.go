@@ -9,10 +9,47 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+const schedulerMaxJobNameBytes = 64
+
+func schedulerJobName(job model.JobSpec) string {
+	prefix := "rotari show " + job.AttemptID
+	command := strings.Join(job.Command, " ")
+	if command == "" {
+		return truncateSchedulerJobName(prefix)
+	}
+	if len(prefix)+3+len(command) <= schedulerMaxJobNameBytes {
+		return prefix + " (" + command + ")"
+	}
+	commandBytes := schedulerMaxJobNameBytes - len(prefix) - 3 - len("...")
+	if commandBytes <= 0 {
+		return truncateSchedulerJobName(prefix)
+	}
+	return prefix + " (" + truncateUTF8(command, commandBytes) + "...)"
+}
+
+func truncateSchedulerJobName(value string) string {
+	if len(value) <= schedulerMaxJobNameBytes {
+		return value
+	}
+	return truncateUTF8(value, schedulerMaxJobNameBytes-len("...")) + "..."
+}
+
+func truncateUTF8(value string, maxBytes int) string {
+	var result strings.Builder
+	for _, r := range value {
+		if result.Len()+utf8.RuneLen(r) > maxBytes {
+			break
+		}
+		result.WriteRune(r)
+	}
+	return result.String()
+}
 
 // ExpandShellOptions splits shell-quoted option strings (e.g. "-p short --cpus-per-task=2")
 // into individual CLI arguments. Shared by any executor that accepts free-form option strings,
