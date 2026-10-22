@@ -15,7 +15,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-const schedulerMaxJobNameBytes = 64
+const schedulerMaxJobNameBytes = 96
 
 func schedulerJobName(job model.JobSpec) string {
 	prefix := "rotari show " + job.AttemptID
