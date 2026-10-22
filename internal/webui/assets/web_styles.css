@@ -1726,6 +1726,12 @@ pre,
 .launch-table td {
   overflow-wrap: anywhere;
 }
+.launch-table th:last-child,
+.launch-table td:last-child {
+  width: auto;
+  white-space: normal;
+  text-align: left;
+}
 .launch-table tr.selected {
   background: var(--highlight);
 }

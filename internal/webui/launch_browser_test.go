@@ -284,6 +284,7 @@ func TestWebLauncherConfigInBrowser(t *testing.T) {
   await window.showLauncherConfig();
   const view = document.getElementById('launch-view');
   if (view.hidden || !document.getElementById('modal-log').hidden) fail('launcher config view toggling');
+  if (view.querySelector('.launch-table thead').textContent.trim() !== 'NameTargetsModeNotesCommand') fail('launcher config table headings', view.querySelector('.launch-table thead').textContent);
   if (!view.textContent.includes('(does not exist)') || !view.textContent.includes('TensorBoard') || !view.textContent.includes('built in') ||
       !view.textContent.includes('start rotari web --allow-exec')) fail('missing file view', view.textContent);
   await window.generateLauncherConfig();

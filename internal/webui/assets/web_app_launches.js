@@ -697,7 +697,7 @@ async function showLauncherConfig(message) {
     ) +
     "</p>" +
     (commands
-      ? '<table class="runs launch-table"><thead><tr><th>Command</th><th>Targets</th><th>Mode</th><th>Notes</th><th>Runs</th></tr></thead><tbody>' +
+      ? '<table class="runs launch-table"><thead><tr><th>Name</th><th>Targets</th><th>Mode</th><th>Notes</th><th>Command</th></tr></thead><tbody>' +
         commands +
         "</tbody></table>"
       : "") +
