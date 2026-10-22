@@ -482,8 +482,9 @@ by default. To turn it on:
    listener, including `127.0.0.1`, because other users on a shared host can
    connect to loopback ports. The server always prints the sign-in user name,
    `rotari`. Unless `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) is set, it
-   generates a token and prints it; otherwise, use the configured token as the
-   password. Set `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
+   generates a token and prints it. Enter the user name and token in the Web
+   login form. Set `ROTARI_WEB_AUTH_TOKEN` to keep the same token across
+   restarts.
 
 Opening a service establishes an HttpOnly, same-site authentication cookie
 scoped to `/_launch/`, valid for 12 hours or until the Web server restarts.
@@ -639,8 +640,8 @@ rotari tableview eval/ --port 8090
 It reads only under that directory, or the file's, and resolves relative
 media paths from there. It listens on `127.0.0.1` (port 8788, or the next
 free one); on a remote host, forward the port with `ssh -L 8788:localhost:8788
-HOST`. Set `ROTARI_WEB_AUTH_TOKEN` or `--auth-token` to require a token, as
-for `rotari web`.
+HOST`. Set `ROTARI_WEB_AUTH_TOKEN` or `--auth-token` to require sign-in, as
+for `rotari web`; use `rotari` as the user name and the token as the password.
 
 ### Interrupted runs
 

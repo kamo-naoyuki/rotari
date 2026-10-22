@@ -288,11 +288,35 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 
 	// With a configured token, remind users of the fixed username without
 	// printing the token itself.
-	_, _, printed = startWebProcess(t, e, "--allow-exec")
+	base, _, printed = startWebProcess(t, e, "--allow-exec")
 	if !strings.Contains(printed, `user name "rotari"`) ||
 		!strings.Contains(printed, "configured token as the password") ||
 		strings.Contains(printed, launchToken) {
 		t.Fatalf("unexpected configured-token notice:\n%s", printed)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	browser := &http.Client{Jar: jar, Timeout: 10 * time.Second}
+	values := url.Values{"username": {"rotari"}, "password": {launchToken}, "next": {"/"}}
+	request, err := http.NewRequest(http.MethodPost, base+"/_auth/login", strings.NewReader(values.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Origin", base)
+	response, err := browser.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("login form = %d, want 200 after redirect", response.StatusCode)
+	}
+	if cookies := jar.Cookies(&url.URL{Scheme: "http", Host: strings.TrimPrefix(base, "http://")}); len(cookies) != 1 || cookies[0].Name != "rotari_web_session" {
+		t.Fatalf("login session cookies = %v", cookies)
 	}
 }
 
@@ -311,7 +335,7 @@ func TestWebLaunchGuardsRequests(t *testing.T) {
 		"localhost other port":  {http.MethodGet, map[string]string{"Host": "localhost:1", "X-Rotari-Token": launchToken}, http.StatusOK},
 		"allowed host":          {http.MethodGet, map[string]string{"Host": "GPU01.example:8787", "X-Rotari-Token": launchToken}, http.StatusOK},
 		"cross-origin post":     {http.MethodPost, map[string]string{"Origin": "http://attacker.example", "X-Rotari-Token": launchToken}, http.StatusForbidden},
-		"same-origin post":      {http.MethodPost, map[string]string{"Origin": base, "Authorization": "Basic " + basicAuth()}, http.StatusNotFound},
+		"same-origin post":      {http.MethodPost, map[string]string{"Origin": base, "Authorization": "Bearer " + launchToken}, http.StatusNotFound},
 		"basic auth, no origin": {http.MethodPost, map[string]string{"Authorization": "Basic " + basicAuth()}, http.StatusForbidden},
 		"token, no origin":      {http.MethodPost, map[string]string{"X-Rotari-Token": launchToken}, http.StatusNotFound},
 		"bearer, no origin":     {http.MethodPost, map[string]string{"Authorization": "Bearer " + launchToken}, http.StatusNotFound},
@@ -594,7 +618,7 @@ func TestWebLaunchServesServices(t *testing.T) {
 	if proxied.Status != http.StatusOK || proxied.Body != want {
 		t.Fatalf("proxied = (%d, %s), want %s", proxied.Status, proxied.Body, want)
 	}
-	// A real browser navigates with Basic auth, then Jupyter supplies its
+	// A real browser signs in with the Web form, then Jupyter supplies its
 	// own Authorization header on API requests. Neither credential leaks.
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -602,22 +626,36 @@ func TestWebLaunchServesServices(t *testing.T) {
 	}
 	browser := &http.Client{Jar: jar, Timeout: 10 * time.Second}
 	address := base + viewer.BasePath + "/data/runs?run=a%20b"
-	request, err := http.NewRequest(http.MethodGet, address, nil)
+	loginValues := url.Values{
+		"username": {"rotari"},
+		"password": {launchToken},
+		"next":     {viewer.BasePath + "/data/runs?run=a%20b"},
+	}
+	request, err := http.NewRequest(http.MethodPost, base+"/_auth/login", strings.NewReader(loginValues.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.SetBasicAuth("rotari", launchToken)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Origin", base)
 	response, err := browser.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
+	io.Copy(io.Discard, response.Body)
 	response.Body.Close()
-	if response.StatusCode != http.StatusOK || len(response.Cookies()) != 1 {
-		t.Fatalf("launch navigation = %d, cookies = %d", response.StatusCode, len(response.Cookies()))
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("launch navigation = %d", response.StatusCode)
 	}
 	parsed, err := url.Parse(address)
 	if err != nil {
 		t.Fatal(err)
+	}
+	hasWebSession := false
+	for _, cookie := range jar.Cookies(parsed) {
+		hasWebSession = hasWebSession || cookie.Name == "rotari_web_session"
+	}
+	if !hasWebSession {
+		t.Fatalf("login cookies = %v, want Web session", jar.Cookies(parsed))
 	}
 	jar.SetCookies(parsed, []*http.Cookie{{Name: "application", Value: "kept", Path: viewer.BasePath + "/"}})
 	for _, authorization := range []string{"token jupyter-secret", "Bearer application-secret", ""} {

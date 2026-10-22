@@ -339,10 +339,11 @@ and [`TestWebListsBasedirsRegisteredAfterStart`](../conformance/05-web/basedir_r
   including `--port 0`, never falls back and fails immediately if unavailable.
 - The actually bound address is reported after listener creation. Non-loopback
   hosts produce a warning when no Web UI token is configured.
-- `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` wraps every Web route and accepts
-  `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
-  authentication with username `rotari` and the token as the password; this is
-  authentication only and does not encrypt HTTP traffic. The notification
+- `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` protects every live Web route with
+  a login form and a revocable 12-hour session cookie; API clients authenticate
+  with `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`. Basic
+  authentication is not supported. This is authentication only and does not
+  encrypt HTTP traffic. The notification
   settings form masks a saved webhook URL in its input and never returns that
   URL in the read API response, but masking is only a visual safeguard: a URL
   entered in the form is sent to the Web server over the current HTTP
@@ -744,10 +745,14 @@ it, and both are rejected with `--static-dir` (WEB-3). With it, every route
 requires the Web token, on loopback listeners too: without
 `--auth-token` or `ROTARI_WEB_AUTH_TOKEN`, the server generates one and
 prints it on stderr; it always prints the sign-in user name and never prints a
-configured token. Without it, `GET /api/launchers` reports launching
-unavailable with the server's reason and enabling hint, and the launch API
-answers 403 with the same text. Covered by `TestWebLaunchRequiresOptInAndToken`
-in [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
+configured token. Browser users sign in through the login form and receive a
+revocable 12-hour session cookie; API callers continue to use bearer or
+`X-Rotari-Token` credentials. Session-cookie mutations require a same-origin
+request, and signing out revokes the session. Without it,
+`GET /api/launchers` reports launching unavailable with the server's reason
+and enabling hint, and the launch API answers 403 with the same text. Covered
+by `TestWebLaunchRequiresOptInAndToken` in
+[conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).
 
 **WEB-14** While launching is enabled, a request whose `Host` is not
 `localhost`, `127.0.0.1`, `[::1]` (any port), a specific `--host`, or an

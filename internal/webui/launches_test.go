@@ -948,7 +948,7 @@ func TestJupyterAuthenticatedProxy(t *testing.T) {
 	}
 	client := &http.Client{Jar: jar, Timeout: 30 * time.Second}
 	request, _ := http.NewRequest(http.MethodGet, server.URL+started.BasePath+"/lab", nil)
-	request.SetBasicAuth("rotari", "secret")
+	request.Header.Set("Authorization", "Bearer secret")
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)

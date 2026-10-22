@@ -174,6 +174,9 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 		}
 		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", flags.host, controlWarning)
 	}
+	if flags.authToken != "" {
+		options.AuthEnabled = true
+	}
 	handler := webui.Handler(options)
 	if flags.authToken != "" {
 		handler = webui.WithAuthToken(handler, flags.authToken)

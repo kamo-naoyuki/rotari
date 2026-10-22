@@ -2110,7 +2110,7 @@ func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
 		{name: "wrong", header: "Authorization", value: "Bearer wrong", wantStatus: http.StatusUnauthorized},
 		{name: "bearer", header: "Authorization", value: "Bearer secret", wantStatus: http.StatusNoContent},
 		{name: "token header", header: "X-Rotari-Token", value: "secret", wantStatus: http.StatusNoContent},
-		{name: "basic", header: "Authorization", value: "Basic cm90YXJpOnNlY3JldA==", wantStatus: http.StatusNoContent},
+		{name: "basic", header: "Authorization", value: "Basic cm90YXJpOnNlY3JldA==", wantStatus: http.StatusUnauthorized},
 		{name: "basic wrong user", header: "Authorization", value: "Basic b3RoZXI6c2VjcmV0", wantStatus: http.StatusUnauthorized},
 		{name: "basic wrong password", header: "Authorization", value: "Basic cm90YXJpOndyb25n", wantStatus: http.StatusUnauthorized},
 	} {
@@ -2124,15 +2124,171 @@ func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d", recorder.Code, test.wantStatus)
 			}
-			if test.wantStatus == http.StatusUnauthorized && recorder.Header().Get("WWW-Authenticate") == "" {
-				t.Fatal("missing WWW-Authenticate header")
+			if test.wantStatus == http.StatusUnauthorized && recorder.Header().Get("WWW-Authenticate") != "" {
+				t.Fatal("unexpected browser authentication challenge")
 			}
 		})
 	}
 }
 
+func TestWebLoginFormCreatesAndRevokesSession(t *testing.T) {
+	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	})
+	handler := WithAuthToken(next, "secret")
+
+	apiRequest := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	apiRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(apiRecorder, apiRequest)
+	if apiRecorder.Code != http.StatusUnauthorized || apiRecorder.Header().Get("WWW-Authenticate") != "" {
+		t.Fatalf("unauthenticated API request = %d, WWW-Authenticate = %q", apiRecorder.Code, apiRecorder.Header().Get("WWW-Authenticate"))
+	}
+
+	pageRequest := httptest.NewRequest(http.MethodGet, "http://localhost/activity/?range=7d", nil)
+	pageRequest.Header.Set("Accept", "text/html")
+	pageRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(pageRecorder, pageRequest)
+	if pageRecorder.Code != http.StatusSeeOther || !strings.HasPrefix(pageRecorder.Header().Get("Location"), webLoginPath+"?next=") {
+		t.Fatalf("unauthenticated page request = %d, location = %q", pageRecorder.Code, pageRecorder.Header().Get("Location"))
+	}
+
+	loginPage := httptest.NewRecorder()
+	handler.ServeHTTP(loginPage, httptest.NewRequest(http.MethodGet, "http://localhost"+webLoginPath, nil))
+	if loginPage.Code != http.StatusOK || !strings.Contains(loginPage.Body.String(), `name="username" value="rotari"`) ||
+		!strings.Contains(loginPage.Body.String(), `name="password" autocomplete="current-password"`) {
+		t.Fatalf("login page = %d, %s", loginPage.Code, loginPage.Body.String())
+	}
+
+	post := func(username, password, nextPath, origin string) *httptest.ResponseRecorder {
+		values := url.Values{"username": {username}, "password": {password}, "next": {nextPath}}
+		request := httptest.NewRequest(http.MethodPost, "http://localhost"+webLoginPath, strings.NewReader(values.Encode()))
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if origin != "" {
+			request.Header.Set("Origin", origin)
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		return recorder
+	}
+	for _, origin := range []string{"http://attacker.example", "https://localhost"} {
+		if got := post("rotari", "secret", "/", origin); got.Code != http.StatusForbidden {
+			t.Errorf("login from origin %q = %d, want 403", origin, got.Code)
+		}
+	}
+	if got := post("rotari", "wrong", "/", "http://localhost"); got.Code != http.StatusUnauthorized ||
+		!strings.Contains(got.Body.String(), "Sign-in failed") {
+		t.Fatalf("wrong token login = %d, %s", got.Code, got.Body.String())
+	}
+	loggedIn := post("rotari", "secret", "/activity/?range=7d", "http://localhost")
+	if loggedIn.Code != http.StatusSeeOther || loggedIn.Header().Get("Location") != "/activity/?range=7d" {
+		t.Fatalf("valid login = %d, location = %q", loggedIn.Code, loggedIn.Header().Get("Location"))
+	}
+	cookies := loggedIn.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("login set %d cookies, want one", len(cookies))
+	}
+	cookie := cookies[0]
+	if cookie.Name != webSessionCookie || cookie.Path != "/" || !cookie.HttpOnly ||
+		cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge != int(webSessionLifetime.Seconds()) {
+		t.Fatalf("unsafe login cookie: %+v", cookie)
+	}
+
+	authenticated := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	authenticated.AddCookie(cookie)
+	authenticatedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(authenticatedRecorder, authenticated)
+	if authenticatedRecorder.Code != http.StatusNoContent {
+		t.Fatalf("session request = %d, want 204", authenticatedRecorder.Code)
+	}
+
+	crossOriginMutation := httptest.NewRequest(http.MethodPost, "http://localhost/api/change", nil)
+	crossOriginMutation.AddCookie(cookie)
+	crossOriginMutation.Header.Set("Origin", "http://attacker.example")
+	crossOriginRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(crossOriginRecorder, crossOriginMutation)
+	if crossOriginRecorder.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin cookie mutation = %d, want 403", crossOriginRecorder.Code)
+	}
+	wrongSchemeMutation := httptest.NewRequest(http.MethodPost, "http://localhost/api/change", nil)
+	wrongSchemeMutation.AddCookie(cookie)
+	wrongSchemeMutation.Header.Set("Origin", "https://localhost")
+	wrongSchemeRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(wrongSchemeRecorder, wrongSchemeMutation)
+	if wrongSchemeRecorder.Code != http.StatusForbidden {
+		t.Fatalf("wrong-scheme cookie mutation = %d, want 403", wrongSchemeRecorder.Code)
+	}
+
+	logout := httptest.NewRequest(http.MethodPost, "http://localhost"+webLogoutPath, nil)
+	logout.AddCookie(cookie)
+	logout.Header.Set("Origin", "http://localhost")
+	logoutRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(logoutRecorder, logout)
+	if logoutRecorder.Code != http.StatusSeeOther || logoutRecorder.Header().Get("Location") != webLoginPath {
+		t.Fatalf("logout = %d, location = %q", logoutRecorder.Code, logoutRecorder.Header().Get("Location"))
+	}
+	logoutCookies := logoutRecorder.Result().Cookies()
+	if len(logoutCookies) != 2 {
+		t.Fatalf("logout cleared %d cookies, want both Web sessions", len(logoutCookies))
+	}
+	cleared := map[string]bool{}
+	for _, cookie := range logoutCookies {
+		cleared[cookie.Name] = cookie.MaxAge < 0
+	}
+	if !cleared[webSessionCookie] || !cleared[launchAuthCookie] {
+		t.Fatalf("logout did not expire both session cookies: %v", logoutCookies)
+	}
+	revoked := httptest.NewRequest(http.MethodGet, "http://localhost/api/state", nil)
+	revoked.AddCookie(cookie)
+	revokedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(revokedRecorder, revoked)
+	if revokedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked session request = %d, want 401", revokedRecorder.Code)
+	}
+}
+
+func TestWebSessionCookieUsesSecureTransport(t *testing.T) {
+	for _, test := range []struct {
+		name, target, forwardedProto string
+	}{
+		{name: "direct TLS", target: "https://localhost/"},
+		{name: "TLS reverse proxy", target: "http://localhost/", forwardedProto: "https"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.target, nil)
+			if test.forwardedProto != "" {
+				request.Header.Set("X-Forwarded-Proto", test.forwardedProto)
+			}
+			recorder := httptest.NewRecorder()
+			if !new(webSessions).issue(recorder, request) {
+				t.Fatal("session cookie was not created")
+			}
+			cookies := recorder.Result().Cookies()
+			if len(cookies) != 1 || !cookies[0].Secure {
+				t.Fatalf("session cookie = %v, want Secure", cookies)
+			}
+		})
+	}
+}
+
+func TestWebLoginRejectsUnsafeReturnPaths(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  string
+	}{
+		{"/project/demo?tab=run", "/project/demo?tab=run"},
+		{"https://attacker.example/", "/"},
+		{"//attacker.example/", "/"},
+		{"/\\attacker.example/", "/"},
+	} {
+		if got := safeWebReturnPath(test.value); got != test.want {
+			t.Errorf("safeWebReturnPath(%q) = %q, want %q", test.value, got, test.want)
+		}
+	}
+}
+
 func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
-	html := testSite().webHTML()
+	site := testSite()
+	html := site.webHTML()
 	for _, want := range []string{
 		`media="(prefers-color-scheme: dark)"`,
 		`media="(prefers-color-scheme: light)"`,
@@ -2143,6 +2299,13 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
+	}
+	if strings.Contains(html, "__ROTARI_AUTH_LOGOUT__") {
+		t.Fatal("Web HTML contains an unresolved auth control placeholder")
+	}
+	site.AuthEnabled = true
+	if !strings.Contains(site.webHTML(), `action="/_auth/logout"`) {
+		t.Fatal("authenticated Web HTML lacks the sign-out control")
 	}
 }
 

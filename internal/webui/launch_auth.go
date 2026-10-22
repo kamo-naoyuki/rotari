@@ -13,8 +13,8 @@ import (
 const launchAuthCookie = "rotari_launch_auth"
 const launchAuthLifetime = 12 * time.Hour
 
-// Launch pages need their own credential because an application's
-// Authorization header replaces the browser's Basic authentication.
+// Launch pages need a scoped cookie because an application's Authorization
+// header replaces the Web UI's API credential.
 type launchAuth struct {
 	key []byte
 }
@@ -35,7 +35,7 @@ func (auth launchAuth) cookie(request *http.Request, now time.Time) *http.Cookie
 		Expires:  expires,
 		MaxAge:   int(launchAuthLifetime.Seconds()),
 		HttpOnly: true,
-		Secure:   request.TLS != nil,
+		Secure:   secureAuthCookie(request),
 		SameSite: http.SameSiteStrictMode,
 	}
 }

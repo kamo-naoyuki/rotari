@@ -123,10 +123,10 @@ func (s site) serveLaunchProxy(writer http.ResponseWriter, request *http.Request
 			out.SetURL(upstream)
 			out.Out.Header.Del("Authorization")
 			out.Out.Header.Del("X-Rotari-Token")
-			// Keep application cookies, but never forward the Web session.
+			// Keep application cookies, but never forward Rotari's sessions.
 			out.Out.Header.Del("Cookie")
 			for _, cookie := range out.In.Cookies() {
-				if cookie.Name != launchAuthCookie {
+				if cookie.Name != launchAuthCookie && cookie.Name != webSessionCookie {
 					out.Out.AddCookie(cookie)
 				}
 			}

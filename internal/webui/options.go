@@ -27,6 +27,8 @@ type Options struct {
 	ReloadBaseDirs func() ([]string, error)
 	// AllowControl enables the endpoints that edit queues, configs, and runs.
 	AllowControl bool
+	// AuthEnabled adds the sign-out control to the main Web page.
+	AuthEnabled bool
 	// Notifications is the default of the desktop notification toggle.
 	Notifications bool
 	// ArtifactRoots are directories, besides each job's working directory,
@@ -86,5 +88,6 @@ func GenerateStatic(outputDir string, options Options) error {
 	if options.WorkspaceDir == "" {
 		options.WorkspaceDir, _ = os.Getwd()
 	}
+	options.AuthEnabled = false
 	return site{Options: options, notificationSession: newNotificationSession()}.generateStaticWeb(outputDir)
 }
