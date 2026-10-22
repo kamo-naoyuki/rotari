@@ -254,6 +254,16 @@ Before reporting a task as complete:
 * After finishing work, record each work item separately with `jj`.
   When the current change contains only this thread's work, use `jj commit`
   with a description to finalize it and start a new working-copy change.
+* Unless the user requests a separate branch or unintegrated work, completing
+  a task includes advancing the local `main` bookmark to the verified commit,
+  not just running `jj commit`. For a linear change based on `main`, use
+  `jj bookmark set main -r <completed-revision>`; never move it to the empty
+  working-copy change. If `main` has diverged or integration would include
+  another thread's unverified work, coordinate before integrating rather
+  than moving it blindly.
+* Pushing is a separate operation: push only when the user requests it.
+  In the completion report, distinguish committed, integrated into local
+  `main`, and pushed.
 * Include only changes from the current thread. Other work may be in progress
   in the same workspace; preserve unrelated files and hunks and keep them
   out of this thread's commit. Do not commit the entire working copy when
