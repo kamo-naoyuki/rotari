@@ -743,7 +743,8 @@ rejected with `--allow-control=false`, `--allowed-host` is rejected without
 it, and both are rejected with `--static-dir` (WEB-3). With it, every route
 requires the Web token, on loopback listeners too: without
 `--auth-token` or `ROTARI_WEB_AUTH_TOKEN`, the server generates one and
-prints it on stderr. Without it, `GET /api/launchers` reports launching
+prints it on stderr; it always prints the sign-in user name and never prints a
+configured token. Without it, `GET /api/launchers` reports launching
 unavailable with the server's reason and enabling hint, and the launch API
 answers 403 with the same text. Covered by `TestWebLaunchRequiresOptInAndToken`
 in [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go).

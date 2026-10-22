@@ -480,10 +480,10 @@ by default. To turn it on:
    [Launcher commands](CONFIGURATION.md#launcher-commands)).
 2. Start `rotari web --allow-exec`. Launching requires a token on every
    listener, including `127.0.0.1`, because other users on a shared host can
-   connect to loopback ports: unless `ROTARI_WEB_AUTH_TOKEN` (or
-   `--auth-token`) is set, the server generates one and prints it. Sign in with
-   user name `rotari` and the token as the password. Set
-   `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
+   connect to loopback ports. The server always prints the sign-in user name,
+   `rotari`. Unless `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) is set, it
+   generates a token and prints it; otherwise, use the configured token as the
+   password. Set `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
 
 Opening a service establishes an HttpOnly, same-site authentication cookie
 scoped to `/_launch/`, valid for 12 hours or until the Web server restarts.

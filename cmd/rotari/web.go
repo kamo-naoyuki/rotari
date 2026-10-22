@@ -162,6 +162,8 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 				return 1
 			}
 			fmt.Fprintf(os.Stderr, "--allow-exec requires authentication. Sign in with user name %q and this token as the password:\n  %s\nSet %s to keep one token across restarts.\n", "rotari", flags.authToken, envWebAuthToken)
+		} else {
+			fmt.Fprintf(os.Stderr, "--allow-exec requires authentication. Sign in with user name %q and the configured token as the password.\n", "rotari")
 		}
 		printLaunchRegistry(launches.Registry)
 	}

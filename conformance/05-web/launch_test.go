@@ -285,6 +285,15 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 	if got.Status != http.StatusOK || !strings.Contains(got.Body, `"available":true`) {
 		t.Fatalf("authenticated request = (%d, %s)", got.Status, got.Body)
 	}
+
+	// With a configured token, remind users of the fixed username without
+	// printing the token itself.
+	_, _, printed = startWebProcess(t, e, "--allow-exec")
+	if !strings.Contains(printed, `user name "rotari"`) ||
+		!strings.Contains(printed, "configured token as the password") ||
+		strings.Contains(printed, launchToken) {
+		t.Fatalf("unexpected configured-token notice:\n%s", printed)
+	}
 }
 
 func TestWebLaunchGuardsRequests(t *testing.T) {
