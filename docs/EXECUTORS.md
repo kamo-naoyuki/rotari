@@ -76,6 +76,10 @@ Array and matrix jobs are run semantics rather than executor features. The
 Slurm, PBS, and LSF executors may optimize a selected contiguous array range
 by submitting it as one native scheduler array. SGE, local, and SSH use
 independent jobs. See [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs).
+For an individual Slurm job, the default scheduler job name is
+`rotari show ATTEMPT_ID COMMAND`; long command previews are truncated so the
+name stays within 128 bytes. Native Slurm arrays keep the shared name
+`rotari-array`.
 
 Use `--env KEY=VALUE` with `add` to save environment variables on a job. They
 are exported for every executor, including local, SSH, Slurm, PBS, LSF, and SGE, and

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -52,7 +53,7 @@ printf '12345;fake-host\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantShowCommand := "--job-name=rotari show --job-id 'att_run-1-abc123-0'"
+	wantShowCommand := "--job-name=rotari show att_run-1-abc123-0 echo hello"
 	if !strings.Contains(string(arguments), wantShowCommand+"\n") {
 		t.Fatalf("sbatch arguments = %q, want %q", arguments, wantShowCommand)
 	}
@@ -73,6 +74,23 @@ printf '12345;fake-host\n'
 	arguments, err = os.ReadFile(argumentsPath)
 	if err != nil || !strings.Contains(string(arguments), "--export=NONE\n") {
 		t.Fatalf("NONE sbatch arguments = %q, err=%v", arguments, err)
+	}
+}
+
+func TestSlurmJobNameTruncatesCommandToSchedulerLimit(t *testing.T) {
+	job := model.JobSpec{
+		AttemptID: "att_run-1-job-0",
+		Command:   []string{"python", strings.Repeat("あ", 80)},
+	}
+	got := slurmJobName(job)
+	if len(got) > slurmMaxJobNameBytes {
+		t.Fatalf("job name length = %d bytes, want at most %d: %q", len(got), slurmMaxJobNameBytes, got)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("job name is not valid UTF-8: %q", got)
+	}
+	if !strings.HasPrefix(got, "rotari show "+job.AttemptID+" python ") || !strings.HasSuffix(got, "...") {
+		t.Fatalf("job name = %q, want attempt, command preview, and truncation marker", got)
 	}
 }
 
