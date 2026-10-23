@@ -7,17 +7,11 @@ let launcherAvailability = null;
 let selectedLaunchID = "";
 let launchListTimer = null;
 
-// loadLauncherAvailability asks what this server can launch; with a kind
-// and a target's base name, the server lists only the commands that accept
-// that target.
-async function loadLauncherAvailability(kind, name) {
-  const params = new URLSearchParams();
-  if (kind) params.set("kind", kind);
-  if (name) params.set("name", name);
+// loadLauncherAvailability asks whether this server can launch, which
+// shows the Launches and job Launch buttons.
+async function loadLauncherAvailability() {
   try {
-    const response = await fetch(
-      "/api/launchers" + (params.size ? "?" + params : ""),
-    );
+    const response = await fetch("/api/launchers");
     launcherAvailability = response.ok
       ? await response.json()
       : {
@@ -46,28 +40,119 @@ function launchExplanation(reason, hint) {
   );
 }
 
-function artifactLaunchButton(index, child, type) {
+// artifactLaunchButtons is a placeholder for a row's, or a preview title
+// line's, buttons: one per viewer and registered command that accepts the
+// artifact. fillArtifactLaunchButtons asks the server which those are.
+function artifactLaunchButtons(index, child, type) {
+  const target = child || artifactEntry(index).path;
   return (
-    '<button type="button" class="artifact-launch-button" onclick="toggleArtifactLaunch(' +
-    jsArg(index) +
-    "," +
-    jsArg(child) +
-    "," +
-    jsArg(type) +
-    ',this)">Launch with…</button>'
+    '<span class="artifact-launchers" data-index="' +
+    esc(String(index)) +
+    '" data-child="' +
+    esc(child || "") +
+    '" data-kind="' +
+    (type === "directory" ? "directory" : "file") +
+    '" data-name="' +
+    esc(target.slice(target.lastIndexOf("/") + 1)) +
+    '"></span>'
   );
 }
 
-// launchOnWorkingDirectory opens a job's Artifacts with the launch choices
-// of its working directory, the `.` row, open; when that row cannot be
+// fillArtifactLaunchButtons fills the placeholders under container with
+// one /api/launchers request. A command whose program is missing is shown
+// disabled with the server's reason. When this server cannot launch, the
+// rows keep only the viewers and the server's reason tops the view.
+async function fillArtifactLaunchButtons(container) {
+  const holders = [...container.querySelectorAll(".artifact-launchers")];
+  if (!holders.length) return;
+  const params = new URLSearchParams();
+  holders.forEach((holder) =>
+    params.append("target", holder.dataset.kind + ":" + holder.dataset.name),
+  );
+  let availability;
+  try {
+    const response = await fetch("/api/launchers?" + params);
+    availability = response.ok
+      ? await response.json()
+      : {
+          available: false,
+          reason: "Cannot check launching",
+          hint: await response.text(),
+        };
+  } catch (error) {
+    availability = {
+      available: false,
+      reason: "Cannot check launching: " + error.message,
+    };
+  }
+  const commands = new Map(
+    (availability.commands || []).map((command) => [command.name, command]),
+  );
+  const targets = availability.targets || [];
+  holders.forEach((holder, position) => {
+    const index = holder.dataset.index;
+    const entry = /^\d+$/.test(index) ? Number(index) : index;
+    const child = holder.dataset.child;
+    const match = targets[position] || { commands: [] };
+    holder.innerHTML =
+      (match.viewers || [])
+        .map(
+          (viewer) =>
+            '<a class="launch-viewer" target="_blank" rel="noopener" href="' +
+            esc(
+              appURL(viewer.path) +
+                "?" +
+                artifactParams(selectedArtifacts, { entry: index, child }),
+            ) +
+            '">' +
+            esc(viewer.name) +
+            "</a>",
+        )
+        .join("") +
+      match.commands
+        .map((name) => {
+          const unavailable = (commands.get(name) || {}).unavailable;
+          return unavailable
+            ? '<button type="button" class="artifact-launch-command" disabled title="' +
+                esc(name + ": " + unavailable) +
+                '">' +
+                esc(name) +
+                "</button>"
+            : '<button type="button" class="artifact-launch-command" title="' +
+                esc("Launch " + name + " on " + artifactTitle(entry, child)) +
+                '" onclick="chooseArtifactLaunch(' +
+                jsArg(entry) +
+                "," +
+                jsArg(child) +
+                "," +
+                jsArg(name) +
+                ',this)">' +
+                esc(name) +
+                "</button>";
+        })
+        .join("");
+  });
+  const view = artifactView();
+  view.querySelector(".launch-unavailable-note")?.remove();
+  if (!availability.available && availability.reason) {
+    const note = document.createElement("div");
+    note.className = "launch-unavailable-note";
+    note.innerHTML = launchExplanation(availability.reason, availability.hint);
+    view.prepend(note);
+  }
+}
+
+// launchOnWorkingDirectory opens a job's Artifacts and points at the
+// commands for its working directory, the `.` row; when that row cannot be
 // launched on, the view says why instead.
 async function launchOnWorkingDirectory(queue, run, job, attemptID) {
   await showArtifacts(queue, run, job, attemptID);
-  const button = artifactView().querySelector(
-    'tr[data-entry="' + WORKING_DIRECTORY_ENTRY + '"] .artifact-launch-button',
+  const row = artifactView().querySelector(
+    'tr[data-entry="' + WORKING_DIRECTORY_ENTRY + '"]',
   );
-  if (button) {
-    button.click();
+  if (row && row.querySelector(".artifact-launchers")) {
+    row.classList.add("artifact-row-focus");
+    row.scrollIntoView({ block: "nearest" });
     return;
   }
   const listing = selectedArtifacts.listing;
@@ -88,91 +173,51 @@ async function launchOnWorkingDirectory(queue, run, job, attemptID) {
   artifactView().prepend(note);
 }
 
-// basedirParentLaunchers caches the commands that accept the directory
-// holding the basedir, by that directory, for the run toolbar's buttons.
-let basedirParentLaunchers = { parent: "", commands: null };
-
 function basedirParent() {
   const base = state.base_dir.replace(/\/+$/, "");
   return base.slice(0, base.lastIndexOf("/")) || "/";
 }
 
-// basedirParentLaunchButtons is a run toolbar button per command that
-// accepts the directory holding the basedir, the experiment directory a
-// run's jobs often share a tracker store or TensorBoard log directory in;
-// a command whose program is missing is shown disabled with the reason.
-// The first call for a directory asks the server and renders again.
-function basedirParentLaunchButtons(project, runID) {
-  if (!launcherAvailability || !launcherAvailability.available) return "";
-  const parent = basedirParent();
-  if (basedirParentLaunchers.parent !== parent) {
-    basedirParentLaunchers = { parent, commands: null };
-    const params = new URLSearchParams({
-      kind: "directory",
-      name: parent.slice(parent.lastIndexOf("/") + 1),
-    });
-    fetch("/api/launchers?" + params)
-      .then((response) => (response.ok ? response.json() : {}))
-      .catch(() => ({}))
-      .then((body) => {
-        if (basedirParentLaunchers.parent !== parent) return;
-        basedirParentLaunchers.commands = body.commands || [];
-        render();
-      });
-    return "";
-  }
-  return (basedirParentLaunchers.commands || [])
-    .map((command) =>
-      command.unavailable
-        ? '<button type="button" class="launch-run" disabled title="' +
-          esc(command.unavailable) +
-          '">' +
-          esc(command.name) +
-          "</button>"
-        : '<button type="button" class="launch-run" title="' +
-          esc("Launch " + command.name + " on " + parent) +
-          '" onclick="launchOnBasedirParent(' +
-          jsArg(project) +
-          "," +
-          jsArg(runID) +
-          "," +
-          jsArg(command.name) +
-          ')">' +
-          esc(command.name) +
-          "</button>",
-    )
-    .join("");
+// runFilesButton is the run toolbar's Files button, which browses the
+// directory holding the basedir, where a run's jobs often share one
+// tracker store or TensorBoard log directory. A static export holds no
+// such files.
+function runFilesButton(project, runID) {
+  if (typeof window.__ROTARI_STATIC_STATE__ !== "undefined") return "";
+  return (
+    '<button type="button" class="run-files" title="' +
+    esc("Browse " + basedirParent() + " and launch commands on its files") +
+    '" onclick="showRunFiles(' +
+    jsArg(project) +
+    "," +
+    jsArg(runID) +
+    ')">Files</button>'
+  );
 }
 
-// launchOnBasedirParent shows what launching a command on the directory
-// holding the basedir would run, for confirmation. The server resolves the
-// directory from the run and decides whether it is served.
-async function launchOnBasedirParent(queue, run, name) {
+// showRunFiles opens the Files view: the directory holding the basedir,
+// browsed and launched on like a job's listed directory. The server
+// resolves the directory from the run and decides whether it is served.
+async function showRunFiles(queue, run) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "artifacts";
-  modal.querySelector("strong").textContent = "Launch " + name;
+  modal.querySelector("strong").textContent = "Files";
   if (followTimer) clearInterval(followTimer);
   followTimer = null;
   selectedLog = null;
-  const parent = basedirParent();
   selectedArtifacts = {
     queue,
     run,
     job: "",
     attemptID: "",
     listing: null,
-    basedirParent: parent,
+    basedirParent: basedirParent(),
   };
-  selectedOutput = parent;
+  selectedOutput = selectedArtifacts.basedirParent;
   artifactView().innerHTML =
-    '<div id="artifact-preview" class="artifact-preview"><p class="artifact-preview-title"><strong>' +
-    esc(parent) +
-    '</strong> <span class="meta">the directory holding the basedir</span></p>' +
-    '<div id="artifact-launch-panel" class="artifact-launch-panel" data-key="' +
-    esc(BASEDIR_PARENT_ENTRY + "/") +
-    '" data-row="false"></div></div>';
+    '<div id="artifact-preview" class="artifact-preview"></div>';
   openOutputModal(false);
-  await previewArtifactLaunch(BASEDIR_PARENT_ENTRY, "", name);
+  await openArtifact(BASEDIR_PARENT_ENTRY, "", "directory");
 }
 
 function artifactLaunchPanel() {
@@ -187,26 +232,20 @@ function closeArtifactLaunch() {
   (panel.closest(".artifact-launch-row") || panel).remove();
 }
 
-// toggleArtifactLaunch lists the registered commands that accept an
-// artifact, or explains why there are none. Opened from a table row, the
-// panel is a row below it; otherwise it follows the preview's title line.
-// The same button closes it; another one moves it.
-async function toggleArtifactLaunch(index, child, type, button) {
-  const key = index + "/" + (child || "");
+// chooseArtifactLaunch opens the confirmation of launching a command on
+// an artifact: from a table row, in a row below it; otherwise after the
+// preview's title line. The same button closes it; another one moves it.
+async function chooseArtifactLaunch(index, child, name, button) {
+  const key = index + "/" + (child || "") + "/" + name;
+  const row = button && button.closest("tr");
   const open = artifactLaunchPanel();
   closeArtifactLaunch();
-  if (
-    open &&
-    open.dataset.key === key &&
-    open.dataset.row === String(!!button?.closest("tr"))
-  )
+  if (open && open.dataset.key === key && open.dataset.row === String(!!row))
     return;
   const panel = document.createElement("div");
   panel.id = "artifact-launch-panel";
   panel.className = "artifact-launch-panel";
   panel.dataset.key = key;
-  panel.innerHTML = '<p class="meta">Loading...</p>';
-  const row = button && button.closest("tr");
   panel.dataset.row = String(!!row);
   if (row) {
     const holder = document.createElement("tr");
@@ -219,81 +258,7 @@ async function toggleArtifactLaunch(index, child, type, button) {
   } else {
     artifactPreview().querySelector(".artifact-preview-title").after(panel);
   }
-  const kind = type === "directory" ? "directory" : "file";
-  const target = child || artifactEntry(index).path;
-  const availability = await loadLauncherAvailability(
-    kind,
-    target.slice(target.lastIndexOf("/") + 1),
-  );
-  // The Web UI's own viewers open in a new tab and run no command, so they
-  // are offered even where launching is not, above why commands are not.
-  const viewers = availability.viewers || [];
-  const viewerChoices = viewers.length
-    ? '<p class="meta">Open in</p><div class="launch-choices launch-viewers">' +
-      viewers
-        .map(
-          (viewer) =>
-            '<a class="launch-viewer" target="_blank" rel="noopener" href="' +
-            esc(
-              appURL(viewer.path) +
-                "?" +
-                artifactParams(selectedArtifacts, {
-                  entry: String(index),
-                  child,
-                }),
-            ) +
-            '">' +
-            esc(viewer.name) +
-            "</a>",
-        )
-        .join("") +
-      "</div>"
-    : "";
-  if (!availability.available) {
-    panel.innerHTML =
-      viewerChoices + launchExplanation(availability.reason, availability.hint);
-    return;
-  }
-  const commands = availability.commands || [];
-  if (!commands.length) {
-    panel.innerHTML =
-      viewerChoices + launchExplanation((availability.unmatched || {})[kind]);
-    return;
-  }
-  panel.innerHTML =
-    viewerChoices +
-    '<p class="meta">Launch with</p><div class="launch-choices">' +
-    commands
-      .map((command) =>
-        // A command whose program is missing stays visible, disabled, with
-        // the server's reason.
-        command.unavailable
-          ? '<button type="button" disabled title="' +
-            esc(command.unavailable) +
-            '">' +
-            esc(command.name) +
-            "</button>"
-          : '<button type="button" onclick="previewArtifactLaunch(' +
-            jsArg(index) +
-            "," +
-            jsArg(child) +
-            "," +
-            jsArg(command.name) +
-            ')">' +
-            esc(command.name) +
-            "</button>",
-      )
-      .join("") +
-    "</div>" +
-    commands
-      .filter((command) => command.unavailable)
-      .map(
-        (command) =>
-          '<p class="meta launch-unavailable">' +
-          esc(command.name + ": " + command.unavailable) +
-          "</p>",
-      )
-      .join("");
+  await previewArtifactLaunch(index, child, name);
 }
 
 function launchRequestBody(index, child, name, newInstance) {

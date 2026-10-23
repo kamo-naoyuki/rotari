@@ -247,15 +247,15 @@ func TestLaunchWithOpensTheTableViewerInBrowser(t *testing.T) {
 	runLaunchBrowserScript(t, testOptions(f.baseDir, false), f, `
   await window.showArtifacts('default', runID, 'job-1', '');
   const row = [...document.querySelectorAll('.artifact-table tbody tr')].find(row => row.children[1].textContent === 'data.csv');
-  row.querySelector('.artifact-launch-button').click();
   await wait(300);
-  const link = document.querySelector('#artifact-launch-panel a.launch-viewer');
-  if (!link || link.textContent !== 'Table viewer' || link.target !== '_blank') fail('viewer link', panelText());
+  const link = row.querySelector('.artifact-launchers a.launch-viewer');
+  if (!link || link.textContent !== 'Table viewer' || link.target !== '_blank') fail('viewer link', row.innerHTML);
   const href = new URL(link.getAttribute('href'), base);
   if (href.pathname !== '/tableview/' || href.searchParams.get('entry') !== String(entries['data.csv']) || href.searchParams.get('job_id') !== 'job-1') fail('viewer href', link.getAttribute('href'));
-  // Launching is off on this server: the viewer is offered with the reason
-  // commands are not.
-  if (!panelText().includes('Launching is disabled')) fail('reason', panelText());
+  // Launching is off on this server: the viewer is offered, and the view
+  // says why commands are not.
+  const note = document.querySelector('#artifact-view .launch-unavailable-note')?.textContent || '';
+  if (!note.includes('Launching is disabled')) fail('reason', note);
   const page = await fetch(href);
   if (page.status !== 200) fail('viewer page', page.status);
 `)

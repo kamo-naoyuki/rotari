@@ -255,7 +255,7 @@ Each `[[launcher]]` entry registers one command:
 
 ```toml
 [[launcher]]
-name = "Line count"                     # shown in Launch with; unique
+name = "Line count"                     # the button's label; unique
 command = 'wc -l "$ROTARI_LAUNCHER_ARTIFACT"'
 targets = ["file"]                      # "file", "directory", or both
 mode = "command"                        # "command" runs and exits; "service" serves HTTP

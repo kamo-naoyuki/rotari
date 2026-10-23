@@ -44,6 +44,10 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   await wait(300);
   const panelText = () => document.getElementById('artifact-launch-panel')?.textContent || '';
   const choices = () => [...document.querySelectorAll('#artifact-launch-panel .launch-choices button')].map(button => button.textContent);
+  // launchers lists a row's, or a preview title line's, viewer and command
+  // buttons.
+  const launchers = (scope) => [...(scope || document).querySelectorAll('.artifact-launchers a, .artifact-launchers button')].map(button => button.textContent);
+  const titleLaunchers = () => launchers(document.querySelector('#artifact-preview .artifact-preview-title'));
 `+script+`
 })().catch(error => fail('exception', error.stack));
 `, server.URL, f.runID, string(entries), f.work)
@@ -67,26 +71,32 @@ func TestWebLaunchInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
 
-  // Launch with in a listing row opens its panel as a row below it; the
-  // same button closes it.
+  // A listing row has a button per command that accepts it, and the Table
+  // viewer for a table file; a command's button opens its confirmation as
+  // a row below, and the same button closes it.
+  await wait(300);
   const listingRow = [...document.querySelectorAll('.artifact-table tbody tr')].find(row => row.children[1].textContent === 'data.csv');
-  listingRow.querySelector('.artifact-launch-button').click();
+  if (JSON.stringify(launchers(listingRow)) !== '["Table viewer","Cat","Sleep","Viewer"]') fail('row buttons', launchers(listingRow));
+  const manyRow = [...document.querySelectorAll('.artifact-table tbody tr')].find(row => row.children[1].textContent === 'many');
+  if (JSON.stringify(launchers(manyRow)) !== '["Table viewer","Count","Sleep","Viewer"]') fail('directory row buttons', launchers(manyRow));
+  const catButton = () => [...listingRow.querySelectorAll('.artifact-launchers button')].find(button => button.textContent === 'Cat');
+  catButton().click();
   await wait(300);
   const panelRow = listingRow.nextElementSibling;
   if (!panelRow || !panelRow.classList.contains('artifact-launch-row') || !panelRow.querySelector('#artifact-launch-panel')) fail('row panel', panelRow && panelRow.outerHTML);
   if (panelRow.firstElementChild.colSpan !== listingRow.children.length) fail('row panel span', panelRow.firstElementChild.colSpan);
-  if (JSON.stringify(choices()) !== '["Cat","Sleep","Viewer"]') fail('row choices', choices());
-  listingRow.querySelector('.artifact-launch-button').click();
+  if (!panelText().includes('/bin/sh -c cat') || JSON.stringify(choices()) !== '["Launch","Cancel"]') fail('row confirmation', panelText());
+  catButton().click();
   await wait(100);
   if (document.querySelector('.artifact-launch-row') || document.getElementById('artifact-launch-panel')) fail('row panel did not close');
 
-  // A file offers only commands that accept files.
+  // An opened file has the same buttons in its title line.
   await window.openArtifact(entries['data.csv'], '', 'file');
-  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-  if (JSON.stringify(choices()) !== '["Cat","Sleep","Viewer"]') fail('file choices', choices());
+  await wait(300);
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer","Cat","Sleep","Viewer"]') fail('file buttons', titleLaunchers());
 
   // The confirmation shows what the server would run, and nothing has run.
-  await window.previewArtifactLaunch(entries['data.csv'], '', 'Cat');
+  await window.chooseArtifactLaunch(entries['data.csv'], '', 'Cat');
   const details = panelText();
   for (const want of ['Cat', work + '/data.csv (file)', 'Working directory' + work, '/bin/sh -c cat "$ROTARI_LAUNCHER_ARTIFACT"', 'job job-1']) {
     if (!details.includes(want)) fail('confirmation lacks ' + want, details);
@@ -119,8 +129,9 @@ func TestWebLaunchInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['many'], '', 'directory');
-  await window.toggleArtifactLaunch(entries['many'], '', 'directory');
-  if (JSON.stringify(choices()) !== '["Count","Sleep","Viewer"]') fail('directory choices', choices());
+  await wait(300);
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer","Count","Sleep","Viewer"]') fail('directory buttons', titleLaunchers());
+  await window.chooseArtifactLaunch(entries['many'], '', 'Sleep');
   await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
   await window.startArtifactLaunch(entries['many'], '', 'Sleep', false);
   if (!panelText().includes('already running') || !choices().includes('Start another instance')) fail('reuse', panelText());
@@ -139,7 +150,7 @@ func TestWebLaunchInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['many'], '', 'directory');
-  await window.toggleArtifactLaunch(entries['many'], '', 'directory');
+  await window.chooseArtifactLaunch(entries['many'], '', 'Viewer');
   await window.startArtifactLaunch(entries['many'], '', 'Viewer', false);
   if (!panelText().includes('Viewer is ready.')) fail('service readiness', panelText());
   const open = document.querySelector('#artifact-launch-panel .launch-open');
@@ -175,17 +186,17 @@ func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-2', '');
   const rows = [...document.querySelectorAll('#artifact-view .artifact-table tbody tr')];
   if (rows.length !== 1 || rows[0].children[1].textContent !== '.') fail('working directory row', document.getElementById('artifact-view').innerHTML);
-  rows[0].querySelector('.artifact-launch-button').click();
   await wait(300);
-  if (JSON.stringify(choices()) !== '["Count"]') fail('working directory choices', choices());
+  if (JSON.stringify(launchers(rows[0])) !== '["Table viewer","Count"]') fail('working directory buttons', launchers(rows[0]));
 
-  // A run page's Launch opens Artifacts with the working directory's
-  // choices listed.
+  // A run page's Launch opens Artifacts at the working directory's row of
+  // buttons.
+  window.HTMLElement.prototype.scrollIntoView = () => {};
   await window.launchOnWorkingDirectory('default', runID, 'job-1', '');
   await wait(300);
-  const holder = document.getElementById('artifact-launch-panel')?.closest('.artifact-launch-row');
-  if (!holder || holder.previousElementSibling.dataset.entry !== 'wd') fail('Launch panel row', document.getElementById('artifact-view').innerHTML);
-  if (JSON.stringify(choices()) !== '["Count"]') fail('Launch choices', choices());
+  const focused = document.querySelector('#artifact-view tr.artifact-row-focus');
+  if (!focused || focused.dataset.entry !== 'wd') fail('Launch focus', document.getElementById('artifact-view').innerHTML);
+  if (JSON.stringify(launchers(focused)) !== '["Table viewer","Count"]') fail('Launch buttons', launchers(focused));
 `)
 	// A working directory missing on the Web server's host is explained.
 	if err := stateinternal.WriteJSON(filepath.Join(attemptDir, stateinternal.ArtifactsFileName), artifact.Record{Version: 7, WorkingDirectory: filepath.Join(f.work, "gone")}); err != nil {
@@ -194,13 +205,14 @@ func TestWebLaunchWorkingDirectoryWithoutCandidatesInBrowser(t *testing.T) {
 	runLaunchBrowserScript(t, options, f, `
   await window.launchOnWorkingDirectory('default', runID, 'job-2', '');
   const reason = document.querySelector('#artifact-view .launch-reason')?.textContent || '';
-  if (!reason.includes(work + '/gone is missing on the Web server') || document.getElementById('artifact-launch-panel')) fail('missing working directory', document.getElementById('artifact-view').innerHTML);
+  if (!reason.includes(work + '/gone is missing on the Web server') || document.querySelector('.artifact-row-focus')) fail('missing working directory', document.getElementById('artifact-view').innerHTML);
 `)
 }
 
-// A run page's toolbar has a button per command for the directory holding
-// the basedir, which previews a launch of that command on it.
-func TestWebLaunchOnBasedirParentInBrowser(t *testing.T) {
+// A run page's toolbar has one Files button, which browses the directory
+// holding the basedir and its children, each row with a button per command
+// that accepts it.
+func TestWebRunFilesInBrowser(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
@@ -210,19 +222,34 @@ func TestWebLaunchOnBasedirParentInBrowser(t *testing.T) {
 		launchCommand("Cat", `cat "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile))
 	runLaunchBrowserScript(t, options, f, `
   const parent = '`+filepath.Dir(f.baseDir)+`';
-  window.basedirParentLaunchButtons('default', runID);
+  const baseName = '`+filepath.Base(f.baseDir)+`';
+  window.HTMLElement.prototype.scrollIntoView = () => {};
+  const toolbar = new window.DOMParser().parseFromString(window.runFilesButton('default', runID), 'text/html').querySelectorAll('button');
+  if ([...toolbar].map(button => button.textContent).join() !== 'Files') fail('toolbar buttons', [...toolbar].map(button => button.outerHTML));
+  await window.showRunFiles('default', runID);
   await wait(300);
-  const buttons = new window.DOMParser().parseFromString(window.basedirParentLaunchButtons('default', runID), 'text/html').querySelectorAll('button');
-  if ([...buttons].map(button => button.textContent).join() !== 'Count') fail('toolbar buttons', [...buttons].map(button => button.outerHTML));
-  await window.launchOnBasedirParent('default', runID, 'Count');
   const view = document.getElementById('artifact-view');
   if (view.hidden || !view.querySelector('.artifact-preview-title').textContent.includes(parent)) fail('title', view.innerHTML);
-  for (const want of ['Count', parent + ' (directory)', 'Working directory' + parent, 'run ' + runID]) {
+  if (view.querySelector('.artifact-up')) fail('Up above the basedir\'s parent', view.innerHTML);
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer","Count"]') fail('title buttons', titleLaunchers());
+  const row = (name) => [...view.querySelectorAll('#artifact-preview tbody tr')].find(row => row.children[1].textContent === name);
+  if (!row(baseName) || JSON.stringify(launchers(row(baseName))) !== '["Table viewer","Count"]') fail('basedir row', view.innerHTML);
+
+  // A child directory opens with Up, and its rows launch on it.
+  row(baseName).querySelector('.artifact-open').click();
+  await wait(300);
+  if (!view.querySelector('.artifact-preview-title').textContent.includes(parent + '/' + baseName) || !view.querySelector('.artifact-up')) fail('child title', view.innerHTML);
+  [...view.querySelectorAll('.artifact-preview-title .artifact-launchers button')].find(button => button.textContent === 'Count').click();
+  await wait(300);
+  for (const want of ['Count', parent + '/' + baseName + ' (directory)', 'Working directory' + parent + '/' + baseName, 'run ' + runID]) {
     if (!panelText().includes(want)) fail('confirmation lacks ' + want, panelText());
   }
   if (panelText().includes('job ')) fail('confirmation names a job', panelText());
-  await window.startArtifactLaunch('basedir_parent', '', 'Count', false);
+  await window.startArtifactLaunch('basedir_parent', baseName, 'Count', false);
   if (!panelText().includes('Started Count.')) fail('start message', panelText());
+  view.querySelector('.artifact-up').click();
+  await wait(300);
+  if (!row(baseName)) fail('Up', view.innerHTML);
 `)
 }
 
@@ -238,10 +265,14 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['data.csv'], '', 'file');
-  if (!document.querySelector('.artifact-launch-button')) fail('no Launch with button');
-  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
+  await wait(300);
+  // The rows keep the Web UI's own viewers, and the view says why nothing
+  // can be launched.
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer"]') fail('viewers while launching is disabled', titleLaunchers());
+  const note = document.querySelector('#artifact-view .launch-unavailable-note')?.textContent || '';
+  if (document.querySelectorAll('#artifact-view .launch-unavailable-note').length !== 1) fail('one explanation', document.getElementById('artifact-view').innerHTML);
   for (const want of ['Launching is disabled on this server.', 'rotari web --allow-exec', '/cfg/rotari/launchers.toml', 'rotari config --launchers']) {
-    if (!panelText().includes(want)) fail('explanation lacks ' + want, panelText());
+    if (!note.includes(want)) fail('explanation lacks ' + want, note);
   }
 `)
 	directoryOnly := launchOptions(t, f.baseDir, launchCommand("TensorBoard", "tb", launcher.TargetDirectory))
@@ -249,8 +280,14 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['data.csv'], '', 'file');
-  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-  if (!panelText().includes('No registered command accepts the file data.csv') || !panelText().includes('TensorBoard (directory)')) fail('unmatched explanation', panelText());
+  await wait(300);
+  // A file no command accepts has only its viewers; a directory has the
+  // command.
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer"]') fail('file buttons', titleLaunchers());
+  await window.openArtifact(entries['many'], '', 'directory');
+  await wait(300);
+  if (JSON.stringify(titleLaunchers()) !== '["Table viewer","TensorBoard"]') fail('directory buttons', titleLaunchers());
+  if (document.querySelector('.launch-unavailable-note')) fail('explanation while launching is available');
 `)
 	missing := launchOptions(t, f.baseDir,
 		launchCommand("Missing", `rotari-surely-missing-tool "$ROTARI_LAUNCHER_ARTIFACT"`, launcher.TargetFile),
@@ -261,13 +298,12 @@ func TestWebLaunchExplainsUnavailableInBrowser(t *testing.T) {
   await window.showArtifacts('default', runID, 'job-1', '');
   window.document.getElementById('artifact-preview').scrollIntoView = () => {};
   await window.openArtifact(entries['data.csv'], '', 'file');
-  await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-  const buttons = [...document.querySelectorAll('#artifact-launch-panel .launch-choices button')];
+  await wait(300);
+  const buttons = [...document.querySelectorAll('#artifact-preview .artifact-preview-title .artifact-launchers button')];
   const missingButton = buttons.find(button => button.textContent === 'Missing');
   const catButton = buttons.find(button => button.textContent === 'Cat');
-  if (!missingButton || !missingButton.disabled || missingButton.title !== 'rotari-surely-missing-tool was not found on PATH') fail('missing command button', missingButton && missingButton.outerHTML);
+  if (!missingButton || !missingButton.disabled || missingButton.title !== 'Missing: rotari-surely-missing-tool was not found on PATH') fail('missing command button', missingButton && missingButton.outerHTML);
   if (!catButton || catButton.disabled) fail('available command button', catButton && catButton.outerHTML);
-  if (!panelText().includes('Missing: rotari-surely-missing-tool was not found on PATH')) fail('missing reason', panelText());
 `)
 }
 

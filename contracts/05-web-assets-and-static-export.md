@@ -485,8 +485,8 @@ menu above the table turns any column but Job, Status, and Exit on or off,
 remembered per browser. A row ends with all its actions as buttons, without a menu, in lines of
 four: Log, Artifacts (on a job that has started, for the attempt Log shows;
 disabled before), Launch where the
-server allows launching (likewise) (it opens Artifacts with the commands for the
-working directory listed, `launchOnWorkingDirectory` in
+server allows launching (likewise) (it opens Artifacts at the working
+directory's row of command buttons, `launchOnWorkingDirectory` in
 [web_app_launches.js](../internal/webui/assets/web_app_launches.js), or says
 why the working directory cannot be launched on), Diagnosis on a failed job,
 Notes (disabled when the job has none), Report, and Path. Covered by
@@ -666,6 +666,8 @@ and the view in `showArtifacts` in
 **WEB-6** The live server previews and downloads an artifact candidate's
 content only when (a) the request names an entry of the attempt's recorded
 listing by index, or its recorded absolute working directory as entry `wd`,
+or, with a project and an existing run but no job or attempt, the directory
+holding the basedir as entry `basedir_parent` (the run page's Files view),
 optionally with a clean relative child path inside a listed
 directory, never a free path; (b) the path is under an
 `rotari web --artifact-root DIR`, or, when no other user could have chosen
@@ -806,17 +808,22 @@ Web server's `PATH` (or an absolute path to it is not executable), and such a
 command neither previews nor starts. `GET /api/launchers?kind=K&name=N` lists
 only the commands that accept a target of kind K named N, including a
 command's file name `patterns`, and a start refuses a target its patterns do
-not match. `rotari web --allow-exec` refuses to
+not match. Each repeated `target=K:N` (at most 1000) gets, in order, an
+entry of `targets` naming the commands and viewers that accept it, the
+commands only while launching is available; the Web UI puts a button per
+command in each artifact row and preview title line, disabled with the
+reason when its program is missing, and says once above them why nothing
+can be launched when launching is unavailable
+(`fillArtifactLaunchButtons` in
+[web_app_launches.js](../internal/webui/assets/web_app_launches.js)). `rotari web --allow-exec` refuses to
 start when that file, a directory above it, or a symlink on the way is owned
 by another user or writable by group or others, or when the file is invalid;
 `rotari config --launchers` writes a template there with mode `0600` and
 `config --list` lists it. `POST /api/launch` accepts only a registered
-command's name, an artifact named as WEB-6 names one (entry index and
-optional child under an allowed root) or, with a project and an existing
-run but no job, attempt, or child, entry `basedir_parent` for the directory
-holding the basedir under the same roots as that run's entries (the run
-page's toolbar has a button per command that accepts it, disabled with the
-reason when its program is missing, `basedirParentLaunchButtons` in
+command's name, an artifact named as WEB-6 names one (entry index, `wd`,
+or `basedir_parent`, and optional child under an allowed root; the run
+page's toolbar has one Files button, which browses `basedir_parent`,
+`runFilesButton` in
 [web_app_launches.js](../internal/webui/assets/web_app_launches.js)), and
 whether to start another
 instance; any other field is rejected and nothing starts, as are an unknown
@@ -826,12 +833,13 @@ empty stdin, `ROTARI_LAUNCHER_ARTIFACT` and `ROTARI_LAUNCHER_CWD` set, and
 without `ROTARI_WEB_AUTH_TOKEN`. Covered by
 `TestWebLaunchRunsOnlyRegisteredCommands` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go),
-and `basedir_parent` by `TestLaunchOnBasedirParent` in
-[launches_test.go](../internal/webui/launches_test.go), its toolbar buttons
-by `TestWebRunJobsTable` in
-[run_jobs_test.go](../internal/webui/run_jobs_test.go) and
-`TestWebLaunchOnBasedirParentInBrowser` in
-[launch_browser_test.go](../internal/webui/launch_browser_test.go).
+`targets` by `TestLaunchAvailabilityForATarget` and `basedir_parent` by
+`TestLaunchOnBasedirParent` in
+[launches_test.go](../internal/webui/launches_test.go), the row buttons by
+`TestWebLaunchInBrowser` and the Files view by `TestWebRunFilesInBrowser` in
+[launch_browser_test.go](../internal/webui/launch_browser_test.go), and its
+toolbar button by `TestWebRunJobsTable` in
+[run_jobs_test.go](../internal/webui/run_jobs_test.go).
 
 **WEB-16** A start while the same command runs on the same target and
 working directory returns that launch, marked reused, unless another instance
@@ -890,8 +898,8 @@ Covered by `TestWebShowsAndGeneratesLauncherConfig` in
 **WEB-19** The live server's Table viewer reads an artifact named as WEB-6
 names one, under the same roots and with the same refusals (403 outside
 them or through an escaping symlink, 404 when missing), at
-`/tableview/?<the content request's query>`. Launch with offers it, as a
-link that opens in a new tab, for every directory and for files whose names
+`/tableview/?<the content request's query>`. Each artifact row and preview
+title line offers it, as a link that opens in a new tab, for every directory and for files whose names
 match `*.csv`, `*.tsv`, `*.tab`, `*.psv`, `*.txt`, `*.scp`, `*.lst`,
 `*.list`, or `*.dat` (and `*.CSV`, `*.TSV`), on every live server: it runs no command, so it needs no
 `--allow-exec` and is listed in `/api/launchers` as `viewers` whether or not
@@ -972,7 +980,7 @@ the page checked by `TestTableViewPagesInBrowser` and
 `TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`,
 `TestTableViewGroupsStemsInBrowser`, `TestTableViewOpensFilesInPanesInBrowser`,
 `TestTableViewMovesTabsAndLinksPanesInBrowser`, and
-`TestSpectrogramFindsATone`, and the Launch with link by
+`TestSpectrogramFindsATone`, and the row's link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in
 [internal/webui/table_view_test.go](../internal/webui/table_view_test.go).
 

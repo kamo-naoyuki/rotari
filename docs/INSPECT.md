@@ -428,14 +428,15 @@ at runtime and therefore need not appear among the discovered artifact
 candidates. The Artifacts view includes the working directory as the `.` row,
 even when the job definition named no paths:
 
-- Open **Launch with…** on `.` (or the job's **Launch** button on the run
-  page) and choose **Aim** to open the repository beneath that directory.
+- Choose **Aim** in the row of `.` (or use the job's **Launch** button on
+  the run page) to open the repository beneath that directory.
 - Open `mlflow.db` inside `.` and choose **MLflow (SQLite)**. This file
   appears after MLflow creates it.
 - When the jobs share one store, such as an Aim repository or a TensorBoard
-  log directory in the experiment directory around `.rotari-state`, choose
-  **Aim** or **TensorBoard** in the run page's toolbar to open it for the
-  whole run.
+  log directory in the experiment directory around `.rotari-state`, open
+  **Files** in the run page's toolbar and choose **Aim** or **TensorBoard**
+  in the row of that directory, or of the directory inside it that holds
+  the store, to open it for the whole run.
 - A file store such as `mlruns` can be opened with **MLflow** on that
   directory. If the job names a local `file:` or `sqlite:` tracking URI,
   discovery also records its local path; remote tracking URIs are not local
@@ -510,23 +511,28 @@ Rotari Web login. You do not need to enter a Jupyter token. After expiration,
 reload the service page to authenticate again. The cookie is not forwarded
 to the service and does not authenticate other Rotari Web APIs.
 
-In a job's Artifacts, choose **Launch with…** in the row of an entry (including
-the working directory row `.`), or of a
-file or directory inside an opened directory; an opened file or directory has
-it in its title line too. On a run page, a started job's **Launch** button
-(shown when the server allows launching) opens its Artifacts with the
-commands for the working directory already listed. The run's toolbar has
-a button per command for the directory holding the basedir (for example
-the experiment directory around `.rotari-state`), such as **TensorBoard**,
-**Jupyter Lab**, and **Aim**, where a run's jobs can share one tracker store
-or TensorBoard log directory; choosing one shows what will run, as above. That
-directory is a target under the same roots as the run's artifacts, so only
-for a trusted basedir or under `--artifact-root`. Each row also has **Download** for a file. The list offers only the registered
-commands that accept a file or a directory, whichever is open; without any,
-the Web UI says why and how to change that (launching disabled, read-only
-server, no registered commands, none for this kind of target, or a static
-export). A command whose program is not installed on the Web server's host is
-shown disabled, with the reason. Choosing a command shows what will run before
+In a job's Artifacts, each row of an entry (including the working
+directory row `.`), and of a file or directory inside an opened directory,
+has a button per registered command that accepts it, such as
+**TensorBoard**, **Jupyter Lab**, and **Aim**; an opened file or directory
+has them in its title line too. A row offers only the commands that accept
+a file or a directory, whichever it is, and whose name patterns match it.
+On a run page, a started job's **Launch** button (shown when the server
+allows launching) opens its Artifacts at the working directory's row.
+
+The run's toolbar has one **Files** button. It opens the directory holding
+the basedir (for example the experiment directory around `.rotari-state`),
+where a run's jobs can share one tracker store or TensorBoard log
+directory, and you can open the directories inside it (**Up** goes back);
+every row has the same buttons. That directory is served under the same
+roots as the run's artifacts, so only for a trusted basedir or under
+`--artifact-root`, and the view cannot go above it.
+
+Each row also has **Download** for a file. When nothing can be launched,
+the rows keep only the Web UI's own viewers and the view says why and how
+to change that (launching disabled, read-only server, no registered
+commands, or a static export). A command whose program is not installed on
+the Web server's host is shown disabled, with the reason. Choosing a command shows what will run before
 anything does: the
 command text, the absolute target, the working directory, the user and host
 it runs as, and the job and attempt it came from. **Launch** starts it. The
@@ -554,8 +560,8 @@ a project's history and do not lock it.
 
 ### Viewing tables
 
-**Launch with…** on a table file in a job's Artifacts (`.csv`, `.tsv`,
-`.tab`, `.psv`, `.txt`, `.scp`, `.lst`, `.list`, `.dat`) also offers
+The row of a table file in a job's Artifacts (`.csv`, `.tsv`,
+`.tab`, `.psv`, `.txt`, `.scp`, `.lst`, `.list`, `.dat`) also has
 **Table viewer**, which opens the file in a new tab. It is part of the Web
 UI and runs no command, so it is offered on every live server, including
 one without `--allow-exec` or a read-only one; it reads the same files a
@@ -617,7 +623,7 @@ rows opens as quickly as a small one after the server has indexed it once:
   the file, also when filtered or sorted.
 
 Filters, sorting, and Describe cover the whole file, not just the page
-shown. A directory opens in the viewer too, from **Launch with…** on its row
+shown. A directory opens in the viewer too, from **Table viewer** in its row
 (including the working directory `.`). Its files become the rows:
 
 - **Pattern** chooses files by their path inside the directory: `*` matches

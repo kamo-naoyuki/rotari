@@ -17,6 +17,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
@@ -102,6 +103,14 @@ func servable(entry jobstatus.ArtifactEntry, roots []string) bool {
 // default store, and is served under the same roots as the entries.
 const artifactWorkingDirectoryEntry = "wd"
 
+// artifactBasedirParentEntry names, in a request with a run and no job or
+// attempt, the directory holding the basedir: the experiment directory,
+// where a run's jobs often share one tracker store or TensorBoard log
+// directory. The Web UI's Files view browses it and its children, which are
+// served and launched on under the same roots as a run's entries
+// (artifactRoots), so only for a trusted run or under --artifact-root.
+const artifactBasedirParentEntry = "basedir_parent"
+
 // listingEntry returns the entry a request names: an index of the listing,
 // or its absolute working directory as artifactWorkingDirectoryEntry.
 func listingEntry(listing jobstatus.ArtifactListing, name string) (jobstatus.ArtifactEntry, error) {
@@ -162,11 +171,17 @@ type resolvedArtifact struct {
 }
 
 func (s site) resolveArtifactRequest(baseDir string, query url.Values) (resolvedArtifact, error) {
-	listing, err := webArtifacts(s.Store, baseDir, query.Get("project_name"), query.Get("run_id"), query.Get("job_id"), query.Get("attempt_id"))
-	if err != nil {
-		return resolvedArtifact{}, err
+	var listing jobstatus.ArtifactListing
+	var entry jobstatus.ArtifactEntry
+	var err error
+	if query.Get("entry") == artifactBasedirParentEntry {
+		entry, err = basedirParentEntry(baseDir, query)
+	} else {
+		listing, err = webArtifacts(s.Store, baseDir, query.Get("project_name"), query.Get("run_id"), query.Get("job_id"), query.Get("attempt_id"))
+		if err == nil {
+			entry, err = listingEntry(listing, query.Get("entry"))
+		}
 	}
-	entry, err := listingEntry(listing, query.Get("entry"))
 	if err != nil {
 		return resolvedArtifact{}, err
 	}
@@ -185,6 +200,30 @@ func (s site) resolveArtifactRequest(baseDir string, query url.Values) (resolved
 		relative = filepath.Join(relative, child)
 	}
 	return resolvedArtifact{servedArtifact: servedArtifact{root: root, relative: relative}, listing: listing, entry: entry, roots: roots}, nil
+}
+
+// basedirParentEntry is artifactBasedirParentEntry for an existing run of
+// the basedir, as an entry resolved like a listed directory.
+func basedirParentEntry(baseDir string, query url.Values) (jobstatus.ArtifactEntry, error) {
+	if query.Get("job_id") != "" || query.Get("attempt_id") != "" {
+		return jobstatus.ArtifactEntry{}, fmt.Errorf("entry %q names the directory holding the basedir: give project_name and run_id, and no job_id or attempt_id", artifactBasedirParentEntry)
+	}
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, query.Get("project_name"))
+	if err != nil {
+		return jobstatus.ArtifactEntry{}, err
+	}
+	runDir, err := stateinternal.SafeJoin(paths.RunsDir, query.Get("run_id"))
+	if err != nil {
+		return jobstatus.ArtifactEntry{}, err
+	}
+	if _, err := os.Stat(runDir); err != nil {
+		return jobstatus.ArtifactEntry{}, fmt.Errorf("run %s of project %s: %w", query.Get("run_id"), query.Get("project_name"), err)
+	}
+	parent, ok := basedirParentRoot(baseDir)
+	if !ok {
+		return jobstatus.ArtifactEntry{}, fmt.Errorf("%w: the basedir %s is directly under the filesystem root", errNotServed, baseDir)
+	}
+	return jobstatus.ArtifactEntry{Path: parent, DisplayPath: parent, Basis: artifact.BasisAbsolute, Type: jobstatus.ArtifactDirectory}, nil
 }
 
 // noStore marks an artifact content response as never cached, and keeps a

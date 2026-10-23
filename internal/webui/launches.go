@@ -13,10 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/launcher"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/tableview"
 )
 
 // LaunchOptions enables launching registered commands from artifacts
@@ -65,10 +62,56 @@ type launchAvailability struct {
 	// Viewers are the Web UI's own viewers that accept the target; they run
 	// no command, so they are listed whether or not launching is available.
 	Viewers []webViewer `json:"viewers,omitempty"`
+	// Targets answers, in order, each target=KIND:NAME of the request: the
+	// commands and viewers that accept it, so the Files view and a job's
+	// Artifacts can put a button per command in every row with one request.
+	Targets []webLaunchTargetMatch `json:"targets,omitempty"`
 	// Host, User, and Shell are where and how launched commands run.
 	Host  string `json:"host,omitempty"`
 	User  string `json:"user,omitempty"`
 	Shell string `json:"shell,omitempty"`
+}
+
+// webLaunchTargetMatch is what accepts one target of a /api/launchers
+// request: the names of the commands among Commands, and the viewers.
+type webLaunchTargetMatch struct {
+	Commands []string    `json:"commands"`
+	Viewers  []webViewer `json:"viewers,omitempty"`
+}
+
+// maxLaunchTargets bounds the targets one /api/launchers request matches:
+// a directory page, or a listing's entries and working directory.
+const maxLaunchTargets = 1000
+
+// acceptsTarget reports whether a command, or a viewer, takes a target of kind
+// named name; "" matches any kind or any name.
+func acceptsTarget(command launcher.Command, kind launcher.TargetKind, name string) bool {
+	return kind == "" || (command.Accepts(kind) && (name == "" || command.Matches(name)))
+}
+
+// launchTargets matches each target=KIND:NAME against the registered
+// commands, when launching is available, and the viewers.
+func (s site) launchTargets(availability launchAvailability, targets []string) ([]webLaunchTargetMatch, error) {
+	if len(targets) > maxLaunchTargets {
+		return nil, fmt.Errorf("at most %d targets can be matched at once", maxLaunchTargets)
+	}
+	matches := make([]webLaunchTargetMatch, 0, len(targets))
+	for _, target := range targets {
+		kind, name, ok := strings.Cut(target, ":")
+		if !ok || (launcher.TargetKind(kind) != launcher.TargetFile && launcher.TargetKind(kind) != launcher.TargetDirectory) {
+			return nil, fmt.Errorf("target must be file:NAME or directory:NAME, not %q", target)
+		}
+		match := webLaunchTargetMatch{Commands: []string{}, Viewers: viewersFor(launcher.TargetKind(kind), name)}
+		if availability.Available {
+			for _, command := range s.Launches.Registry.Commands {
+				if acceptsTarget(command, launcher.TargetKind(kind), name) {
+					match.Commands = append(match.Commands, command.Name)
+				}
+			}
+		}
+		matches = append(matches, match)
+	}
+	return matches, nil
 }
 
 // launchAvailability describes what this server can launch. With a kind,
@@ -97,7 +140,7 @@ func (s site) launchAvailability(kind launcher.TargetKind, name string) launchAv
 	availability := launchAvailability{Available: true, Path: s.Launches.Registry.Path, Shell: launcher.Shell}
 	byKind := map[launcher.TargetKind][]string{}
 	for _, command := range s.Launches.Registry.Commands {
-		if kind != "" && (!command.Accepts(kind) || (name != "" && !command.Matches(name))) {
+		if !acceptsTarget(command, kind, name) {
 			continue
 		}
 		availability.Commands = append(availability.Commands, webLaunchCommand{
@@ -157,8 +200,7 @@ var webViewers = []webViewer{{
 func viewersFor(kind launcher.TargetKind, name string) []webViewer {
 	var viewers []webViewer
 	for _, viewer := range webViewers {
-		accepts := launcher.Command{Targets: viewer.Targets, Patterns: viewer.Patterns}
-		if kind != "" && (!accepts.Accepts(kind) || (name != "" && !accepts.Matches(name))) {
+		if !acceptsTarget(launcher.Command{Targets: viewer.Targets, Patterns: viewer.Patterns}, kind, name) {
 			continue
 		}
 		viewers = append(viewers, viewer)
@@ -229,18 +271,11 @@ type webLaunchRequest struct {
 	NewInstance bool           `json:"new_instance"`
 }
 
-// webLaunchEntry is a launch request's entry: an index of the listing, or
-// artifactWorkingDirectoryEntry, kept as the content requests' entry
-// parameter so both resolve through resolveArtifact, or
-// launchBasedirParentEntry. "" means absent.
+// webLaunchEntry is a launch request's entry: an index of the listing,
+// artifactWorkingDirectoryEntry, or artifactBasedirParentEntry, kept as the
+// content requests' entry parameter so both resolve through
+// resolveArtifact. "" means absent.
 type webLaunchEntry string
-
-// launchBasedirParentEntry names, in a launch request with a run and no
-// job, the directory holding the basedir: the experiment directory, where
-// a run's jobs often share one tracker store or TensorBoard log directory.
-// It is launched on under the same roots as an entry (artifactRoots), so
-// only for a trusted run or under --artifact-root.
-const launchBasedirParentEntry = "basedir_parent"
 
 func (entry *webLaunchEntry) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
@@ -252,8 +287,8 @@ func (entry *webLaunchEntry) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var name string
-	if err := json.Unmarshal(data, &name); err != nil || (name != artifactWorkingDirectoryEntry && name != launchBasedirParentEntry) {
-		return fmt.Errorf("entry must be an index of the listing, %q, or %q", artifactWorkingDirectoryEntry, launchBasedirParentEntry)
+	if err := json.Unmarshal(data, &name); err != nil || (name != artifactWorkingDirectoryEntry && name != artifactBasedirParentEntry) {
+		return fmt.Errorf("entry must be an index of the listing, %q, or %q", artifactWorkingDirectoryEntry, artifactBasedirParentEntry)
 	}
 	*entry = webLaunchEntry(name)
 	return nil
@@ -286,6 +321,14 @@ func (s site) registerLaunchRoutes(mux *http.ServeMux, baseDir string) {
 		}
 		availability := s.launchAvailability(kind, query.Get("name"))
 		availability.Viewers = viewersFor(kind, query.Get("name"))
+		if targets := query["target"]; len(targets) > 0 {
+			matches, err := s.launchTargets(availability, targets)
+			if err != nil {
+				writeLaunchError(writer, http.StatusBadRequest, webLaunchError{Error: err.Error()})
+				return
+			}
+			availability.Targets = matches
+		}
 		writeWebJSON(writer, availability)
 	})
 	mux.HandleFunc("/api/launch", func(writer http.ResponseWriter, request *http.Request) {
@@ -372,16 +415,10 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	if request.Entry == "" {
 		return launcher.StartRequest{}, errors.New("entry must name an artifact candidate of the attempt")
 	}
-	var served servedArtifact
-	var err error
-	if request.Entry == launchBasedirParentEntry {
-		served, err = s.resolveBasedirParent(baseDir, request)
-	} else {
-		served, err = s.resolveArtifact(baseDir, url.Values{
-			"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
-			"attempt_id": {request.AttemptID}, "entry": {string(request.Entry)}, "child": {request.Child},
-		})
-	}
+	served, err := s.resolveArtifact(baseDir, url.Values{
+		"project_name": {request.ProjectName}, "run_id": {request.RunID}, "job_id": {request.JobID},
+		"attempt_id": {request.AttemptID}, "entry": {string(request.Entry)}, "child": {request.Child},
+	})
 	if err != nil {
 		return launcher.StartRequest{}, err
 	}
@@ -405,35 +442,6 @@ func (s site) launchStart(baseDir string, request webLaunchRequest) (launcher.St
 	return launcher.StartRequest{
 		Command: command, Target: filepath.Join(served.root, served.relative), Kind: kind, Labels: labels, NewInstance: request.NewInstance,
 	}, nil
-}
-
-// resolveBasedirParent resolves launchBasedirParentEntry for a run of the
-// basedir under the roots its jobs' entries are served from.
-func (s site) resolveBasedirParent(baseDir string, request webLaunchRequest) (servedArtifact, error) {
-	if request.JobID != "" || request.AttemptID != "" || request.Child != "" {
-		return servedArtifact{}, fmt.Errorf("entry %q names the directory holding the basedir: give project_name and run_id only", launchBasedirParentEntry)
-	}
-	paths, err := stateinternal.ResolveProjectPaths(baseDir, request.ProjectName)
-	if err != nil {
-		return servedArtifact{}, err
-	}
-	runDir, err := stateinternal.SafeJoin(paths.RunsDir, request.RunID)
-	if err != nil {
-		return servedArtifact{}, err
-	}
-	if _, err := os.Stat(runDir); err != nil {
-		return servedArtifact{}, fmt.Errorf("run %s of project %s: %w", request.RunID, request.ProjectName, err)
-	}
-	parent, ok := basedirParentRoot(baseDir)
-	if !ok {
-		return servedArtifact{}, fmt.Errorf("%w: the basedir %s is directly under the filesystem root", errNotServed, baseDir)
-	}
-	roots, note := s.artifactRoots(jobstatus.ArtifactListing{}, baseDir, request.ProjectName, request.RunID)
-	root, relative, inside := tableview.RootOf(parent, roots)
-	if !inside {
-		return servedArtifact{}, fmt.Errorf("%w: %s is not served. %s", errNotServed, parent, note)
-	}
-	return servedArtifact{root: root, relative: relative}, nil
 }
 
 func (s site) startLaunch(writer http.ResponseWriter, baseDir string, request webLaunchRequest) {

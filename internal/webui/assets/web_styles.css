@@ -1656,10 +1656,27 @@ pre,
 .artifact-preview {
   margin-top: 1rem;
 }
-/* The name, Download, and Launch with in a preview's title line. */
+/* The name, Download, Up, and the launch buttons in a preview's title
+   line. */
 .artifact-preview-title .artifact-download,
-.artifact-preview-title .artifact-launch-button {
+.artifact-preview-title .artifact-up,
+.artifact-preview-title .artifact-launchers {
   margin-left: 1rem;
+}
+/* A row's, or a title line's, viewer and command buttons. */
+.artifact-launchers {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  vertical-align: middle;
+}
+.artifact-launchers .launch-viewer {
+  min-height: 0;
+  padding: 3px 8px;
+}
+/* The working directory row a job's Launch opened Artifacts at. */
+.artifact-row-focus > td {
+  background: var(--surface-2);
 }
 .artifact-action {
   white-space: nowrap;
@@ -1687,7 +1704,7 @@ pre,
   max-height: 12rem;
   overflow: auto;
 }
-/* Launch with: the commands for an artifact, the confirmation, and the
+/* Launching: the confirmation of a command on an artifact, and the
    Launches view (web_app_launches.js). */
 .artifact-launch-panel {
   margin: 0.5rem 0 1rem;

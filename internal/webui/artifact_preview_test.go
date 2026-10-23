@@ -56,13 +56,13 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   if (buttons.length !== 11) fail('buttons', buttons);
   const workingDirectoryRow = rows[0];
   if (JSON.stringify([...workingDirectoryRow.children].slice(0, 3).map(cell => cell.textContent)) !== '["directory",".","working directory"]') fail('working directory row', workingDirectoryRow.textContent);
-  // Each row has Download for a file it can open and Launch with for a file
-  // or directory it can open; other rows have empty action cells.
+  // Each row has Download for a file it can open and launch buttons for a
+  // file or directory it can open; other rows have empty action cells.
   const listingHeaders = [...view.querySelectorAll('.artifact-table thead th')].map(cell => cell.textContent);
   if (JSON.stringify(listingHeaders) !== '["Type","Path","Found in","Download","Launch"]') fail('listing headers', listingHeaders);
   const rowActions = (name) => {
     const row = [...rows].find(row => row.children[1].textContent.endsWith(name));
-    return [!!row.querySelector('.artifact-download'), !!row.querySelector('.artifact-launch-button')];
+    return [!!row.querySelector('.artifact-download'), !!row.querySelector('.artifact-launchers')];
   };
   for (const [name, want] of [['.', '[false,true]'], ['plot.png', '[true,true]'], ['many', '[false,true]'], ['secret.txt', '[false,false]'], ['gone.csv', '[false,false]']]) {
     if (JSON.stringify(rowActions(name)) !== want) fail('row actions of ' + name, rowActions(name));
@@ -120,8 +120,8 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   // Directories come first; a directory child launches but does not download.
   const fileChild = [...children].find(row => row.children[0].textContent === 'file');
   const dirChild = [...children].find(row => row.children[0].textContent === 'directory');
-  if (!fileChild.querySelector('.artifact-download') || !fileChild.querySelector('.artifact-launch-button')) fail('file child actions', fileChild.innerHTML);
-  if (dirChild.querySelector('.artifact-download') || !dirChild.querySelector('.artifact-launch-button')) fail('directory child actions', dirChild.innerHTML);
+  if (!fileChild.querySelector('.artifact-download') || !fileChild.querySelector('.artifact-launchers')) fail('file child actions', fileChild.innerHTML);
+  if (dirChild.querySelector('.artifact-download') || !dirChild.querySelector('.artifact-launchers')) fail('directory child actions', dirChild.innerHTML);
   const more = [...view.querySelectorAll('.artifact-preview button')].find(button => button.textContent === 'More');
   const beforeMore = scrolls;
   more.click();

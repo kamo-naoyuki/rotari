@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -292,15 +293,16 @@ func TestLaunchRunsRegisteredCommandOnArtifact(t *testing.T) {
 	}
 }
 
-// A run's Launch targets the directory holding the basedir, resolved by the
-// server from the run, under the roots its jobs' entries are served from.
+// A run's Files view targets the directory holding the basedir, resolved by
+// the server from the run, and its children, under the roots its jobs'
+// entries are served from.
 func TestLaunchOnBasedirParent(t *testing.T) {
 	f := newArtifactFixture(t)
 	parent := filepath.Dir(f.baseDir)
 	options := launchOptions(t, f.baseDir, launchCommand("Count", `pwd -P`, launcher.TargetDirectory))
 	handler := Handler(options)
 	request := func(fields map[string]any) string {
-		body := map[string]any{"project_name": "default", "run_id": f.runID, "entry": launchBasedirParentEntry, "name": "Count"}
+		body := map[string]any{"project_name": "default", "run_id": f.runID, "entry": artifactBasedirParentEntry, "name": "Count"}
 		for key, value := range fields {
 			body[key] = value
 		}
@@ -316,20 +318,32 @@ func TestLaunchOnBasedirParent(t *testing.T) {
 	if _, ok := launch.Labels["job"]; ok {
 		t.Fatalf("a run's launch is labeled with a job: %v", launch.Labels)
 	}
-	preview := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=&entry="+launchBasedirParentEntry+"&name=Count", "")
+	preview := serveJSON(t, handler, http.MethodGet, "/api/launch-preview?project_name=default&run_id="+f.runID+"&job_id=&entry="+artifactBasedirParentEntry+"&name=Count", "")
 	if shown := decodeBody[webLaunchPreview](t, preview); preview.Code != http.StatusOK || shown.Target != parent || shown.CWD != parent {
 		t.Fatalf("preview = %d %s", preview.Code, preview.Body.String())
+	}
+
+	child := filepath.Base(f.baseDir)
+	inside := decodeBody[launcher.Launch](t, serveJSON(t, handler, http.MethodPost, "/api/launch", request(map[string]any{"child": child})))
+	if inside.Target != f.baseDir || inside.Kind != launcher.TargetDirectory {
+		t.Fatalf("launch on a child of the basedir's parent = %+v", inside)
+	}
+	listed := serveJSON(t, handler, http.MethodGet, "/api/artifact-directory?project_name=default&run_id="+f.runID+"&job_id=&entry="+artifactBasedirParentEntry, "")
+	if page := decodeBody[artifactDirectory](t, listed); listed.Code != http.StatusOK ||
+		!slices.ContainsFunc(page.Entries, func(entry artifactChild) bool { return entry.Name == child && entry.Type == "directory" }) {
+		t.Fatalf("directory of the basedir's parent = %d %s", listed.Code, listed.Body.String())
 	}
 
 	for name, test := range map[string]struct {
 		body string
 		want string
 	}{
-		"with a job":    {request(map[string]any{"job_id": "job-1"}), "give project_name and run_id only"},
-		"with a child":  {request(map[string]any{"child": "base"}), "give project_name and run_id only"},
-		"unknown run":   {request(map[string]any{"run_id": "20990101-000000-00000000"}), "run 20990101-000000-00000000 of project default"},
-		"invalid run":   {request(map[string]any{"run_id": "../x"}), "invalid path element"},
-		"other project": {request(map[string]any{"project_name": "nope"}), "nope"},
+		"with a job":     {request(map[string]any{"job_id": "job-1"}), "give project_name and run_id, and no job_id or attempt_id"},
+		"with attempt":   {request(map[string]any{"attempt_id": "a1"}), "give project_name and run_id, and no job_id or attempt_id"},
+		"leaving parent": {request(map[string]any{"child": "../x"}), "child must be a relative path inside the directory"},
+		"unknown run":    {request(map[string]any{"run_id": "20990101-000000-00000000"}), "run 20990101-000000-00000000 of project default"},
+		"invalid run":    {request(map[string]any{"run_id": "../x"}), "invalid path element"},
+		"other project":  {request(map[string]any{"project_name": "nope"}), "nope"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			rejected := serveJSON(t, handler, http.MethodPost, "/api/launch", test.body)
@@ -882,7 +896,7 @@ func TestBuiltinServicesThroughProxy(t *testing.T) {
 
 // With a kind and a name, /api/launchers lists only the commands that
 // accept that target, by kind and file name pattern, and a start checks
-// the pattern too.
+// the pattern too; with targets, it matches each of them.
 func TestLaunchAvailabilityForATarget(t *testing.T) {
 	f := newArtifactFixture(t)
 	app := launchCommand("App", "true", launcher.TargetFile)
@@ -917,6 +931,33 @@ func TestLaunchAvailabilityForATarget(t *testing.T) {
 	}
 	if bad := serveJSON(t, handler, http.MethodGet, "/api/launchers?kind=socket", ""); bad.Code != http.StatusBadRequest {
 		t.Fatalf("unknown kind = %d", bad.Code)
+	}
+
+	// Each target=KIND:NAME is matched in order, with the viewers, so one
+	// request gives every row of a listing its buttons.
+	batch := decodeBody[launchAvailability](t, serveJSON(t, handler, http.MethodGet,
+		"/api/launchers?target=file:train.py&target=file:data.csv&target=directory:many&target=file:a:b.py", ""))
+	var matched []string
+	for _, target := range batch.Targets {
+		var viewers []string
+		for _, viewer := range target.Viewers {
+			viewers = append(viewers, viewer.Name)
+		}
+		matched = append(matched, strings.Join(target.Commands, ",")+"|"+strings.Join(viewers, ","))
+	}
+	if got, want := strings.Join(matched, " "), "App,Cat| Cat|Table viewer Count|Table viewer App,Cat|"; got != want {
+		t.Errorf("targets = %s, want %s", got, want)
+	}
+	for _, query := range []string{"target=file", "target=socket:x", "target=" + strings.Repeat("&target=file:x", maxLaunchTargets)} {
+		if bad := serveJSON(t, handler, http.MethodGet, "/api/launchers?"+query, ""); bad.Code != http.StatusBadRequest {
+			t.Errorf("/api/launchers?%.40s = %d, want 400", query, bad.Code)
+		}
+	}
+	readOnly := launchOptions(t, f.baseDir, app)
+	readOnly.Launches = nil
+	if got := decodeBody[launchAvailability](t, serveJSON(t, Handler(readOnly), http.MethodGet, "/api/launchers?target=file:data.csv", "")); got.Available ||
+		len(got.Targets) != 1 || len(got.Targets[0].Commands) != 0 || len(got.Targets[0].Viewers) != 1 {
+		t.Errorf("targets without launching = %+v; want viewers only", got)
 	}
 	body := `{"project_name":"default","run_id":"` + f.runID + `","job_id":"job-1","entry":` + fmt.Sprint(f.entries["data.csv"]) + `,"name":"App"}`
 	refused := serveJSON(t, handler, http.MethodPost, "/api/launch", body)

@@ -199,9 +199,17 @@ function renderArtifactListing() {
         "</ul>"
       : "") +
     '<div id="artifact-preview" class="artifact-preview"></div>';
+  fillArtifactLaunchButtons(artifactView());
 }
 function artifactPreview() {
   return document.getElementById("artifact-preview");
+}
+// setArtifactPreview shows a preview and fills its title line's launch
+// buttons.
+function setArtifactPreview(html) {
+  const preview = artifactPreview();
+  preview.innerHTML = html;
+  fillArtifactLaunchButtons(preview);
 }
 // jsArg writes a value as a JavaScript literal inside an HTML attribute,
 // such as an onclick handler: JSON.stringify quotes it for JavaScript, and
@@ -279,27 +287,37 @@ async function openArtifact(index, child, type) {
   }
 }
 // artifactActionCells are a row's Download and Launch cells: a file can be
-// downloaded, and a file or a directory launched with. Other types, and
-// rows that cannot be opened (type ""), get empty cells.
+// downloaded, and a file or a directory launched on with a button per
+// command that accepts it. Other types, and rows that cannot be opened
+// (type ""), get empty cells.
 function artifactActionCells(index, child, type) {
   const launchable = type === "file" || type === "directory";
   return (
     '<td class="artifact-action">' +
     (type === "file" ? artifactDownloadLink(index, child) : "") +
     '</td><td class="artifact-action">' +
-    (launchable ? artifactLaunchButton(index, child, type) : "") +
+    (launchable ? artifactLaunchButtons(index, child, type) : "") +
     "</td>"
   );
 }
 // artifactHeader is a preview's title line: the name, a file's download
-// link, and Launch with.
+// link, and its launch buttons; a directory below the opened entry has Up.
 function artifactHeader(index, child, type) {
   return (
     '<p class="artifact-preview-title"><strong>' +
     esc(artifactTitle(index, child)) +
     "</strong> " +
     (type === "directory" ? "" : artifactDownloadLink(index, child)) +
-    artifactLaunchButton(index, child, type) +
+    (type === "directory" && child
+      ? '<button type="button" class="artifact-up" onclick="openArtifact(' +
+        jsArg(index) +
+        "," +
+        jsArg(
+          child.includes("/") ? child.slice(0, child.lastIndexOf("/")) : "",
+        ) +
+        ",'directory')\">Up</button>"
+      : "") +
+    artifactLaunchButtons(index, child, type) +
     "</p>"
   );
 }
@@ -312,13 +330,14 @@ async function renderArtifactPreview(index, child, type) {
   preview.dataset.child = child;
   if (type === "directory") return loadArtifactDirectory(index, child, 0);
   if (artifactImageTypes.includes(extension)) {
-    preview.innerHTML =
+    setArtifactPreview(
       header +
-      '<img class="artifact-image" alt="' +
-      esc(artifactTitle(index, child)) +
-      '" src="' +
-      esc(artifactURL("/api/artifact-file", index, child)) +
-      '">';
+        '<img class="artifact-image" alt="' +
+        esc(artifactTitle(index, child)) +
+        '" src="' +
+        esc(artifactURL("/api/artifact-file", index, child)) +
+        '">',
+    );
     return;
   }
   if (
@@ -326,15 +345,16 @@ async function renderArtifactPreview(index, child, type) {
     artifactVideoTypes.includes(extension)
   ) {
     const tag = artifactAudioTypes.includes(extension) ? "audio" : "video";
-    preview.innerHTML =
+    setArtifactPreview(
       header +
-      "<" +
-      tag +
-      ' class="artifact-media" controls preload="metadata" src="' +
-      esc(artifactURL("/api/artifact-file", index, child)) +
-      '"></' +
-      tag +
-      ">";
+        "<" +
+        tag +
+        ' class="artifact-media" controls preload="metadata" src="' +
+        esc(artifactURL("/api/artifact-file", index, child)) +
+        '"></' +
+        tag +
+        ">",
+    );
     return;
   }
   if (extension === "npy" || extension === "npz") {
@@ -355,20 +375,23 @@ async function renderArtifactPreview(index, child, type) {
       method: "HEAD",
     },
   );
-  preview.innerHTML =
+  setArtifactPreview(
     header +
-    (response.ok
-      ? '<p class="meta">No preview for this file type. ' +
-        esc(formatBytes(Number(response.headers.get("Content-Length") || 0))) +
-        ", modified " +
-        esc(response.headers.get("Last-Modified") || "-") +
-        ".</p>"
-      : '<p class="meta">' +
-        esc(
-          "Failed to open: " +
-            (response.statusText || "HTTP " + response.status),
-        ) +
-        "</p>");
+      (response.ok
+        ? '<p class="meta">No preview for this file type. ' +
+          esc(
+            formatBytes(Number(response.headers.get("Content-Length") || 0)),
+          ) +
+          ", modified " +
+          esc(response.headers.get("Last-Modified") || "-") +
+          ".</p>"
+        : '<p class="meta">' +
+          esc(
+            "Failed to open: " +
+              (response.statusText || "HTTP " + response.status),
+          ) +
+          "</p>"),
+  );
 }
 function formatBytes(size) {
   const units = ["B", "KiB", "MiB", "GiB", "TiB"];
@@ -438,9 +461,10 @@ async function moreArtifactText() {
         ? '<button type="button" onclick="moreArtifactText()">Load more</button>'
         : "";
   const pre = '<pre class="log artifact-text">' + esc(state.text) + "</pre>";
-  artifactPreview().innerHTML =
+  setArtifactPreview(
     artifactHeader(state.index, state.child, "file") +
-    (state.from === "end" ? more + pre : pre + more);
+      (state.from === "end" ? more + pre : pre + more),
+  );
 }
 // loadArtifactTable shows a CSV or TSV file as a table of the rows loaded so
 // far, loading more on demand.
@@ -476,16 +500,17 @@ async function moreArtifactTable() {
   const [head, ...body] = rows;
   const cells = (row, tag) =>
     row.map((cell) => "<" + tag + ">" + esc(cell) + "</" + tag + ">").join("");
-  artifactPreview().innerHTML =
+  setArtifactPreview(
     artifactHeader(state.index, state.child, "file") +
-    '<div class="artifact-table-scroll"><table class="runs"><thead><tr>' +
-    cells(head || [], "th") +
-    "</tr></thead><tbody>" +
-    body.map((row) => "<tr>" + cells(row, "td") + "</tr>").join("") +
-    "</tbody></table></div>" +
-    (state.end < state.size
-      ? '<button type="button" onclick="moreArtifactTable()">Load more rows</button>'
-      : "");
+      '<div class="artifact-table-scroll"><table class="runs"><thead><tr>' +
+      cells(head || [], "th") +
+      "</tr></thead><tbody>" +
+      body.map((row) => "<tr>" + cells(row, "td") + "</tr>").join("") +
+      "</tbody></table></div>" +
+      (state.end < state.size
+        ? '<button type="button" onclick="moreArtifactTable()">Load more rows</button>'
+        : ""),
+  );
 }
 // parseDelimited splits CSV or TSV text into rows of cells, honoring double
 // quotes.
@@ -568,30 +593,31 @@ async function loadArtifactDirectory(index, child, offset) {
     })
     .join("");
   const end = page.offset + page.entries.length;
-  artifactPreview().innerHTML =
+  setArtifactPreview(
     artifactHeader(index, child, "directory") +
-    '<p class="meta">' +
-    esc(
-      (page.total
-        ? page.offset + 1 + "–" + end + " of " + page.total
-        : "Empty") +
-        (page.truncated
-          ? "; only the first " + page.total + " entries are listed"
-          : ""),
-    ) +
-    "</p>" +
-    '<table class="runs"><thead><tr><th>Type</th><th>Name</th><th>Size</th><th>Modified</th><th>Download</th><th>Launch</th></tr></thead><tbody>' +
-    rows +
-    "</tbody></table>" +
-    (end < page.total
-      ? '<button type="button" onclick="loadArtifactDirectory(' +
-        index +
-        "," +
-        jsArg(child) +
-        "," +
-        end +
-        ')">More</button>'
-      : "");
+      '<p class="meta">' +
+      esc(
+        (page.total
+          ? page.offset + 1 + "–" + end + " of " + page.total
+          : "Empty") +
+          (page.truncated
+            ? "; only the first " + page.total + " entries are listed"
+            : ""),
+      ) +
+      "</p>" +
+      '<table class="runs"><thead><tr><th>Type</th><th>Name</th><th>Size</th><th>Modified</th><th>Download</th><th>Launch</th></tr></thead><tbody>' +
+      rows +
+      "</tbody></table>" +
+      (end < page.total
+        ? '<button type="button" onclick="loadArtifactDirectory(' +
+          index +
+          "," +
+          jsArg(child) +
+          "," +
+          end +
+          ')">More</button>'
+        : ""),
+  );
 }
 // loadArtifactArrays describes a .npy file, or each array of a .npz file:
 // dtype, shape, and its first values, which the server reads from the
@@ -628,10 +654,11 @@ async function loadArtifactArrays(index, child, header) {
         "</div>",
     )
     .join("");
-  artifactPreview().innerHTML =
+  setArtifactPreview(
     header +
-    (arrays || '<p class="meta">No arrays.</p>') +
-    (result.truncated
-      ? '<p class="meta">Only the first arrays are listed.</p>'
-      : "");
+      (arrays || '<p class="meta">No arrays.</p>') +
+      (result.truncated
+        ? '<p class="meta">Only the first arrays are listed.</p>'
+        : ""),
+  );
 }

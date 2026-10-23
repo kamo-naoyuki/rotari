@@ -93,8 +93,8 @@ the [FAQ](FAQ.md#is-rotari-web-safe-to-expose-beyond-127001).
 
 With `--allow-exec`, the UI can run TensorBoard, Jupyter Lab, MLflow, Aim,
 Streamlit, and the commands in your global `launchers.toml`, against an
-artifact. Use **Launch with…** in a job's Artifacts, a job's **Launch** button,
-or the run toolbar; **Launches** lists and stops them.
+artifact. Use the command buttons in the rows of a job's Artifacts or of the
+run toolbar's **Files** view; **Launches** lists and stops them.
 
 Start it with:
 

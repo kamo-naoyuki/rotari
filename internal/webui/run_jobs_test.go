@@ -57,9 +57,6 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
     window.fetch = async (url) => {
       if (url === '/api/state') return { ok: true, json: async () => state };
       if (url === '/api/launchers') return { ok: true, json: async () => launchers };
-      if (url === '/api/launchers?kind=directory&name=') return { ok: true, json: async () => ({ available: true, commands: [
-        { name: 'TensorBoard' }, { name: 'Aim', unavailable: 'aim was not found on PATH' },
-      ] }) };
       throw new Error('unexpected fetch: ' + url);
     };
   },
@@ -123,17 +120,16 @@ setTimeout(async () => {
       assert(actionButton('e', cls).disabled && actionButton('e', cls).title === 'Job has not started yet', cls + ' of a pending job is not disabled');
     }
     assert(!actions('a').querySelector('details'), 'a row still has a menu');
-    // The toolbar has a button per command for the directory holding the
-    // basedir; one whose program is missing is disabled with the reason.
-    await new Promise(resolve => setTimeout(resolve, 50));
-    const toolbarLaunch = () => [...document.querySelectorAll('#app .run-toolbar .launch-run')];
-    assert.deepEqual(toolbarLaunch().map(b => b.textContent), ['TensorBoard', 'Aim']);
-    assert(!toolbarLaunch()[0].disabled && toolbarLaunch()[1].disabled && toolbarLaunch()[1].title === 'aim was not found on PATH');
+    // The toolbar has one Files button for the directory holding the
+    // basedir, whose rows have the launch buttons.
+    const toolbarFiles = () => [...document.querySelectorAll('#app .run-toolbar .run-files')];
+    assert.deepEqual(toolbarFiles().map(b => b.textContent), ['Files']);
+    assert(!document.querySelector('#app .run-toolbar .launch-run'), 'toolbar still has a button per command');
     launchers = { available: false };
     await window.loadLauncherAvailability();
     window.render();
     assert.deepEqual(labels('a'), ['Log', 'Artifacts', 'Notes', 'Report', 'Path'], 'Launch offered where launching is unavailable');
-    assert.deepEqual(toolbarLaunch(), [], 'toolbar launch buttons offered where launching is unavailable');
+    assert.deepEqual(toolbarFiles().map(b => b.textContent), ['Files'], 'Files needs no launching');
     launchers = { available: true };
     await window.loadLauncherAvailability();
     window.render();

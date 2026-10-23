@@ -488,9 +488,10 @@ No. The Web UI controls existing runs and edits queues; execution starts through
 
 Yes. TensorBoard, Jupyter Lab, MLflow, Aim, and Streamlit are built in, and
 commands you register in your global
-`launchers.toml` appear too, under **Launch with…** in a job's Artifacts, or
-a run page job's **Launch** button for its working directory, or the run
-toolbar's button per command for the directory holding the basedir, when
+`launchers.toml` appear too, as a button per command in each row of a job's
+Artifacts, of the run page's **Files** view of the directory holding the
+basedir, and of the directories opened from them (a job's **Launch** button
+opens its Artifacts at the working directory's row), when
 `rotari web --allow-exec` is running; the browser cannot send any other
 command. A command whose program is not installed is shown disabled. See
 [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts).

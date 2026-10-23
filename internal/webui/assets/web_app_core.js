@@ -1831,14 +1831,13 @@ function runSelectionHTML() {
   );
 }
 // runActionsHTML is the run page's toolbar: actions on the checked jobs,
-// then a button per command for the directory holding the basedir where
-// launching is available, Cancel run while the run is running, and Delete
-// run. Buttons that need a selection start disabled until
+// then Files for the directory holding the basedir on the live server,
+// Cancel run while the run is running, and Delete run. Buttons that need a selection start disabled until
 // updateSelectedRunJobs enables them.
 function runActionsHTML(q, run, runID) {
   const data =
     ' data-project="' + esc(q.project_name) + '" data-run="' + esc(runID) + '"';
-  const launchButtons = basedirParentLaunchButtons(q.project_name, runID);
+  const filesButton = runFilesButton(q.project_name, runID);
   return (
     '<div class="toolbar web-copy-controls run-toolbar">' +
     '<button type="button" class="create-selected" disabled' +
@@ -1853,7 +1852,7 @@ function runActionsHTML(q, run, runID) {
     '<button type="button" class="cancel-selected-jobs" disabled onclick="controlSelectedRunJobs(\'cancel\')">Cancel selected</button>' +
     '<button type="button" class="suspend-resume-selected-jobs" disabled onclick="controlSelectedRunJobs(\'suspend-resume\')">Suspend selected</button>' +
     '<span class="toolbar-gap"></span>' +
-    (launchButtons ? launchButtons + '<span class="toolbar-gap"></span>' : "") +
+    (filesButton ? filesButton + '<span class="toolbar-gap"></span>' : "") +
     '<button type="button" class="run-config-snapshot" onclick="showConfig(true)"' +
     (run.context?.config_snapshot_paths?.length
       ? ' title="View the configuration saved with this run"'
@@ -2117,8 +2116,8 @@ function runJobActions(q, run, runID, j) {
       esc(artifactAttemptID) +
       "')\">Artifacts</button>"
     : '<button class="view-artifacts"' + notStarted + ">Artifacts</button>";
-  // Launch opens the same attempt's Artifacts with the commands for its
-  // working directory listed, where a tracker's default store usually is.
+  // Launch opens the same attempt's Artifacts at its working directory's
+  // row of commands, where a tracker's default store usually is.
   const launchAvailable =
     launcherAvailability && launcherAvailability.available;
   const launch = !launchAvailable

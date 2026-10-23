@@ -61,7 +61,7 @@ setTimeout(async () => {
     if (buttons !== 10) fail('open buttons', buttons);
     const workingDirectoryRow = view().querySelector('.artifact-table tbody tr');
     if (JSON.stringify([...workingDirectoryRow.children].slice(0, 3).map(cell => cell.textContent)) !== '["directory",".","working directory"]') fail('working directory row', workingDirectoryRow.textContent);
-    if (!workingDirectoryRow.querySelector('.artifact-open') || workingDirectoryRow.querySelector('.artifact-download') || !workingDirectoryRow.querySelector('.artifact-launch-button')) fail('working directory actions', workingDirectoryRow.innerHTML);
+    if (!workingDirectoryRow.querySelector('.artifact-open') || workingDirectoryRow.querySelector('.artifact-download') || !workingDirectoryRow.querySelector('.artifact-launchers')) fail('working directory actions', workingDirectoryRow.innerHTML);
 
     let scrolls = 0;
     preview().scrollIntoView = options => {
@@ -97,8 +97,8 @@ setTimeout(async () => {
     await window.openArtifact(entries['data.csv'], '', 'file');
     if ([...preview().querySelectorAll('tbody td')].map(cell => cell.textContent).join() !== '1,2') fail('table');
     // A static export cannot launch, and says so in the server's words.
-    await window.toggleArtifactLaunch(entries['data.csv'], '', 'file');
-    const launch = window.document.getElementById('artifact-launch-panel')?.textContent || '';
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const launch = window.document.querySelector('#artifact-view .launch-unavailable-note')?.textContent || '';
     if (!launch.includes('Launching is unavailable in a static export.') || !launch.includes('rotari web --allow-exec')) fail('static launch explanation', launch);
     if (!window.document.getElementById('launches-button').hidden) fail('Launches button shown in a static export');
 

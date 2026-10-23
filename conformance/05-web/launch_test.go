@@ -517,6 +517,19 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 	if strings.Join(names, ",") != builtins+",List,Cat,Missing" || !availability.Commands[0].Builtin {
 		t.Fatalf("registered commands = %v", names)
 	}
+	// Each target=KIND:NAME gets, in order, the commands that accept it.
+	var matched struct {
+		Targets []struct {
+			Commands []string `json:"commands"`
+		} `json:"targets"`
+	}
+	if err := json.Unmarshal([]byte(api(e, http.MethodGet, base+"/api/launchers?target=directory:data&target=file:n.txt", "").Body), &matched); err != nil {
+		t.Fatal(err)
+	}
+	if len(matched.Targets) != 2 || strings.Join(matched.Targets[0].Commands, ",") != "TensorBoard,Jupyter Lab,Aim,List" ||
+		!strings.HasSuffix(strings.Join(matched.Targets[1].Commands, ","), "Cat,Missing") {
+		t.Fatalf("targets = %+v", matched.Targets)
+	}
 	last := len(availability.Commands) - 1
 	if availability.Commands[last].Unavailable != "rotari-conformance-missing-tool was not found on PATH" || availability.Commands[last-1].Unavailable != "" {
 		t.Fatalf("availability of Cat and Missing = %+v", availability.Commands[last-1:])
@@ -547,11 +560,23 @@ func TestWebLaunchRunsOnlyRegisteredCommands(t *testing.T) {
 	if got := launchOutput(t, e, base, parent.ID); !strings.Contains(got, "cwd="+filepath.Dir(e.Base)+" token=unset\n") {
 		t.Fatalf("List on the basedir's parent printed %q", got)
 	}
+	// The run's Files view browses the directories inside it, and launches
+	// on them.
+	inside := decodeLaunch(t, api(e, http.MethodPost, base+"/api/launch", basedirParent(map[string]any{"child": filepath.Base(e.Base)})))
+	waitLaunch(t, e, base, inside.ID, ended)
+	if got := launchOutput(t, e, base, inside.ID); !strings.Contains(got, "cwd="+e.Base+" token=unset\n") {
+		t.Fatalf("List inside the basedir's parent printed %q", got)
+	}
+	if listed := api(e, http.MethodGet, base+"/api/artifact-directory?project_name=launch&run_id="+f.runID+"&entry=basedir_parent", ""); listed.Status != http.StatusOK ||
+		!strings.Contains(listed.Body, `"name":"`+filepath.Base(e.Base)+`"`) {
+		t.Fatalf("directory of the basedir's parent = (%d, %s)", listed.Status, listed.Body)
+	}
 
 	before := len(listLaunches(t, e, base))
 	for name, body := range map[string]string{
 		"parent with job":  basedirParent(map[string]any{"job_id": f.jobID}),
 		"parent of no run": basedirParent(map[string]any{"run_id": "20990101-000000-00000000"}),
+		"parent escaping":  basedirParent(map[string]any{"child": ".."}),
 		"command text":     f.request("Cat", "data", "n.txt", map[string]any{"command": "touch pwned"}),
 		"working dir":      f.request("Cat", "data", "n.txt", map[string]any{"cwd": "/"}),
 		"unknown command":  f.request("Basedir", "data", "n.txt", nil),
