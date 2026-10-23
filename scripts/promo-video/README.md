@@ -201,8 +201,9 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
 
 The second video covers the end of the experiment cycle: a TTS training run
 finishes, the desktop shows a notification, the Web UI Inbox lists it, Slack
-gets the webhook message, and the outputs (a loss plot, then an audio sample
-from the evaluation table) are opened from the run page. The hook is only
+gets the webhook message, and the outputs (a loss plot, an audio sample from
+the evaluation table, and TensorBoard on the run's `tb/`) are opened from the
+run page. The hook is only
 "Is it done yet?": checking a log again and again.
 
 ```sh
@@ -244,13 +245,16 @@ message, crop the message above the input box, and replace `assets/slack/`.
   the same WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene
   `sfx`. The viewer is shown briefly and not named or explained: it needs a
   table of results and serves a narrower need than the episode's message.
-- **TensorBoard is left out.** Launching needs `rotari web --allow-exec`, whose
-  browser login required HTTPS until loopback HTTP sign-in was allowed
-  (2026-10-23); a TensorBoard scene can now be added. `newroot.sh` already
-  solves the other obstacle:
-  `--allow-exec` checks that every directory from `/` to the launcher file is
-  owned by the user or root, and in a user namespace the real `/` looks
-  owned by nobody.
+- **TensorBoard:** the capture starts `rotari web --allow-exec` with a fixed
+  token and signs in over `http://127.0.0.1` before recording (loopback HTTP
+  sign-in is allowed since 2026-10-23). TensorBoard comes from `.venv` on
+  `PATH` and is launched from the `tb/` row of the run's Artifacts; the
+  launch controls are scoped to the Artifacts dialog, since the run toolbar
+  has launch buttons of its own, and TensorBoard's settings side pane is
+  closed before the shot. `newroot.sh` is needed because `--allow-exec` checks
+  that every directory from `/` to the launcher file is owned by the user or
+  root, and in a user namespace the real `/` looks owned by nobody. The
+  confirmation shows "Runs as root@workstation": the namespace's user.
 
 ## Next steps
 

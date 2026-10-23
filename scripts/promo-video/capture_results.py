@@ -45,6 +45,8 @@ ENV = {
     "ROTARI_MASTERDIR": f"{HOME}/.rotari-master",
     "TTS_SAMPLES": f"{HOME}/.cache/tts-samples",
     "MPLCONFIGDIR": f"{HOME}/.cache/matplotlib",
+    # --allow-exec needs a token; this one never leaves the namespace.
+    "ROTARI_WEB_AUTH_TOKEN": "promo-capture-token-0123456789",
 }
 S = Session(ENV, HOME, OUT)
 
@@ -105,6 +107,16 @@ def setup():
     os.makedirs(f"{OUT}/webhook")
 
 
+def show_launch_panel(modal):
+    """Scroll the Artifacts listing back left and its launch panel into view."""
+    modal.evaluate(
+        "m => m.querySelectorAll('*').forEach((e) => { if (e.scrollLeft) e.scrollLeft = 0; })"
+    )
+    panel = modal.locator(".launch-choices").last
+    if panel.count():
+        panel.scroll_into_view_if_needed()
+
+
 def x11grab(name, seconds, fps=10):
     """Record the Xvfb screen into OUT/web/NAME as numbered PNGs."""
     os.makedirs(f"{OUT}/web/{name}", exist_ok=True)
@@ -160,7 +172,7 @@ def main():
     time.sleep(6)
 
     web = subprocess.Popen(
-        [f"{HOME}/.local/bin/rotari", "web", "--port", str(PORT)],
+        [f"{HOME}/.local/bin/rotari", "web", "--port", str(PORT), "--allow-exec"],
         cwd=HOME,
         env=ENV,
         stdout=subprocess.DEVNULL,
@@ -196,6 +208,13 @@ def main():
             )
             ctx.grant_permissions(["notifications"], origin=BASE)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            # Sign in over plain HTTP on loopback, off camera.
+            page.goto(f"{BASE}/_auth/login?next=/")
+            page.fill('input[name="password"]', ENV["ROTARI_WEB_AUTH_TOKEN"])
+            page.locator("form button, form input[type=submit]").first.click()
+            page.wait_for_load_state()
+            if "/_auth/login" in page.url:
+                raise SystemExit(f"sign-in failed: {page.url}")
 
             # Submit the run from the terminal, then watch it end in the Web UI.
             t = S.term("submit", f"{HOME}/tts")
@@ -237,6 +256,43 @@ def main():
             modal.get_by_text("loss.png", exact=True).first.click()
             page.wait_for_timeout(1500)
             S.record(page, frames, "loss", 0.5, fps=4)
+            # TensorBoard on the run's tb/ directory, launched from Artifacts.
+            modal.get_by_text(RUN_OUT, exact=True).click()
+            page.wait_for_timeout(800)
+            row = modal.locator("tr").filter(has=page.get_by_text("tb", exact=True))
+            row.get_by_role("button", name="Launch with…").click()
+            page.wait_for_timeout(800)
+            show_launch_panel(modal)
+            S.record(page, frames, "launch_menu", 0.5, fps=4)
+            # The run toolbar has launch buttons too; use the ones in Artifacts.
+            modal.locator(".launch-choices").get_by_role(
+                "button", name="TensorBoard", exact=True
+            ).first.click()
+            page.wait_for_timeout(800)
+            show_launch_panel(modal)
+            S.record(page, frames, "launch_confirm", 0.5, fps=4)
+            modal.locator("button.launch-confirm").first.click()
+            modal.locator("a.launch-open").first.wait_for(timeout=90000)
+            page.wait_for_timeout(500)
+            show_launch_panel(modal)
+            S.record(page, frames, "launch_ready", 0.5, fps=4)
+            with ctx.expect_page() as opened:
+                modal.locator("a.launch-open").first.click()
+            board = opened.value
+            board.wait_for_load_state()
+            # TensorBoard draws its charts after loading the event files.
+            board.wait_for_timeout(9000)
+            # The settings pane would take a third of a 600 px window.
+            close = board.locator('button[aria-label="Close side pane"]')
+            if close.count():
+                close.first.click()
+                board.wait_for_timeout(800)
+            S.record(board, frames, "tensorboard", 0.5, fps=4)
+            board.close()
+            page.reload()
+            page.wait_for_timeout(1500)
+            page.get_by_role("button", name="Artifacts").first.click()
+            page.wait_for_timeout(1200)
             modal.get_by_text(RUN_OUT, exact=True).click()
             page.wait_for_timeout(800)
             row = modal.locator("tr", has_text="eval.csv")

@@ -139,6 +139,26 @@ def timeline():
             # The frames start as playback starts.
             sfx=[0.0, f"{CAP}/sample.wav"],
         ),
+        # TensorBoard, launched on the run's tb/ directory.
+        webscene(
+            "launch_menu",
+            2.0,
+            [[0, "Need TensorBoard?"]],
+            say="Need TensorBoard?",
+        ),
+        webscene(
+            "launch_confirm",
+            2.6,
+            [[0, "Launch it from<br><em>the run's outputs,</em>"]],
+            say="Launch it from the run's outputs,",
+        ),
+        webscene("launch_ready", 1.2, [[0, "…and open it."]]),
+        webscene(
+            "tensorboard",
+            3.4,
+            [[0, "…and open it,<br><em>in one click.</em>"]],
+            say="and open it in one click.",
+        ),
         # Close.
         {
             "kind": "title",
