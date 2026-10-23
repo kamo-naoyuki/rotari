@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 
+from common import Session, only, section
 from playwright.sync_api import sync_playwright
 
 FIXTURE, OUT, ROTARI = sys.argv[1:4]
@@ -37,133 +38,7 @@ ENV = {
     # Narrow squeue columns so its output fits half a vertical frame.
     "SQUEUE_FORMAT": "%.5i %.4P %.10j %.5u %.2t %.5M %R",
 }
-
-
-def sh(cmd, cwd=HOME):
-    return subprocess.run(
-        ["bash", "-c", cmd], cwd=cwd, env=ENV, capture_output=True, text=True
-    )
-
-
-class Term:
-    """A terminal session as timed text appends on a virtual clock (seconds)."""
-
-    def __init__(self, name, cwd=HOME):
-        self.name = name
-        self.cwd = cwd
-        self.t = 0.0
-        self.events = []
-
-    def emit(self, text):
-        self.events.append([round(self.t, 3), text])
-
-    def wait(self, s):
-        self.t += s
-
-    def type(self, line, cps=28, pause_after=0.45):
-        self.emit("\x01$ \x02")
-        self.wait(0.3)
-        for ch in line:
-            self.emit(ch)
-            self.wait(1 / cps)
-        self.wait(pause_after)
-        self.emit("\n")
-
-    def output(self, text, line_s=0.04, keep=None):
-        lines = text.rstrip("\n").split("\n") if text.strip() else []
-        if keep is not None:
-            lines = keep(lines)
-        for ln in lines:
-            self.emit(ln + "\n")
-            self.wait(line_s)
-        self.wait(0.5)
-
-    def run(self, line, real=None, keep=None, cps=28, line_s=0.04):
-        self.type(line, cps=cps)
-        if line.startswith("cd "):
-            self.cwd = os.path.join(HOME, line[3:].replace("~/", "").strip())
-            self.wait(0.2)
-            return ""
-        r = sh(real or line, cwd=self.cwd)
-        out = r.stdout + r.stderr
-        self.output(out, keep=keep, line_s=line_s)
-        return out
-
-    def live(self, line, cps=28):
-        """Run a command and emit its output lines at the times they appear."""
-        self.type(line, cps=cps)
-        p = subprocess.Popen(
-            ["bash", "-c", line],
-            cwd=self.cwd,
-            env=ENV,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        start, base = time.time(), self.t
-        for ln in p.stdout:
-            self.t = base + (time.time() - start)
-            self.emit(ln)
-        p.wait()
-        self.t = base + (time.time() - start) + 0.5
-
-    def dump(self):
-        return {
-            "name": self.name,
-            "duration": round(self.t + 0.8, 3),
-            "events": self.events,
-        }
-
-
-def section(start, stop=()):
-    """Keep output lines from the first one starting with start, up to a stop prefix."""
-
-    def keep(lines):
-        out, on = [], False
-        for ln in lines:
-            if ln.startswith(start):
-                on = True
-            elif on and any(ln.startswith(s) for s in stop):
-                break
-            if on:
-                out.append(ln)
-        return out
-
-    return keep
-
-
-def only(*prefixes):
-    return lambda lines: [ln for ln in lines if ln.lstrip().startswith(prefixes)]
-
-
-def record(page, frames, name, seconds, fps=6, full=False):
-    os.makedirs(f"{OUT}/web/{name}", exist_ok=True)
-    out, start, n = [], time.time(), 0
-    while time.time() - start <= seconds:
-        path = f"web/{name}/{n:04d}.png"
-        page.screenshot(path=f"{OUT}/{path}", full_page=full)
-        out.append([round(time.time() - start, 3), path])
-        n += 1
-        time.sleep(max(0, n / fps - (time.time() - start)))
-    frames[name] = out
-
-
-def runs_of(project):
-    d = f"{HOME}/.local/state/rotari/projects/{project}/runs"
-    for _ in range(50):
-        if os.path.isdir(d) and os.listdir(d):
-            break
-        time.sleep(0.1)
-    return sorted(os.listdir(d))
-
-
-def wait_idle(project, timeout=90):
-    end = time.time() + timeout
-    while time.time() < end:
-        if "Lifecycle: running" not in sh(f"rotari show -p {project}").stdout:
-            return
-        time.sleep(0.5)
-    raise RuntimeError(f"{project} still running")
+S = Session(ENV, HOME, OUT)
 
 
 # Show only these columns of the run page's jobs table, through its Columns menu.
@@ -217,16 +92,16 @@ def main():
     terms, frames, logs = [], {}, {}
 
     # Act 0: one job is fine in a terminal.
-    t = Term("one", f"{HOME}/llm")
+    t = S.term("one", f"{HOME}/llm")
     t.live("python train.py")
     terms.append(t)
 
     # Act 1a: the same four projects without rotari, one terminal tab each.
     for d in PROJECTS:
-        sh("nohup ./train.sh > train.log 2>&1 &", cwd=f"{HOME}/{d}")
+        S.sh("nohup ./train.sh > train.log 2>&1 &", cwd=f"{HOME}/{d}")
     time.sleep(5)
     for d in PROJECTS:
-        t = Term(f"tab-{d}", f"{HOME}/{d}")
+        t = S.term(f"tab-{d}", f"{HOME}/{d}")
         t.run("tail -n 3 train.log", line_s=0.05)
         terms.append(t)
     time.sleep(9)
@@ -247,7 +122,7 @@ def main():
             phone = wide
 
             # Act 1b: submit the four projects with rotari, then watch them on one page.
-            t = Term("submit4")
+            t = S.term("submit4")
             for d in PROJECTS:
                 t.run(f"cd ~/{d}", cps=70)
                 t.run(f"rotari add -p {d} ./train.sh", cps=70, keep=only("added"))
@@ -259,47 +134,47 @@ def main():
             terms.append(t)
             wide.goto(base + "/")
             wide.wait_for_timeout(800)
-            record(wide, frames, "projects", 15)
+            S.record(wide, frames, "projects", 15)
             for d in PROJECTS:
-                wait_idle(d)
+                S.wait_idle(d)
 
             # Act 2: a 48-run sweep with three kinds of failure.
-            t = Term("sweep", f"{HOME}/llm-sweep")
+            t = S.term("sweep", f"{HOME}/llm-sweep")
             t.run("rotari add -p llm-sweep --array 1-48 ./sweep.sh", keep=only("added"))
             t.run(
                 "rotari run -p llm-sweep --async",
                 keep=only("=== Run started", "Project:", "Run:"),
             )
             terms.append(t)
-            rid = runs_of("llm-sweep")[-1]
+            rid = S.runs_of("llm-sweep")[-1]
             phone.goto(f"{base}/project/llm-sweep/run/{rid}")
             phone.wait_for_timeout(800)
             phone.evaluate(SCROLL)
-            record(phone, frames, "sweep_live", 22)
-            wait_idle("llm-sweep")
+            S.record(phone, frames, "sweep_live", 22)
+            S.wait_idle("llm-sweep")
             phone.reload()
             phone.wait_for_timeout(1500)
             logs["offsets_sweep_done"] = phone.evaluate(OFFSETS)
-            record(phone, frames, "sweep_done", 0.1, full=True)
+            S.record(phone, frames, "sweep_done", 0.1, full=True)
 
-            failed = sh("rotari show -p llm-sweep --failed-logs").stdout
+            failed = S.sh("rotari show -p llm-sweep --failed-logs").stdout
             for key, marker in (
                 ("gpu", "fallen off the bus"),
                 ("oom", "OutOfMemoryError"),
             ):
                 logs[key] = next(ln for ln in failed.splitlines() if marker in ln)
 
-            t = Term("causes", f"{HOME}/llm-sweep")
+            t = S.term("causes", f"{HOME}/llm-sweep")
             t.run(
                 "rotari show -p llm-sweep",
                 keep=section("Failures by cause", ("Inspect", "To show")),
                 line_s=0.06,
             )
             terms.append(t)
-            logs["show_full"] = sh("rotari show -p llm-sweep").stdout
+            logs["show_full"] = S.sh("rotari show -p llm-sweep").stdout
 
             # Fix the batch limit, then rerun only what failed.
-            t = Term("retry", f"{HOME}/llm-sweep")
+            t = S.term("retry", f"{HOME}/llm-sweep")
             t.run("sed -i 's/max_batch=128/max_batch=64/' sweep.conf")
             t.run(
                 "rotari retry -p llm-sweep",
@@ -309,20 +184,20 @@ def main():
                 line_s=0.08,
             )
             terms.append(t)
-            rid2 = runs_of("llm-sweep")[-1]
+            rid2 = S.runs_of("llm-sweep")[-1]
             phone.goto(f"{base}/project/llm-sweep/run/{rid2}")
             phone.wait_for_timeout(1500)
             logs["offsets_retry"] = phone.evaluate(OFFSETS)
-            record(phone, frames, "retry", 0.1, full=True)
+            S.record(phone, frames, "retry", 0.1, full=True)
 
             # Act 3, only when capture.sh started Slurm (render.py --with-slurm).
             if os.path.exists(f"{HOME}/sbin/sbatch"):
                 # Act 3a: the same work by hand on Slurm (left) and locally (right).
-                left = Term("slurm-raw", f"{HOME}/pipeline")
+                left = S.term("slurm-raw", f"{HOME}/pipeline")
                 left.run("sbatch train-gpu.sh")
                 time.sleep(1.0)
                 left.run("squeue", real="squeue | sed 's/ root / me   /'")
-                right = Term("local-raw", f"{HOME}/pipeline")
+                right = S.term("local-raw", f"{HOME}/pipeline")
                 right.run("nohup ./prep.sh > prep.log 2>&1 &")
                 time.sleep(2.5)
                 right.run(
@@ -334,10 +209,10 @@ def main():
                 left.run("cat slurm-*.out")
                 terms += [left, right]
                 time.sleep(1)
-                sh("rm -f slurm-*.out prep.log nohup.out", cwd=f"{HOME}/pipeline")
+                S.sh("rm -f slurm-*.out prep.log nohup.out", cwd=f"{HOME}/pipeline")
 
                 # Act 3b: one pipeline mixing both, through rotari.
-                t = Term("pipeline", f"{HOME}/pipeline")
+                t = S.term("pipeline", f"{HOME}/pipeline")
                 t.run(
                     "rotari add -p pipeline -e local --job-name prep ./prep.sh",
                     cps=40,
@@ -354,7 +229,7 @@ def main():
                     line_s=0.08,
                 )
                 terms.append(t)
-                rid3 = runs_of("pipeline")[-1]
+                rid3 = S.runs_of("pipeline")[-1]
                 phone.goto(f"{base}/project/pipeline/run/{rid3}")
                 phone.wait_for_timeout(1500)
                 logs["columns"] = phone.evaluate(
@@ -363,13 +238,13 @@ def main():
                 phone.evaluate(COLUMNS)
                 phone.wait_for_timeout(500)
                 logs["offsets_pipeline"] = phone.evaluate(OFFSETS)
-                record(phone, frames, "pipeline", 0.1, full=True)
-                logs["pipeline_show"] = sh("rotari show -p pipeline").stdout
+                S.record(phone, frames, "pipeline", 0.1, full=True)
+                logs["pipeline_show"] = S.sh("rotari show -p pipeline").stdout
 
             # Close: every project on one page.
             wide.goto(base + "/")
             wide.wait_for_timeout(1500)
-            record(wide, frames, "projects_end", 1)
+            S.record(wide, frames, "projects_end", 1)
             b.close()
     finally:
         web.terminate()

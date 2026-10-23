@@ -6,9 +6,15 @@ namespaces, and a headless browser renders the material into frames for
 ffmpeg. Every command, log line, and Web UI screen in the video comes from
 those runs. They are a production aid, not part of rotari or its tests.
 
-Status (2026-10-23): the cut is 78 s with English narration by Kokoro TTS
-(voice `af_heart`) and burned-in subtitles, plus an `.srt` beside the video;
-there is no music. `--with-slurm` adds the Slurm act (about 96 s).
+Two videos exist (2026-10-23), both with English narration by Kokoro TTS
+(voice `af_heart`), burned-in subtitles, and an `.srt` beside the video, and
+no music:
+
+- **The short** (78 s; `--with-slurm` adds the Slurm act, about 96 s): one
+  job needs no rotari, many do. Sections below describe it unless they say
+  otherwise.
+- **Series 1, "results"** (56 s): know when a run ends, then look at its
+  results. See [The results episode](#the-results-episode).
 
 ## Message
 
@@ -85,10 +91,18 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 | `capture.sh` | Enter the namespaces, start Slurm, run `capture.py` |
 | `capture.py` | Run the scenario; record terminal sessions and Web UI screenshots |
 | `slurm-up.sh` | Start slurmdbd, slurmctld, and slurmd from the image; write client wrappers |
-| `render.py`, `player.html` | Scene timeline and the HTML player stepped frame by frame into ffmpeg |
+| `render.py`, `player.html` | The short's scene timeline, and the HTML player both episodes render through |
+| `renderer.py` | Shared rendering: options, narration, player page, frames into ffmpeg |
+| `common.py` | Shared capture helpers: commands, terminal sessions (`Term`), Web UI frames |
 | `narration.py` | Kokoro TTS clips, scene fitting, the audio track, and subtitles |
 | `fixture/` | Fake jobs: `train.py`, per-project `train.sh`, `sweep.sh`, `prep.sh`, `train-gpu.sh` |
 | `fullpage.py` | Framing aid: full-page screenshots of a captured state, run in a namespace |
+| `make-results.sh TOOLS WORK OUT.mp4 SLACK_DIR` | The results episode's entry point |
+| `capture-results.sh`, `capture_results.py` | Capture the results episode (needs Xvfb, dunst, google-chrome) |
+| `newroot.sh`, `dunstrc` | A namespace-owned `/` for `--allow-exec`; the desktop notification style |
+| `render_results.py` | The results episode's scene timeline |
+| `tts_samples.py`, `fixture/tts_train.py` | Kokoro clips and the fake TTS job that "produces" them |
+| `send-webhook.py` | Post the Slack payloads a capture recorded to your real webhook |
 
 ## Making a video
 
@@ -164,11 +178,57 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
   `render.py` stops if any face fails to load instead of rendering in a
   fallback font. Chrome's `FontFace` API refuses `file://` font URLs.
 
+## The results episode
+
+The second video covers the end of the experiment cycle: a TTS training run
+finishes, the desktop shows a notification, the Web UI Inbox lists it, Slack
+gets the webhook message, and the outputs (loss plot, audio samples, an
+evaluation table) are opened from the job's Artifacts without copying files.
+
+```sh
+scripts/promo-video/make-results.sh "$TOOLS" "$TMPDIR/results-work" results.mp4 SLACK_DIR
+.venv/bin/python scripts/promo-video/send-webhook.py "$TMPDIR/results-work/capture"
+```
+
+- **Desktop notification:** `capture-results.sh` starts Xvfb (1200x1620),
+  a D-Bus session, and dunst (1.5 syntax in `dunstrc`) inside the namespace.
+  A headed `/usr/bin/google-chrome` at scale 2 opens the run page, turns on
+  the Web UI's notifications, and ffmpeg x11grab records the screen while the
+  run ends. Chrome runs as the namespace root, so it needs `--no-sandbox`;
+  `--test-type` hides the warning bar, and `--lang=en-US` with Translate
+  disabled keeps a translation prompt out of the frame. Xvfb runs with
+  `-nolock` (its lock file would land in the host's shared `/tmp`) and
+  `-nocursor`. `render_results.py` finds the notification's arrival by
+  comparing the top right of each frame with the first.
+- **Slack:** the namespace has no network, so the capture's
+  `notifications.toml` points the webhook at a local recorder
+  (`WORK/capture/webhook/NNN.json`), with the same fields as the user's own
+  settings. Afterwards `send-webhook.py` posts those exact payloads to the
+  `[webhook] url` of `~/.config/rotari/notifications.toml` without printing
+  it. Screenshots taken in Slack then (the desktop notification and the
+  message, cropped above the input box) go in SLACK_DIR. A Slack screen is
+  never drawn by the pipeline itself.
+- **Artifacts:** the fake job writes its outputs with f-strings
+  (`f"{out}/loss.png"`), as training code commonly does. Artifact discovery
+  skips f-strings, so only `--out outputs/run1` is listed; plain literals such
+  as `"loss.png"` were listed as missing paths under the working directory.
+  The Table viewer's media paths resolve from "this file's directory".
+- **Audio:** the Web UI plays the sample while frames are recorded; the same
+  WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene `sfx`.
+- **TensorBoard is left out.** Launching needs `rotari web --allow-exec`, whose
+  browser login requires HTTPS through a trusted reverse proxy (see
+  `development/ISSUES.md`). `newroot.sh` already solves the other obstacle:
+  `--allow-exec` checks that every directory from `/` to the launcher file is
+  owned by the user or root, and in a user namespace the real `/` looks
+  owned by nobody.
+
 ## Next steps
 
 - Listen to the narration and adjust wording, voice, or speed; consider
   quiet background music.
 - The run page job timeline's axis labels overlap at narrow widths and are
   visible in the video; see `development/ISSUES.md`.
-- A longer intro and a series (clusters, history and lineage, notifications
-  and artifacts, agents) can reuse this pipeline with new scenes.
+- Replace the results episode's Slack screenshots (still from an unrelated
+  test run) with ones of the message `send-webhook.py` delivered.
+- A longer intro and more of the series (clusters, history and lineage,
+  agents) can reuse this pipeline with new scenes.

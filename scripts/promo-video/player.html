@@ -51,6 +51,9 @@ body { background: radial-gradient(1200px 900px at 50% -10%, #1a2433 0%, var(--b
 .logo .url { font: 500 40px PlexMono, monospace; color: var(--accent); }
 .logo .install { font: 400 28px PlexMono, monospace; color: var(--text); background: var(--panel);
   border: 2px solid var(--line); border-radius: 16px; padding: 18px 26px; }
+.shots { position: absolute; left: 40px; right: 40px; top: 470px; display: flex; flex-direction: column;
+  align-items: center; gap: 40px; }
+.shots img { max-width: 100%; border-radius: 18px; box-shadow: 0 24px 60px rgba(0,0,0,.55); }
 .cards { position: absolute; left: 40px; right: 40px; top: 470px; display: flex; flex-direction: column; gap: 34px; }
 .card { background: #1d1416; border: 2px solid #5a2a2e; border-left: 10px solid var(--red);
   border-radius: 20px; padding: 26px 30px; }
@@ -140,6 +143,10 @@ async function render(t) {
   } else if (s.kind === "logs") {
     html = caption(s.captions, lt) + `<div class="cards">` + s.cards.map(([who, what], k) =>
       `<div class="card" style="${fadeIn(lt, 0.3 + k * 0.7)}"><div class="who">${esc(who)}</div><div class="what">${esc(what)}</div></div>`).join("") + `</div>`;
+  } else if (s.kind === "image") {
+    // Still images (such as screenshots from Slack), stacked and faded in one by one.
+    html = caption(s.captions, lt) + `<div class="shots">` + s.images.map((im, k) =>
+      `<img src="${im.src}" style="width:${im.width}px;${fadeIn(lt, im.at ?? 0.3 + k * 0.8)}">`).join("") + `</div>`;
   } else if (s.kind === "web") {
     let f = s.frames[0];
     for (const x of s.frames) if (x[0] <= vt) f = x;

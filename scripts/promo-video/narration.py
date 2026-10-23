@@ -1,7 +1,9 @@
 """Narration for the promo short: Kokoro TTS clips, timing, audio track, subtitles.
 
 Each scene may carry `say`, one English line, and `sayAt`, when in the scene
-the line starts (default LEAD seconds). `narrate` synthesizes the lines
+the line starts (default LEAD seconds), and `sfx`, [at, WAV] to play a sound
+from the material (such as a synthesized sample) without a subtitle.
+`narrate` synthesizes the lines
 with kokoro-onnx (cached by text, voice, and speed), lengthens any scene too
 short for its line, and returns the clips placed on the timeline. `write_audio`
 mixes them into one WAV and `write_srt` writes matching subtitles.
@@ -42,7 +44,10 @@ def synthesize(lines, model_dir, cache_dir, voice, speed):
 
 
 def narrate(scenes, model_dir, cache_dir, voice, speed):
-    """Fit scenes to their lines; return [(start, seconds, path, text)]."""
+    """Fit scenes to their lines and sounds; return [(start, seconds, path, text)].
+
+    A sound's text is None, so it gets no subtitle.
+    """
     clips = synthesize(
         [s["say"] for s in scenes if s.get("say")], model_dir, cache_dir, voice, speed
     )
@@ -55,6 +60,12 @@ def narrate(scenes, model_dir, cache_dir, voice, speed):
             s["dur"] = max(s["dur"], at + seconds + TAIL)
             s["sub"] = [at, at + seconds, s["say"]]
             placed.append((start + at, seconds, path, s["say"]))
+        if s.get("sfx"):
+            at, path = s["sfx"]
+            info = sf.info(path)
+            seconds = info.frames / info.samplerate
+            s["dur"] = max(s["dur"], at + seconds + TAIL)
+            placed.append((start + at, seconds, path, None))
         start += s["dur"]
     return placed, start
 
@@ -66,7 +77,8 @@ def write_audio(placed, total, path):
     rate = rates.pop()
     track = np.zeros(int(total * rate) + 1, dtype=np.float32)
     for start, _, clip, _ in placed:
-        audio, _ = sf.read(clip, dtype="float32")
+        audio, _ = sf.read(clip, dtype="float32", always_2d=True)
+        audio = audio.mean(axis=1)
         i = int(start * rate)
         track[i : i + len(audio)] += audio[: len(track) - i]
     peak = float(np.abs(track).max())
@@ -80,8 +92,9 @@ def write_srt(placed, path):
         ms = round(t * 1000)
         return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
 
+    spoken = [p for p in placed if p[3] is not None]
     cues = [
         f"{i}\n{stamp(start)} --> {stamp(start + seconds)}\n{text}\n"
-        for i, (start, seconds, _, text) in enumerate(placed, 1)
+        for i, (start, seconds, _, text) in enumerate(spoken, 1)
     ]
     Path(path).write_text("\n".join(cues))
