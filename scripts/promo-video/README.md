@@ -86,8 +86,9 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 
 | File | Role |
 | --- | --- |
+| `01_short.sh`, `02_results.sh` | Make one video each into `out/`; the usual entry points (`defaults.sh` sets their directories) |
 | `setup.sh TOOLS` | Install Playwright and kokoro-onnx into `.venv`; fetch Chrome, the Kokoro model, and the Slurm image into `TOOLS` |
-| `make-video.sh TOOLS WORK OUT.mp4 [opts]` | Build rotari, capture, render; the usual entry point |
+| `make-video.sh TOOLS WORK OUT.mp4 [opts]` | Build rotari, capture, and render the short |
 | `capture.sh` | Enter the namespaces, start Slurm, run `capture.py` |
 | `capture.py` | Run the scenario; record terminal sessions and Web UI screenshots |
 | `slurm-up.sh` | Start slurmdbd, slurmctld, and slurmd from the image; write client wrappers |
@@ -97,7 +98,8 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 | `narration.py` | Kokoro TTS clips, scene fitting, the audio track, and subtitles |
 | `fixture/` | Fake jobs: `train.py`, per-project `train.sh`, `sweep.sh`, `prep.sh`, `train-gpu.sh` |
 | `fullpage.py` | Framing aid: full-page screenshots of a captured state, run in a namespace |
-| `make-results.sh TOOLS WORK OUT.mp4 SLACK_DIR` | The results episode's entry point |
+| `make-results.sh TOOLS WORK OUT.mp4 SLACK_DIR` | Build rotari, capture, and render the results episode |
+| `assets/slack/` | Slack screenshots of run `20261023-075013-adb3b347`'s webhook message |
 | `capture-results.sh`, `capture_results.py` | Capture the results episode (needs Xvfb, dunst, google-chrome) |
 | `newroot.sh`, `dunstrc` | A namespace-owned `/` for `--allow-exec`; the desktop notification style |
 | `render_results.py` | The results episode's scene timeline |
@@ -106,13 +108,30 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 
 ## Making a video
 
+Each video has a numbered script that does everything (fetch the tools on
+first use, build rotari, capture, narrate, render) and writes
+`scripts/promo-video/out/NN_name.mp4` with an `.srt` beside it:
+
+```sh
+scripts/promo-video/01_short.sh       # the short, out/01_short.mp4
+scripts/promo-video/02_results.sh     # the results episode, out/02_results.mp4
+scripts/promo-video/01_short.sh --with-slurm          # include the Slurm act
+scripts/promo-video/01_short.sh --voice am_michael    # another narrator
+scripts/promo-video/02_results.sh --preview 20 45     # PNGs in the work directory
+```
+
+The tools go to `PROMO_TOOLS` (default `~/.cache/rotari-promo`, about 600 MB)
+and captures to `PROMO_WORK` (default `$TMPDIR/rotari-promo-$USER`); set `GO`
+when `go` is not on `PATH` or in `/usr/local/go/bin`. Options after the
+script name go to the episode's renderer. `out/` is not tracked.
+
+Underneath, `setup.sh TOOLS` prepares the tools and `make-video.sh` /
+`make-results.sh` capture and render one video into a given path:
+
 ```sh
 scripts/promo-video/setup.sh "$TMPDIR/promo-tools"
 scripts/promo-video/make-video.sh "$TMPDIR/promo-tools" "$TMPDIR/promo-work" out.mp4
 scripts/promo-video/setup.sh --with-slurm "$TMPDIR/promo-tools"   # also fetch the Slurm image
-scripts/promo-video/make-video.sh … out.mp4 --with-slurm         # include the Slurm act
-scripts/promo-video/make-video.sh … out.mp4 --voice am_michael   # another narrator
-scripts/promo-video/make-video.sh … out.mp4 --preview 20 45 60   # PNGs in WORK/capture
 ```
 
 Capturing takes about 2 minutes and rendering about 5. To change only
@@ -186,9 +205,15 @@ gets the webhook message, and the outputs (loss plot, audio samples, an
 evaluation table) are opened from the job's Artifacts without copying files.
 
 ```sh
-scripts/promo-video/make-results.sh "$TOOLS" "$TMPDIR/results-work" results.mp4 SLACK_DIR
-.venv/bin/python scripts/promo-video/send-webhook.py "$TMPDIR/results-work/capture"
+scripts/promo-video/02_results.sh
+.venv/bin/python scripts/promo-video/send-webhook.py "$PROMO_WORK/02_results/capture"
 ```
+
+The committed `assets/slack/` screenshots belong to run
+`20261023-075013-adb3b347`; every capture makes a new run ID, so the run page
+and the Slack message in a regenerated video differ there. To make them agree,
+send the new capture's payload as above, screenshot the Slack notification and
+message, crop the message above the input box, and replace `assets/slack/`.
 
 - **Desktop notification:** `capture-results.sh` starts Xvfb (1200x1620),
   a D-Bus session, and dunst (1.5 syntax in `dunstrc`) inside the namespace.
@@ -216,8 +241,9 @@ scripts/promo-video/make-results.sh "$TOOLS" "$TMPDIR/results-work" results.mp4 
 - **Audio:** the Web UI plays the sample while frames are recorded; the same
   WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene `sfx`.
 - **TensorBoard is left out.** Launching needs `rotari web --allow-exec`, whose
-  browser login requires HTTPS through a trusted reverse proxy (see
-  `development/ISSUES.md`). `newroot.sh` already solves the other obstacle:
+  browser login required HTTPS until loopback HTTP sign-in was allowed
+  (2026-10-23); a TensorBoard scene can now be added. `newroot.sh` already
+  solves the other obstacle:
   `--allow-exec` checks that every directory from `/` to the launcher file is
   owned by the user or root, and in a user namespace the real `/` looks
   owned by nobody.
@@ -228,7 +254,5 @@ scripts/promo-video/make-results.sh "$TOOLS" "$TMPDIR/results-work" results.mp4 
   quiet background music.
 - The run page job timeline's axis labels overlap at narrow widths and are
   visible in the video; see `development/ISSUES.md`.
-- Replace the results episode's Slack screenshots (still from an unrelated
-  test run) with ones of the message `send-webhook.py` delivered.
 - A longer intro and more of the series (clusters, history and lineage,
   agents) can reuse this pipeline with new scenes.
