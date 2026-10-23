@@ -1,8 +1,9 @@
 """Capture material for the rotari promo short ("You don't need rotari for one job").
 
 Run through capture.sh, which enters user, UTS, mount, network and PID
-namespaces: the host name is "workstation", /home/me is WORK/home, and a
-one-node Slurm cluster (gpu-node01) runs from the unpacked image.
+namespaces: the host name is "workstation", /home/me is WORK/home, and, when a
+Slurm sandbox is given, a one-node Slurm cluster (gpu-node01) runs from it.
+Without Slurm the Act 3 material is skipped.
 
 Writes OUT/terminals.json, OUT/web.json, OUT/logs.json and OUT/web/<scene>/*.png.
 """
@@ -21,7 +22,6 @@ HOME = "/home/me"
 PORT = 18789
 VIEW = {"width": 600, "height": 810}
 PROJECTS = ["asr", "tts", "vision", "nlp"]
-DIAG_GPU = "nvidia-gpu-driver-device-error"
 
 ENV = {
     "PATH": f"{HOME}/.local/bin:{HOME}/sbin:/usr/bin:/bin",
@@ -204,7 +204,8 @@ def setup():
     shutil.copy(f"{FIXTURE}/train.py", f"{HOME}/llm")
     for d in PROJECTS:
         shutil.copy(f"{FIXTURE}/train.sh", f"{HOME}/{d}")
-    shutil.copy(f"{FIXTURE}/sweep.sh", f"{HOME}/llm-sweep")
+    for f in ("sweep.sh", "sweep.conf"):
+        shutil.copy(f"{FIXTURE}/{f}", f"{HOME}/llm-sweep")
     for f in ("prep.sh", "train-gpu.sh"):
         shutil.copy(f"{FIXTURE}/{f}", f"{HOME}/pipeline")
     shutil.rmtree(OUT, ignore_errors=True)
@@ -285,7 +286,6 @@ def main():
             for key, marker in (
                 ("gpu", "fallen off the bus"),
                 ("oom", "OutOfMemoryError"),
-                ("module", "ModuleNotFoundError"),
             ):
                 logs[key] = next(ln for ln in failed.splitlines() if marker in ln)
 
@@ -298,9 +298,11 @@ def main():
             terms.append(t)
             logs["show_full"] = sh("rotari show -p llm-sweep").stdout
 
+            # Fix the batch limit, then rerun only what failed.
             t = Term("retry", f"{HOME}/llm-sweep")
+            t.run("sed -i 's/max_batch=128/max_batch=64/' sweep.conf")
             t.run(
-                f"rotari retry -p llm-sweep --filter-diagnosis {DIAG_GPU}",
+                "rotari retry -p llm-sweep",
                 keep=only(
                     "Submitted", "Excluded", "progress", "Summary", "Carried", "Status"
                 ),
@@ -313,52 +315,56 @@ def main():
             logs["offsets_retry"] = phone.evaluate(OFFSETS)
             record(phone, frames, "retry", 0.1, full=True)
 
-            # Act 3a: the same work by hand on Slurm (left) and locally (right).
-            left = Term("slurm-raw", f"{HOME}/pipeline")
-            left.run("sbatch train-gpu.sh")
-            time.sleep(1.0)
-            left.run("squeue", real="squeue | sed 's/ root / me   /'")
-            right = Term("local-raw", f"{HOME}/pipeline")
-            right.run("nohup ./prep.sh > prep.log 2>&1 &")
-            time.sleep(2.5)
-            right.run(
-                "ps -o pid,etime,args | grep prep",
-                real="ps -o pid,etime,args | grep '[p]rep'",
-            )
-            right.run("tail -n 2 prep.log")
-            time.sleep(4)
-            left.run("cat slurm-*.out")
-            terms += [left, right]
-            time.sleep(1)
-            sh("rm -f slurm-*.out prep.log nohup.out", cwd=f"{HOME}/pipeline")
+            # Act 3, only when capture.sh started Slurm (render.py --with-slurm).
+            if os.path.exists(f"{HOME}/sbin/sbatch"):
+                # Act 3a: the same work by hand on Slurm (left) and locally (right).
+                left = Term("slurm-raw", f"{HOME}/pipeline")
+                left.run("sbatch train-gpu.sh")
+                time.sleep(1.0)
+                left.run("squeue", real="squeue | sed 's/ root / me   /'")
+                right = Term("local-raw", f"{HOME}/pipeline")
+                right.run("nohup ./prep.sh > prep.log 2>&1 &")
+                time.sleep(2.5)
+                right.run(
+                    "ps -o pid,etime,args | grep prep",
+                    real="ps -o pid,etime,args | grep '[p]rep'",
+                )
+                right.run("tail -n 2 prep.log")
+                time.sleep(4)
+                left.run("cat slurm-*.out")
+                terms += [left, right]
+                time.sleep(1)
+                sh("rm -f slurm-*.out prep.log nohup.out", cwd=f"{HOME}/pipeline")
 
-            # Act 3b: one pipeline mixing both, through rotari.
-            t = Term("pipeline", f"{HOME}/pipeline")
-            t.run(
-                "rotari add -p pipeline -e local --job-name prep ./prep.sh",
-                cps=40,
-                keep=only("added"),
-            )
-            t.run(
-                "rotari add -p pipeline -e slurm --depends-on prep ./train-gpu.sh",
-                cps=40,
-                keep=only("added"),
-            )
-            t.run(
-                "rotari run -p pipeline", keep=only("progress", "Summary"), line_s=0.08
-            )
-            terms.append(t)
-            rid3 = runs_of("pipeline")[-1]
-            phone.goto(f"{base}/project/pipeline/run/{rid3}")
-            phone.wait_for_timeout(1500)
-            logs["columns"] = phone.evaluate(
-                "[...document.querySelectorAll('input[data-column]')].map(b => b.dataset.column)"
-            )
-            phone.evaluate(COLUMNS)
-            phone.wait_for_timeout(500)
-            logs["offsets_pipeline"] = phone.evaluate(OFFSETS)
-            record(phone, frames, "pipeline", 0.1, full=True)
-            logs["pipeline_show"] = sh("rotari show -p pipeline").stdout
+                # Act 3b: one pipeline mixing both, through rotari.
+                t = Term("pipeline", f"{HOME}/pipeline")
+                t.run(
+                    "rotari add -p pipeline -e local --job-name prep ./prep.sh",
+                    cps=40,
+                    keep=only("added"),
+                )
+                t.run(
+                    "rotari add -p pipeline -e slurm --depends-on prep ./train-gpu.sh",
+                    cps=40,
+                    keep=only("added"),
+                )
+                t.run(
+                    "rotari run -p pipeline",
+                    keep=only("progress", "Summary"),
+                    line_s=0.08,
+                )
+                terms.append(t)
+                rid3 = runs_of("pipeline")[-1]
+                phone.goto(f"{base}/project/pipeline/run/{rid3}")
+                phone.wait_for_timeout(1500)
+                logs["columns"] = phone.evaluate(
+                    "[...document.querySelectorAll('input[data-column]')].map(b => b.dataset.column)"
+                )
+                phone.evaluate(COLUMNS)
+                phone.wait_for_timeout(500)
+                logs["offsets_pipeline"] = phone.evaluate(OFFSETS)
+                record(phone, frames, "pipeline", 0.1, full=True)
+                logs["pipeline_show"] = sh("rotari show -p pipeline").stdout
 
             # Close: every project on one page.
             wide.goto(base + "/")

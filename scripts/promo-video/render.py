@@ -14,8 +14,10 @@ one PNG per given time instead of a video.
 """
 
 import argparse
+import base64
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -81,49 +83,55 @@ def timeline():
 
     # Full-page shots pan between page positions recorded by capture.py; the
     # frame shows 810 CSS px of a 600 px wide page.
-    sweep, retry, pipe = (
-        logs[f"offsets_{k}"] for k in ("sweep_done", "retry", "pipeline")
-    )
+    sweep, retry = logs["offsets_sweep_done"], logs["offsets_retry"]
+    if ARGS.with_slurm and "offsets_pipeline" not in logs:
+        sys.exit(f"--with-slurm: {CAP} has no Slurm act; capture with Slurm first")
+    pipe = logs.get("offsets_pipeline")
 
-    # Act 3, Slurm and local side by side; left out unless --with-slurm.
-    ACT3 = [
-        {
-            "kind": "split",
-            "dur": 8.0,
-            "speed": 7.6 / 8.0,
-            "top": {
-                "label": "Slurm",
-                "title": "~/pipeline",
-                "events": terms["slurm-raw"]["events"],
+    # Act 3, Slurm and local side by side; built only for --with-slurm.
+    def act3():
+        return [
+            {
+                "kind": "split",
+                "dur": 8.0,
+                "speed": 7.6 / 8.0,
+                "top": {
+                    "label": "Slurm",
+                    "title": "~/pipeline",
+                    "events": terms["slurm-raw"]["events"],
+                },
+                "bottom": {
+                    "label": "Local",
+                    "title": "~/pipeline",
+                    "events": terms["local-raw"]["events"],
+                },
+                "captions": [
+                    [
+                        0,
+                        "Slurm here. Local there.<br><em>Two ways to run and watch.</em>",
+                    ]
+                ],
+                "say": "Preprocessing runs locally, training on Slurm. "
+                "Two ways to submit, and two ways to watch.",
             },
-            "bottom": {
-                "label": "Local",
-                "title": "~/pipeline",
-                "events": terms["local-raw"]["events"],
-            },
-            "captions": [
-                [0, "Slurm here. Local there.<br><em>Two ways to run and watch.</em>"]
-            ],
-            "say": "Preprocessing runs locally, training on Slurm. "
-            "Two ways to submit, and two ways to watch.",
-        },
-        term(
-            "pipeline",
-            "~/pipeline",
-            [[0, "With rotari:<br><em>same commands, -e local or -e slurm.</em>"]],
-            speed=1.25,
-            extra=0.4,
-            say="With rotari, the commands stay the same. Only the executor changes.",
-        ),
-        webscene(
-            "pipeline",
-            4.0,
-            [[0, "One run, two machines.<br><em>workstation + gpu-node01</em>"]],
-            pan=[[0.4, pipe["cards"] - 16], [2.4, pipe["jobs_bottom"] - 790]],
-            css=True,
-            say="One run, two machines.",
-        ),
-    ]
+            term(
+                "pipeline",
+                "~/pipeline",
+                [[0, "With rotari:<br><em>same commands, -e local or -e slurm.</em>"]],
+                speed=1.25,
+                extra=0.4,
+                say="With rotari, the commands stay the same. Only the executor changes.",
+            ),
+            webscene(
+                "pipeline",
+                4.0,
+                [[0, "One run, two machines.<br><em>workstation + gpu-node01</em>"]],
+                pan=[[0.4, pipe["cards"] - 16], [2.4, pipe["jobs_bottom"] - 790]],
+                css=True,
+                say="One run, two machines.",
+            ),
+        ]
+
     scenes = [
         # Act 0: one job is fine.
         term(
@@ -193,21 +201,20 @@ def timeline():
         webscene(
             "sweep_live",
             8.0,
-            [[0, "Watch them run."], [4.4, "48 runs.<br><em>9 failed.</em>"]],
+            [[0, "Watch them run."], [4.4, "48 runs.<br><em>8 failed.</em>"]],
             speed=22 / 8.0,
-            say="Nine of them fail.",
+            say="Eight of them fail.",
             say_at=4.3,
         ),
         {
             "kind": "logs",
             "dur": 4.6,
-            "captions": [[0, "…for 3 different reasons."]],
+            "captions": [[0, "…for different reasons."]],
             "cards": [
                 ["task 7", logs["gpu"]],
                 ["task 4", logs["oom"]],
-                ["task 22", logs["module"]],
             ],
-            "say": "For three different reasons. Do you open every log?",
+            "say": "For different reasons. Do you open every log?",
         },
         webscene(
             "sweep_done",
@@ -220,20 +227,20 @@ def timeline():
         term(
             "retry",
             "~/llm-sweep",
-            [[0, "Rerun just the<br>GPU failures."]],
+            [[0, "Fix the batch size.<br><em>Rerun only what failed.</em>"]],
             extra=0.8,
-            say="The GPU fault was the machine, so rerun just those three. "
-            "Everything that succeeded stays.",
+            say="Fix the batch size, and rerun only the failed jobs. "
+            "The forty that succeeded stay as they are.",
         ),
         webscene(
             "retry",
             3.6,
-            [[0, "3 rerun, 45 untouched.<br><em>The other 6 need a code fix.</em>"]],
-            pan=[[0.4, retry["cards"] - 16], [2.6, retry["cards"] + 110]],
+            [[0, "8 rerun, 40 untouched.<br><em>All 48 done.</em>"]],
+            pan=[[0, retry["cards"] - 16]],
             css=True,
-            say="The other six need a code fix.",
+            say="All forty-eight done.",
         ),
-        *(ACT3 if ARGS.with_slurm else []),
+        *(act3() if ARGS.with_slurm else []),
         # Close.
         webscene(
             "projects_end",
@@ -270,13 +277,16 @@ def main():
             s["start"] = round(total, 3)
             total += s["dur"]
     logo = Path(f"{REPO}/docs/assets/rotari-logo-dark.svg").read_text()
-    fonts = f"file://{REPO}/internal/webui/assets/fonts"
+    fonts = Path(f"{REPO}/internal/webui/assets/fonts")
+
+    # Chrome refuses web fonts from file:// URLs, so embed them as data URIs.
+    def font_uri(match):
+        data = base64.b64encode((fonts / match.group(1)).read_bytes()).decode()
+        return f"url(data:font/woff2;base64,{data})"
+
     html = Path(f"{HERE}/player.html").read_text()
-    html = (
-        html.replace("__FONTS__", fonts)
-        .replace("__LOGO__", logo)
-        .replace("__SCENES__", json.dumps(scenes))
-    )
+    html = re.sub(r"url\(__FONTS__/([^)]+)\)", font_uri, html)
+    html = html.replace("__LOGO__", logo).replace("__SCENES__", json.dumps(scenes))
     with open(f"{CAP}/player.html", "w") as f:
         f.write(html)
     for s in scenes:
@@ -287,7 +297,15 @@ def main():
         b = p.chromium.launch(args=["--no-sandbox", "--allow-file-access-from-files"])
         page = b.new_page(viewport={"width": 1080, "height": 1920})
         page.goto(f"file://{CAP}/player.html")
-        page.evaluate("document.fonts.ready")
+        # Load every face before the first frame, and stop rather than render
+        # in a fallback font.
+        failed = page.evaluate(
+            """Promise.all([...document.fonts].map((f) => f.load().catch(() => f)))
+              .then(() => [...document.fonts].filter((f) => f.status !== "loaded")
+              .map((f) => f.family + " " + f.weight))"""
+        )
+        if failed:
+            sys.exit(f"fonts did not load: {failed}")
         if PREVIEW:
             for t in PREVIEW:
                 page.evaluate(f"render({t})")

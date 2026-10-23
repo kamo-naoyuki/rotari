@@ -6,9 +6,9 @@ namespaces, and a headless browser renders the material into frames for
 ffmpeg. Every command, log line, and Web UI screen in the video comes from
 those runs. They are a production aid, not part of rotari or its tests.
 
-Status (2026-10-23): the cut is 77 s with English narration by Kokoro TTS
+Status (2026-10-23): the cut is 78 s with English narration by Kokoro TTS
 (voice `af_heart`) and burned-in subtitles, plus an `.srt` beside the video;
-there is no music. `--with-slurm` adds the Slurm act (96 s).
+there is no music. `--with-slurm` adds the Slurm act (about 96 s).
 
 ## Message
 
@@ -20,17 +20,21 @@ something becomes plural.
 - **Places:** projects in different directories. Without rotari, one terminal
   tab each and `cd` to check; with rotari, every project of a state directory
   is on one Web UI page.
-- **Numbers:** a 48-run sweep that fails for different reasons. Rotari groups
-  failures by diagnosed cause with a fix each, and `retry
-  --filter-diagnosis` reruns one cause while successful runs carry forward.
+- **Numbers:** a 48-run sweep where 8 runs fail for two reasons (a GPU fault
+  and CUDA out of memory). Rotari groups failures by diagnosed cause with a fix
+  each; after the batch size is fixed, a plain `rotari retry` reruns only the
+  8 failures while the 40 successful runs carry forward. Retrying one cause
+  (`--filter-diagnosis`) was tried and dropped as too specialized for a first
+  video.
 - **Machines (optional act):** Slurm and local jobs are submitted and watched
   differently by hand; with rotari only `-e local` / `-e slurm` differs, and
   one run can hold both.
 
 Claims stay within what rotari does: diagnosis covers known log patterns only,
 the Web UI reads one basedir at a time (other basedirs are in the sidebar), and
-rotari is not a workflow engine. The video's captions say that the 6 remaining
-failures need a code fix rather than implying retry fixes everything.
+rotari is not a workflow engine. The retry succeeds because the fixture's
+failures really are fixed: the GPU fault happens on the first attempt only, and
+the OOM depends on `max_batch` in `fixture/sweep.conf`.
 
 ## Storyboard
 
@@ -47,15 +51,15 @@ draft, summarized here:
 | 0:18 | `cd` + `rotari add -p NAME` + `rotari run --async` in each directory | With rotari, you submit from any directory, |
 | 0:26 | Web UI All projects, live: vision turns failed | and every project shows up on one page… |
 | 0:34 | `rotari add --array 1-48 ./sweep.sh`, `rotari run --async` | Now a parameter sweep. Forty-eight runs. |
-| 0:41 | Run page live: failures appear | Nine of them fail. |
-| 0:49 | Three log lines: GPU fault, CUDA OOM, missing module | For three different reasons. Do you open every log? |
+| 0:41 | Run page live: failures appear | Eight of them fail. |
+| 0:49 | Two log lines: GPU fault, CUDA OOM | For different reasons. Do you open every log? |
 | 0:53 | Run page Failure causes: three groups, fix and retry command each | Rotari groups the failures by cause, and suggests a fix for each. |
-| 0:58 | `rotari retry --filter-diagnosis nvidia-gpu-driver-device-error` | The GPU fault was the machine, so rerun just those three… |
-| 1:05 | Retry run page: 45 carried, 6 left | The other six need a code fix. |
+| 0:58 | `sed -i 's/max_batch=128/max_batch=64/' sweep.conf`, `rotari retry -p llm-sweep` | Fix the batch size, and rerun only the failed jobs… |
+| 1:06 | Retry run page: 8 rerun, 40 carried, 48 succeeded | All forty-eight done. |
 | (opt.) | Slurm (`sbatch`/`squeue`/`cat`) above local (`nohup`/`ps`/`tail`) | Preprocessing runs locally, training on Slurm… |
 | (opt.) | `rotari add -e local …` and `-e slurm --depends-on …`; run page jobs table with workstation and gpu-node01 | …Only the executor changes. One run, two machines. |
-| 1:08 | All projects again | More jobs. Still one place to look. |
-| 1:12 | Logo and GitHub URL | Rotari. Spend your time on research, not on babysitting jobs. |
+| 1:10 | All projects again | More jobs. Still one place to look. |
+| 1:13 | Logo and GitHub URL | Rotari. Spend your time on research, not on babysitting jobs. |
 
 ## Narration
 
@@ -91,6 +95,7 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 ```sh
 scripts/promo-video/setup.sh "$TMPDIR/promo-tools"
 scripts/promo-video/make-video.sh "$TMPDIR/promo-tools" "$TMPDIR/promo-work" out.mp4
+scripts/promo-video/setup.sh --with-slurm "$TMPDIR/promo-tools"   # also fetch the Slurm image
 scripts/promo-video/make-video.sh … out.mp4 --with-slurm         # include the Slurm act
 scripts/promo-video/make-video.sh … out.mp4 --voice am_michael   # another narrator
 scripts/promo-video/make-video.sh … out.mp4 --preview 20 45 60   # PNGs in WORK/capture
@@ -105,12 +110,19 @@ PLAYWRIGHT_BROWSERS_PATH="$TOOLS/pw" .venv/bin/python \
   scripts/promo-video/render.py "$WORK/capture" . out.mp4 --narration "$TOOLS/kokoro"
 ```
 
-Requirements: Linux with unprivileged user namespaces, `singularity` or
-`apptainer`, `ffmpeg` with libx264, `curl`, `unzip`, Go, and the repository's
-`.venv` (created with uv; `setup.sh` adds Playwright, kokoro-onnx, and
-soundfile to it with `uv pip install`). Set `PYTHON` to use another
-interpreter. The Slurm image is 1.5 GB unpacked, the Kokoro model 350 MB, and
-Chrome about 125 MB.
+Requirements: Linux with unprivileged user namespaces, `ffmpeg` with libx264,
+`curl`, `unzip`, Go, and the repository's `.venv` (created with uv; `setup.sh`
+adds Playwright, kokoro-onnx, and soundfile to it with `uv pip install`). Set
+`PYTHON` to use another interpreter. The Slurm act also needs `singularity`
+or `apptainer`; only then do `setup.sh --with-slurm` and `make-video.sh
+--with-slurm` start Slurm, so hosts without singularity can make the default
+cut. The Kokoro model is 350 MB, Chrome about 270 MB unpacked, and the Slurm
+image 1.5 GB unpacked.
+
+`.venv/bin/python` is a symlink to the system interpreter. The repository is
+shared between hosts, so point it at a path every host has
+(`/usr/bin/python3.10`); a link to `/usr/bin/python` broke on a host without
+that name.
 
 ## How the capture is isolated
 
@@ -148,8 +160,9 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
   Full-page shots pan between page positions that `capture.py` records
   (`logs.json` `offsets_*`). `SQUEUE_FORMAT` narrows `squeue` for the split
   screen. The pipeline run's jobs table is narrowed through its Columns menu.
-- **Diagnosis IDs:** `--filter-diagnosis` takes the slug of the diagnosis name,
-  such as `nvidia-gpu-driver-device-error`.
+- **Fonts:** the player's IBM Plex faces are embedded as data URIs, and
+  `render.py` stops if any face fails to load instead of rendering in a
+  fallback font. Chrome's `FontFace` API refuses `file://` font URLs.
 
 ## Next steps
 
@@ -157,6 +170,5 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
   quiet background music.
 - The run page job timeline's axis labels overlap at narrow widths and are
   visible in the video; see `development/ISSUES.md`.
-- The closing All projects page lists `pipeline` even without the Slurm act.
 - A longer intro and a series (clusters, history and lineage, notifications
   and artifacts, agents) can reuse this pipeline with new scenes.

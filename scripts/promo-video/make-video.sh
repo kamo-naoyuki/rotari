@@ -6,9 +6,10 @@
 # TOOLS comes from setup.sh. WORK holds the capture (WORK/capture) and the
 # fake home directory the jobs ran in (WORK/home); it is replaced on every
 # run. The video is narrated with Kokoro TTS and subtitled, with OUT.srt
-# beside it. RENDER_OPTIONS go to render.py, for example --with-slurm,
-# --voice am_michael, or --preview 10 30 50 to write PNG frames into
-# WORK/capture instead of a video.
+# beside it. RENDER_OPTIONS go to render.py, for example --with-slurm (which
+# also starts Slurm for the capture and needs TOOLS/slurm-sb), --voice
+# am_michael, or --preview 10 30 50 to write PNG frames into WORK/capture
+# instead of a video.
 # Python runs from the repository's .venv (PYTHON overrides it); set GO to the
 # go binary when it is not on PATH.
 set -euo pipefail
@@ -29,7 +30,18 @@ shift 3
 # batch jobs run the binary inside it.
 (cd "$repo" && CGO_ENABLED=0 "${GO:-go}" build -o "$work/rotari" ./cmd/rotari)
 
+sandbox=
+for option in "$@"; do
+    if [[ "$option" == --with-slurm ]]; then
+        sandbox="$tools/slurm-sb"
+        if [[ ! -d "$sandbox/usr/sbin" ]]; then
+            echo "--with-slurm needs $sandbox; run setup.sh --with-slurm" >&2
+            exit 1
+        fi
+    fi
+done
+
 rm -rf "$work/home" "$work/capture"
 export PYTHON=${PYTHON:-$repo/.venv/bin/python} PLAYWRIGHT_BROWSERS_PATH="$tools/pw"
-"$here/capture.sh" "$work" "$work/rotari" "$tools/slurm-sb" </dev/null
+"$here/capture.sh" "$work" "$work/rotari" ${sandbox:+"$sandbox"} </dev/null
 "$PYTHON" "$here/render.py" "$work/capture" "$repo" "$out" --narration "$tools/kokoro" "$@"
