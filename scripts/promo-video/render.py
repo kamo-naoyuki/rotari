@@ -245,7 +245,6 @@ def timeline():
             "kind": "logo",
             "dur": 5.0,
             "tagline": "Spend your time on research,<br>not on babysitting jobs.",
-            "install": "brew install kamo-naoyuki/tap/rotari",
             "url": "github.com/kamo-naoyuki/rotari",
             "say": "Rotari. Spend your time on research, not on babysitting jobs.",
         },

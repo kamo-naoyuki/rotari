@@ -55,7 +55,7 @@ draft, summarized here:
 | (opt.) | Slurm (`sbatch`/`squeue`/`cat`) above local (`nohup`/`ps`/`tail`) | Preprocessing runs locally, training on Slurm… |
 | (opt.) | `rotari add -e local …` and `-e slurm --depends-on …`; run page jobs table with workstation and gpu-node01 | …Only the executor changes. One run, two machines. |
 | 1:08 | All projects again | More jobs. Still one place to look. |
-| 1:12 | Logo, `brew install`, URL | Rotari. Spend your time on research, not on babysitting jobs. |
+| 1:12 | Logo and GitHub URL | Rotari. Spend your time on research, not on babysitting jobs. |
 
 ## Narration
 
