@@ -412,7 +412,8 @@ A static export records the listing as of export time. It includes no file
 contents by default; `--static-artifact-contents` copies previewable files
 (up to 10 MiB each and 100 MiB total) so they can be previewed there. Anyone
 who can access the Web UI or an export with copied contents may be able to read
-those files; see [Web UI security](OPERATIONS.md#security-model) before sharing.
+those files; see
+[Web UI security](SECURITY.md#artifact-files-and-static-exports) before sharing.
 
 ### Using rotari with experiment trackers
 

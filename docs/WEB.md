@@ -61,7 +61,7 @@ environment variables are in
   clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`.
 
 The token is authentication, not encryption. See
-[Security model](OPERATIONS.md#security-model) before exposing the server, and
+[Security model](SECURITY.md) before exposing the server, and
 the [FAQ](FAQ.md#is-rotari-web-safe-to-expose-beyond-127001).
 
 ## What you can do
@@ -113,7 +113,7 @@ What is different about this mode, in brief:
 The details are not repeated here:
 [Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)
 for use, [Launcher commands](CONFIGURATION.md#launcher-commands) for the file,
-and [Security model](OPERATIONS.md#security-model) for the guarantees and
+and [Security model](SECURITY.md) for the guarantees and
 limits, including the loopback port a launched service listens on.
 
 ## Static export
@@ -123,10 +123,10 @@ offline. It contains the raw config sources and saved config snapshots of the
 runs, so share it only with readers you trust, and it holds artifact paths
 only, unless `--static-artifact-contents` copies the files in. History search,
 launching, and control are not available in it. See the
-[Security model](OPERATIONS.md#security-model).
+[Security model](SECURITY.md).
 
 ## Related
 
 - [FAQ: Web UI](FAQ.md#web-ui)
 - [CLI reference: `rotari web`](CLI_REFERENCE.md#rotari-web)
-- [Operations: Security model](OPERATIONS.md#security-model)
+- [Security model](SECURITY.md)

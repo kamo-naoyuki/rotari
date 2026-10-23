@@ -32,6 +32,7 @@ nav:
       - Docker: DOCKER.md
       - MCP Server: MCP.md
       - Operations: OPERATIONS.md
+      - Security model: SECURITY.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - FAQ: FAQ.md
   - Development:
