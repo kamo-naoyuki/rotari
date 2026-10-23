@@ -249,7 +249,12 @@ Start the local web status UI separately from the job runner:
 
 ```sh
 rotari web
+rotari web --allow-exec
 ```
+
+`--allow-exec` also lets the UI launch TensorBoard, Jupyter, and other
+registered commands against artifacts; see
+[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts).
 
 See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
