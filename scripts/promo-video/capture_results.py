@@ -72,16 +72,6 @@ max_jobs = 10
 """
 
 
-# Earlier experiments' output directories, named the way people name them.
-PAST_OUTPUTS = [
-    "exp0410",
-    "exp0410_v2",
-    "exp0411_v2_fix",
-    "exp0412_lr1e-3",
-    "exp0412_lr1e-3_final",
-    "exp0413_lr3e-4",
-    "exp0413_lr3e-4_bs32",
-]
 RUN_OUT = "outputs/exp0415"
 
 
@@ -150,10 +140,7 @@ def main():
     hook = http.server.HTTPServer(("127.0.0.1", HOOK_PORT), Recorder)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
 
-    # Hook: waiting on a run by hand, then hunting for its outputs among
-    # earlier experiments' directories.
-    for old in PAST_OUTPUTS:
-        os.makedirs(f"{HOME}/tts/outputs/{old}/samples", exist_ok=True)
+    # Hook: checking on a run by hand, again and again.
     t = S.term("wait", f"{HOME}/tts")
     S.sh(
         "nohup python train.py --out outputs/exp0414_lr3e-4_bs16 > train.log 2>&1 &",
@@ -165,8 +152,9 @@ def main():
     t.wait(0.8)
     time.sleep(3.2)
     t.run("tail -n 1 train.log", line_s=0.05)
-    t.wait(0.4)
-    t.run("ls outputs/", line_s=0.07)
+    t.wait(0.8)
+    time.sleep(2.8)
+    t.run("tail -n 1 train.log", line_s=0.05)
     t.wait(0.6)
     terms.append(t)
     time.sleep(6)
@@ -201,6 +189,7 @@ def main():
                     "--disable-session-crashed-bubble",
                     "--lang=en-US",
                     "--disable-features=Translate,TranslateUI",
+                    "--autoplay-policy=no-user-gesture-required",
                 ],
                 env={**os.environ, "LANG": "en_US.UTF-8", "LANGUAGE": "en_US"},
                 color_scheme="dark",
@@ -234,7 +223,8 @@ def main():
             page.keyboard.press("Escape")
             page.wait_for_timeout(500)
 
-            # Results: artifacts, the plot, a sample, and the evaluation table.
+            # Results: artifacts, the plot, then the evaluation table, whose
+            # viewer plays a sample with its waveform and spectrogram.
             page.reload()
             page.wait_for_timeout(1500)
             page.get_by_role("button", name="Artifacts").first.click()
@@ -247,19 +237,6 @@ def main():
             modal.get_by_text("loss.png", exact=True).first.click()
             page.wait_for_timeout(1500)
             S.record(page, frames, "loss", 0.5, fps=4)
-            modal.get_by_text(RUN_OUT, exact=True).click()
-            page.wait_for_timeout(800)
-            modal.get_by_text("samples", exact=True).click()
-            page.wait_for_timeout(1000)
-            S.record(page, frames, "samples", 0.5, fps=4)
-            modal.get_by_text("LJ001-0001.wav", exact=True).click()
-            page.wait_for_timeout(1200)
-            page.locator("#output-modal audio").first.evaluate("a => a.play()")
-            S.record(page, frames, "audio", 7.0, fps=8)
-            # The clip the Web UI played, for the video's audio track.
-            shutil.copy(
-                f"{HOME}/tts/{RUN_OUT}/samples/LJ001-0001.wav", f"{OUT}/sample.wav"
-            )
             modal.get_by_text(RUN_OUT, exact=True).click()
             page.wait_for_timeout(800)
             row = modal.locator("tr", has_text="eval.csv")
@@ -292,6 +269,15 @@ def main():
                 )
                 table.wait_for_timeout(1500)
             S.record(table, frames, "table", 0.5, fps=4)
+            table.get_by_text("samples/LJ001-0001.wav").first.click()
+            # The browser computes the waveform and spectrogram after decoding.
+            table.wait_for_timeout(3000)
+            table.locator("audio.tv-audio").first.evaluate("a => a.play()")
+            S.record(table, frames, "pane", 7.0, fps=8)
+            # The clip the viewer played, for the video's audio track.
+            shutil.copy(
+                f"{HOME}/tts/{RUN_OUT}/samples/LJ001-0001.wav", f"{OUT}/sample.wav"
+            )
             ctx.close()
     finally:
         web.terminate()

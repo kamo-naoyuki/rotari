@@ -77,16 +77,13 @@ def timeline():
     finish = [[t - (at - lead), p] for t, p in web["finish"] if t >= at - lead]
 
     return [
-        # Hook: waiting, then hunting for the outputs.
+        # Hook: checking on a run by hand, again and again.
         term(
             "wait",
             "~/tts",
-            [
-                [0, "Is it done yet?"],
-                [5.2, "…and which folder<br><em>was it again?</em>"],
-            ],
+            [[0, "Is it done yet?"], [5.0, "Is it done <em>now?</em>"]],
             speed=1.3,
-            say="Is it done yet? And when it is, which folder was it again?",
+            say="Is it done yet? You keep checking, again and again.",
         ),
         # Act 1: know when it ends.
         term(
@@ -125,27 +122,22 @@ def timeline():
         webscene(
             "artifacts",
             3.4,
-            [[0, "Each run knows<br><em>its own outputs.</em>"]],
-            say="With rotari, each run knows its outputs, found from the job's command.",
+            [[0, "Then open the results<br><em>from the run page.</em>"]],
+            say="Then open the results right from the run page.",
         ),
-        webscene("run1", 2.2, [[0, "Plots, samples,<br>tables, logs."]]),
+        webscene("run1", 2.2, [[0, "Plots, audio,<br>tables, logs."]]),
         webscene(
             "loss",
-            3.4,
+            3.0,
             [[0, "Look at the plot,"]],
-            say="Look at the plot, and listen to the samples,",
+            say="Look at the plot, or listen to a sample.",
         ),
         webscene(
-            "audio",
-            6.6,
-            [[0, "…listen to the samples,"]],
-            sfx=[0.3, f"{CAP}/sample.wav"],
-        ),
-        webscene(
-            "table",
-            4.2,
-            [[0, "…and browse the results,<br><em>right in the browser.</em>"]],
-            say="and browse the results table, right in the browser.",
+            "pane",
+            5.0,
+            [[0, "…or listen to a sample."]],
+            # The frames start as playback starts.
+            sfx=[0.0, f"{CAP}/sample.wav"],
         ),
         # Close.
         {
