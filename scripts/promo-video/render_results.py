@@ -111,12 +111,12 @@ def timeline():
         {
             "kind": "image",
             "dur": 5.0,
-            "captions": [[0, "Or in Slack,<br><em>even with the browser closed.</em>"]],
+            "captions": [[0, "Away from your desk?<br><em>Get it in Slack.</em>"]],
             "images": [
                 {"src": "slack/notification.png", "width": 732},
                 {"src": "slack/message.png", "width": 1000, "at": 1.2},
             ],
-            "say": "Or send it to Slack, even with the browser closed.",
+            "say": "Away from your desk? Get it in Slack.",
         },
         # Act 2: look at the results where they are.
         webscene(
