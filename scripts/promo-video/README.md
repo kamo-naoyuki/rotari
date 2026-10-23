@@ -99,7 +99,7 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 | `fixture/` | Fake jobs: `train.py`, per-project `train.sh`, `sweep.sh`, `prep.sh`, `train-gpu.sh` |
 | `fullpage.py` | Framing aid: full-page screenshots of a captured state, run in a namespace |
 | `make-results.sh TOOLS WORK OUT.mp4 SLACK_DIR` | Build rotari, capture, and render the results episode |
-| `assets/slack/` | Slack screenshots of run `20261023-075013-adb3b347`'s webhook message |
+| `assets/slack/` | Slack screenshots of run `20261023-085534-04f4dc00`'s webhook message |
 | `capture-results.sh`, `capture_results.py` | Capture the results episode (needs Xvfb, dunst, google-chrome) |
 | `newroot.sh`, `dunstrc` | A namespace-owned `/` for `--allow-exec`; the desktop notification style |
 | `render_results.py` | The results episode's scene timeline |
@@ -211,7 +211,7 @@ scripts/promo-video/02_results.sh
 ```
 
 The committed `assets/slack/` screenshots belong to run
-`20261023-075013-adb3b347`; every capture makes a new run ID, so the run page
+`20261023-085534-04f4dc00`; every capture makes a new run ID, so the run page
 and the Slack message in a regenerated video differ there. To make them agree,
 send the new capture's payload as above, screenshot the Slack notification and
 message, crop the message above the input box, and replace `assets/slack/`.

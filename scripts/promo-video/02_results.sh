@@ -4,7 +4,7 @@
 #   scripts/promo-video/02_results.sh [RENDER_OPTIONS...]
 #
 # Prepares the tools on first use, then builds rotari, captures, and renders.
-# The Slack shots come from assets/slack, taken of run 20261023-075013-adb3b347;
+# The Slack shots come from assets/slack, taken of run 20261023-085534-04f4dc00;
 # a new capture has another run ID, so to match it run
 # `.venv/bin/python scripts/promo-video/send-webhook.py "$PROMO_WORK/02_results/capture"`,
 # screenshot the message, and replace assets/slack (see the README).
