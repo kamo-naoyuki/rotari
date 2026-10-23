@@ -59,7 +59,7 @@ into English for TTS.
 
 | File | Role |
 | --- | --- |
-| `setup.sh TOOLS` | Fetch Playwright, its headless Chrome, and the Slurm image into `TOOLS` |
+| `setup.sh TOOLS` | Install Playwright into `.venv`; fetch its headless Chrome and the Slurm image into `TOOLS` |
 | `make-video.sh TOOLS WORK OUT.mp4 [opts]` | Build rotari, capture, render; the usual entry point |
 | `capture.sh` | Enter the namespaces, start Slurm, run `capture.py` |
 | `capture.py` | Run the scenario; record terminal sessions and Web UI screenshots |
@@ -81,12 +81,14 @@ Capturing takes about 2 minutes and rendering about 3. To change only
 timing, captions, or layout, render the existing capture again:
 
 ```sh
-PYTHONPATH="$TOOLS/pylib" PLAYWRIGHT_BROWSERS_PATH="$TOOLS/pw" \
-  python3 scripts/promo-video/render.py "$WORK/capture" . out.mp4
+PLAYWRIGHT_BROWSERS_PATH="$TOOLS/pw" \
+  .venv/bin/python scripts/promo-video/render.py "$WORK/capture" . out.mp4
 ```
 
 Requirements: Linux with unprivileged user namespaces, `singularity` or
-`apptainer`, `ffmpeg` with libx264, `curl`, `unzip`, Go, and Python 3 with pip.
+`apptainer`, `ffmpeg` with libx264, `curl`, `unzip`, Go, and the repository's
+`.venv` (created with uv; `setup.sh` adds Playwright to it with `uv pip
+install`). Set `PYTHON` to use another interpreter.
 The Slurm image is 1.5 GB unpacked; Chrome is about 125 MB.
 
 ## How the capture is isolated
@@ -118,7 +120,8 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
   It runs with `--skip-networking`, since the host may already use port 3306.
 - **Static rotari:** batch jobs run inside the CentOS 7 image, whose glibc is
   too old for a cgo build, so `make-video.sh` builds with `CGO_ENABLED=0`.
-- **TLS-inspecting proxy:** `playwright install` fails on it; `setup.sh`
+- **TLS-inspecting proxy:** `playwright install` fails on it, and uv needs
+  `--native-tls`; `setup.sh`
   downloads the matching Chrome Headless Shell with curl.
 - **Readable frames:** the Web UI is captured 600 CSS px wide at scale 2.
   Full-page shots pan between page positions that `capture.py` records

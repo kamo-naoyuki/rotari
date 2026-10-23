@@ -7,7 +7,8 @@
 # fake home directory the jobs ran in (WORK/home); it is replaced on every
 # run. RENDER_OPTIONS go to render.py, for example --with-slurm, or
 # --preview 10 30 50 to write PNG frames into WORK/capture instead of a video.
-# Set GO to the go binary when it is not on PATH.
+# Python runs from the repository's .venv (PYTHON overrides it); set GO to the
+# go binary when it is not on PATH.
 set -euo pipefail
 
 if [[ $# -lt 3 ]]; then
@@ -27,6 +28,6 @@ shift 3
 (cd "$repo" && CGO_ENABLED=0 "${GO:-go}" build -o "$work/rotari" ./cmd/rotari)
 
 rm -rf "$work/home" "$work/capture"
-export PYTHONPATH="$tools/pylib" PLAYWRIGHT_BROWSERS_PATH="$tools/pw"
+export PYTHON=${PYTHON:-$repo/.venv/bin/python} PLAYWRIGHT_BROWSERS_PATH="$tools/pw"
 "$here/capture.sh" "$work" "$work/rotari" "$tools/slurm-sb" </dev/null
-python3 "$here/render.py" "$work/capture" "$repo" "$out" "$@"
+"$PYTHON" "$here/render.py" "$work/capture" "$repo" "$out" "$@"

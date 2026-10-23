@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Prepare the tools the promo video pipeline needs, all inside TOOLS:
+# Prepare the tools the promo video pipeline needs:
 #
 #   setup.sh TOOLS
 #
-#   TOOLS/pylib     Playwright for Python (pip --target, no venv needed)
+#   .venv           Playwright for Python, installed into the repository's
+#                   virtual environment (PYTHON overrides its interpreter)
 #   TOOLS/pw        Chrome Headless Shell for that Playwright version
 #   TOOLS/slurm-sb  the Slurm image used by scheduler-integration.sh, unpacked
 #                   by singularity, with a setgroups shim preloaded
 #
-# Needs python3 with pip, curl, unzip, singularity (or apptainer), and
-# unprivileged user namespaces. Docker is not used: it needs the docker group.
-# Chrome is fetched with curl rather than `playwright install`, whose Node
-# downloader rejects TLS-inspecting proxies that curl and pip accept.
+# Needs uv (or pip in the virtual environment), curl, unzip, singularity (or
+# apptainer), and unprivileged user namespaces. Docker is not used: it needs
+# the docker group. Chrome is fetched with curl rather than `playwright
+# install`, whose Node downloader rejects TLS-inspecting proxies that curl and
+# uv --native-tls accept.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -20,18 +22,25 @@ if [[ $# -ne 1 ]]; then
 fi
 mkdir -p "$1"
 tools=$(cd "$1" && pwd)
+repo=$(cd "$(dirname "$0")/../.." && pwd)
+python=${PYTHON:-$repo/.venv/bin/python}
 
 playwright_version=1.64.0
 slurm_image=docker://giovtorres/docker-centos7-slurm:latest
 
-if [[ ! -d "$tools/pylib/playwright" ]]; then
-    python3 -m pip install --quiet --target "$tools/pylib" "playwright==$playwright_version"
+if ! "$python" -c "import playwright" 2>/dev/null; then
+    if command -v uv >/dev/null; then
+        uv pip install --native-tls --python "$python" "playwright==$playwright_version"
+    else
+        "$python" -m pip install "playwright==$playwright_version"
+    fi
 fi
 
 read -r revision browser_version < <(
-    python3 - "$tools/pylib" <<'EOF'
-import json, sys
-browsers = json.load(open(f"{sys.argv[1]}/playwright/driver/package/browsers.json"))["browsers"]
+    "$python" <<'EOF'
+import json, pathlib, playwright
+package = pathlib.Path(playwright.__file__).parent / "driver" / "package"
+browsers = json.loads((package / "browsers.json").read_text())["browsers"]
 shell = next(b for b in browsers if b["name"] == "chromium-headless-shell")
 print(shell["revision"], shell["browserVersion"])
 EOF

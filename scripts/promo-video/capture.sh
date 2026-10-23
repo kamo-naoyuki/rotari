@@ -7,7 +7,8 @@
 # "workstation", WORK/home mounted at /home/me, a private network with only
 # loopback and a dummy IPv4 address, and a one-node Slurm cluster started by
 # slurm-up.sh. Everything in the namespace stops when capture.py exits.
-# Output lands in WORK/capture.
+# Output lands in WORK/capture. PYTHON names an interpreter with Playwright
+# (default python3), and PLAYWRIGHT_BROWSERS_PATH where its Chrome is.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mkdir -p "$1" && cd "$1" && pwd)
@@ -25,5 +26,5 @@ exec unshare --user --map-root-user --uts --mount --net --pid --fork --mount-pro
     mkdir -p /home/me
     mount --bind "$1/home" /home/me
     "$2/slurm-up.sh" "$4" /home/me/sbin >"$1/slurm-up.log" 2>&1
-    python3 "$2/capture.py" "$2/fixture" "$1/capture" "$3"
-' _ "$work" "$here" "$rotari" "$sandbox"
+    "$5" "$2/capture.py" "$2/fixture" "$1/capture" "$3"
+' _ "$work" "$here" "$rotari" "$sandbox" "${PYTHON:-python3}"
