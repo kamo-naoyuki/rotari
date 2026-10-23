@@ -1,13 +1,19 @@
 """Render the rotari promo short ("You don't need rotari for one job").
 
-    render.py CAPTURE_DIR REPO_DIR OUT.mp4 [--with-slurm] [--preview SECONDS...]
+    render.py CAPTURE_DIR REPO_DIR OUT.mp4 [--with-slurm]
+              [--narration KOKORO_DIR [--voice VOICE] [--speed X]]
+              [--preview SECONDS...]
 
 Builds the scene timeline from capture.py's material, writes
 CAPTURE_DIR/player.html from player.html, steps it frame by frame in headless
-Chrome, and pipes the frames to ffmpeg (1080x1920, 30 fps). With --preview,
-writes one PNG per given time instead of a video.
+Chrome, and pipes the frames to ffmpeg (1080x1920, 30 fps). With
+--narration, each scene's `say` line is spoken by Kokoro TTS (models in
+KOKORO_DIR), scenes stretch to fit their lines, the lines are burned in as
+subtitles, and OUT.srt is written beside the video. With --preview, writes
+one PNG per given time instead of a video.
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -16,12 +22,22 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-CAP, REPO, OUT = sys.argv[1:4]
-PREVIEW = (
-    [float(x) for x in sys.argv[5:] if x[0].isdigit()]
-    if "--preview" in sys.argv
-    else None
+parser = argparse.ArgumentParser()
+parser.add_argument("capture_dir")
+parser.add_argument("repo_dir")
+parser.add_argument("out")
+parser.add_argument("--with-slurm", action="store_true", help="include the Slurm act")
+parser.add_argument("--narration", metavar="KOKORO_DIR", help="speak each scene's line")
+parser.add_argument(
+    "--voice", default="af_heart", help="Kokoro voice (default af_heart)"
 )
+parser.add_argument("--speed", type=float, default=1.0, help="speech speed")
+parser.add_argument("--preview", type=float, nargs="+", metavar="SECONDS")
+ARGS = parser.parse_args()
+if (ARGS.voice != "af_heart" or ARGS.speed != 1.0) and not ARGS.narration:
+    parser.error("--voice and --speed need --narration")
+CAP, REPO, OUT = ARGS.capture_dir, ARGS.repo_dir, ARGS.out
+PREVIEW = ARGS.preview
 FPS = 30
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -34,7 +50,7 @@ def timeline():
     web = load("web.json")
     logs = load("logs.json")
 
-    def term(name, title, captions, speed=1.0, extra=0.6):
+    def term(name, title, captions, speed=1.0, extra=0.6, say=None, say_at=None):
         t = terms[name]
         return {
             "kind": "term",
@@ -43,9 +59,13 @@ def timeline():
             "speed": speed,
             "dur": t["duration"] / speed + extra,
             "captions": captions,
+            "say": say,
+            **({"sayAt": say_at} if say_at is not None else {}),
         }
 
-    def webscene(name, dur, captions, speed=1.0, pan=None, css=False):
+    def webscene(
+        name, dur, captions, speed=1.0, pan=None, css=False, say=None, say_at=None
+    ):
         return {
             "kind": "web",
             "frames": web[name],
@@ -55,6 +75,8 @@ def timeline():
             "pan": pan,
             "panCss": css,
             "cssWidth": 600,
+            "say": say,
+            **({"sayAt": say_at} if say_at is not None else {}),
         }
 
     # Full-page shots pan between page positions recorded by capture.py; the
@@ -82,6 +104,8 @@ def timeline():
             "captions": [
                 [0, "Slurm here. Local there.<br><em>Two ways to run and watch.</em>"]
             ],
+            "say": "Preprocessing runs locally, training on Slurm. "
+            "Two ways to submit, and two ways to watch.",
         },
         term(
             "pipeline",
@@ -89,6 +113,7 @@ def timeline():
             [[0, "With rotari:<br><em>same commands, -e local or -e slurm.</em>"]],
             speed=1.25,
             extra=0.4,
+            say="With rotari, the commands stay the same. Only the executor changes.",
         ),
         webscene(
             "pipeline",
@@ -96,20 +121,30 @@ def timeline():
             [[0, "One run, two machines.<br><em>workstation + gpu-node01</em>"]],
             pan=[[0.4, pipe["cards"] - 16], [2.4, pipe["jobs_bottom"] - 790]],
             css=True,
+            say="One run, two machines.",
         ),
     ]
     scenes = [
         # Act 0: one job is fine.
-        term("one", "~/llm", [[0, "One job?"]], extra=1.0),
+        term(
+            "one",
+            "~/llm",
+            [[0, "One job?"]],
+            extra=1.0,
+            say="One job? Watching it in a terminal is enough.",
+            say_at=1.6,
+        ),
         {
             "kind": "title",
             "dur": 2.6,
             "lines": [["You don't", "", 0], ["need rotari.", "hl", 0.35]],
+            "say": "You don't need rotari.",
         },
         {
             "kind": "title",
             "dur": 2.6,
             "lines": [["But research", "", 0], ["isn't one job.", "soft", 0.35]],
+            "say": "But research is never just one job.",
         },
         # Act 1: several projects in several directories.
         {
@@ -124,6 +159,8 @@ def timeline():
                 [0, "4 projects.<br>4 directories. 4 tabs."],
                 [3.6, "Something broke.<br><em>Which tab was it?</em>"],
             ],
+            "say": "Each project lives in its own directory. So you hop between "
+            "terminal tabs, and somewhere, something broke.",
         },
         term(
             "submit4",
@@ -131,6 +168,8 @@ def timeline():
             [[0, "With rotari, submit<br>from any directory…"]],
             speed=2.6,
             extra=0.4,
+            say="With rotari, you submit from any directory,",
+            say_at=4.6,
         ),
         webscene(
             "projects",
@@ -140,16 +179,24 @@ def timeline():
                 [3.8, "Vision failed.<br><em>You see it at a glance.</em>"],
             ],
             speed=15 / 8.0,
+            say="and every project shows up on one page. "
+            "You see what failed at a glance.",
         ),
         # Act 2: a large sweep with mixed failures.
         term(
-            "sweep", "~/llm-sweep", [[0, "A parameter sweep:<br>48 runs."]], extra=0.4
+            "sweep",
+            "~/llm-sweep",
+            [[0, "A parameter sweep:<br>48 runs."]],
+            extra=0.4,
+            say="Now a parameter sweep. Forty-eight runs.",
         ),
         webscene(
             "sweep_live",
             8.0,
             [[0, "Watch them run."], [4.4, "48 runs.<br><em>9 failed.</em>"]],
             speed=22 / 8.0,
+            say="Nine of them fail.",
+            say_at=4.3,
         ),
         {
             "kind": "logs",
@@ -160,6 +207,7 @@ def timeline():
                 ["task 4", logs["oom"]],
                 ["task 22", logs["module"]],
             ],
+            "say": "For three different reasons. Do you open every log?",
         },
         webscene(
             "sweep_done",
@@ -167,9 +215,15 @@ def timeline():
             [[0, "Rotari groups them by cause,<br><em>with a fix for each.</em>"]],
             pan=[[0.5, sweep["cards"] - 16], [3.6, sweep["timeline"] - 790]],
             css=True,
+            say="Rotari groups the failures by cause, and suggests a fix for each.",
         ),
         term(
-            "retry", "~/llm-sweep", [[0, "Rerun just the<br>GPU failures."]], extra=0.8
+            "retry",
+            "~/llm-sweep",
+            [[0, "Rerun just the<br>GPU failures."]],
+            extra=0.8,
+            say="The GPU fault was the machine, so rerun just those three. "
+            "Everything that succeeded stays.",
         ),
         webscene(
             "retry",
@@ -177,27 +231,45 @@ def timeline():
             [[0, "3 rerun, 45 untouched.<br><em>The other 6 need a code fix.</em>"]],
             pan=[[0.4, retry["cards"] - 16], [2.6, retry["cards"] + 110]],
             css=True,
+            say="The other six need a code fix.",
         ),
-        *(ACT3 if "--with-slurm" in sys.argv else []),
+        *(ACT3 if ARGS.with_slurm else []),
         # Close.
-        webscene("projects_end", 3.4, [[0, "More jobs.<br><em>Still one place.</em>"]]),
+        webscene(
+            "projects_end",
+            3.4,
+            [[0, "More jobs.<br><em>Still one place.</em>"]],
+            say="More jobs. Still one place to look.",
+        ),
         {
             "kind": "logo",
             "dur": 5.0,
             "tagline": "Spend your time on research,<br>not on babysitting jobs.",
             "install": "brew install kamo-naoyuki/tap/rotari",
             "url": "github.com/kamo-naoyuki/rotari",
+            "say": "Rotari. Spend your time on research, not on babysitting jobs.",
         },
     ]
-    start = 0.0
-    for s in scenes:
-        s["start"] = round(start, 3)
-        start += s["dur"]
-    return scenes, start
+    return scenes
 
 
 def main():
-    scenes, total = timeline()
+    scenes = timeline()
+    audio = None
+    if ARGS.narration:
+        import narration
+
+        placed, total = narration.narrate(
+            scenes, ARGS.narration, f"{CAP}/narration", ARGS.voice, ARGS.speed
+        )
+        audio = f"{CAP}/narration.wav"
+        narration.write_audio(placed, total, audio)
+        narration.write_srt(placed, os.path.splitext(OUT)[0] + ".srt")
+    else:
+        total = 0.0
+        for s in scenes:
+            s["start"] = round(total, 3)
+            total += s["dur"]
     logo = Path(f"{REPO}/docs/assets/rotari-logo-dark.svg").read_text()
     fonts = f"file://{REPO}/internal/webui/assets/fonts"
     html = Path(f"{HERE}/player.html").read_text()
@@ -236,6 +308,7 @@ def main():
                 "mjpeg",
                 "-i",
                 "-",
+                *(["-i", audio, "-c:a", "aac", "-b:a", "160k"] if audio else []),
                 "-c:v",
                 "libx264",
                 "-pix_fmt",

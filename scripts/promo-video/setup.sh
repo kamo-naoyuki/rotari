@@ -3,9 +3,10 @@
 #
 #   setup.sh TOOLS
 #
-#   .venv           Playwright for Python, installed into the repository's
-#                   virtual environment (PYTHON overrides its interpreter)
+#   .venv           Playwright, kokoro-onnx, and soundfile, installed into the
+#                   repository's virtual environment (PYTHON overrides it)
 #   TOOLS/pw        Chrome Headless Shell for that Playwright version
+#   TOOLS/kokoro    Kokoro-82M TTS model and voices (ONNX, about 350 MB)
 #   TOOLS/slurm-sb  the Slurm image used by scheduler-integration.sh, unpacked
 #                   by singularity, with a setgroups shim preloaded
 #
@@ -26,15 +27,26 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 python=${PYTHON:-$repo/.venv/bin/python}
 
 playwright_version=1.64.0
+kokoro_onnx_version=0.6.1
+kokoro_models=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
 slurm_image=docker://giovtorres/docker-centos7-slurm:latest
 
-if ! "$python" -c "import playwright" 2>/dev/null; then
+packages=("playwright==$playwright_version" "kokoro-onnx==$kokoro_onnx_version" soundfile)
+if ! "$python" -c "import playwright, kokoro_onnx, soundfile" 2>/dev/null; then
     if command -v uv >/dev/null; then
-        uv pip install --native-tls --python "$python" "playwright==$playwright_version"
+        uv pip install --native-tls --python "$python" "${packages[@]}"
     else
-        "$python" -m pip install "playwright==$playwright_version"
+        "$python" -m pip install "${packages[@]}"
     fi
 fi
+
+mkdir -p "$tools/kokoro"
+for file in kokoro-v1.0.onnx voices-v1.0.bin; do
+    if [[ ! -s "$tools/kokoro/$file" ]]; then
+        curl -fsSL -o "$tools/kokoro/$file.part" "$kokoro_models/$file"
+        mv "$tools/kokoro/$file.part" "$tools/kokoro/$file"
+    fi
+done
 
 read -r revision browser_version < <(
     "$python" <<'EOF'
