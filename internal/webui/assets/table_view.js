@@ -62,6 +62,7 @@ const view = {
   // A directory's listing.
   listing: "files",
   pattern: "**/*",
+  expanded: [],
   group: "",
   suffixSep: "_",
   incomplete: false,
@@ -188,6 +189,7 @@ function readView() {
   if (fragment.has("sep")) view.sep = fragment.get("sep");
   if (fragment.get("listing") === "stems") view.listing = "stems";
   if (fragment.has("pattern")) view.pattern = fragment.get("pattern");
+  view.expanded = fragment.getAll("expanded");
   if (fragment.has("group")) view.group = fragment.get("group");
   if (fragment.has("suffix_sep")) view.suffixSep = fragment.get("suffix_sep");
   view.incomplete = fragment.get("incomplete") === "1";
@@ -215,6 +217,9 @@ function writeView() {
   if (info.kind === "directory") {
     fragment.set("listing", view.listing);
     fragment.set("pattern", view.pattern);
+    view.expanded.forEach((directory) =>
+      fragment.append("expanded", directory),
+    );
     if (view.listing === "stems") {
       if (view.group) fragment.set("group", view.group);
       if (view.group === "suffix") fragment.set("suffix_sep", view.suffixSep);
@@ -242,7 +247,12 @@ function writeView() {
 function apiURL(route, extra) {
   const query = new URLSearchParams(sourceQuery);
   Object.entries(extra || {}).forEach(([name, value]) => {
-    if (value !== undefined && value !== null) query.set(name, String(value));
+    if (Array.isArray(value)) {
+      query.delete(name);
+      value.forEach((item) => query.append(name, String(item)));
+    } else if (value !== undefined && value !== null) {
+      query.set(name, String(value));
+    }
   });
   return route + "?" + query;
 }
@@ -284,7 +294,7 @@ function renderSummary() {
         ? " rows"
         : view.listing === "stems"
           ? " stems"
-          : " files";
+          : " entries";
     parts.push(formatCount(rows.total) + noun);
     parts.push(formatCount(rows.columns.length) + " columns");
   }
@@ -318,7 +328,7 @@ function changeListing(change) {
   view.filters = [];
   view.sort = null;
   renderToolbar();
-  loadRows();
+  return loadRows();
 }
 
 // renderDirectoryToolbar lays out a directory's choices: files or stems,
@@ -387,6 +397,13 @@ function renderDirectoryToolbar(toolbar) {
           el("span", {}, "Groups from"),
           group,
           view.group === "suffix" ? suffix : null,
+        )
+      : null,
+    stems
+      ? el(
+          "span",
+          { className: "tv-muted" },
+          "Expand directories in Files to include their files.",
         )
       : null,
     stems
@@ -512,6 +529,7 @@ function tableParams() {
     return {
       view: view.listing,
       pattern: view.pattern,
+      expanded: view.expanded,
       group: stems && view.group ? view.group : undefined,
       suffix_sep: stems && view.group === "suffix" ? view.suffixSep : undefined,
       incomplete: stems && view.incomplete ? "1" : undefined,
@@ -565,6 +583,7 @@ async function loadRows() {
   renderFilterBar();
   renderTable();
   renderPager();
+  return failure ? failure.reason.message : "";
 }
 
 function changeFilters(filters) {
@@ -749,15 +768,7 @@ function renderTable() {
         {},
         el("td", { className: "tv-number" }, formatCount(row.number)),
         rowActions ? el("td", {}, openRowButton(row)) : null,
-        rows.columns.map((_, index) =>
-          el(
-            "td",
-            {},
-            row.media && row.media[index]
-              ? mediaCell(row.media[index])
-              : cellContent(row.cells[index] ?? "", rows.columns[index]),
-          ),
-        ),
+        rows.columns.map((_, index) => el("td", {}, tableCell(row, index))),
       ),
     ),
   );
@@ -778,6 +789,53 @@ function renderTable() {
       ),
     );
   }
+}
+
+async function toggleDirectory(directory) {
+  const previous = view.expanded;
+  const expanded = view.expanded.includes(directory)
+    ? view.expanded.filter(
+        (path) => path !== directory && !path.startsWith(directory + "/"),
+      )
+    : view.expanded.concat(directory);
+  view.expanded = expanded;
+  const error = await loadRows();
+  if (error && view.expanded === expanded) {
+    view.expanded = previous;
+    await loadRows();
+    showError(error);
+  }
+}
+
+function tableCell(row, index) {
+  const text = row.cells[index] ?? "";
+  const content =
+    row.directory && index === 0
+      ? el(
+          "button",
+          {
+            type: "button",
+            className: "tv-directory tv-link-button",
+            "aria-expanded": String(view.expanded.includes(row.directory)),
+            "aria-label":
+              (view.expanded.includes(row.directory)
+                ? "Collapse "
+                : "Expand ") + row.directory,
+            onclick: () => toggleDirectory(row.directory),
+          },
+          (view.expanded.includes(row.directory) ? "▾ " : "▸ ") + text,
+        )
+      : row.media && row.media[index]
+        ? mediaCell(row.media[index])
+        : cellContent(text, rows.columns[index]);
+  if (info.kind !== "directory" || view.listing !== "files" || index !== 0)
+    return content;
+  const depth = (row.directory || text).split("/").length - 1;
+  return el(
+    "span",
+    { className: "tv-tree-path", style: "padding-left: " + depth + "rem" },
+    content,
+  );
 }
 
 // openRowButton opens a row's files in panes side by side, to compare them.

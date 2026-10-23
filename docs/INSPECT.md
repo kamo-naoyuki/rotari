@@ -624,19 +624,33 @@ rows opens as quickly as a small one after the server has indexed it once:
 
 Filters, sorting, and Describe cover the whole file, not just the page
 shown. A directory opens in the viewer too, from **Table viewer** in its row
-(including the working directory `.`). Its files become the rows:
+(including the working directory `.`). Only its immediate children are read
+at first; it does not recursively scan the directory:
+
+- **Expand directories**: click a directory's arrow or path in **Files**
+  to read its immediate children and insert them beneath it. Click again
+  to collapse it and its descendants. Unopened directories are not scanned.
+  Expanded directories are kept in the URL, so reloading restores them.
 
 - **Pattern** chooses files by their path inside the directory: `*` matches
   within a name, `**` any number of directories, and `{wav,png}` either
   alternative, so `**/*.{wav,png}` is every WAV and PNG file. The default,
-  `**/*`, is every file. Directory symlinks are not followed, and at most
-  100,000 entries are read.
-- **Files** has one row per file with its path, format, duration, sample
+  `**/*`, matches every file in the opened scope. Patterns do not expand
+  directories: directory rows stay available regardless of the pattern so
+  you can open them. Directory symlinks are not followed, and at most
+  100,000 entries are read across the opened scope. A listing is reused for
+  up to 10 seconds.
+- **Files** has one row per file or directory with its path, format, duration, sample
   rate, channels, bitrate, width, height, size, and modification time. A
   filter on `duration` takes seconds or `m:ss`, and one on `size` takes
   values such as `10M` or `1.5G`; Describe on `duration` gives the total
-  and mean length of the audio.
-- **Group by stem** puts files that share a name in one row, with a column
+  and mean length of the audio. Directories have no media properties or
+  file size. Filters, sorting, and Describe apply only to this opened scope,
+  including directory rows in **Files**; a sort may place rows outside their
+  tree order, with their full relative paths still shown.
+- **Group by stem** uses files in the same opened scope (not directory
+  rows); expand directories in **Files** first to include their contents.
+  It puts files that share a name in one row, with a column
   per group, to compare outputs side by side and find missing ones:
   `ref/u1.wav`, `hyp/u1.wav`, and `plots/u1.png` become the row `u1` under
   `ref/`, `hyp/`, and `plots/`. **Groups from** chooses how a path splits:

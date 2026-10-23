@@ -28,6 +28,7 @@ func TestTableViewCommandServesOnePath(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	writeTableViewTree(t, data)
 
 	// A file: its directory is the only root and the base of its paths.
 	base := e.StartTableView(filepath.Join(data, "list.csv"))
@@ -60,9 +61,12 @@ func TestTableViewCommandServesOnePath(t *testing.T) {
 	if r := e.HTTPGet(base + "/api/info"); r.Status != 401 {
 		t.Fatalf("without the token = %d", r.Status)
 	}
-	if r := e.HTTPDo("GET", base+"/api/rows?pattern=**/*.wav", map[string]string{"Authorization": "Bearer secret-token"}, ""); r.Status != 200 || !strings.Contains(r.Body, `"cells":["wav/a.wav"`) || strings.Contains(r.Body, "b.wav") {
+	if r := e.HTTPDo("GET", base+"/api/rows?pattern=**/*.wav&expanded=wav", map[string]string{"Authorization": "Bearer secret-token"}, ""); r.Status != 200 || !strings.Contains(r.Body, `"cells":["wav/a.wav"`) || strings.Contains(r.Body, "b.wav") {
 		t.Fatalf("directory rows = (%d, %s)", r.Status, r.Body)
 	}
+	checkTableViewExpansion(t, func(route string, extra url.Values) support.HTTPResult {
+		return e.HTTPDo("GET", base+"/api/"+route+"?"+extra.Encode(), map[string]string{"Authorization": "Bearer secret-token"}, "")
+	})
 
 	if r := e.Rotari("tableview", "--port", "0", filepath.Join(e.Root, "missing.csv")); r.Code != 1 || !strings.Contains(r.Stderr, "cannot view") {
 		t.Fatalf("missing path = %s", r)

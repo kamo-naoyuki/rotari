@@ -59,8 +59,11 @@ type Listing struct {
 	// "/" between names: "*" matches within a name, "**" any number of
 	// directories, and {a,b} either alternative. "" is "**/*".
 	Pattern string
-	View    string
-	Group   string
+	// Expanded names directories relative to the target whose children
+	// should be read. All ancestors must also be expanded.
+	Expanded []string
+	View     string
+	Group    string
 	// SuffixSeparator splits a name for GroupSuffix.
 	SuffixSeparator string
 	// Incomplete keeps only the stems missing a file in some group.
@@ -77,12 +80,13 @@ const listingAge = 10 * time.Second
 
 // listedFile is a file a directory listing found.
 type listedFile struct {
-	path     string
-	size     int64
-	modified time.Time
+	path      string
+	size      int64
+	modified  time.Time
+	directory bool
 }
 
-// directoryListing is the files of one directory a pattern matches.
+// directoryListing is a directory's visible entries.
 type directoryListing struct {
 	files     []listedFile
 	truncated bool
@@ -104,6 +108,17 @@ type directoryTable struct {
 
 // OpenDirectory lists target, a directory, as listing asks.
 func OpenDirectory(target Target, listing Listing) (*Table, error) {
+	expanded := slices.Clone(listing.Expanded)
+	slices.Sort(expanded)
+	listing.Expanded = slices.Compact(expanded)
+	for _, directory := range listing.Expanded {
+		if !fs.ValidPath(directory) || directory == "." || strings.ContainsAny(directory, "\\\x00") {
+			return nil, fmt.Errorf("invalid expanded directory %q: use a relative slash-separated path", directory)
+		}
+		if parent := path.Dir(directory); parent != "." && !slices.Contains(listing.Expanded, parent) {
+			return nil, fmt.Errorf("cannot expand %q without expanding its parent %q", directory, parent)
+		}
+	}
 	if listing.Pattern == "" {
 		listing.Pattern = "**/*"
 	}
@@ -141,8 +156,8 @@ func OpenDirectory(target Target, listing Listing) (*Table, error) {
 		return nil, fmt.Errorf("%s is not a directory", target.Path)
 	}
 	bucket := time.Now().UnixNano() / int64(listingAge)
-	listKey := fmt.Sprintf("listing\x00%s\x00%s\x00%d", target.Path, listing.Pattern, bucket)
-	value, err := results.get(listKey, func() (any, error) { return listDirectory(target, patterns) })
+	listKey := fmt.Sprintf("listing\x00%s\x00%s\x00%s\x00%d", target.Path, listing.Pattern, strings.Join(listing.Expanded, "\x00"), bucket)
+	value, err := results.get(listKey, func() (any, error) { return listDirectory(target, patterns, listing.Expanded) })
 	if err != nil {
 		return nil, err
 	}
@@ -212,10 +227,9 @@ func matchParts(pattern, name []string) bool {
 	return len(name) == 0
 }
 
-// listDirectory walks the directory through its root, without following
-// directory symlinks, and keeps the files and file symlinks a pattern
-// matches, by path.
-func listDirectory(target Target, patterns []string) (*directoryListing, error) {
+// listDirectory reads the target and explicitly expanded directories,
+// without following directory symlinks. Patterns select files, not folders.
+func listDirectory(target Target, patterns, expanded []string) (*directoryListing, error) {
 	rootPath, relative, ok := RootOf(target.Path, target.Roots)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrOutsideRoots, target.Path)
@@ -226,40 +240,60 @@ func listDirectory(target Target, patterns []string) (*directoryListing, error) 
 	}
 	defer root.Close()
 	start := path.Clean(strings.ReplaceAll(relative, string(os.PathSeparator), "/"))
+	return scanDirectory(root.FS(), start, patterns, expanded)
+}
+
+func scanDirectory(root fs.FS, start string, patterns, expanded []string) (*directoryListing, error) {
 	listing := &directoryListing{}
+	pending := make(map[string]bool, len(expanded))
+	for _, directory := range expanded {
+		pending[directory] = true
+	}
 	entries := 0
-	err = fs.WalkDir(root.FS(), start, func(name string, entry fs.DirEntry, err error) error {
+	err := fs.WalkDir(root, start, func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			if name == start {
-				return err
-			}
-			return nil
+			return err
 		}
 		if entries++; entries > listScanLimit {
 			listing.truncated = true
 			return fs.SkipAll
 		}
-		if entry.IsDir() {
-			return nil
-		}
 		inside := strings.TrimPrefix(strings.TrimPrefix(name, start), "/")
 		if start == "." {
 			inside = name
 		}
-		if !slices.ContainsFunc(patterns, func(pattern string) bool { return matchPath(pattern, inside) }) {
+		if entry.IsDir() {
+			if name == start {
+				return nil
+			}
+		} else if !slices.ContainsFunc(patterns, func(pattern string) bool { return matchPath(pattern, inside) }) {
 			return nil
 		}
-		file := listedFile{path: inside}
-		if info, err := entry.Info(); err == nil {
-			file.size, file.modified = info.Size(), info.ModTime()
+		file := listedFile{path: inside, directory: entry.IsDir()}
+		info, err := entry.Info()
+		if err != nil {
+			return err
 		}
+		file.size, file.modified = info.Size(), info.ModTime()
 		listing.files = append(listing.files, file)
+		if entry.IsDir() {
+			if !pending[inside] {
+				return fs.SkipDir
+			}
+			delete(pending, inside)
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	slices.SortFunc(listing.files, func(a, b listedFile) int { return strings.Compare(a.path, b.path) })
+	if !listing.truncated && len(pending) > 0 {
+		for _, directory := range expanded {
+			if pending[directory] {
+				return nil, fmt.Errorf("cannot expand %q: not an available directory", directory)
+			}
+		}
+	}
 	return listing, nil
 }
 
@@ -294,7 +328,7 @@ func (table *directoryTable) groupStems() {
 	group := table.listing.Group
 	if group == GroupAuto {
 		group = GroupExtension
-		if slices.ContainsFunc(table.files, func(file listedFile) bool { return strings.Contains(file.path, "/") }) {
+		if slices.ContainsFunc(table.files, func(file listedFile) bool { return !file.directory && strings.Contains(file.path, "/") }) {
 			group = GroupTop
 		}
 	}
@@ -303,6 +337,9 @@ func (table *directoryTable) groupStems() {
 	groups := map[string]int{}
 	stems := map[string]int{}
 	for index, file := range table.files {
+		if file.directory {
+			continue
+		}
 		splits[index].group, splits[index].stem = table.split(file.path, group)
 		groups[splits[index].group] = 0
 		stems[splits[index].stem] = 0
@@ -333,6 +370,9 @@ func (table *directoryTable) groupStems() {
 	}
 	duplicates := 0
 	for index, split := range splits {
+		if table.files[index].directory {
+			continue
+		}
 		member := &table.members[stems[split.stem]][groups[split.group]]
 		if *member >= 0 {
 			duplicates++
@@ -408,10 +448,15 @@ func (table *directoryTable) row(number int) []string {
 	}
 	file := table.files[number]
 	cells := make([]string, len(fileColumns))
-	cells[0], cells[8] = file.path, strconv.FormatInt(file.size, 10)
+	cells[0] = file.path
 	if !file.modified.IsZero() {
 		cells[9] = file.modified.UTC().Format(time.RFC3339)
 	}
+	if file.directory {
+		cells[0] += "/"
+		return cells
+	}
+	cells[8] = strconv.FormatInt(file.size, 10)
 	if MediaKind(file.path) == "" {
 		return cells
 	}

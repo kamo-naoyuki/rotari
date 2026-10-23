@@ -20,7 +20,7 @@ import (
 // offers it under Launch with for an artifact and serves it under
 // /tableview/. The page's own query names the source, for an artifact as a
 // content request does; the page passes it through to its API requests and
-// adds its own parameters (sep and header for a file; view, pattern, group,
+// adds its own parameters (sep and header for a file; view, pattern, expanded, group,
 // suffix_sep, and incomplete for a directory; filters, sort, desc, offset,
 // limit, base, and for a cell's media, ref).
 
@@ -209,10 +209,10 @@ func suggestedSeparator(path string) string {
 }
 
 // openTableView reads a source as its query asks: a directory with view,
-// pattern, group, suffix_sep, and incomplete, a file with sep and header.
+// pattern, expanded, group, suffix_sep, and incomplete, a file with sep and header.
 // Parameters for the other kind are refused, not ignored.
 func openTableView(source tableViewSource, query url.Values) (*tableview.Table, error) {
-	directoryParams, fileParams := []string{"view", "pattern", "group", "suffix_sep", "incomplete"}, []string{"sep", "header"}
+	directoryParams, fileParams := []string{"view", "pattern", "expanded", "group", "suffix_sep", "incomplete"}, []string{"sep", "header"}
 	given, other := fileParams, directoryParams
 	if source.directory {
 		given, other = directoryParams, fileParams
@@ -223,7 +223,7 @@ func openTableView(source tableViewSource, query url.Values) (*tableview.Table, 
 		}
 	}
 	if source.directory {
-		listing := tableview.Listing{Pattern: query.Get("pattern"), View: query.Get("view"), Group: query.Get("group"), SuffixSeparator: query.Get("suffix_sep")}
+		listing := tableview.Listing{Pattern: query.Get("pattern"), Expanded: query["expanded"], View: query.Get("view"), Group: query.Get("group"), SuffixSeparator: query.Get("suffix_sep")}
 		switch query.Get("incomplete") {
 		case "", "0":
 		case "1":

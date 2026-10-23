@@ -561,6 +561,14 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 12px;
 }
+.tv-tree-path {
+  display: block;
+}
+.tv-directory {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: left;
+}
 .tv-media-properties,
 .tv-media-error {
   font-size: 11px;

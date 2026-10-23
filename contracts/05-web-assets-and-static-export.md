@@ -938,15 +938,27 @@ not shown: outside the roots, through an escaping symlink, or missing.
 `/tableview/api/media?ref=&base=` serves that file under the same roots and
 refusals, and nothing that is not an image, audio, or video file.
 A directory is read as a table instead, through the same roots without
-following directory symlinks and reading at most 100,000 entries, of the
-files `pattern` matches by their slash-separated path inside it (`*` within
+following directory symlinks and reading at most 100,000 entries. Initially
+only its immediate children are read. Repeated `expanded` parameters name
+relative slash-separated directory paths whose immediate children are also
+read; ancestors must also be expanded. Absolute paths, `.` and `..`
+components, backslashes, empty paths, non-directories, and unavailable
+directories are refused. Collapsed directories are not read, even when
+`pattern` contains `**`. A directory read error is surfaced, not hidden.
+The files `pattern` matches by their slash-separated path inside it (`*` within
 a name, `**` any number of directories, `{a,b}` alternatives; default
-`**/*`), sorted by path, and listed again after 10 seconds. `view=files`
-(the default) has one row per file with its path, format, duration,
+`**/*`) are included, and directory rows remain available regardless of the
+pattern. Listings are keyed by the expanded scope and listed again after
+10 seconds. `view=files`
+(the default) has one row per file or directory, in depth-first sibling
+name order unless explicitly sorted, with its path, format, duration,
 sample rate, channels, bitrate, width, height, size, and modification time
 in typed columns: a filter on a duration takes seconds or `m:ss`, on a size
 a binary suffix such as `10M`, and on a time compares RFC 3339 text.
-`view=stems` has one row per stem and one column per group, `group` naming
+Directory rows carry `directory` (the full relative path), a path cell ending
+in `/`, and modification time, but no media properties or file size.
+Filters, sorting, and Describe cover only this opened scope.
+`view=stems` uses only files in this same scope, with one row per stem and one column per group, `group` naming
 how a path splits: `top` (the first directory; the stem is the rest
 without its extension), `parent` (the file's directory and its name without
 the extension), `extension`, or `suffix` (the name's end after the last
@@ -963,9 +975,15 @@ split right or down, one pane always active; tabs move between panes by
 drag and drop, a drop near an edge splitting that pane; audio shows a
 waveform and a spectrogram the browser computes from the decoded samples,
 and linked panes share one time range and playback time. The page keeps the separator, header, media
-base, directory listing, filters, sort, Describe, page, and page size in its
+base, directory listing and expanded paths, filters, sort, Describe, page, and page size in its
 URL fragment, and drops
-the filters and sort when the separator or the listing changes. Implemented by
+the filters and sort when the separator or the listing changes. Clicking
+a directory in Files expands it, loading only its immediate children;
+clicking again collapses it and removes its descendants from the expanded
+scope. Expansion preserves the filters, sort, and current page (clamping
+the page if collapse reduces the page count); a failed expansion is shown
+as an error and the previous scope is restored. Group by stem shares this scope and never expands directories
+implicitly. Implemented by
 [internal/tableview](../internal/tableview/) and
 [internal/webui/table_view.go](../internal/webui/table_view.go), with the page in
 [table_view.js](../internal/webui/assets/table_view.js) and
@@ -978,7 +996,7 @@ and [internal/tableview/media_test.go](../internal/tableview/media_test.go) (who
 sample files ffmpeg made, with ffprobe's values),
 the page checked by `TestTableViewPagesInBrowser` and
 `TestTableViewFiltersInBrowser`, `TestTableViewShowsMediaInBrowser`,
-`TestTableViewGroupsStemsInBrowser`, `TestTableViewOpensFilesInPanesInBrowser`,
+`TestTableViewExpandsDirectoriesInBrowser`, `TestTableViewGroupsStemsInBrowser`, `TestTableViewOpensFilesInPanesInBrowser`,
 `TestTableViewMovesTabsAndLinksPanesInBrowser`, and
 `TestSpectrogramFindsATone`, and the row's link by
 `TestLaunchWithOpensTheTableViewerInBrowser` in

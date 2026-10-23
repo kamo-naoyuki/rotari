@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 func TestWebTableViewerReadsArtifacts(t *testing.T) {
 	covers(t, "WEB-19")
 	e := support.NewEnv(t)
+	writeTableViewTree(t, e.Root)
 	outside := t.TempDir()
 	if err := os.WriteFile(filepath.Join(outside, "secret.tsv"), []byte("secret\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -149,6 +151,9 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 		}
 		return e.HTTPGet(base + route + "?" + query.Encode())
 	}
+	checkTableViewExpansion(t, func(route string, extra url.Values) support.HTTPResult {
+		return wd("/tableview/api/"+route, extra)
+	})
 	if r := wd("/tableview/api/rows", url.Values{"pattern": {"*.wav"}}); !strings.Contains(r.Body, `"cells":["a.wav","WAV PCM","1","16000","1","256000","","","32044"`) {
 		t.Fatalf("working directory files = (%d, %s)", r.Status, r.Body)
 	}
@@ -166,10 +171,87 @@ func TestWebTableViewerReadsArtifacts(t *testing.T) {
 		{"secret.tsv", url.Values{"sep": {"\t"}}},                                                      // outside every allowed root
 		{"link.tsv", url.Values{"sep": {"\t"}}},                                                        // a symlink leaving the root
 		{"data.tsv", url.Values{"sep": {"\t,"}}},                                                       // not one character
+		{"data.tsv", url.Values{"sep": {"\t"}, "expanded": {"tree"}}},                                  // a directory's parameter
 		{"data.tsv", url.Values{"sep": {"\t"}, "filters": {`[{"column":0,"op":">","value":"high"}]`}}}, // an ordering needs a number
 	} {
 		if r := get("/tableview/api/rows", refused.name, refused.extra); r.Status == 200 {
 			t.Fatalf("%s %v was read: %s", refused.name, refused.extra, r.Body)
+		}
+	}
+}
+
+func writeTableViewTree(t *testing.T, root string) {
+	t.Helper()
+	for _, name := range []string{"direct.scope", "tree/child.scope", "tree/deep/grand.scope"} {
+		file := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func checkTableViewExpansion(t *testing.T, get func(string, url.Values) support.HTTPResult) {
+	t.Helper()
+	for _, test := range []struct {
+		name     string
+		expanded []string
+		files    []string
+		stems    []string
+	}{
+		{"collapsed", nil, []string{"direct.scope"}, []string{"direct"}},
+		{"parent", []string{"tree"}, []string{"direct.scope", "tree/child.scope"}, []string{"child", "direct"}},
+		{"child", []string{"tree", "tree/deep"}, []string{"direct.scope", "tree/child.scope", "tree/deep/grand.scope"}, []string{"child", "direct", "deep/grand"}},
+		{"collapsed again", nil, []string{"direct.scope"}, []string{"direct"}},
+	} {
+		for _, view := range []string{"files", "stems"} {
+			query := url.Values{"pattern": {"**/*.scope"}, "view": {view}}
+			if test.expanded != nil {
+				query["expanded"] = test.expanded
+			}
+			r := get("rows", query)
+			var page struct {
+				Total int `json:"total"`
+				Rows  []struct {
+					Cells     []string `json:"cells"`
+					Directory string   `json:"directory"`
+				} `json:"rows"`
+			}
+			if err := json.Unmarshal([]byte(r.Body), &page); err != nil || r.Status != 200 {
+				t.Fatalf("%s %s rows = (%d, %s)", test.name, view, r.Status, r.Body)
+			}
+			var got []string
+			for _, row := range page.Rows {
+				if row.Directory == "" {
+					got = append(got, row.Cells[0])
+				} else if row.Cells[0] != row.Directory+"/" {
+					t.Fatalf("directory path = %+v", row)
+				}
+			}
+			sort.Strings(got)
+			want := test.files
+			if view == "stems" {
+				want = test.stems
+			}
+			sort.Strings(want)
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("%s %s = %q, want %q", test.name, view, got, want)
+			}
+			r = get("describe", query)
+			var description struct {
+				Total int `json:"total"`
+			}
+			if err := json.Unmarshal([]byte(r.Body), &description); err != nil || r.Status != 200 || description.Total != page.Total {
+				t.Fatalf("%s %s describe = (%d, %s), want total %d", test.name, view, r.Status, r.Body, page.Total)
+			}
+		}
+	}
+	for _, expanded := range [][]string{{""}, {"../outside"}, {"tree\\deep"}, {"tree/deep"}, {"direct.scope"}, {"missing"}} {
+		r := get("rows", url.Values{"expanded": expanded})
+		if r.Status != 400 {
+			t.Fatalf("invalid expansion %q = (%d, %s)", expanded, r.Status, r.Body)
 		}
 	}
 }

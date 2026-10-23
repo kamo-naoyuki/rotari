@@ -110,6 +110,7 @@ func TestTableViewRefusesWhatContentRequestsRefuse(t *testing.T) {
 		{"data.csv", url.Values{"sep": {","}, "limit": {"5000"}}, http.StatusBadRequest},
 		{"data.csv", url.Values{"sep": {","}, "offset": {"x"}}, http.StatusBadRequest},
 		{"many", url.Values{"sep": {","}}, http.StatusBadRequest}, // a directory read as a file
+		{"data.csv", url.Values{"sep": {","}, "expanded": {"sub"}}, http.StatusBadRequest},
 	} {
 		if recorder := f.viewerGet(t, options, "api/rows", test.name, test.extra); recorder.Code != test.status {
 			t.Errorf("%s %v = %d %s, want %d", test.name, test.extra, recorder.Code, recorder.Body, test.status)
@@ -441,7 +442,7 @@ func TestTableViewListsADirectory(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
 		t.Fatalf("rows = %d %s", recorder.Code, recorder.Body)
 	}
-	if page.Total != 10 || page.Rows[0].Cells[0] != "f000.txt" || page.Rows[0].Cells[8] != "1" {
+	if page.Total != 11 || page.Rows[0].Cells[0] != "f000.txt" || page.Rows[0].Cells[8] != "1" {
 		t.Fatalf("rows = %+v", page)
 	}
 	// The working directory lists its media with their properties; the
@@ -455,7 +456,7 @@ func TestTableViewListsADirectory(t *testing.T) {
 	for _, row := range page.Rows {
 		paths = append(paths, row.Cells[0])
 	}
-	if !reflect.DeepEqual(paths, []string{"clip.wav", "plot.png"}) || page.Rows[0].Media[0] == nil || page.Rows[0].Media[0].Properties == nil {
+	if !reflect.DeepEqual(paths, []string{"clip.wav", "many/", "plot.png"}) || page.Rows[0].Media[0] == nil || page.Rows[0].Media[0].Properties == nil {
 		t.Fatalf("working directory = %q %s", paths, recorder.Body)
 	}
 	if served := f.viewerGet(t, options, "api/media", "wd", url.Values{"ref": {"plot.png"}, "base": {tableview.DirectoryBase}}); served.Code != http.StatusOK || served.Body.String() != "\x89PNG-bytes" {
@@ -467,6 +468,11 @@ func TestTableViewListsADirectory(t *testing.T) {
 		{"view": {"stems"}, "group": {"color"}},
 		{"view": {"files"}, "incomplete": {"1"}},
 		{"pattern": {"["}},
+		{"expanded": {""}},
+		{"expanded": {"../outside"}},
+		{"expanded": {"zz-sub/missing"}},
+		{"expanded": {"escape"}},
+		{"expanded": {"f000.txt"}},
 		{"base": {"basedir"}}, // a file's base
 	} {
 		if recorder := f.viewerGet(t, options, "api/rows", "many", extra); recorder.Code != http.StatusBadRequest {
@@ -478,6 +484,68 @@ func TestTableViewListsADirectory(t *testing.T) {
 	}
 }
 
+func TestTableViewExpandsDirectoriesInBrowser(t *testing.T) {
+	f := newArtifactFixture(t)
+	for _, name := range []string{"root.tree", "tree/child.tree", "tree/deep/grand.tree"} {
+		write(t, filepath.Join(f.work, filepath.FromSlash(name)), "x")
+	}
+	if err := os.Mkdir(filepath.Join(f.work, "tree", "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=**%2F*.tree&sort=0&desc=1", `
+  const button = label => document.querySelector('button[aria-label="' + label + '"]');
+  const hasFile = path => cells().some(row => row[1] === path);
+  await until('collapsed tree', () => cells().length === 3 && button('Expand tree'));
+  if (hasFile('tree/child.tree') || hasFile('tree/deep/grand.tree')) fail('read collapsed files', cells());
+  const originalFetch = window.fetch;
+  let denyExpansion = true;
+  window.fetch = (input, init) => {
+    const url = new window.URL(input, window.location.href);
+    if (denyExpansion && url.pathname.endsWith('/api/rows') && url.searchParams.has('expanded')) {
+      denyExpansion = false;
+      return Promise.resolve({ ok: false, status: 403, text: async () => 'Cannot read tree' });
+    }
+    return originalFetch(input, init);
+  };
+  button('Expand tree').click();
+  await until('failed expansion restored', () => button('Expand tree') && document.getElementById('tv-error').textContent === 'Cannot read tree');
+  if (fragment().has('expanded')) fail('failed expansion retained', window.location.hash);
+  button('Expand tree').click();
+  await until('expanded tree', () => cells().length === 6 && button('Collapse tree'));
+  if (!hasFile('tree/child.tree') || hasFile('tree/deep/grand.tree')) fail('direct children only', cells());
+  if (fragment().get('sort') !== '0' || fragment().get('desc') !== '1') fail('expansion cleared sort');
+  button('Expand tree/deep').click();
+  await until('expanded child', () => hasFile('tree/deep/grand.tree'));
+  if (fragment().getAll('expanded').join() !== 'tree,tree/deep') fail('expanded fragment', window.location.hash);
+  document.querySelector('.tv-describe-toggle').click();
+  await until('expanded describe', () => document.querySelector('tr.tv-describe')?.textContent.includes('count7'));
+  button('Expand tree/empty').click();
+  await until('expanded empty directory', () => button('Collapse tree/empty'));
+  if (cells().length !== 7) fail('empty directory rows', cells());
+  [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Group by stem').click();
+  await until('expanded stems', () => headings().includes('stem') && cells().length === 3);
+  [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Files').click();
+  await until('files again', () => button('Collapse tree'));
+  button('Collapse tree').click();
+  await until('collapsed again', () => cells().length === 3 && button('Expand tree'));
+  if (fragment().has('expanded')) fail('descendant expansion retained', window.location.hash);
+  button('Expand tree').click();
+  await until('reopened parent', () => cells().length === 6 && button('Expand tree/deep'));
+  if (hasFile('tree/deep/grand.tree')) fail('child reopened automatically');
+`)
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=**%2F*.tree&expanded=tree&expanded=tree%2Fdeep", `
+  await until('restored expansion', () => cells().length === 7);
+  if (!document.querySelector('button[aria-label="Collapse tree/deep"]')) fail('restored child expansion');
+`)
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "many", "#page=3", `
+  const button = label => document.querySelector('button[aria-label="' + label + '"]');
+  await until('third page', () => button('Expand zz-sub'));
+  button('Expand zz-sub').click();
+  await until('expanded on third page', () => button('Collapse zz-sub'));
+  if (fragment().get('page') !== '3') fail('expansion changed page', window.location.hash);
+`)
+}
+
 func TestTableViewGroupsStemsInBrowser(t *testing.T) {
 	f := newArtifactFixture(t)
 	wav, err := os.ReadFile(filepath.Join("..", "tableview", "testdata", "media", "pcm16.wav"))
@@ -487,11 +555,12 @@ func TestTableViewGroupsStemsInBrowser(t *testing.T) {
 	for _, name := range []string{"eval/ref/u1.wav", "eval/ref/u2.wav", "eval/hyp/u1.wav"} {
 		write(t, filepath.Join(f.work, filepath.FromSlash(name)), string(wav))
 	}
-	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav", `
-  await until('files', () => cells().length === 3);
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav&expanded=eval&expanded=eval%2Fhyp&expanded=eval%2Fref", `
+  await until('files', () => document.querySelectorAll('#tv-table a.tv-media-path').length === 3);
   if (JSON.stringify(headings().slice(0, 4)) !== '["#","path","format","duration"]') fail('file headings', headings());
-  if (cells()[0][3] !== '0:00.50' || !cells()[0][1].includes('eval/hyp/u1.wav') || !cells()[0][1].includes('WAV PCM')) fail('file row', cells()[0]);
-  if (!document.getElementById('tv-summary').textContent.includes('3 files')) fail('summary', document.getElementById('tv-summary').textContent);
+  const wavRow = cells().find(row => row[1].includes('eval/hyp/u1.wav'));
+  if (!wavRow || wavRow[3] !== '0:00.50' || !wavRow[1].includes('WAV PCM')) fail('file row', wavRow);
+  if (!document.getElementById('tv-summary').textContent.includes('7 entries')) fail('summary', document.getElementById('tv-summary').textContent);
 
   // Group by stem lines up the first-level directories under eval/.
   [...document.querySelectorAll('.tv-segmented button')].find(button => button.textContent === 'Group by stem').click();
@@ -526,8 +595,8 @@ func TestTableViewOpensFilesInPanesInBrowser(t *testing.T) {
 	for _, name := range []string{"eval/ref/u1.wav", "eval/hyp/u1.wav", "eval/ref/u2.wav"} {
 		write(t, filepath.Join(f.work, filepath.FromSlash(name)), string(wav))
 	}
-	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav", `
-  await until('files', () => cells().length === 3);
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=eval%2F**%2F*.wav&expanded=eval&expanded=eval%2Fhyp&expanded=eval%2Fref", `
+  await until('files', () => document.querySelectorAll('#tv-table a.tv-media-path').length === 3);
   const panesArea = document.getElementById('tv-panes');
   if (!panesArea.hidden) fail('panes shown before a file is opened');
   const link = path => [...document.querySelectorAll('#tv-table a.tv-media-path')].find(a => a.textContent === path);
@@ -624,8 +693,8 @@ func TestTableViewMovesTabsAndLinksPanesInBrowser(t *testing.T) {
 	for _, name := range []string{"a.wav", "b.wav", "c.wav"} {
 		write(t, filepath.Join(f.work, "set", name), string(wav))
 	}
-	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=set%2F*.wav", `
-  await until('files', () => cells().length === 3);
+	runTableViewScript(t, testOptions(f.baseDir, false), f, "wd", "#pattern=set%2F*.wav&expanded=set", `
+  await until('files', () => document.querySelectorAll('#tv-table a.tv-media-path').length === 3);
   const link = path => [...document.querySelectorAll('#tv-table a.tv-media-path')].find(a => a.textContent === path);
   const paneList = () => [...document.querySelectorAll('.tv-pane')];
   const tabs = pane => [...pane.querySelectorAll('.tv-tab')].map(tab => tab.title);

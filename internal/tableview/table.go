@@ -90,6 +90,8 @@ type Row struct {
 	Number int            `json:"number"`
 	Cells  []string       `json:"cells"`
 	Media  map[int]*Media `json:"media,omitempty"`
+	// Directory is the relative path of an expandable directory row.
+	Directory string `json:"directory,omitempty"`
 }
 
 // Page reads the rows a query selects.
@@ -139,10 +141,13 @@ func (table *Table) Page(query Query) (Page, error) {
 	}
 	for _, number := range numbers {
 		row := Row{Number: number + 1, Cells: byNumber[number]}
+		if source, ok := table.source.(*directoryTable); ok && source.listing.View == ViewFiles && source.files[number].directory {
+			row.Directory = source.files[number].path
+		}
 		for cell, value := range row.Cells {
 			// A directory's paths are in its path columns; a file's may be in
 			// any cell.
-			if table.directory && (cell >= len(columns) || columns[cell].Type != TypePath) {
+			if table.directory && (row.Directory != "" || cell >= len(columns) || columns[cell].Type != TypePath) {
 				continue
 			}
 			if ref := mediaRef(value); ref != "" {
