@@ -498,8 +498,10 @@ by default. To turn it on:
    connect to loopback ports. The server always prints the sign-in user name,
    `rotari`. Unless `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) is set, it
    generates a token and prints it. Enter the user name and token in the Web
-   login form. Set `ROTARI_WEB_AUTH_TOKEN` to keep the same token across
-   restarts.
+   login form; plain HTTP works for a browser on the same host opening
+   `http://127.0.0.1:PORT` or `http://localhost:PORT`, and other access needs
+   HTTPS (see [Security](SECURITY.md#web-ui-authentication-and-transport)).
+   Set `ROTARI_WEB_AUTH_TOKEN` to keep the same token across restarts.
 
 Opening a service establishes an HttpOnly, same-site authentication cookie
 scoped to `/_launch/`, valid for 12 hours or until the Web server restarts.

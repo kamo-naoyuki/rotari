@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -105,7 +106,7 @@ func WithAuthToken(next http.Handler, token string) http.Handler {
 		}
 		tokenAuthenticated := len(provided) == len(token) &&
 			subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
-		sessionAuthenticated := isSecureAuthRequest(request) && sessions.accepts(request, time.Now())
+		sessionAuthenticated := allowsBrowserSession(request) && sessions.accepts(request, time.Now())
 		launchRequest := strings.HasPrefix(request.URL.Path, launchProxyPrefix)
 		launchSessionAuthenticated := launchRequest && launchSession.accepts(request, time.Now())
 		authenticated := tokenAuthenticated || sessionAuthenticated || launchSessionAuthenticated
@@ -143,8 +144,8 @@ func WithAuthToken(next http.Handler, token string) http.Handler {
 
 func handleWebLogin(writer http.ResponseWriter, request *http.Request, token string, sessions *webSessions) {
 	noCacheAuthResponse(writer)
-	if !isSecureAuthRequest(request) {
-		http.Error(writer, "browser login requires HTTPS", http.StatusForbidden)
+	if !allowsBrowserSession(request) {
+		http.Error(writer, "browser login requires HTTPS or a direct connection to localhost", http.StatusForbidden)
 		return
 	}
 	nextPath := safeWebReturnPath(request.URL.Query().Get("next"))
@@ -240,6 +241,43 @@ func sameOriginFormPost(request *http.Request) bool {
 
 func isSecureAuthRequest(request *http.Request) bool {
 	return request.TLS != nil || strings.EqualFold(strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")), "https")
+}
+
+// allowsBrowserSession reports whether a browser may sign in, or use its
+// session, on this request: over HTTPS, directly or through a TLS-terminating
+// reverse proxy, or over a direct loopback connection, whose plain HTTP never
+// leaves the host.
+func allowsBrowserSession(request *http.Request) bool {
+	return isSecureAuthRequest(request) || isDirectLoopbackRequest(request)
+}
+
+// proxyHeaders mark a request that a reverse proxy relayed, possibly from
+// another host; such a request is never a direct loopback connection.
+var proxyHeaders = []string{"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Real-Ip"}
+
+// isDirectLoopbackRequest reports a request from this host, addressed to a
+// loopback name, with no proxy headers. Browsers treat http://localhost and
+// http://127.0.0.1 as secure contexts, so the Secure session cookie still
+// works there.
+func isDirectLoopbackRequest(request *http.Request) bool {
+	for _, header := range proxyHeaders {
+		if request.Header.Get(header) != "" {
+			return false
+		}
+	}
+	remote, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	if ip := net.ParseIP(remote); ip == nil || !ip.IsLoopback() {
+		return false
+	}
+	host := request.Host
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		host = name
+	}
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	return host != "" && IsLoopbackHost(host)
 }
 
 func safeWebReturnPath(value string) string {

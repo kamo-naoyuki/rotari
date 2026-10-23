@@ -28,9 +28,11 @@ next to it. A failed start is recorded in `<basedir>/server.log`.
 ## Web UI authentication and transport
 
 Without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind the Web UI to
-`127.0.0.1`. With a token, use HTTPS through a trusted reverse proxy for
-browser login and session cookies. Browser login is refused over plain HTTP.
-API token credentials are also unencrypted over HTTP, so use them only on a
+`127.0.0.1`. With a token, browser login and session cookies work over plain
+HTTP only on a direct loopback connection: a browser on the same host opening
+`http://localhost` or `http://127.0.0.1`, with no proxy headers. Everywhere
+else, use HTTPS through a trusted reverse proxy; browser login is refused over
+other plain HTTP. API token credentials are also unencrypted over HTTP, so use them only on a
 trusted network or over HTTPS. Prefer the environment variable so the token
 does not appear in the process list.
 

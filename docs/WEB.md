@@ -51,12 +51,15 @@ environment variables are in
 ## Reaching the UI
 
 - **Same machine:** the default `127.0.0.1` binding needs no token unless you
-  use `--allow-exec`.
+  use `--allow-exec`. With one, sign in at `http://127.0.0.1:PORT` or
+  `http://localhost:PORT` directly; plain HTTP is accepted for a browser on
+  the same host.
 - **Remote machine:** forward the port with `ssh -L PORT:127.0.0.1:PORT host`
   and keep the loopback binding. Launched services open through the same port,
   so no further forward is needed.
 - **Shared network:** set a token and put an HTTPS reverse proxy in front.
-  Browser sign-in is refused over plain HTTP. Sign in with the user name
+  Browser sign-in is refused over plain HTTP that is not a direct loopback
+  connection. Sign in with the user name
   `rotari` and the token as the password; the session lasts 12 hours. API
   clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`.
 

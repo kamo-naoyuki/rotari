@@ -3,6 +3,7 @@ package webui
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -2341,6 +2342,107 @@ func TestWebSessionCookieAlwaysUsesSecureAttribute(t *testing.T) {
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 || !cookies[0].Secure {
 		t.Fatalf("session cookie = %v, want Secure", cookies)
+	}
+}
+
+// A browser may sign in and use its session over plain HTTP only on a direct
+// connection from this host to a loopback name; anything that may have
+// crossed a network still needs HTTPS.
+func TestWebLoginOverHTTPOnlyOnDirectLoopback(t *testing.T) {
+	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	})
+	handler := WithAuthToken(next, "secret")
+	for _, tc := range []struct {
+		name    string
+		remote  string
+		host    string
+		header  string
+		allowed bool
+	}{
+		{name: "localhost", remote: "127.0.0.1:40000", host: "localhost:8787", allowed: true},
+		{name: "127.0.0.1", remote: "127.0.0.1:40000", host: "127.0.0.1:8787", allowed: true},
+		{name: "IPv6 loopback", remote: "[::1]:40000", host: "[::1]:8787", allowed: true},
+		{name: "other loopback address", remote: "127.0.0.2:40000", host: "127.0.0.1:8787", allowed: true},
+		{name: "remote client", remote: "192.0.2.10:40000", host: "localhost:8787"},
+		{name: "remote client naming the server", remote: "192.0.2.10:40000", host: "gpu01:8787"},
+		{name: "local client naming a public host", remote: "127.0.0.1:40000", host: "gpu01:8787"},
+		{name: "relayed by a proxy", remote: "127.0.0.1:40000", host: "localhost:8787", header: "X-Forwarded-For"},
+		{name: "relayed over plain HTTP", remote: "127.0.0.1:40000", host: "localhost:8787", header: "X-Forwarded-Proto"},
+		{name: "standard forwarding header", remote: "127.0.0.1:40000", host: "localhost:8787", header: "Forwarded"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := func(method, target, origin string, body io.Reader) *http.Request {
+				request := httptest.NewRequest(method, "http://"+tc.host+target, body)
+				request.RemoteAddr = tc.remote
+				if tc.header == "X-Forwarded-Proto" {
+					request.Header.Set(tc.header, "http")
+				} else if tc.header != "" {
+					request.Header.Set(tc.header, "for=192.0.2.10")
+				}
+				if origin != "" {
+					request.Header.Set("Origin", origin)
+				}
+				return request
+			}
+
+			page := httptest.NewRecorder()
+			handler.ServeHTTP(page, request(http.MethodGet, webLoginPath, "", nil))
+			login := request(http.MethodPost, webLoginPath, "http://"+tc.host, strings.NewReader(url.Values{
+				"username": {"rotari"}, "password": {"secret"}, "next": {"/"},
+			}.Encode()))
+			login.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			loggedIn := httptest.NewRecorder()
+			handler.ServeHTTP(loggedIn, login)
+
+			if !tc.allowed {
+				if page.Code != http.StatusForbidden || loggedIn.Code != http.StatusForbidden ||
+					!strings.Contains(loggedIn.Body.String(), "requires HTTPS") {
+					t.Fatalf("login page = %d, POST = %d %s; want 403", page.Code, loggedIn.Code, loggedIn.Body.String())
+				}
+				return
+			}
+			cookies := loggedIn.Result().Cookies()
+			if page.Code != http.StatusOK || loggedIn.Code != http.StatusSeeOther || len(cookies) != 1 ||
+				!cookies[0].Secure || cookies[0].Name != webSessionCookie {
+				t.Fatalf("login page = %d, POST = %d %s, cookies = %v", page.Code, loggedIn.Code, loggedIn.Body.String(), cookies)
+			}
+			session := request(http.MethodGet, "/api/state", "", nil)
+			session.AddCookie(cookies[0])
+			used := httptest.NewRecorder()
+			handler.ServeHTTP(used, session)
+			if used.Code != http.StatusNoContent {
+				t.Fatalf("session request = %d, want 204", used.Code)
+			}
+		})
+	}
+}
+
+// A session issued over direct loopback HTTP is not accepted from another host.
+func TestWebLoopbackSessionRejectedFromRemoteClient(t *testing.T) {
+	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	})
+	handler := WithAuthToken(next, "secret")
+	login := httptest.NewRequest(http.MethodPost, "http://localhost:8787"+webLoginPath, strings.NewReader(url.Values{
+		"username": {"rotari"}, "password": {"secret"},
+	}.Encode()))
+	login.RemoteAddr = "127.0.0.1:40000"
+	login.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	login.Header.Set("Origin", "http://localhost:8787")
+	loggedIn := httptest.NewRecorder()
+	handler.ServeHTTP(loggedIn, login)
+	cookies := loggedIn.Result().Cookies()
+	if loggedIn.Code != http.StatusSeeOther || len(cookies) != 1 {
+		t.Fatalf("loopback login = %d, cookies = %v", loggedIn.Code, cookies)
+	}
+	remote := httptest.NewRequest(http.MethodGet, "http://localhost:8787/api/state", nil)
+	remote.RemoteAddr = "192.0.2.10:40000"
+	remote.AddCookie(cookies[0])
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, remote)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("remote session request = %d, want 401", recorder.Code)
 	}
 }
 

@@ -354,6 +354,61 @@ func TestWebLaunchRequiresOptInAndToken(t *testing.T) {
 		}
 	})
 
+	t.Run("browser login over direct loopback HTTP", func(t *testing.T) {
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		values := url.Values{"username": {"rotari"}, "password": {launchToken}, "next": {"/"}}
+		request, err := http.NewRequest(http.MethodPost, base+"/_auth/login", strings.NewReader(values.Encode()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		request.Header.Set("Origin", base)
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		cookies := response.Cookies()
+		if response.StatusCode != http.StatusSeeOther || len(cookies) != 1 ||
+			cookies[0].Name != "rotari_web_session" || !cookies[0].Secure {
+			t.Fatalf("loopback login = %d, cookies = %v", response.StatusCode, cookies)
+		}
+		// Browsers send the Secure cookie to http://127.0.0.1; Go's cookie jar
+		// does not, so attach it by hand.
+		session, err := http.NewRequest(http.MethodGet, base+"/api/launchers", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		session.AddCookie(cookies[0])
+		response, err = client.Do(session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("loopback session request = %d, want 200", response.StatusCode)
+		}
+		// A request a proxy relayed is not a direct loopback connection.
+		relayed, err := http.NewRequest(http.MethodGet, base+"/_auth/login", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		relayed.Header.Set("X-Forwarded-For", "192.0.2.10")
+		response, err = client.Do(relayed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusForbidden {
+			t.Fatalf("relayed login page = %d, want 403", response.StatusCode)
+		}
+	})
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		t.Fatal(err)

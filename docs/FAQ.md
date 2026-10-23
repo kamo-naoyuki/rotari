@@ -570,7 +570,7 @@ It shows the saved runner lock and the supervisor's PID record. It is not a live
 
 ### Is `rotari web` safe to expose beyond `127.0.0.1`?
 
-Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`). Browser login requires HTTPS;
+Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`). Beyond a direct loopback connection from the same host, browser login requires HTTPS;
 API token authentication may be used only on a trusted network or over HTTPS. Do not expose the UI without a token. The browser shows a sign-in form; use `rotari` as the user name and the token as the password. After sign-in, a 12-hour session cookie keeps the Web UI authenticated. API clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; Basic authentication is not supported. This is authentication, not encryption. Environment variable values are never exposed; the UI shows only whether each variable is set.
 
 ### Why does Chrome warn that my Web token was found in a data breach?

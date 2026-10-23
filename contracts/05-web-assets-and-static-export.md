@@ -342,8 +342,13 @@ and [`TestWebListsBasedirsRegisteredAfterStart`](../conformance/05-web/basedir_r
 - `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` protects every live Web route with
   a login form and a revocable 12-hour session cookie; API clients authenticate
   with `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`. Basic
-  authentication is not supported. Browser login requires HTTPS, and its
-  session cookie always has the `Secure` attribute. API token authentication
+  authentication is not supported. Browser login and session use require
+  HTTPS (TLS, or `X-Forwarded-Proto: https` from a TLS-terminating proxy) or
+  a direct loopback connection: a loopback client addressing a loopback
+  `Host` (`localhost`, `127.0.0.1`, `[::1]`) with no `Forwarded`,
+  `X-Forwarded-*`, or `X-Real-Ip` header, whose plain HTTP never leaves the
+  host. The session cookie always has the `Secure` attribute; browsers treat
+  `http://localhost` and loopback addresses as secure contexts. API token authentication
   does not encrypt HTTP traffic and must only be used over a trusted network
   or HTTPS. The notification
   settings form masks a saved webhook URL in its input and never returns that
@@ -760,9 +765,10 @@ it, and both are rejected with `--static-dir` (WEB-3). With it, every route
 requires the Web token, on loopback listeners too: without
 `--auth-token` or `ROTARI_WEB_AUTH_TOKEN`, the server generates one and
 prints it on stderr; it always prints the sign-in user name and never prints a
-configured token. Browser users sign in through the login form over HTTPS and
-receive a revocable 12-hour `Secure` session cookie; login over plain HTTP is
-refused. API callers continue to use bearer or `X-Rotari-Token` credentials.
+configured token. Browser users sign in through the login form over HTTPS, or
+over plain HTTP on a direct loopback connection (see the authentication
+bullet above), and receive a revocable 12-hour `Secure` session cookie; other
+plain-HTTP login and session use are refused. API callers continue to use bearer or `X-Rotari-Token` credentials.
 Session-cookie mutations require a same-origin request, and signing out
 revokes the session and expires both Web and launch cookies with `Secure`
 set, regardless of the logout request's transport. Without it,
@@ -771,8 +777,10 @@ and enabling hint, and the launch API answers 403 with the same text. Covered
 by `TestWebLaunchRequiresOptInAndToken` in
 [conformance/05-web/launch_test.go](../conformance/05-web/launch_test.go),
 and the login-cookie requirements by
-`TestWebLoginFormCreatesAndRevokesSession` and
-`TestWebSessionCookieAlwaysUsesSecureAttribute` in
+`TestWebLoginFormCreatesAndRevokesSession`,
+`TestWebSessionCookieAlwaysUsesSecureAttribute`,
+`TestWebLoginOverHTTPOnlyOnDirectLoopback`, and
+`TestWebLoopbackSessionRejectedFromRemoteClient` in
 [webui_test.go](../internal/webui/webui_test.go), implemented in
 [auth.go](../internal/webui/auth.go).
 Logout cookie attributes across HTTP, TLS, and TLS proxies are checked by
