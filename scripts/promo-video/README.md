@@ -201,8 +201,9 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
 
 The second video covers the end of the experiment cycle: a TTS training run
 finishes, the desktop shows a notification, the Web UI Inbox lists it, Slack
-gets the webhook message, and the outputs (loss plot, audio samples, an
-evaluation table) are opened from the job's Artifacts without copying files.
+gets the webhook message, and the outputs (a loss plot, then an audio sample
+from the evaluation table) are opened from the run page. The hook is only
+"Is it done yet?": checking a log again and again.
 
 ```sh
 scripts/promo-video/02_results.sh
@@ -238,8 +239,11 @@ message, crop the message above the input box, and replace `assets/slack/`.
   skips f-strings, so only `--out outputs/exp0415` is listed; plain literals such
   as `"loss.png"` were listed as missing paths under the working directory.
   The Table viewer's media paths resolve from "this file's directory".
-- **Audio:** the Web UI plays the sample while frames are recorded; the same
-  WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene `sfx`.
+- **Audio:** a sample is opened from `eval.csv` in the Table viewer, which
+  draws its waveform and spectrogram, and plays while frames are recorded;
+  the same WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene
+  `sfx`. The viewer is shown briefly and not named or explained: it needs a
+  table of results and serves a narrower need than the episode's message.
 - **TensorBoard is left out.** Launching needs `rotari web --allow-exec`, whose
   browser login required HTTPS until loopback HTTP sign-in was allowed
   (2026-10-23); a TensorBoard scene can now be added. `newroot.sh` already
