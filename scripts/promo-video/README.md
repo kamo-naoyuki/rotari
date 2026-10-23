@@ -235,7 +235,7 @@ message, crop the message above the input box, and replace `assets/slack/`.
   never drawn by the pipeline itself.
 - **Artifacts:** the fake job writes its outputs with f-strings
   (`f"{out}/loss.png"`), as training code commonly does. Artifact discovery
-  skips f-strings, so only `--out outputs/run1` is listed; plain literals such
+  skips f-strings, so only `--out outputs/exp0415` is listed; plain literals such
   as `"loss.png"` were listed as missing paths under the working directory.
   The Table viewer's media paths resolve from "this file's directory".
 - **Audio:** the Web UI plays the sample while frames are recorded; the same

@@ -72,6 +72,19 @@ max_jobs = 10
 """
 
 
+# Earlier experiments' output directories, named the way people name them.
+PAST_OUTPUTS = [
+    "exp0410",
+    "exp0410_v2",
+    "exp0411_v2_fix",
+    "exp0412_lr1e-3",
+    "exp0412_lr1e-3_final",
+    "exp0413_lr3e-4",
+    "exp0413_lr3e-4_bs32",
+]
+RUN_OUT = "outputs/exp0415"
+
+
 class Recorder(http.server.BaseHTTPRequestHandler):
     """Saves each webhook POST body as OUT/webhook/NNN.json."""
 
@@ -137,10 +150,14 @@ def main():
     hook = http.server.HTTPServer(("127.0.0.1", HOOK_PORT), Recorder)
     threading.Thread(target=hook.serve_forever, daemon=True).start()
 
-    # Hook: waiting on a run by hand, then fetching its results by hand.
+    # Hook: waiting on a run by hand, then hunting for its outputs among
+    # earlier experiments' directories.
+    for old in PAST_OUTPUTS:
+        os.makedirs(f"{HOME}/tts/outputs/{old}/samples", exist_ok=True)
     t = S.term("wait", f"{HOME}/tts")
     S.sh(
-        "nohup python train.py --out outputs/try1 > train.log 2>&1 &", cwd=f"{HOME}/tts"
+        "nohup python train.py --out outputs/exp0414_lr3e-4_bs16 > train.log 2>&1 &",
+        cwd=f"{HOME}/tts",
     )
     # Python and matplotlib take a few seconds to start; wait for epoch 1.
     time.sleep(6)
@@ -148,9 +165,8 @@ def main():
     t.wait(0.8)
     time.sleep(3.2)
     t.run("tail -n 1 train.log", line_s=0.05)
-    t.type("scp gpu-box:~/tts/outputs/try1/loss.png .", cps=45)
     t.wait(0.4)
-    t.type("ssh -L 6006:localhost:6006 gpu-box", cps=45)
+    t.run("ls outputs/", line_s=0.07)
     t.wait(0.6)
     terms.append(t)
     time.sleep(6)
@@ -195,7 +211,7 @@ def main():
             # Submit the run from the terminal, then watch it end in the Web UI.
             t = S.term("submit", f"{HOME}/tts")
             t.run(
-                "rotari add -p tts python train.py --out outputs/run1",
+                f"rotari add -p tts python train.py --out {RUN_OUT}",
                 keep=only("added"),
             )
             t.run("rotari run -p tts --async", keep=only("=== Run started", "Project:"))
@@ -225,13 +241,13 @@ def main():
             modal = page.locator("#output-modal")
             page.wait_for_timeout(1200)
             S.record(page, frames, "artifacts", 0.5, fps=4)
-            modal.get_by_text("outputs/run1", exact=True).click()
+            modal.get_by_text(RUN_OUT, exact=True).click()
             page.wait_for_timeout(1200)
             S.record(page, frames, "run1", 0.5, fps=4)
             modal.get_by_text("loss.png", exact=True).first.click()
             page.wait_for_timeout(1500)
             S.record(page, frames, "loss", 0.5, fps=4)
-            modal.get_by_text("outputs/run1", exact=True).click()
+            modal.get_by_text(RUN_OUT, exact=True).click()
             page.wait_for_timeout(800)
             modal.get_by_text("samples", exact=True).click()
             page.wait_for_timeout(1000)
@@ -242,9 +258,9 @@ def main():
             S.record(page, frames, "audio", 7.0, fps=8)
             # The clip the Web UI played, for the video's audio track.
             shutil.copy(
-                f"{HOME}/tts/outputs/run1/samples/LJ001-0001.wav", f"{OUT}/sample.wav"
+                f"{HOME}/tts/{RUN_OUT}/samples/LJ001-0001.wav", f"{OUT}/sample.wav"
             )
-            modal.get_by_text("outputs/run1", exact=True).click()
+            modal.get_by_text(RUN_OUT, exact=True).click()
             page.wait_for_timeout(800)
             row = modal.locator("tr", has_text="eval.csv")
             row.get_by_role("button", name="Launch with…").click()

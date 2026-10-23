@@ -77,16 +77,16 @@ def timeline():
     finish = [[t - (at - lead), p] for t, p in web["finish"] if t >= at - lead]
 
     return [
-        # Hook: waiting, then fetching results by hand.
+        # Hook: waiting, then hunting for the outputs.
         term(
             "wait",
             "~/tts",
             [
                 [0, "Is it done yet?"],
-                [5.0, "…then scp, ssh -L,<br><em>tensorboard.</em>"],
+                [5.2, "…and which folder<br><em>was it again?</em>"],
             ],
             speed=1.3,
-            say="Is it done yet? And when it is, you still have to go and fetch the results.",
+            say="Is it done yet? And when it is, which folder was it again?",
         ),
         # Act 1: know when it ends.
         term(
@@ -125,8 +125,8 @@ def timeline():
         webscene(
             "artifacts",
             3.4,
-            [[0, "Outputs,<br><em>found for you.</em>"]],
-            say="Rotari finds the outputs from the job's command.",
+            [[0, "Each run knows<br><em>its own outputs.</em>"]],
+            say="With rotari, each run knows its outputs, found from the job's command.",
         ),
         webscene("run1", 2.2, [[0, "Plots, samples,<br>tables, logs."]]),
         webscene(
@@ -144,8 +144,8 @@ def timeline():
         webscene(
             "table",
             4.2,
-            [[0, "…and browse the results.<br><em>No scp needed.</em>"]],
-            say="and browse the results table. No copying files around.",
+            [[0, "…and browse the results,<br><em>right in the browser.</em>"]],
+            say="and browse the results table, right in the browser.",
         ),
         # Close.
         {
