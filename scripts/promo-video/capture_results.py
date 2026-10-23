@@ -128,6 +128,9 @@ def x11grab(name, seconds, fps=10):
             "error",
             "-f",
             "x11grab",
+            # Chrome sets its own cursor, which -nocursor on Xvfb does not hide.
+            "-draw_mouse",
+            "0",
             "-video_size",
             SCREEN,
             "-framerate",
@@ -180,9 +183,21 @@ def main():
     )
     time.sleep(1.5)
     try:
+        # Signing in would otherwise leave Chrome's "Save password?" bubble on
+        # screen; turn the password manager off in the profile.
+        profile = f"{HOME}/.cache/chrome-profile"
+        os.makedirs(f"{profile}/Default", exist_ok=True)
+        Path(f"{profile}/Default/Preferences").write_text(
+            json.dumps(
+                {
+                    "credentials_enable_service": False,
+                    "profile": {"password_manager_enabled": False},
+                }
+            )
+        )
         with sync_playwright() as p:
             ctx = p.chromium.launch_persistent_context(
-                f"{HOME}/.cache/chrome-profile",
+                profile,
                 executable_path="/usr/bin/google-chrome",
                 headless=False,
                 no_viewport=True,
