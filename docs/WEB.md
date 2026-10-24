@@ -81,8 +81,8 @@ the [FAQ](FAQ.md#is-rotari-web-safe-to-expose-beyond-127001).
   `rotari run` executes.
 - **Artifacts:** preview recorded files and directories, download files, and
   open CSV/TSV files in the Table viewer, which works without `--allow-exec`.
-  See [Artifacts](INSPECT.md#artifacts) and
-  [Viewing tables](INSPECT.md#viewing-tables).
+  See [Artifacts](OUTPUTS.md#artifacts) and
+  [Viewing tables](OUTPUTS.md#viewing-tables).
 - **Config:** **Generate config** and **View config** edit one config source at
   a time; see [Configuration](CONFIGURATION.md).
 - **Notifications:** the in-page inbox and optional desktop popups; see
@@ -114,7 +114,7 @@ What is different about this mode, in brief:
   what can be selected, not what a command does.
 
 The details are not repeated here:
-[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)
+[Launching commands on artifacts](OUTPUTS.md#launching-commands-on-artifacts)
 for use, [Launcher commands](CONFIGURATION.md#launcher-commands) for the file,
 and [Security model](SECURITY.md) for the guarantees and
 limits, including the loopback port a launched service listens on.

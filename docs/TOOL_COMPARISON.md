@@ -225,7 +225,7 @@ How they fit together:
   view also offers the job's working directory as `.`, so stores created
   there implicitly—such as MLflow's default `mlflow.db` and Aim's `.aim`
   repository—can be browsed and opened without declaring them as candidates.
-  See [Using rotari with experiment trackers](INSPECT.md#using-rotari-with-experiment-trackers)
+  See [Using rotari with experiment trackers](OUTPUTS.md#using-rotari-with-experiment-trackers)
   for the default locations, run tags, and storage trade-offs.
 - **Sweeps.** Rotari's matrix and array jobs run parameter sweeps on any
   backend and keep each trial's logs and status; the tracker compares their

@@ -78,7 +78,7 @@ Launching is off by default. `rotari web --allow-exec` lets anyone who can
 sign in run the built-in services (TensorBoard, Jupyter Lab, MLflow, Aim,
 Streamlit) and commands registered in your global `launchers.toml`, as you,
 against the job artifacts the Web UI may serve. See
-[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts).
+[Launching commands on artifacts](OUTPUTS.md#launching-commands-on-artifacts).
 
 The browser and API only name a registered command and an artifact. Command
 text, working directories, and modes come only from `launchers.toml`, which

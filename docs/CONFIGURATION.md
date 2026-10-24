@@ -213,7 +213,7 @@ file. For the event settings, fields, and Slack/Teams/Discord setup, see
 Lab, MLflow, Aim, and Streamlit; see [Built-in services](#built-in-services))
 and the commands `launchers.toml` registers, against a job's artifacts from
 the Web UI (see
-[Launching commands on artifacts](INSPECT.md#launching-commands-on-artifacts)).
+[Launching commands on artifacts](OUTPUTS.md#launching-commands-on-artifacts)).
 An entry in the file with a built-in's name replaces it, for example to run
 TensorBoard from a particular environment.
 Rotari reads it **only from the global config directory**

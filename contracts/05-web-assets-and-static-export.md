@@ -751,7 +751,7 @@ covered by `TestRunReportReadsCarriedJobLogs` in
 
 `rotari web --allow-exec` runs the commands a user registered in
 `launchers.toml` against job artifacts. The user guide is
-[Launching commands on artifacts](../docs/INSPECT.md#launching-commands-on-artifacts),
+[Launching commands on artifacts](../docs/OUTPUTS.md#launching-commands-on-artifacts),
 the file format [Launcher commands](../docs/CONFIGURATION.md#launcher-commands),
 and the design [the artifact launcher plan](../development/2026-10-20-artifact-launcher/plan.md).
 The manager is [internal/launcher](../internal/launcher/), the Web side

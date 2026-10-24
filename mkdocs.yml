@@ -23,6 +23,7 @@ nav:
       - Running and controlling jobs: RUNNING.md
       - Recovering failed runs: RECOVERING.md
       - Inspecting: INSPECT.md
+      - Outputs and artifacts: OUTPUTS.md
       - Web UI: WEB.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Configuration: CONFIGURATION.md
