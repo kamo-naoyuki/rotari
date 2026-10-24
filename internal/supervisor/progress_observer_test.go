@@ -29,13 +29,13 @@ func TestProgressObserverPreservesResultResponses(t *testing.T) {
 		},
 		{
 			name:    "failure with attempt",
-			result:  model.JobResult{ID: "job", AttemptID: "attempt", Command: []string{"exit", "7"}, ExitCode: 7, Error: "final-failure"},
-			message: "Job failed:\n  ID: job\n  Attempt ID: attempt\n  Command: exit 7\n  Show output:\n    rotari show -j attempt",
+			result:  model.JobResult{ID: "job", Name: "train[3]", AttemptID: "attempt", Command: []string{"exit", "7"}, ExitCode: 7, Error: "final-failure"},
+			message: "Job failed:\n  ID: job\n  Attempt ID: attempt\n  Name: train[3]\n  Command: exit 7\n  Show output:\n    rotari show -j attempt",
 		},
 		{
 			name: "failure after retry without attempt", retry: 1,
 			result:  model.JobResult{ID: "job", Command: []string{"exit", "9"}, ExitCode: 9, Error: "final-failure"},
-			message: "Job failed after retry:\n  ID: job\n  Attempt ID: job\n  Command: exit 9\n  Show output:\n    rotari show --run-id run-1 --job-id job",
+			message: "Job failed after retry:\n  ID: job\n  Attempt ID: job\n  Name: -\n  Command: exit 9\n  Show output:\n    rotari show --run-id run-1 --job-id job",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

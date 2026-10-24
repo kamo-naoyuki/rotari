@@ -25,7 +25,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 7,410 unordered flag-name pairs
+- `TestCLIFlagPairInventory` enumerates all 8,545 unordered flag-name pairs
   from the command schema. Sorted flag-name fingerprints require an explicit
   coverage review when a command or flag is added, removed, or renamed. This
   is not exhaustive value coverage; changes to descriptions/types without a
@@ -42,8 +42,8 @@ implementation imports. The staged rollout is tracked in the
   and representative repeated result/exit-code values. Only diagnosed mode
   incompatibilities are accepted as nonzero outcomes; parser/sample errors,
   missing state, panic/internal errors, and timeouts fail.
-- `TestCLIFlagPairFiles` executes the 15 `config` and 21 `export` pairs in both
-  orders (72 invocations). Each invocation starts without its isolated output
+- `TestCLIFlagPairFiles` executes the 21 `config` and 21 `export` pairs in both
+  orders (84 invocations). Each invocation starts without its isolated output
   directory. Observations include stdout/stderr, file presence, content, and
   permissions; queue/history contents and file modes must not change. Config
   uses a fallback output outside the basedir to avoid a prompt, except in list
@@ -60,8 +60,8 @@ implementation imports. The staged rollout is tracked in the
   two `--since` values. Accepted combinations must match the job table's IDs
   and have a distinguishing witness. Explicit incompatibility errors are
   valid outcomes, not successful selection checks.
-- `TestCLIFlagPairMutations` executes the 136 `remove`, 21 `reset`, and 28
-  `delete` pairs in both orders (370 invocations) from a fixture with two
+- `TestCLIFlagPairMutations` executes the 136 `remove`, 15 `reset`, and 28
+  `delete` pairs in both orders (358 invocations) from a fixture with two
   finished runs and a restored queue plus one queue-only job. Before every
   invocation the whole environment root is restored to the initial snapshot:
   paths, contents, modes, and modification times (latest-run lookup reads
@@ -95,8 +95,8 @@ implementation imports. The staged rollout is tracked in the
   distinct current queue with file output, and template/notification modes
   produce their own distinct content. These are not blanket equal-output
   exceptions.
-- `TestCLIFlagPairEdits` executes all 351 `add`, 780 `change`, 496 `copy`, and
-  21 `import` pairs (1,648 pairs; 3,296 invocations). Each flag order starts
+- `TestCLIFlagPairEdits` executes all 351 `add`, 780 `change`, 630 `copy`, and
+  21 `import` pairs (1,782 pairs; 3,564 invocations). Each flag order starts
   from the restored root, and rejected edits/previews must leave it
   byte-identical. Import plan revisions are checked against `check` before
   normalization. Newly allocated command/matrix IDs use a one-to-one mapping
@@ -109,12 +109,12 @@ implementation imports. The staged rollout is tracked in the
   witness verifies `--matrix-exclude` persists its rule and removes the
   requested combination. These focused witnesses supplement the pair loop,
   rather than treating a successful exit as proof that each option took effect.
-- `TestCLIFlagPairPreviews` executes all 1,830 `run` and 1,830 `retry` pairs
+- `TestCLIFlagPairPreviews` executes all 2,211 `run` and 2,211 `retry` pairs
   in both orders through `--dry-run`. Four concurrent cases compare output and
   exit status and verify that fixture state stays unchanged. Standalone
   samples and dedicated async-conflict, run-name, and selection witnesses
   supplement this mode-specific matrix; no job or scheduler starts.
-- `TestCLIFlagPairWait` executes all 28 `wait` pairs in both orders against a
+- `TestCLIFlagPairWait` executes all 45 `wait` pairs in both orders against a
   single finished failed run, with an explicit two-second timeout on every
   invocation. The expected exit 1 is the fixture run's result, not a diagnosed
   option rejection; stderr must remain empty, output must match the selected
@@ -135,7 +135,7 @@ implementation imports. The staged rollout is tracked in the
   signal. An alternate-registry witness proves config selection and explicit
   masterdir precedence in both orders. Shutdown and live lease behavior are
   still outside this adapter.
-- `TestCLIFlagPairWeb` executes all 45 `web` pairs in static-export mode, with
+- `TestCLIFlagPairWeb` executes all 66 `web` pairs in static-export mode, with
   generated output compared by relative asset paths and permissions in both
   orders. Server-only options (`--host`, `--port`, `--auth-token`,
   `--allow-control`, and `--artifact-root`) are explicitly rejected whenever
@@ -209,7 +209,7 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and twenty-seven of the twenty-nine commands with
+Every pair is inventoried, and twenty-eight of the thirty commands with
 at least two advertised flags have adapters; only `bug-report`'s and
 `tableview`'s pairs are deferred.
 
@@ -217,19 +217,21 @@ at least two advertised flags have adapters; only `bug-report`'s and
 | --- | ---: | --- |
 | `bug-report` | 36 | An adapter that normalizes the collection time, the basedir clock probe, and the host's scheduler commands before comparing the two orders |
 | `tableview` | 3 | An adapter that starts the server on a temporary file in each order of `--host`, `--port`, and `--auth-token` and compares the pages it serves |
-| `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
+| `schema`, `completion`, `guide`, `version`, `env`, `init` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 7,085 executed pairs consist of 809 read-only, 36 file-output, 172
-queue-mutation, 1,648 edit, 3,782 run/retry previews, 6 unlock, 45 wait,
-6 gc/server, 1 MCP, 45 web static-export, 532 job-control, and 3 note pairs. The edit
-pair loop accepted 1,309 and explicitly rejected 339 pairs in 3,296
-invocations; one run took 43s on the edit loop alone.
+The 8,506 executed pairs consist of 1,407 read-only, 42 file-output, 179
+queue-mutation, 1,782 edit, 4,422 run/retry previews, 21 unlock, 45 wait,
+6 gc/server, 1 MCP, 66 web static-export, 532 job-control, and 3 note pairs,
+as `TestCLIFlagPairInventory` reported on 2026-10-24; it is authoritative when
+these counts drift. When the edit adapter had 1,648 pairs, its loop accepted
+1,309 and explicitly rejected 339 pairs in 3,296 invocations; one run took 43s
+on the edit loop alone.
 
-The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
-pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to
-list every `run` option it takes (61 flags, as `run` had then; 62 with
-`--note`, 63 with `--actor`). This excludes actual
-execution, supervisor/async lifecycle, scheduler submission, and host effects.
+On 2026-10-24 the run/retry dry-run pair loop accepted 4,176 and explicitly
+rejected 246 pairs, with 8,844 invocations in 34.2 seconds; `run` and `retry`
+each advertise 67 flags, and `retry`'s spec lists every `run` option it takes.
+This excludes actual execution, supervisor/async lifecycle, scheduler
+submission, and host effects.
 
 ## Remaining observation gaps
 

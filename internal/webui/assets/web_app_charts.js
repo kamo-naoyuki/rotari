@@ -288,9 +288,13 @@ function laneRowsHTML(entries, rowHeight) {
   return entries
     .map((entry) => {
       const track = entry.lane.carried
-        ? '<span class="lane-note">carried from an earlier run</span>'
+        ? '<span class="lane-note" title="carried from an earlier run">carried from an earlier run</span>'
         : !entry.drawn
-          ? '<span class="lane-note">' + esc(entry.status) + "</span>"
+          ? '<span class="lane-note" title="' +
+            esc(entry.status) +
+            '">' +
+            esc(entry.status) +
+            "</span>"
           : '<span class="lane-bar tone-' +
             entry.tone +
             (entry.faint ? " open" : "") +

@@ -125,6 +125,7 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 			reported := result
 			if result.ExitCode != 0 {
 				reported.Error = "final-failure"
+				reported.Name = job.Name
 			}
 			progress(reported)
 		}

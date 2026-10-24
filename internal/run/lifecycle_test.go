@@ -62,6 +62,9 @@ func TestExecuteJobsRunsDependenciesAndReportsRetries(t *testing.T) {
 		Progress: func(result model.JobResult, _, _, _, _ int) {
 			mu.Lock()
 			progress = append(progress, result.ID+":"+result.Error)
+			if result.Error == "final-failure" && result.Name != "first" {
+				t.Errorf("final failure name = %q, want first", result.Name)
+			}
 			mu.Unlock()
 		},
 	})

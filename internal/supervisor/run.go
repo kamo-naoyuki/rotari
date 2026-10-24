@@ -379,6 +379,15 @@ func (ops Operations) progressObserver(request server.Request, started startedRu
 	return runObserver(request, started.runID, emit)
 }
 
+// progressJobName shows a job's name in a progress block, or "-" when it
+// has none.
+func progressJobName(name string) string {
+	if name == "" {
+		return "-"
+	}
+	return name
+}
+
 // runObserver turns job starts and results into progress responses.
 func runObserver(request server.Request, runID string, progress func(server.Response)) projectrun.Observer {
 	if progress == nil {
@@ -398,21 +407,17 @@ func runObserver(request server.Request, runID string, progress func(server.Resp
 				if attemptID == "" {
 					attemptID, show = result.ID, fmt.Sprintf("rotari show --run-id %s --job-id %s", runID, result.ID)
 				}
-				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Command: %s\n  Show output:\n    %s",
+				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Command: %s\n  Show output:\n    %s",
 					failureTitle,
-					result.ID, attemptID, strings.Join(result.Command, " "), show)
+					result.ID, attemptID, progressJobName(result.Name), strings.Join(result.Command, " "), show)
 			} else if strings.HasPrefix(result.Error, "retry:") {
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}
 			progress(server.Response{OK: true, Progress: true, Message: message, JobID: result.ID, Completed: completed, Total: total, Succeeded: succeeded, Failed: failed})
 		},
 		Started: func(job model.JobSpec) {
-			name := job.Name
-			if name == "" {
-				name = "-"
-			}
 			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Command: %s\n  Show:\n    rotari show -j %s",
-				job.ID, job.AttemptID, name, strings.Join(job.Command, " "), job.AttemptID)
+				job.ID, job.AttemptID, progressJobName(job.Name), strings.Join(job.Command, " "), job.AttemptID)
 			progress(server.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
 		},
 	}

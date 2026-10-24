@@ -2203,10 +2203,14 @@ pre,
 .lane-note {
   position: absolute;
   left: 4px;
+  right: 4px;
   top: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 11.5px;
   line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lane-axis {
   position: relative;
@@ -2214,6 +2218,7 @@ pre,
   color: var(--muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  container: lane-axis / inline-size;
 }
 .lane-axis > span {
   position: absolute;
@@ -2226,6 +2231,19 @@ pre,
 }
 .lane-axis > span:last-child {
   transform: translateX(-100%);
+}
+/* A narrow axis keeps only the ticks its labels fit beside: the start label
+   alone is about 110px wide. */
+@container lane-axis (max-width: 480px) {
+  .lane-axis > span:nth-child(2),
+  .lane-axis > span:nth-child(4) {
+    display: none;
+  }
+}
+@container lane-axis (max-width: 280px) {
+  .lane-axis > span:nth-child(3) {
+    display: none;
+  }
 }
 /* Many jobs: thin unlabelled lanes in one SVG of bounded height. */
 .lane-dense {
