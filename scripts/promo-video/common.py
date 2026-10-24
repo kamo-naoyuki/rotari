@@ -8,15 +8,18 @@ import time
 class Session:
     """Runs scenario commands with one environment and records material into out."""
 
-    def __init__(self, env, home, out):
+    def __init__(self, env, home, out, basedir=None, workdir=None):
         self.env = env
         self.home = home
         self.out = out
+        self.basedir = basedir or f"{home}/.local/state/rotari"
+        # Where rotari commands find their workspace defaults (.rotari.toml).
+        self.workdir = workdir or home
 
     def sh(self, cmd, cwd=None):
         return subprocess.run(
             ["bash", "-c", cmd],
-            cwd=cwd or self.home,
+            cwd=cwd or self.workdir,
             env=self.env,
             capture_output=True,
             text=True,
@@ -24,7 +27,7 @@ class Session:
         )
 
     def term(self, name, cwd=None):
-        return Term(self, name, cwd or self.home)
+        return Term(self, name, cwd or self.workdir)
 
     def record(self, page, frames, name, seconds, fps=6, full=False):
         """Screenshot page fps times a second into out/web/NAME for seconds."""
@@ -39,7 +42,7 @@ class Session:
         frames[name] = shots
 
     def runs_of(self, project):
-        d = f"{self.home}/.local/state/rotari/projects/{project}/runs"
+        d = f"{self.basedir}/projects/{project}/runs"
         for _ in range(50):
             if os.path.isdir(d) and os.listdir(d):
                 break

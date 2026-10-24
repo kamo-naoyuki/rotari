@@ -1,11 +1,11 @@
-"""Render the "results" episode: know when a run ends, then look at its results.
+"""Render the notifications episode (landscape): know the moment a run ends.
 
-    render_results.py CAPTURE_DIR REPO_DIR OUT.mp4 --slack DIR
+    render_notifications.py CAPTURE_DIR REPO_DIR OUT.mp4 --slack DIR
                       [--narration KOKORO_DIR [--voice VOICE] [--speed X]]
                       [--preview SECONDS...]
 
-Builds the scene timeline from capture_results.py's material and renders it
-with renderer.py. DIR holds two screenshots taken in Slack of the run's
+Builds the scene timeline from capture_notifications.py's material and renders
+it with renderer.py. It accompanies docs/NOTIFICATIONS.md. DIR holds two screenshots taken in Slack of the run's
 webhook message: notification.png (the desktop notification) and
 message.png (the message, cropped to it).
 """
@@ -31,8 +31,10 @@ def notified_at(frames):
     The notification is drawn at the top right of the screen; the first frame
     whose top right differs from the first frame's is taken as its arrival.
     """
-    box = (400, 0, 1200, 480)
-    first = Image.open(f"{CAP}/{frames[0][1]}").convert("L").crop(box)
+    first = Image.open(f"{CAP}/{frames[0][1]}").convert("L")
+    width, height = first.size
+    box = (width // 3, 0, width, height // 3)
+    first = first.crop(box)
     for t, path in frames:
         frame = Image.open(f"{CAP}/{path}").convert("L").crop(box)
         if ImageStat.Stat(ImageChops.difference(first, frame)).mean[0] > 12:
@@ -118,66 +120,21 @@ def timeline():
             ],
             "say": "Away from your desk? Get it in Slack.",
         },
-        # Act 2: look at the results where they are.
-        webscene(
-            "artifacts",
-            3.4,
-            [[0, "Then open the results<br><em>from the run page.</em>"]],
-            say="Then open the results right from the run page.",
-        ),
-        webscene("run1", 2.2, [[0, "Plots, audio,<br>tables, logs."]]),
-        webscene(
-            "loss",
-            3.0,
-            [[0, "Look at the plot,"]],
-            say="Look at the plot, or listen to a sample.",
-        ),
-        webscene(
-            "pane",
-            5.0,
-            [[0, "…or listen to a sample."]],
-            # The frames start as playback starts.
-            sfx=[0.0, f"{CAP}/sample.wav"],
-        ),
-        # TensorBoard, launched on the run's tb/ directory.
-        webscene(
-            "launch_menu",
-            2.0,
-            [[0, "Need TensorBoard?"]],
-            say="Need TensorBoard?",
-        ),
-        webscene(
-            "launch_confirm",
-            2.6,
-            [[0, "Launch it from<br><em>the run's outputs,</em>"]],
-            say="Launch it from the run's outputs,",
-        ),
-        webscene("launch_ready", 1.2, [[0, "…and open it."]]),
-        webscene(
-            "tensorboard",
-            3.4,
-            [[0, "…and open it,<br><em>in one click.</em>"]],
-            say="and open it in one click.",
-        ),
         # Close.
         {
             "kind": "title",
-            "dur": 3.2,
-            "lines": [
-                ["From submit", "", 0],
-                ["to results.", "hl", 0.35],
-                ["One place.", "soft", 0.9],
-            ],
-            "say": "From submit to results, in one place.",
+            "dur": 3.0,
+            "lines": [["Stop checking.", "", 0], ["Get told.", "hl", 0.35]],
+            "say": "Stop checking. Get told.",
         },
         {
             "kind": "logo",
             "dur": 4.0,
-            "tagline": "Spend your time on research,<br>not on babysitting jobs.",
-            "url": "github.com/kamo-naoyuki/rotari",
+            "tagline": "Notifications",
+            "url": "kamo-naoyuki.github.io/rotari/docs/NOTIFICATIONS/",
             "say": "Rotari.",
         },
     ]
 
 
-renderer.main(ARGS, timeline())
+renderer.main(ARGS, timeline(), layout="landscape")

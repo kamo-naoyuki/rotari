@@ -1,11 +1,12 @@
-"""Capture material for the "results" episode: know when a run ends, then look at it.
+"""Capture material for the notifications episode: know the moment a run ends.
 
-Run through capture-results.sh, which sets up the namespaces, a private /, an
-Xvfb display (:7, 1200x1620), a D-Bus session, and dunst. A headed Chrome
-shows the Web UI at scale 2 (600x810 CSS px), so its desktop notification is
-drawn by dunst and recorded with ffmpeg x11grab.
+Run through `capture-web.sh --display WORK ROTARI SAMPLES capture_notifications.py`,
+which sets up the namespaces, a private /, an Xvfb display (:7, 2200x1564), a
+D-Bus session, and dunst. A headed Chrome shows the Web UI at scale 2
+(1100x782 CSS px, the landscape frame), so its desktop notification is drawn
+by dunst and recorded with ffmpeg x11grab.
 
-    capture_results.py FIXTURE OUT ROTARI SAMPLES
+    capture_notifications.py FIXTURE OUT ROTARI SAMPLES
 
 Writes OUT/terminals.json, OUT/web.json, OUT/logs.json, OUT/web/<scene>/*.png,
 and OUT/webhook/*.json: the Slack payloads rotari sent, received by a local
@@ -31,7 +32,7 @@ REPO = str(Path(__file__).resolve().parents[2])
 PORT = 18792
 HOOK_PORT = 18990
 BASE = f"http://127.0.0.1:{PORT}"
-SCREEN = "1200x1620"
+SCREEN = "2200x1564"
 
 ENV = {
     "PATH": f"{HOME}/.local/bin:{REPO}/.venv/bin:/usr/bin:/bin",
@@ -39,14 +40,12 @@ ENV = {
     "USER": "me",
     "LOGNAME": "me",
     "TERM": "xterm-256color",
-    "COLUMNS": "52",
+    "COLUMNS": "68",
     "LC_ALL": "C",
     "TZ": "UTC",
     "ROTARI_MASTERDIR": f"{HOME}/.rotari-master",
     "TTS_SAMPLES": f"{HOME}/.cache/tts-samples",
     "MPLCONFIGDIR": f"{HOME}/.cache/matplotlib",
-    # --allow-exec needs a token; this one never leaves the namespace.
-    "ROTARI_WEB_AUTH_TOKEN": "promo-capture-token-0123456789",
 }
 S = Session(ENV, HOME, OUT)
 
@@ -107,16 +106,6 @@ def setup():
     os.makedirs(f"{OUT}/webhook")
 
 
-def show_launch_panel(modal):
-    """Scroll the Artifacts listing back left and its launch panel into view."""
-    modal.evaluate(
-        "m => m.querySelectorAll('*').forEach((e) => { if (e.scrollLeft) e.scrollLeft = 0; })"
-    )
-    panel = modal.locator(".launch-choices").last
-    if panel.count():
-        panel.scroll_into_view_if_needed()
-
-
 def x11grab(name, seconds, fps=10):
     """Record the Xvfb screen into OUT/web/NAME as numbered PNGs."""
     os.makedirs(f"{OUT}/web/{name}", exist_ok=True)
@@ -175,7 +164,7 @@ def main():
     time.sleep(6)
 
     web = subprocess.Popen(
-        [f"{HOME}/.local/bin/rotari", "web", "--port", str(PORT), "--allow-exec"],
+        [f"{HOME}/.local/bin/rotari", "web", "--port", str(PORT)],
         cwd=HOME,
         env=ENV,
         stdout=subprocess.DEVNULL,
@@ -183,8 +172,8 @@ def main():
     )
     time.sleep(1.5)
     try:
-        # Signing in would otherwise leave Chrome's "Save password?" bubble on
-        # screen; turn the password manager off in the profile.
+        # Keep Chrome's "Save password?" bubble off screen should a sign-in
+        # ever be needed: turn the password manager off in the profile.
         profile = f"{HOME}/.cache/chrome-profile"
         os.makedirs(f"{profile}/Default", exist_ok=True)
         Path(f"{profile}/Default/Preferences").write_text(
@@ -210,7 +199,7 @@ def main():
                     "--test-type",
                     "--force-device-scale-factor=2",
                     "--window-position=0,0",
-                    "--window-size=600,810",
+                    "--window-size=1100,782",
                     "--hide-scrollbars",
                     "--no-first-run",
                     "--disable-session-crashed-bubble",
@@ -223,13 +212,6 @@ def main():
             )
             ctx.grant_permissions(["notifications"], origin=BASE)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
-            # Sign in over plain HTTP on loopback, off camera.
-            page.goto(f"{BASE}/_auth/login?next=/")
-            page.fill('input[name="password"]', ENV["ROTARI_WEB_AUTH_TOKEN"])
-            page.locator("form button, form input[type=submit]").first.click()
-            page.wait_for_load_state()
-            if "/_auth/login" in page.url:
-                raise SystemExit(f"sign-in failed: {page.url}")
 
             # Submit the run from the terminal, then watch it end in the Web UI.
             t = S.term("submit", f"{HOME}/tts")
@@ -257,98 +239,6 @@ def main():
             page.keyboard.press("Escape")
             page.wait_for_timeout(500)
 
-            # Results: artifacts, the plot, then the evaluation table, whose
-            # viewer plays a sample with its waveform and spectrogram.
-            page.reload()
-            page.wait_for_timeout(1500)
-            page.get_by_role("button", name="Artifacts").first.click()
-            modal = page.locator("#output-modal")
-            page.wait_for_timeout(1200)
-            S.record(page, frames, "artifacts", 0.5, fps=4)
-            modal.get_by_text(RUN_OUT, exact=True).click()
-            page.wait_for_timeout(1200)
-            S.record(page, frames, "run1", 0.5, fps=4)
-            modal.get_by_text("loss.png", exact=True).first.click()
-            page.wait_for_timeout(1500)
-            S.record(page, frames, "loss", 0.5, fps=4)
-            # TensorBoard on the run's tb/ directory, launched from Artifacts.
-            modal.get_by_text(RUN_OUT, exact=True).click()
-            page.wait_for_timeout(800)
-            row = modal.locator("tr").filter(has=page.get_by_text("tb", exact=True))
-            row.get_by_role("button", name="Launch with…").click()
-            page.wait_for_timeout(800)
-            show_launch_panel(modal)
-            S.record(page, frames, "launch_menu", 0.5, fps=4)
-            # The run toolbar has launch buttons too; use the ones in Artifacts.
-            modal.locator(".launch-choices").get_by_role(
-                "button", name="TensorBoard", exact=True
-            ).first.click()
-            page.wait_for_timeout(800)
-            show_launch_panel(modal)
-            S.record(page, frames, "launch_confirm", 0.5, fps=4)
-            modal.locator("button.launch-confirm").first.click()
-            modal.locator("a.launch-open").first.wait_for(timeout=90000)
-            page.wait_for_timeout(500)
-            show_launch_panel(modal)
-            S.record(page, frames, "launch_ready", 0.5, fps=4)
-            with ctx.expect_page() as opened:
-                modal.locator("a.launch-open").first.click()
-            board = opened.value
-            board.wait_for_load_state()
-            # TensorBoard draws its charts after loading the event files.
-            board.wait_for_timeout(9000)
-            # The settings pane would take a third of a 600 px window.
-            close = board.locator('button[aria-label="Close side pane"]')
-            if close.count():
-                close.first.click()
-                board.wait_for_timeout(800)
-            S.record(board, frames, "tensorboard", 0.5, fps=4)
-            board.close()
-            page.reload()
-            page.wait_for_timeout(1500)
-            page.get_by_role("button", name="Artifacts").first.click()
-            page.wait_for_timeout(1200)
-            modal.get_by_text(RUN_OUT, exact=True).click()
-            page.wait_for_timeout(800)
-            row = modal.locator("tr", has_text="eval.csv")
-            row.get_by_role("button", name="Launch with…").click()
-            page.wait_for_timeout(500)
-            with ctx.expect_page() as opened:
-                modal.get_by_text("Table viewer").first.click()
-            table = opened.value
-            table.wait_for_timeout(2000)
-            choice = table.evaluate(
-                """() => { const s = [...document.querySelectorAll('select')]
-                  .find((e) => [...e.options].some((o) => o.value === 'basedir'));
-                  return s ? [...s.options].map((o) => o.value + '|' + o.text) : []; }"""
-            )
-            logs["media_bases"] = choice
-            target = next(
-                (
-                    c.split("|")[0]
-                    for c in choice
-                    if "eval.csv" in c or "file" in c.lower()
-                ),
-                None,
-            )
-            if target:
-                table.evaluate(
-                    """(v) => { const s = [...document.querySelectorAll('select')]
-                      .find((e) => [...e.options].some((o) => o.value === 'basedir'));
-                      s.value = v; s.dispatchEvent(new Event('change', {bubbles: true})); }""",
-                    target,
-                )
-                table.wait_for_timeout(1500)
-            S.record(table, frames, "table", 0.5, fps=4)
-            table.get_by_text("samples/LJ001-0001.wav").first.click()
-            # The browser computes the waveform and spectrogram after decoding.
-            table.wait_for_timeout(3000)
-            table.locator("audio.tv-audio").first.evaluate("a => a.play()")
-            S.record(table, frames, "pane", 7.0, fps=8)
-            # The clip the viewer played, for the video's audio track.
-            shutil.copy(
-                f"{HOME}/tts/{RUN_OUT}/samples/LJ001-0001.wav", f"{OUT}/sample.wav"
-            )
             ctx.close()
     finally:
         web.terminate()

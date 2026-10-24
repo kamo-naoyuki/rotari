@@ -7,8 +7,9 @@ are not part of the `rotari` command-line interface. Runnable samples are in
 ## Documentation and generated assets
 
 - `generate-demos.sh`: record the terminal demo GIFs.
-- `promo-video/`: capture and render the vertical promo video from real runs
-  of rotari, its Web UI, and a namespaced Slurm cluster; see its README.
+- `promo-video/`: capture and render the promo videos (a vertical short and
+  landscape videos for documentation pages) from real runs of rotari, its Web
+  UI, and a namespaced Slurm cluster; see its README.
 - `generate-static-web.sh`: build the static web demo.
 - `screenshot-web.sh`: screenshot every page of the static web demo at desktop
   and phone widths in light and dark, for reviewing Web UI changes; needs

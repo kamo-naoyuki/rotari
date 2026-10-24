@@ -1,4 +1,4 @@
-# Defaults shared by the numbered entry points (01_short.sh, 02_results.sh).
+# Defaults shared by the numbered entry points (01_short.sh, 02_notifications.sh, ...).
 # shellcheck shell=bash
 export PROMO_TOOLS=${PROMO_TOOLS:-$HOME/.cache/rotari-promo}
 export PROMO_WORK=${PROMO_WORK:-${TMPDIR:-/tmp}/rotari-promo-$USER}

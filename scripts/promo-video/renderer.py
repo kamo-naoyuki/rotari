@@ -3,7 +3,8 @@
 An episode script builds a list of scenes for player.html and calls
 `main(timeline)`; this module parses the common options, narrates, writes
 CAPTURE_DIR/player.html, steps it frame by frame in headless Chrome, and pipes
-the frames to ffmpeg (1080x1920, 30 fps).
+the frames to ffmpeg at 30 fps: 1080x1920 for the portrait short, 1920x1080
+for the landscape feature videos.
 """
 
 import argparse
@@ -43,8 +44,13 @@ def options(extra=None):
     return args
 
 
-def main(args, scenes):
+# Frame size of each layout: the short is vertical, feature videos horizontal.
+LAYOUTS = {"portrait": (1080, 1920), "landscape": (1920, 1080)}
+
+
+def main(args, scenes, layout="portrait"):
     cap, repo, out = args.capture_dir, args.repo_dir, args.out
+    width, height = LAYOUTS[layout]
     audio = None
     if args.narration:
         import narration
@@ -70,7 +76,11 @@ def main(args, scenes):
 
     html = Path(f"{HERE}/player.html").read_text()
     html = re.sub(r"url\(__FONTS__/([^)]+)\)", font_uri, html)
-    html = html.replace("__LOGO__", logo).replace("__SCENES__", json.dumps(scenes))
+    html = (
+        html.replace("__LOGO__", logo)
+        .replace("__SCENES__", json.dumps(scenes))
+        .replace("__LAYOUT__", layout)
+    )
     with open(f"{cap}/player.html", "w") as f:
         f.write(html)
     for s in scenes:
@@ -79,7 +89,7 @@ def main(args, scenes):
 
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--allow-file-access-from-files"])
-        page = b.new_page(viewport={"width": 1080, "height": 1920})
+        page = b.new_page(viewport={"width": width, "height": height})
         page.goto(f"file://{cap}/player.html")
         # Load every face before the first frame, and stop rather than render
         # in a fallback font.

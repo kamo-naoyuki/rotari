@@ -1,22 +1,36 @@
 # Promo video pipeline
 
-These scripts make rotari's vertical promo short (1080×1920, 30 fps) from
-real runs: rotari, its Web UI, and a one-node Slurm cluster run in Linux
-namespaces, and a headless browser renders the material into frames for
-ffmpeg. Every command, log line, and Web UI screen in the video comes from
-those runs. They are a production aid, not part of rotari or its tests.
+These scripts make rotari's videos from real runs: rotari, its Web UI, and a
+one-node Slurm cluster run in Linux namespaces, and a headless browser
+renders the material into frames for ffmpeg. Every command, log line, and Web
+UI screen in a video comes from those runs. They are a production aid, not
+part of rotari or its tests.
 
-Two videos exist (2026-10-23), both with English narration by Kokoro TTS
-(voice `af_heart`), burned-in subtitles, and an `.srt` beside the video, and
-no music:
+All videos have English narration by Kokoro TTS (voice `af_heart`), burned-in
+subtitles, and an `.srt` beside the video, and no music. The short is
+vertical (1080×1920) for promotion; feature videos are landscape (1920×1080),
+one per documentation page, linked from that page.
 
-- **The short** (78 s; `--with-slurm` adds the Slurm act, about 96 s): one
-  job needs no rotari, many do. Sections below describe it unless they say
-  otherwise.
-- **Series 1, "results"** (56 s): know when a run ends, then look at its
-  results. See [The results episode](#the-results-episode).
+## Episodes and documentation
 
-## Message
+| # | Video | Page it accompanies | Script | State (2026-10-24) |
+| --- | --- | --- | --- | --- |
+| 01 | The short: one job needs no rotari, many do | README, Getting started | `01_short.sh` | done, 78 s (96 s with the Slurm act) |
+| 02 | Notifications: desktop, Inbox, Slack | `docs/NOTIFICATIONS.md` | `02_notifications.sh` | written, not yet captured in landscape |
+| 03 | Outputs: Artifacts, previews, TensorBoard, Files | `docs/OUTPUTS.md` | `03_outputs.sh` | done, 53 s |
+| 04 | Rerunning failures and diagnosis | `docs/RECOVERING.md`, `docs/LOCAL_DIAGNOSIS.md` | | planned (the short's sweep act) |
+| 05 | Local, SSH, Slurm | `docs/EXECUTORS.md` | | planned (the short's Slurm act) |
+| 06 | Arrays, matrices, dependencies | `docs/RUNNING.md` | | planned |
+| 07 | The Web UI across projects, Activity | `docs/WEB.md` | | planned |
+| 08 | History and comparison (lineage) | `docs/INSPECT.md` | | planned |
+| 09 | AI agents (CLI guide, MCP) | `docs/MCP.md` | | planned |
+
+`docs/OUTPUTS.md` was split out of `docs/INSPECT.md` so that video 03 has one
+page to accompany.
+
+## The short (01)
+
+### Message
 
 Rotari makes the experiment cycle (write code, submit jobs, check how they
 ended, fix and resubmit failures, inspect results) less tedious. With one job a
@@ -42,7 +56,7 @@ rotari is not a workflow engine. The retry succeeds because the fixture's
 failures really are fixed: the GPU fault happens on the first attempt only, and
 the OOM depends on `max_batch` in `fixture/sweep.conf`.
 
-## Storyboard
+### Storyboard
 
 Each scene's on-screen caption and narration line (`say`, with `sayAt` when
 it should not start right away) are in `render.py` (`timeline()`); that file
@@ -86,23 +100,24 @@ pronunciation of "rotari" and the CLI terms by ear before publishing.
 
 | File | Role |
 | --- | --- |
-| `01_short.sh`, `02_results.sh` | Make one video each into `out/`; the usual entry points (`defaults.sh` sets their directories) |
+| `01_short.sh`, `02_notifications.sh`, `03_outputs.sh` | Make one video each into `out/`; the usual entry points (`defaults.sh` sets their directories) |
 | `setup.sh TOOLS` | Install Playwright and kokoro-onnx into `.venv`; fetch Chrome, the Kokoro model, and the Slurm image into `TOOLS` |
 | `make-video.sh TOOLS WORK OUT.mp4 [opts]` | Build rotari, capture, and render the short |
 | `capture.sh` | Enter the namespaces, start Slurm, run `capture.py` |
 | `capture.py` | Run the scenario; record terminal sessions and Web UI screenshots |
 | `slurm-up.sh` | Start slurmdbd, slurmctld, and slurmd from the image; write client wrappers |
-| `render.py`, `player.html` | The short's scene timeline, and the HTML player both episodes render through |
+| `render.py`, `player.html` | The short's scene timeline, and the HTML player every video renders through (portrait or landscape) |
 | `renderer.py` | Shared rendering: options, narration, player page, frames into ffmpeg |
 | `common.py` | Shared capture helpers: commands, terminal sessions (`Term`), Web UI frames |
 | `narration.py` | Kokoro TTS clips, scene fitting, the audio track, and subtitles |
 | `fixture/` | Fake jobs: `train.py`, per-project `train.sh`, `sweep.sh`, `prep.sh`, `train-gpu.sh` |
 | `fullpage.py` | Framing aid: full-page screenshots of a captured state, run in a namespace |
-| `make-results.sh TOOLS WORK OUT.mp4 SLACK_DIR` | Build rotari, capture, and render the results episode |
-| `assets/slack/` | Slack screenshots of run `20261023-085534-04f4dc00`'s webhook message |
-| `capture-results.sh`, `capture_results.py` | Capture the results episode (needs Xvfb, dunst, google-chrome) |
+| `make-episode.sh [--display] TOOLS WORK OUT.mp4 CAPTURE.py RENDER.py` | Build rotari, capture, and render one feature video |
+| `capture-web.sh [--display]` | Enter the namespaces and a namespace-owned `/`, with Xvfb, D-Bus, and dunst when asked, and run a capture script |
+| `capture_notifications.py`, `render_notifications.py` | Video 02 (the capture needs Xvfb, dunst, google-chrome) |
+| `capture_outputs.py`, `render_outputs.py` | Video 03 (a headless browser is enough) |
+| `assets/slack/` | Slack screenshots of one capture's webhook message, for video 02 |
 | `newroot.sh`, `dunstrc` | A namespace-owned `/` for `--allow-exec`; the desktop notification style |
-| `render_results.py` | The results episode's scene timeline |
 | `tts_samples.py`, `fixture/tts_train.py` | Kokoro clips and the fake TTS job that "produces" them |
 | `send-webhook.py` | Post the Slack payloads a capture recorded to your real webhook |
 
@@ -113,11 +128,12 @@ first use, build rotari, capture, narrate, render) and writes
 `scripts/promo-video/out/NN_name.mp4` with an `.srt` beside it:
 
 ```sh
-scripts/promo-video/01_short.sh       # the short, out/01_short.mp4
-scripts/promo-video/02_results.sh     # the results episode, out/02_results.mp4
+scripts/promo-video/01_short.sh           # out/01_short.mp4
+scripts/promo-video/02_notifications.sh   # out/02_notifications.mp4 (needs Xvfb)
+scripts/promo-video/03_outputs.sh         # out/03_outputs.mp4
 scripts/promo-video/01_short.sh --with-slurm          # include the Slurm act
 scripts/promo-video/01_short.sh --voice am_michael    # another narrator
-scripts/promo-video/02_results.sh --preview 20 45     # PNGs in the work directory
+scripts/promo-video/03_outputs.sh --preview 20 45     # PNGs in the work directory
 ```
 
 The tools go to `PROMO_TOOLS` (default `~/.cache/rotari-promo`, about 600 MB)
@@ -125,8 +141,9 @@ and captures to `PROMO_WORK` (default `$TMPDIR/rotari-promo-$USER`); set `GO`
 when `go` is not on `PATH` or in `/usr/local/go/bin`. Options after the
 script name go to the episode's renderer. `out/` is not tracked.
 
-Underneath, `setup.sh TOOLS` prepares the tools and `make-video.sh` /
-`make-results.sh` capture and render one video into a given path:
+Underneath, `setup.sh TOOLS` prepares the tools, and `make-video.sh` (the
+short) and `make-episode.sh` (feature videos) capture and render one video
+into a given path:
 
 ```sh
 scripts/promo-video/setup.sh "$TMPDIR/promo-tools"
@@ -142,6 +159,9 @@ timing, captions, narration, or layout, render the existing capture again
 PLAYWRIGHT_BROWSERS_PATH="$TOOLS/pw" .venv/bin/python \
   scripts/promo-video/render.py "$WORK/capture" . out.mp4 --narration "$TOOLS/kokoro"
 ```
+
+For a feature video, run its `render_*.py` on `$PROMO_WORK/NN_name/capture`
+the same way (video 02 also takes `--slack scripts/promo-video/assets/slack`).
 
 Requirements: Linux with unprivileged user namespaces, `ffmpeg` with libx264,
 `curl`, `unzip`, Go, and the repository's `.venv` (created with uv; `setup.sh`
@@ -197,64 +217,80 @@ so nothing outside `WORK` changes and nothing private reaches the screen:
   `render.py` stops if any face fails to load instead of rendering in a
   fallback font. Chrome's `FontFace` API refuses `file://` font URLs.
 
-## The results episode
+## Feature videos
 
-The second video covers the end of the experiment cycle: a TTS training run
-finishes, the desktop shows a notification, the Web UI Inbox lists it, Slack
-gets the webhook message, and the outputs (a loss plot, an audio sample from
-the evaluation table, and TensorBoard on the run's `tb/`) are opened from the
-run page. The hook is only
-"Is it done yet?": checking a log again and again.
+Feature videos are landscape: the player puts the caption on the left, the
+frame on the right, and the narration subtitle under it. The Web UI is
+captured 1100×782 CSS px at scale 2, which keeps Files and Artifacts tables
+whole. Each capture runs through `capture-web.sh`, so `newroot.sh` gives the
+namespace its own `/`: `rotari web --allow-exec` checks that every directory
+from `/` to the launcher file is owned by the user or root, and in a user
+namespace the real `/` looks owned by nobody. Web UIs started with
+`--allow-exec` use a fixed token and are signed in to over
+`http://127.0.0.1` before recording (loopback HTTP sign-in is allowed since
+2026-10-23). The fake TTS job writes its outputs with f-strings
+(`f"{out}/loss.png"`), as training code commonly does: artifact discovery
+skips f-strings, so only `--out outputs/exp0415` is listed, while plain
+literals such as `"loss.png"` were listed as missing paths under the working
+directory.
+
+### Notifications (02)
+
+A TTS run is checked by hand ("Is it done yet?"), then submitted with rotari;
+the moment it ends the desktop shows the Web UI's notification, the Inbox
+lists it, and Slack gets the webhook message ("Away from your desk?").
 
 ```sh
-scripts/promo-video/02_results.sh
-.venv/bin/python scripts/promo-video/send-webhook.py "$PROMO_WORK/02_results/capture"
+scripts/promo-video/02_notifications.sh
+.venv/bin/python scripts/promo-video/send-webhook.py "$PROMO_WORK/02_notifications/capture"
 ```
 
-The committed `assets/slack/` screenshots belong to run
-`20261023-085534-04f4dc00`; every capture makes a new run ID, so the run page
-and the Slack message in a regenerated video differ there. To make them agree,
-send the new capture's payload as above, screenshot the Slack notification and
-message, crop the message above the input box, and replace `assets/slack/`.
-
-- **Desktop notification:** `capture-results.sh` starts Xvfb (1200x1620),
-  a D-Bus session, and dunst (1.5 syntax in `dunstrc`) inside the namespace.
-  A headed `/usr/bin/google-chrome` at scale 2 opens the run page, turns on
-  the Web UI's notifications, and ffmpeg x11grab records the screen while the
-  run ends. Chrome runs as the namespace root, so it needs `--no-sandbox`;
-  `--test-type` hides the warning bar, and `--lang=en-US` with Translate
-  disabled keeps a translation prompt out of the frame. Xvfb runs with
-  `-nolock` (its lock file would land in the host's shared `/tmp`) and
-  `-nocursor`. `render_results.py` finds the notification's arrival by
-  comparing the top right of each frame with the first.
+- **Desktop notification:** `capture-web.sh --display` starts Xvfb
+  (2200×1564), a D-Bus session, and dunst (1.5 syntax in `dunstrc`) inside the
+  namespace. A headed `/usr/bin/google-chrome` at scale 2 opens the run page,
+  turns on the Web UI's notifications, and ffmpeg x11grab records the screen
+  (`-draw_mouse 0`) while the run ends. Chrome runs as the namespace root, so
+  it needs `--no-sandbox`; `--test-type` hides the warning bar, `--lang=en-US`
+  with Translate disabled keeps a translation prompt out of the frame, and
+  the profile turns the password manager off. Xvfb runs with `-nolock` (its
+  lock file would land in the host's shared `/tmp`) and `-nocursor`.
+  `render_notifications.py` finds the notification's arrival by comparing the
+  top right of each frame with the first.
 - **Slack:** the namespace has no network, so the capture's
   `notifications.toml` points the webhook at a local recorder
   (`WORK/capture/webhook/NNN.json`), with the same fields as the user's own
   settings. Afterwards `send-webhook.py` posts those exact payloads to the
   `[webhook] url` of `~/.config/rotari/notifications.toml` without printing
-  it. Screenshots taken in Slack then (the desktop notification and the
-  message, cropped above the input box) go in SLACK_DIR. A Slack screen is
-  never drawn by the pipeline itself.
-- **Artifacts:** the fake job writes its outputs with f-strings
-  (`f"{out}/loss.png"`), as training code commonly does. Artifact discovery
-  skips f-strings, so only `--out outputs/exp0415` is listed; plain literals such
-  as `"loss.png"` were listed as missing paths under the working directory.
-  The Table viewer's media paths resolve from "this file's directory".
-- **Audio:** a sample is opened from `eval.csv` in the Table viewer, which
-  draws its waveform and spectrogram, and plays while frames are recorded;
-  the same WAV (`WORK/capture/sample.wav`) is mixed into the track as a scene
-  `sfx`. The viewer is shown briefly and not named or explained: it needs a
-  table of results and serves a narrower need than the episode's message.
-- **TensorBoard:** the capture starts `rotari web --allow-exec` with a fixed
-  token and signs in over `http://127.0.0.1` before recording (loopback HTTP
-  sign-in is allowed since 2026-10-23). TensorBoard comes from `.venv` on
-  `PATH` and is launched from the `tb/` row of the run's Artifacts; the
-  launch controls are scoped to the Artifacts dialog, since the run toolbar
-  has launch buttons of its own, and TensorBoard's settings side pane is
-  closed before the shot. `newroot.sh` is needed because `--allow-exec` checks
-  that every directory from `/` to the launcher file is owned by the user or
-  root, and in a user namespace the real `/` looks owned by nobody. The
-  confirmation shows "Runs as root@workstation": the namespace's user.
+  it. Screenshots taken in Slack then (the desktop notification, without the
+  pointer over it, and the message, cropped above the input box) replace
+  `assets/slack/`. Every capture makes a new run ID, so a regenerated video
+  matches the screenshots only after this. A Slack screen is never drawn by
+  the pipeline itself.
+
+### Outputs (03)
+
+A training run writes its outputs; the job's Artifacts list them, a plot is
+previewed and a sample played (briefly, in the Table viewer with its
+waveform and spectrogram, which the video does not name), TensorBoard is
+launched on the run's `tb/` row, and then the run's Files view opens the
+experiment directory, where TensorBoard on `outputs/` compares every
+experiment.
+
+```sh
+scripts/promo-video/03_outputs.sh
+```
+
+- **Workspace:** the capture runs `rotari init` in `~/tts`, so the basedir is
+  `~/tts/.rotari-state` and Files opens `~/tts`. Three earlier experiments
+  (`exp0412_lr1e-3`, `exp0413_lr3e-4`, `exp0414_bs32`) are made with the fake
+  job's `--floor`, so their curves differ in TensorBoard.
+- **Launching:** Artifacts and Files rows have their own launch buttons. The
+  capture presses the `tb` row's **TensorBoard**, and in Files the first
+  **TensorBoard** in the view, the one beside the directory's path. The run
+  toolbar has launch buttons too, so lookups stay inside `#output-modal`.
+  TensorBoard comes from `.venv` on `PATH`, and its settings side pane is
+  closed before the shot. The confirmation shows "Runs as root@workstation":
+  the namespace's user.
 
 ## Next steps
 
@@ -262,5 +298,7 @@ message, crop the message above the input box, and replace `assets/slack/`.
   quiet background music.
 - The run page job timeline's axis labels overlap at narrow widths and are
   visible in the video; see `development/ISSUES.md`.
-- A longer intro and more of the series (clusters, history and lineage,
-  agents) can reuse this pipeline with new scenes.
+- Capture video 02 in landscape on a host with Xvfb, dunst, and
+  google-chrome, then refresh `assets/slack/` from its run.
+- Videos 04 to 09 (see [Episodes and documentation](#episodes-and-documentation)):
+  04 and 05 can reuse the short's sweep and Slurm acts in landscape.

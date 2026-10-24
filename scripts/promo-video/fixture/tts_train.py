@@ -25,12 +25,15 @@ from tensorboard.summary.writer.event_file_writer import EventFileWriter
 parser = argparse.ArgumentParser()
 parser.add_argument("--out", required=True)
 parser.add_argument("--epochs", type=int, default=6)
+# Where the loss settles, so earlier experiments plot differently.
+parser.add_argument("--floor", type=float, default=0.32)
 args = parser.parse_args()
 out = args.out
 
 steps = list(range(0, 3001, 50))
-train = [1.9 * math.exp(-s / 700) + 0.32 + 0.03 * math.sin(s / 37) for s in steps]
-val = [2.0 * math.exp(-s / 650) + 0.38 + 0.02 * math.sin(s / 53) for s in steps]
+floor = args.floor
+train = [1.9 * math.exp(-s / 700) + floor + 0.03 * math.sin(s / 37) for s in steps]
+val = [2.0 * math.exp(-s / 650) + floor + 0.06 + 0.02 * math.sin(s / 53) for s in steps]
 
 for epoch in range(1, args.epochs + 1):
     time.sleep(1.5)
