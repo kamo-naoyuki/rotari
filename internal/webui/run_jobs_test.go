@@ -148,7 +148,11 @@ setTimeout(async () => {
     const button = label => [...document.querySelectorAll('#app .toolbar button')].find(b => b.textContent === label);
     const snapshotButton = button('View config snapshot');
     assert(snapshotButton.closest('.run-toolbar'), 'snapshot action is not in the run action toolbar');
-    assert.equal(snapshotButton.previousElementSibling.className, 'toolbar-gap', 'snapshot is not separated from launchers');
+    // Files sits with the run's own actions, right after the gap that
+    // separates them from the actions on checked jobs.
+    assert.equal(snapshotButton.previousElementSibling, toolbarFiles()[0], 'Files is not beside the config snapshot');
+    assert.equal(toolbarFiles()[0].previousElementSibling.className, 'toolbar-gap', 'run actions are not separated from job actions');
+    assert.equal(document.querySelectorAll('#app .run-toolbar .toolbar-gap').length, 1, 'the toolbar has more than two groups');
     assert.equal(snapshotButton.nextElementSibling, button('Delete run'));
     window.eval("state.projects[0].runs[0].running = true");
     window.render();

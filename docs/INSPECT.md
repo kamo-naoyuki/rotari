@@ -520,7 +520,8 @@ a file or a directory, whichever it is, and whose name patterns match it.
 On a run page, a started job's **Launch** button (shown when the server
 allows launching) opens its Artifacts at the working directory's row.
 
-The run's toolbar has one **Files** button. It opens the directory holding
+The run's toolbar has one **Files** button, beside **View config snapshot**
+with the run's other actions. It opens the directory holding
 the basedir (for example the experiment directory around `.rotari-state`),
 where a run's jobs can share one tracker store or TensorBoard log
 directory, and you can open the directories inside it (**Up** goes back);

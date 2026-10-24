@@ -1830,10 +1830,11 @@ function runSelectionHTML() {
     '<span class="selection-count meta" aria-live="polite"></span></div>'
   );
 }
-// runActionsHTML is the run page's toolbar: actions on the checked jobs,
-// then Files for the directory holding the basedir on the live server,
-// Cancel run while the run is running, and Delete run. Buttons that need a selection start disabled until
-// updateSelectedRunJobs enables them.
+// runActionsHTML is the run page's toolbar: actions on the checked jobs on
+// the left, then the run's own actions on the right: Files for the
+// directory holding the basedir on the live server, View config snapshot,
+// Cancel run while the run is running, and Delete run. Buttons that need a
+// selection start disabled until updateSelectedRunJobs enables them.
 function runActionsHTML(q, run, runID) {
   const data =
     ' data-project="' + esc(q.project_name) + '" data-run="' + esc(runID) + '"';
@@ -1852,7 +1853,7 @@ function runActionsHTML(q, run, runID) {
     '<button type="button" class="cancel-selected-jobs" disabled onclick="controlSelectedRunJobs(\'cancel\')">Cancel selected</button>' +
     '<button type="button" class="suspend-resume-selected-jobs" disabled onclick="controlSelectedRunJobs(\'suspend-resume\')">Suspend selected</button>' +
     '<span class="toolbar-gap"></span>' +
-    (filesButton ? filesButton + '<span class="toolbar-gap"></span>' : "") +
+    filesButton +
     '<button type="button" class="run-config-snapshot" onclick="showConfig(true)"' +
     (run.context?.config_snapshot_paths?.length
       ? ' title="View the configuration saved with this run"'
