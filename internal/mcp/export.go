@@ -3,11 +3,11 @@ package mcp
 import (
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/report"
-	"github.com/kamo-naoyuki/rotari/internal/workflow"
-	"github.com/kamo-naoyuki/rotari/internal/workflowstate"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/workflow"
+	"github.com/rotari-dev/rotari/internal/workflowstate"
 )
 
 // redactedValue replaces a value an exported manifest must not reveal.

@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/attachment"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/attachment"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // ClientStatus reads the initiating client's recorded state and rejects stale

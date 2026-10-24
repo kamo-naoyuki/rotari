@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/executor"
 )
 
 // SourceNotice tells a run or retry preview that it uses the non-empty

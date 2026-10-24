@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Start identifies a run that Begin records.

@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // OpRun is the only request: the run a supervisor was started for.

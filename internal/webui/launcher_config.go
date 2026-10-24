@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/launcher"
 )
 
 // maxLauncherConfigView bounds the launcher file text /api/launcher-config

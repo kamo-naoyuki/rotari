@@ -3,8 +3,8 @@ package webui
 import (
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/model"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 // History search matches the job label the run view shows, so an accepted

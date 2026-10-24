@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/artifact"
 )
 
 func TestRead(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/artifact"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestBasedirParentRoot(t *testing.T) {

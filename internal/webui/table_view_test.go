@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/tableview"
+	"github.com/rotari-dev/rotari/internal/tableview"
 )
 
 // viewerGet requests a Table viewer route for a fixture entry, or for the

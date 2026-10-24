@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/report"
 )
 
 const redacted = "[REDACTED]"

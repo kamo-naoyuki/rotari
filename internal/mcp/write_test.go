@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	"github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func testWriteTools(f toolFixture, started *[]server.Request) writeTools {

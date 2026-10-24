@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestInfoReportsContextAndRunLocks(t *testing.T) {

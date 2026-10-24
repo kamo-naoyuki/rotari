@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
 )
 
 // gcFixture registers an orphan run, a live run, and a basedir that is gone.

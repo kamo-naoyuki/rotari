@@ -4,7 +4,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // FailureKindDiagnosis marks a failure group whose cause is a saved rule

@@ -7,12 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/report"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 type GetJobInfoInput struct {

@@ -3,7 +3,7 @@ package run
 import (
 	"strconv"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 func CompleteArrayGroup(jobs []model.JobSpec, first, last int) bool {

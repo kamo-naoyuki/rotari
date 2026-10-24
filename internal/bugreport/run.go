@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/report"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/state"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 var runStateFiles = []string{

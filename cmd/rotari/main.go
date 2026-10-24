@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 const jobIDLen = 9

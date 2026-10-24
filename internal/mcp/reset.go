@@ -3,7 +3,7 @@ package mcp
 import (
 	"errors"
 
-	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/project"
 )
 
 type ResetInput struct {

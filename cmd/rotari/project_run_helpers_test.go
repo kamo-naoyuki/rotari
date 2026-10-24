@@ -3,11 +3,11 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Test shorthands for the projectrun lifecycle with this command's wiring.

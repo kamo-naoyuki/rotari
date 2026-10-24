@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // mcpSession talks JSON-RPC to `rotari mcp` over its stdin and stdout.

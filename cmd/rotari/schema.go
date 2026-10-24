@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 type cliSchema struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 func ContextPath(runDir string) string {

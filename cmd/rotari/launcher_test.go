@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/launcher"
 )
 
 // The launch wrapper runs before configuration is loaded, so a broken

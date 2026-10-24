@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func TestMain(m *testing.M) { os.Exit(support.Run(m)) }

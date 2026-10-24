@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Location is one registry record.

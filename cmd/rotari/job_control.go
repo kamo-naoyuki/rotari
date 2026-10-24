@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/resolve"
 )
 
 // jobControlOptions holds the options cancel, suspend, and resume share

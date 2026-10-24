@@ -3,12 +3,12 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/notification"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/notification"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	runcontract "github.com/rotari-dev/rotari/internal/run"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // projectRunner connects the shared run lifecycle to this command's executor

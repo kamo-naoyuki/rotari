@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestProgressObserverPreservesResultResponses(t *testing.T) {

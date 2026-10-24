@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/notification"
+	"github.com/rotari-dev/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/notification"
 )
 
 // schedulerCommands are the scheduler client tools rotari runs; their

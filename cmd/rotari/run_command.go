@@ -12,14 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/attachment"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/attachment"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	serverinternal "github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdRun starts a run, optionally building its snapshot from historical run

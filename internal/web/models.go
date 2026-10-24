@@ -1,8 +1,8 @@
 package web
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlineage"
 )
 
 type EnvironmentDefinition struct {

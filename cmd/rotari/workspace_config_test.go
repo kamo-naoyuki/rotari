@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/config"
 )
 
 func workspaceCWD(t *testing.T) string {

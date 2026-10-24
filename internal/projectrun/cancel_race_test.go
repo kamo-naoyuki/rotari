@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cancelDuringSubmitExecutor runs a cancel while it submits jobs, after the

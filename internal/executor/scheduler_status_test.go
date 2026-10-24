@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestSchedulerStatusRoundTripNormalizesState(t *testing.T) {

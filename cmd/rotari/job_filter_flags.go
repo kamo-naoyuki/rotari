@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/diagnose"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // filterFlagPrefix starts the name of every option that filters jobs; help

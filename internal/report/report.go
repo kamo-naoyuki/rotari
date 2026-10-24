@@ -9,13 +9,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/diagnose"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/state"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 const (

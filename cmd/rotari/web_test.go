@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
-	"github.com/kamo-naoyuki/rotari/internal/webui"
+	"github.com/rotari-dev/rotari/internal/model"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/webui"
 )
 
 func TestWebAllowControlDefaultsToTrue(t *testing.T) {

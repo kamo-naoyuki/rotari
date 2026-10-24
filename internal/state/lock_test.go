@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 func TestLoadLockPreservesMissingAndInvalidErrors(t *testing.T) {

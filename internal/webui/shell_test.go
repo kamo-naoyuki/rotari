@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/joblist"
 )
 
 // A basedir is labelled by its parent directory and its own name, which tell

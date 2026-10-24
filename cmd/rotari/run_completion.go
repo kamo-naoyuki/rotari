@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/runview"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/runview"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // formatRunCompletion describes a finished run for `run` and `wait`: a title

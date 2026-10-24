@@ -34,11 +34,11 @@ differs.
 ## Installation
 
 Prebuilt binaries for Linux and macOS are on the
-[GitHub Releases](https://github.com/kamo-naoyuki/rotari/releases) page; Go is
+[GitHub Releases](https://github.com/rotari-dev/rotari/releases) page; Go is
 not required:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/kamo-naoyuki/rotari/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rotari-dev/rotari/main/scripts/install.sh | sh
 ```
 
 This downloads the release binary matching your OS/architecture into
@@ -48,17 +48,17 @@ This downloads the release binary matching your OS/architecture into
 Other options:
 
 ```sh
-brew install kamo-naoyuki/tap/rotari
+brew install rotari-dev/tap/rotari
 ```
 
 ```sh
 # bundles the rotari executable with the Python package
-python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+python3 -m pip install --index-url https://rotari-dev.github.io/rotari/simple/ rotari
 ```
 
 ```sh
 # With go installed
-go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest
+go install github.com/rotari-dev/rotari/cmd/rotari@latest
 ```
 
 Run `rotari version` to check the installed version. Use
@@ -256,6 +256,6 @@ rotari web --allow-exec
 registered commands against artifacts; see
 [Launching commands on artifacts](OUTPUTS.md#launching-commands-on-artifacts).
 
-See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
+See the [web demo](https://rotari-dev.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
 mode, see the [Web UI guide](WEB.md), the [FAQ](FAQ.md#web-ui), and [Security model](SECURITY.md).

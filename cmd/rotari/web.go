@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/notification"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/webui"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/notification"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/webui"
 )
 
 // cmdWeb serves the embedded Web UI or writes a static export of project state.

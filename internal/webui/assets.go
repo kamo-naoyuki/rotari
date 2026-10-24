@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
-	"github.com/kamo-naoyuki/rotari/internal/notification"
+	"github.com/rotari-dev/rotari/internal/diagnose"
+	"github.com/rotari-dev/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/notification"
 )
 
 //go:embed assets/web_template.html

@@ -3,7 +3,7 @@ package projectrun
 import (
 	"fmt"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // SourcePolicy says whether a run uses the current queue or constructs its

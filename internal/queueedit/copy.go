@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // Run is the source run that jobs are copied from.

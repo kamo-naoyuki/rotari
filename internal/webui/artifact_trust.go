@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 // artifactRecordsTrust reports whether another user could have decided what

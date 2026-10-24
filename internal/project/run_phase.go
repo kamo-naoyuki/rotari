@@ -3,7 +3,7 @@ package project
 import (
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // RunPhase is where one run is in its life, as a reader sees it.

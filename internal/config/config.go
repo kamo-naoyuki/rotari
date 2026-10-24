@@ -11,7 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Warnf reports a config file that cannot be inspected, read, or parsed; such

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // A job's and each attempt's elapsed time is measured from the raw times

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // Deferred commands remain visible, and a schema change requires an explicit

@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/runview"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/runview"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 const (

@@ -1,9 +1,9 @@
 package supervisor
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	"github.com/rotari-dev/rotari/internal/server"
 )
 
 // Operations performs the requests of the supervisor of Project in BaseDir.

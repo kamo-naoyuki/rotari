@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestServerExposesJobInfoToolOverMCP(t *testing.T) {

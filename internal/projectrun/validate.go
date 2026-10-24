@@ -3,10 +3,10 @@ package projectrun
 import (
 	"fmt"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // LoadQueue loads the project's queue and checks that it can run; see

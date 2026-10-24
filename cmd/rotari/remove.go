@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/resolve"
 )
 
 // cmdRemove removes jobs from the current queue or prepares a filtered

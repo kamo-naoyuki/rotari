@@ -3,11 +3,11 @@ package workflowstate
 import (
 	"fmt"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/workflow"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/workflow"
 )
 
 // Plan is what an import does to a project's queue: the jobs it queues and

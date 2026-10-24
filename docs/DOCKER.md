@@ -6,8 +6,8 @@ workflow.
 
 ## Published image
 
-Each version release publishes `kamonaoyuki/rotari` to Docker Hub for Linux
-AMD64 and ARM64. Images are tagged with the release version and (for stable
+Each version release publishes `ghcr.io/rotari-dev/rotari` to the GitHub
+Container Registry for Linux AMD64 and ARM64. Images are tagged with the release version and (for stable
 releases) `latest`.
 
 The image contains Rotari, Bash, and the OpenSSH client. It does not bundle job
@@ -29,7 +29,7 @@ docker run --rm -it --user "$(id -u):$(id -g)" \
   -e ROTARI_BASEDIR=/state \
   -e ROTARI_MASTERDIR=/state/master \
   --entrypoint /bin/bash \
-  kamonaoyuki/rotari:latest
+  ghcr.io/rotari-dev/rotari:latest
 ```
 
 Inside the container, run Rotari commands as usual:

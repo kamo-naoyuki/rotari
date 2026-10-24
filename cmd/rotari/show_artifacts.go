@@ -5,9 +5,9 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // shownArtifacts is how many artifact candidates `show` of one job lists

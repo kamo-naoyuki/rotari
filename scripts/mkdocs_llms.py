@@ -172,7 +172,7 @@ def _write_outputs(
         "",
         "The full file includes the rendered documentation pages listed below. "
         "The generated Go API reference is published separately at "
-        "[the Go API site](https://kamo-naoyuki.github.io/rotari/go-api/).",
+        "[the Go API site](https://rotari-dev.github.io/rotari/go-api/).",
         "",
         "## Documentation",
         "",

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // TestBugReportNeverIncludesSecrets runs a failing job with a secret in its

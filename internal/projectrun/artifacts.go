@@ -5,11 +5,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
-	"github.com/kamo-naoyuki/rotari/internal/artifactsource"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/run"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/artifactsource"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/run"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // artifactRecorder discovers each attempt's artifact candidates when the

@@ -29,6 +29,6 @@ if [[ ! -x "${goda_binary}" ]]; then
 fi
 
 echo "generating dependency graph..."
-"${goda_binary}" graph -short "transitive(github.com/kamo-naoyuki/rotari/...)" >"${output_dir}/rotari-deps.dot"
+"${goda_binary}" graph -short "transitive(github.com/rotari-dev/rotari/...)" >"${output_dir}/rotari-deps.dot"
 dot -Tsvg "${output_dir}/rotari-deps.dot" -o "${output_dir}/rotari-deps.svg"
 echo "done: ${output_dir}/rotari-deps.dot, ${output_dir}/rotari-deps.svg"

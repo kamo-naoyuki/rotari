@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // toolFixture is a master directory with two basedirs that both hold a

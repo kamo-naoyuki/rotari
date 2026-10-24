@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 // reportTableLineRunes limits a log line quoted in the job table.

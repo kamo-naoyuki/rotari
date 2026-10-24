@@ -3,8 +3,8 @@ package project
 import (
 	"fmt"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // ResetResult is what Reset did or, for a dry run, would do.

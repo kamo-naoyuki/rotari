@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // failureGroupsView is the part of a failure group every view must agree on.

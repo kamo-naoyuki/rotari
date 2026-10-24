@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // AddNote adds a note to the run runID of the project at paths, or, with an

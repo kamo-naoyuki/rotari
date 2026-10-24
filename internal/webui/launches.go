@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/launcher"
 )
 
 // LaunchOptions enables launching registered commands from artifacts

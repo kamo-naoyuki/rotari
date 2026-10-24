@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlist"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlist"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdBasedirs lists state directories registered with rotari.

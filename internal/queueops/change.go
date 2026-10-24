@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Mutation is what change sets on each selected job. Empty values leave a

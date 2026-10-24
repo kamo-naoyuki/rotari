@@ -4,9 +4,9 @@ import (
 	"flag"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/resolve"
 )
 
 // cmdChange updates queued jobs or prepares a modified follow-up run from a

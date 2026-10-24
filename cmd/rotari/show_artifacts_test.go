@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
 )
 
 func TestWriteArtifactListing(t *testing.T) {

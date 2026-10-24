@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/kamo-naoyuki/rotari/internal/webui"
+	"github.com/rotari-dev/rotari/internal/webui"
 )
 
 // cmdTableView serves the Web UI's Table viewer for one delimited file or

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/artifact"
 )
 
 // maxCacheEntries bounds how many file versions one Cache remembers. Files

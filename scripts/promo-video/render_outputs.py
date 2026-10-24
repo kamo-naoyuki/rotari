@@ -121,7 +121,7 @@ def timeline():
             "kind": "logo",
             "dur": 4.0,
             "tagline": "Outputs and artifacts",
-            "url": "kamo-naoyuki.github.io/rotari/docs/OUTPUTS/",
+            "url": "rotari-dev.github.io/rotari/docs/OUTPUTS/",
             "say": "Rotari.",
         },
     ]

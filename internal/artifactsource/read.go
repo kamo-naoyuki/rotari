@@ -14,7 +14,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/artifact"
 )
 
 // ErrNotRegular is returned for a directory, FIFO, device, or socket.

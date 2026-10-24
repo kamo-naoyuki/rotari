@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestCLIAndWebAgreeOnJobResults(t *testing.T) {

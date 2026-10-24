@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func pairReportedRevision(t *testing.T, command string, flags []pairFlag, r support.Result) string {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/model"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 const (

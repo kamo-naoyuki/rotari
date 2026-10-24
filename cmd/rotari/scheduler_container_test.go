@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/executor"
 )
 
 type schedulerContainerTestConfig struct {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // runAttempts executes jobs with results decided by exitCodes (job ID to exit

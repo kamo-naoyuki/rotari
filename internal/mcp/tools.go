@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/report"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
-	"github.com/kamo-naoyuki/rotari/internal/runview"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/projectrun"
+	"github.com/rotari-dev/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/runview"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // The tools here present the shared read-side functions that `rotari show`

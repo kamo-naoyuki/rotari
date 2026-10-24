@@ -3,7 +3,7 @@ package workflow
 import (
 	"fmt"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // SourceRun is a finished run that a manifest is exported from or reconciled

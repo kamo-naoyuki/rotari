@@ -1,6 +1,6 @@
 package runlineage
 
-import "github.com/kamo-naoyuki/rotari/internal/model"
+import "github.com/rotari-dev/rotari/internal/model"
 
 // Source comparison outcomes.
 const (

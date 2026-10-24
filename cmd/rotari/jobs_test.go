@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {

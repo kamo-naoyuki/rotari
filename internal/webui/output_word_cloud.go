@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
+	webprojection "github.com/rotari-dev/rotari/internal/web"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // TimeoutExitCode is the exit code recorded for a job stopped by its timeout,

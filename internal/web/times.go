@@ -3,9 +3,9 @@ package web
 import (
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // jobElapsed formats how long a job ran from its raw submission and finish

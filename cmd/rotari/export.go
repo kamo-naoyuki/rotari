@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/workflow"
-	"github.com/kamo-naoyuki/rotari/internal/workflowstate"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/workflow"
+	"github.com/rotari-dev/rotari/internal/workflowstate"
 )
 
 const workflowTemplateYAML = `version: 1

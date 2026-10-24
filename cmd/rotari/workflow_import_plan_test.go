@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/workflow"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/workflow"
 )
 
 func importPlanFor(t *testing.T, baseDir string, manifest workflow.Manifest) importPlan {

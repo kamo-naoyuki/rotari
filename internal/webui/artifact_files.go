@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/tableview"
+	"github.com/rotari-dev/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/tableview"
 )
 
 // Limits on what one artifact content request returns. Files have no size

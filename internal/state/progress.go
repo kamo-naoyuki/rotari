@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 const ProgressFileName = "progress.jsonl"

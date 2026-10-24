@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 func writeActivityRun(t *testing.T, baseDir, project, runID, name string, started, finished time.Time) stateinternal.ProjectPaths {

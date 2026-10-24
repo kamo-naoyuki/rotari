@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 type fakeOriginResults struct {

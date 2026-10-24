@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs the latest (or a pinned) rotari release binary.
 #
-#   curl -fsSL https://raw.githubusercontent.com/kamo-naoyuki/rotari/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/rotari-dev/rotari/main/scripts/install.sh | sh
 #
 # Environment variables:
 #   ROTARI_VERSION      release tag to install, e.g. "v0.3.0" (default: latest)
@@ -9,7 +9,7 @@
 
 set -eu
 
-repo="kamo-naoyuki/rotari"
+repo="rotari-dev/rotari"
 version="${ROTARI_VERSION:-latest}"
 install_dir="${ROTARI_INSTALL_DIR:-$HOME/.local/bin}"
 

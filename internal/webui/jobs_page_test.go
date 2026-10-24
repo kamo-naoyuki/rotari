@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/rotari-dev/rotari/internal/joblist"
 )
 
 // A Job activity row shows the command under the job name, as the run page

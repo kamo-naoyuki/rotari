@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 var errTestSchedulerQuery = errors.New("exit status 1: slurm_load_jobs error: Socket timed out on send/recv operation")

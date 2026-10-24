@@ -3,8 +3,8 @@ package queueops
 import (
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
 )
 
 // TestAddRegistersTheBaseDirOnlyWhenApplied adds a job to a new project as a

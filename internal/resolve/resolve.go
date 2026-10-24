@@ -18,10 +18,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // lookupRun finds runID in the default run registry.

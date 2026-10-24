@@ -6,7 +6,7 @@
 
 ---
 
-[![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
+[![web demo](https://img.shields.io/website?url=https%3A%2F%2Frotari-dev.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://rotari-dev.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://rotari-dev.github.io/rotari/docs/) [![codecov](https://codecov.io/gh/rotari-dev/rotari/graph/badge.svg)](https://codecov.io/gh/rotari-dev/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=rotari-dev_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=rotari-dev_rotari)
 
 
 **Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on workstations, over SSH, or through Slurm, PBS, LSF, and SGE.
@@ -16,11 +16,11 @@ matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or
 [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should
 feel familiar.
 
-The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for the complete set.
+The [documentation site](https://rotari-dev.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://rotari-dev.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://rotari-dev.github.io/rotari/docs/llms-full.txt) for the complete set.
 
 | Plain shell (background jobs) | rotari |
 | --- | --- |
-| <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
+| <img src="https://rotari-dev.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://rotari-dev.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 <!-- Do not edit `README.md` directly. The `BEGIN GETTING STARTED` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.-->
 
@@ -60,11 +60,11 @@ differs.
 ## Installation
 
 Prebuilt binaries for Linux and macOS are on the
-[GitHub Releases](https://github.com/kamo-naoyuki/rotari/releases) page; Go is
+[GitHub Releases](https://github.com/rotari-dev/rotari/releases) page; Go is
 not required:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/kamo-naoyuki/rotari/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rotari-dev/rotari/main/scripts/install.sh | sh
 ```
 
 This downloads the release binary matching your OS/architecture into
@@ -74,17 +74,17 @@ This downloads the release binary matching your OS/architecture into
 Other options:
 
 ```sh
-brew install kamo-naoyuki/tap/rotari
+brew install rotari-dev/tap/rotari
 ```
 
 ```sh
 # bundles the rotari executable with the Python package
-python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+python3 -m pip install --index-url https://rotari-dev.github.io/rotari/simple/ rotari
 ```
 
 ```sh
 # With go installed
-go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest
+go install github.com/rotari-dev/rotari/cmd/rotari@latest
 ```
 
 Run `rotari version` to check the installed version. Use
@@ -282,7 +282,7 @@ rotari web --allow-exec
 registered commands against artifacts; see
 [Launching commands on artifacts](docs/OUTPUTS.md#launching-commands-on-artifacts).
 
-See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
+See the [web demo](https://rotari-dev.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
 mode, see the [Web UI guide](docs/WEB.md), the [FAQ](docs/FAQ.md#web-ui), and [Security model](docs/SECURITY.md).
 

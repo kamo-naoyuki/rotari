@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // Filter narrows a job selection. A negated list excludes a job that

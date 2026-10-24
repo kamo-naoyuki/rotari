@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // rotariInShell runs rotari as a child of a separate shell, so its parent is

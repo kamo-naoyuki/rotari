@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/jobfilter"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // ErrNoReferenceRun reports that a command without an origin needs a

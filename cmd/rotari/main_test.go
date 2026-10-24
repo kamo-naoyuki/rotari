@@ -19,12 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
-	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
+	runcontract "github.com/rotari-dev/rotari/internal/run"
+	serverinternal "github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestResolveProjectNamePriority(t *testing.T) {

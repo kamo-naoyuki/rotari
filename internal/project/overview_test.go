@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func writeOverviewProject(t *testing.T, baseDir, name string, queue model.Queue, meta model.Meta, runIDs ...string) state.ProjectPaths {

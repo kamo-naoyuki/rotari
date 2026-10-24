@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string {

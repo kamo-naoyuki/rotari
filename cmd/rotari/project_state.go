@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // ensureProjectIdle resolves a project and rejects operation unless it is

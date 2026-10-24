@@ -1,8 +1,8 @@
 package executor
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // WrapperStatus is the contents of status.json, written by StatusWrapperScript

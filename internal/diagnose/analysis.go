@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // Guidance shown with a saved rule diagnosis by show and reports.

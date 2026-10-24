@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/queueops"
 )
 
 // guardFlags are the --dry-run and --if-revision options of the commands

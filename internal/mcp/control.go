@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
 )
 
 // The tools here cancel, suspend, and resume the jobs of a running run, as

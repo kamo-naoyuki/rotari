@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // RunsByStart lists a project's run IDs oldest first. Runs of one project

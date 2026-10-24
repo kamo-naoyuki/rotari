@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // ErrPlanChanged refuses a run whose plan differs from the preview whose

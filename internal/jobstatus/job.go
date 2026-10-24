@@ -3,8 +3,8 @@ package jobstatus
 import (
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Job is the resolved outcome of a job in one run: its latest attempt first,

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // stringSliceFlag collects repeated occurrences of a CLI flag (e.g. --executor-option).

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // TestShowReportsElapsedAndQuietTime runs one job that writes output and then

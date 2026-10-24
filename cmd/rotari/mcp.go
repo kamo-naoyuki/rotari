@@ -7,13 +7,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	rotarimcp "github.com/kamo-naoyuki/rotari/internal/mcp"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rotari-dev/rotari/internal/config"
+	rotarimcp "github.com/rotari-dev/rotari/internal/mcp"
+	"github.com/rotari-dev/rotari/internal/model"
+	serverinternal "github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdMCP serves rotari's MCP tools over stdio for one master directory.

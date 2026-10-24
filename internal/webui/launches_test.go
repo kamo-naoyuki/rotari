@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/launcher"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 // launchWrapperEnv makes the test binary act as `rotari __launch`.

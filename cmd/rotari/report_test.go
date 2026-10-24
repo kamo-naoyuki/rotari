@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/report"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/webui"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/report"
+	"github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/webui"
 )
 
 func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, string) {

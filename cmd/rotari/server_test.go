@@ -14,9 +14,9 @@ import (
 	"testing/iotest"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	serverinternal "github.com/rotari-dev/rotari/internal/server"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // testProjectPaths returns the paths of project in baseDir and creates its

@@ -1,8 +1,8 @@
 site_name: rotari documentation
 site_description: Documentation for rotari, an execution manager for experiment batches
-site_url: https://kamo-naoyuki.github.io/rotari/docs/
-repo_url: https://github.com/kamo-naoyuki/rotari
-repo_name: kamo-naoyuki/rotari
+site_url: https://rotari-dev.github.io/rotari/docs/
+repo_url: https://github.com/rotari-dev/rotari
+repo_name: rotari-dev/rotari
 
 theme:
   name: material

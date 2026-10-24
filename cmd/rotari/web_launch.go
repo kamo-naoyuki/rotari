@@ -12,9 +12,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
-	"github.com/kamo-naoyuki/rotari/internal/webui"
+	"github.com/rotari-dev/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/webui"
 )
 
 // webLauncherFile is the only launchers.toml rotari reads: the one in the

@@ -1,7 +1,7 @@
 package run
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // Plan describes how a rerun selects work and carries finished results forward.

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdUnlock previews or applies recovery using the shared ownership policy.

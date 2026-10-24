@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // FinalResultFileName marks an attempt whose job will not be retried.

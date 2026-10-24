@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func TestCompletionScriptsExposeDynamicCompletion(t *testing.T) {

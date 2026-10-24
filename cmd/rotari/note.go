@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdNote adds a note to a run, or to one job attempt of a run, named by its

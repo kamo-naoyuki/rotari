@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/artifact"
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/artifact"
+	"github.com/rotari-dev/rotari/internal/launcher"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 // runLaunchBrowserScript runs script in jsdom against a server and fails the

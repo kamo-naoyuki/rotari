@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	stateinternal "github.com/rotari-dev/rotari/internal/state"
 )
 
 func TestFinishedRunWithoutJobTimestampsStillHasTimelineEnd(t *testing.T) {

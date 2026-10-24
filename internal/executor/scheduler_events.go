@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // SchedulerEvent is one line of a job's scheduler_events.jsonl. Query is

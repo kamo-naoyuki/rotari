@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 const directoryName = ".rotari-attachments"

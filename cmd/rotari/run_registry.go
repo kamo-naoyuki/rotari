@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/basedirregistry"
+	"github.com/rotari-dev/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func registerBasedir(baseDir string) error {

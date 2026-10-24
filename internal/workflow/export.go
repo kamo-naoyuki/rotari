@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

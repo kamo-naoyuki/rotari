@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func TestWholeRunCancelFinishesRun(t *testing.T) {

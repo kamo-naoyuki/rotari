@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func (f pairMutationFixture) args(t *testing.T, command string, flags []pairFlag) []string {

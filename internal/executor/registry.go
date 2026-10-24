@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // ErrJobNotRunning reports a job directory that no executor owns.

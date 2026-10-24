@@ -3,9 +3,9 @@ package runview
 import (
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlineage"
+	"github.com/rotari-dev/rotari/internal/jobstatus"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlineage"
 )
 
 func TestLineageStatusClassifiesResolvedJobs(t *testing.T) {

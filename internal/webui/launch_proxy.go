@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/launcher"
+	"github.com/rotari-dev/rotari/internal/launcher"
 )
 
 // launchProxyPrefix is where ready services are served, one path per

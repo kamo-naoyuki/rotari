@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 var revisionLine = regexp.MustCompile(`(?m)^revision=([0-9a-f]+(?:\.[0-9a-f]+)?)$`)

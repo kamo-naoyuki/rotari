@@ -40,7 +40,7 @@ locations. Both `--config FILE` and `--config=FILE` are supported. An explicitly
 selected file must exist and parse successfully; `--config` itself cannot be
 set by an environment variable or another config file.
 This value precedence applies across commands; see the
-[CLI contract](https://github.com/kamo-naoyuki/rotari/blob/main/contracts/03-server-and-command-interfaces.md#cli-presentation).
+[CLI contract](https://github.com/rotari-dev/rotari/blob/main/contracts/03-server-and-command-interfaces.md#cli-presentation).
 
 Command help remains available if the selected configuration file is missing
 or malformed: for example, `rotari run --config missing.toml --help` prints a

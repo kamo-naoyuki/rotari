@@ -131,7 +131,7 @@ def timeline():
             "kind": "logo",
             "dur": 4.0,
             "tagline": "Notifications",
-            "url": "kamo-naoyuki.github.io/rotari/docs/NOTIFICATIONS/",
+            "url": "rotari-dev.github.io/rotari/docs/NOTIFICATIONS/",
             "say": "Rotari.",
         },
     ]

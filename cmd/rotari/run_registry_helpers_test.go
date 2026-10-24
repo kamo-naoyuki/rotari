@@ -1,6 +1,6 @@
 package main
 
-import "github.com/kamo-naoyuki/rotari/internal/runregistry"
+import "github.com/rotari-dev/rotari/internal/runregistry"
 
 // Test shorthands for the default run registry.
 

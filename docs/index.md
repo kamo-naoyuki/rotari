@@ -19,7 +19,7 @@ LSF, or Sun Grid Engine cluster while keeping commands, results, and logs togeth
   write, and launch TensorBoard or Jupyter Lab on it.
 - [Web UI](WEB.md): modes, options, remote access, and launching commands.
 
-The repository [README](https://github.com/kamo-naoyuki/rotari) provides the
+The repository [README](https://github.com/rotari-dev/rotari) provides the
 project overview; installation and quick start instructions are maintained in
 the [Getting started](GETTING_STARTED.md) guide.
 
@@ -36,8 +36,8 @@ To get help from an AI assistant such as ChatGPT, Claude, or GitHub Copilot,
 give it this documentation:
 
 - If the assistant can open web links, share the
-  [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt).
+  [documentation index](https://rotari-dev.github.io/rotari/docs/llms.txt).
   It lists every page, so the assistant can read the ones it needs.
 - If it cannot, download the
-  [full documentation as one text file](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt)
+  [full documentation as one text file](https://rotari-dev.github.io/rotari/docs/llms-full.txt)
   and attach it to the conversation.

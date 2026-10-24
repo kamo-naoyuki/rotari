@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
+	"github.com/rotari-dev/rotari/internal/runregistry"
 )
 
 func TestRegisterIsIdempotentAndListsBasedir(t *testing.T) {

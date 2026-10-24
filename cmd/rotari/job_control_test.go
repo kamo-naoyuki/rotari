@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/resolve"
 )
 
 func parseJobControlOptions(t *testing.T, states []string, args ...string) *jobControlOptions {

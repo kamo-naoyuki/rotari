@@ -12,8 +12,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/config"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 const FileName = "notifications.toml"

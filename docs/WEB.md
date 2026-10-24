@@ -9,7 +9,7 @@ launched itself (see [Launching commands](#launching-commands)).
 rotari web                  # http://127.0.0.1:<default port>, with job control
 ```
 
-A [read-only demo](https://kamo-naoyuki.github.io/rotari/) built from generated
+A [read-only demo](https://rotari-dev.github.io/rotari/) built from generated
 data shows the UI without installing anything.
 
 ## Choosing a mode

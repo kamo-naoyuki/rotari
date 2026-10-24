@@ -235,7 +235,7 @@ def timeline():
             "kind": "logo",
             "dur": 5.0,
             "tagline": "Spend your time on research,<br>not on babysitting jobs.",
-            "url": "github.com/kamo-naoyuki/rotari",
+            "url": "github.com/rotari-dev/rotari",
             "say": "Rotari. Spend your time on research, not on babysitting jobs.",
         },
     ]

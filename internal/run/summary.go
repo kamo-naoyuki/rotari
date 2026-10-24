@@ -3,7 +3,7 @@ package run
 import (
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 func BuildRunSummary(runID, runName, startedAt string, jobs []model.JobSpec, finalResults map[string]model.JobResult, cancelled bool, diagnose func(model.JobResult) model.JobResult) model.RunSummary {

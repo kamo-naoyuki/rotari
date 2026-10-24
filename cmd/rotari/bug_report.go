@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/bugreport"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/bugreport"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // cmdBugReport prints a Markdown bug report, or writes it with the files it

@@ -26,7 +26,7 @@ class DependencyGraphTests(unittest.TestCase):
             goda = root / "goda-fixture"
             goda.write_text(
                 "#!/bin/bash\nset -eu\n"
-                '[[ "$*" == "graph -short transitive(github.com/kamo-naoyuki/rotari/...)" ]]\n'
+                '[[ "$*" == "graph -short transitive(github.com/rotari-dev/rotari/...)" ]]\n'
                 'printf "digraph { a -> b; }\\n"\n'
             )
             goda.chmod(0o755)

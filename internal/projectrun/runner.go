@@ -3,10 +3,10 @@ package projectrun
 import (
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/run"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/executor"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/run"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // Runner runs project queues. The zero value is not usable; every field

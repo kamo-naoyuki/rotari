@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 // LoadRunSummaryHead reads a summary's run facts without its per-job

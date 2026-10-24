@@ -3,11 +3,11 @@ package main
 import (
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/queueedit"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/project"
+	"github.com/rotari-dev/rotari/internal/queueedit"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 func writeIdleQueueFixture(t *testing.T) state.ProjectPaths {

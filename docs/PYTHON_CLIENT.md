@@ -10,7 +10,7 @@ Tagged releases publish wheels containing the matching `rotari` executable.
 Install the package for the current platform from the static package index:
 
 ```sh
-python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+python3 -m pip install --index-url https://rotari-dev.github.io/rotari/simple/ rotari
 ```
 
 For an unsupported platform or a source checkout, make sure `rotari` is on

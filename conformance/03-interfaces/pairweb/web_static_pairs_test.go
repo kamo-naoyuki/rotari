@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 func webArgs(t *testing.T, f pairFixture, output string, flags []pairFlag) []string {

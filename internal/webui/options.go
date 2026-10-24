@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/notification"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/web"
+	"github.com/rotari-dev/rotari/internal/jobcontrol"
+	"github.com/rotari-dev/rotari/internal/notification"
+	"github.com/rotari-dev/rotari/internal/queueops"
+	"github.com/rotari-dev/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/web"
 )
 
 // Options configures the Web UI for one base directory.

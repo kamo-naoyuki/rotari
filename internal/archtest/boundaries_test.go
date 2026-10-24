@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const module = "github.com/kamo-naoyuki/rotari"
+const module = "github.com/rotari-dev/rotari"
 
 // fileAccess lists the standard packages that reach the filesystem, other
 // processes, or the network. "net" also matches its subpackages.

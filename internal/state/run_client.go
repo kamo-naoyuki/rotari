@@ -3,7 +3,7 @@ package state
 import (
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 const RunClientStatusFileName = "client_status.json"

@@ -1,4 +1,4 @@
-module github.com/kamo-naoyuki/rotari
+module github.com/rotari-dev/rotari
 
 go 1.25.0
 

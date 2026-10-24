@@ -4,8 +4,8 @@ import (
 	"flag"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/rotari-dev/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/state"
 )
 
 // File defaults are not explicit registry constraints. Carry that provenance

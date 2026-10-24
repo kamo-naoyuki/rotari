@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/notification"
+	"github.com/rotari-dev/rotari/internal/notification"
 )
 
 type webhookEncoder interface {

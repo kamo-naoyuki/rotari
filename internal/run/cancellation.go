@@ -3,7 +3,7 @@ package run
 import (
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/model"
 )
 
 func WasExplicitlyCancelled(resultError string, cancelled func() bool, schedulerPhase func() string) bool {

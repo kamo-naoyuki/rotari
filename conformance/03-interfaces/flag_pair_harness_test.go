@@ -3,7 +3,7 @@ package interfaces
 import (
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // The flag-pair harness lives in conformance/support so the long pair suites

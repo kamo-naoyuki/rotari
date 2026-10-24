@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/runlist"
+	"github.com/rotari-dev/rotari/internal/model"
+	"github.com/rotari-dev/rotari/internal/runlist"
 )
 
 // activityMaxRange bounds one /api/activity request: a month view with the

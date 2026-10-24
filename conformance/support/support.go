@@ -121,7 +121,7 @@ func Run(m *testing.M) int {
 // BuildRotari builds cmd/rotari at path for a conformance test binary.
 // Commands that run the binary must call TrackBuildInputs.
 func BuildRotari(path string) error {
-	build := exec.Command("go", "build", "-o", path, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	build := exec.Command("go", "build", "-o", path, "github.com/rotari-dev/rotari/cmd/rotari")
 	if output, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("build rotari: %w\n%s", err, output)
 	}

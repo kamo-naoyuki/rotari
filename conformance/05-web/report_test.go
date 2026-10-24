@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/rotari-dev/rotari/conformance/support"
 )
 
 // TestRunReportReadsCarriedJobLogs retries a run with one failed job, so the

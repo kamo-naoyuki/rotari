@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/kamo-naoyuki/rotari/internal/tableview"
+	"github.com/rotari-dev/rotari/internal/tableview"
 )
 
 // The Table viewer shows a delimited file, or a directory's files, as a

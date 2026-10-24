@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/rotari-dev/rotari/internal/resolve"
 )
 
 func TestWaitOutputTagsOnlyMultipleRuns(t *testing.T) {
